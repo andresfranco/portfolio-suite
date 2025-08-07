@@ -189,6 +189,15 @@ const userApi = {
   deleteUser: (id) => api.delete(API_CONFIG.ENDPOINTS.users.detail.replace(':id', id)),
 
   /**
+   * Check username availability
+   */
+  checkUsername: (username, excludeUserId) => {
+    const params = { username };
+    if (excludeUserId) params.exclude_user_id = excludeUserId;
+    return api.get(`${API_CONFIG.ENDPOINTS.users.list}/check-username`, { params });
+  },
+
+  /**
    * Change user password
    * @param {Object} data - Contains username, password, and password_confirmation
    * @returns {Promise} - Response from API

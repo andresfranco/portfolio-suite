@@ -397,6 +397,28 @@ def change_password(
         logger.error(f"Error changing password: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/check-username")
+@require_permission("VIEW_USERS")
+def check_username(
+    username: str = Query(..., min_length=3, max_length=50),
+    exclude_user_id: Optional[int] = Query(None, ge=1),
+    db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_user),
+):
+    """Check if a username is available.
+
+    Optional exclude_user_id can be provided so that an existing user retaining
+    their current username does not trigger a duplicate warning.
+    """
+    try:
+        existing = user_crud.get_user_by_username(db, username=username)
+        if existing and (exclude_user_id is None or existing.id != exclude_user_id):
+            return {"available": False}
+        return {"available": True}
+    except Exception as e:
+        logger.error(f"Error checking username availability: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 # Additional endpoints for frontend integration
 @router.get("/me/permissions")
 def get_current_user_permissions(
