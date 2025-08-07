@@ -68,10 +68,34 @@ app = FastAPI(
     debug=settings.DEBUG,
 )
 
-# Add CORS middleware
+# Determine allowed CORS origins (extend for alternate dev ports like 3001)
+default_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+]
+
+# Allow override via environment variable FRONTEND_ORIGINS (comma-separated)
+env_origins = os.getenv("FRONTEND_ORIGINS")
+if env_origins:
+    custom = [o.strip() for o in env_origins.split(",") if o.strip()]
+    # Merge while preserving order & uniqueness
+    seen = set()
+    merged = []
+    for o in custom + default_origins:
+        if o not in seen:
+            seen.add(o)
+            merged.append(o)
+    allowed_origins = merged
+else:
+    allowed_origins = default_origins
+
+logger.info(f"CORS allowed origins: {allowed_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # Specify frontend URLs explicitly
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

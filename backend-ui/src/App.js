@@ -104,9 +104,13 @@ function AppContent() {
           {/* Protected routes within Layout - wrapped with shared CategoryTypeProvider */}
           <Route path="/" element={
             isAuthenticated ? (
-              <CategoryTypeProvider>
-                <Layout />
-              </CategoryTypeProvider>
+              // Wrap the entire protected application with a single LanguageProvider
+              // to avoid remounting it per-route (which caused repeated /api/languages fetches)
+              <LanguageProvider>
+                <CategoryTypeProvider>
+                  <Layout />
+                </CategoryTypeProvider>
+              </LanguageProvider>
             ) : (
               <Navigate to="/login" replace />
             )
@@ -120,40 +124,32 @@ function AppContent() {
             
             {/* Content Management - Wrapped in shared providers */}
             <Route path="skills" element={
-              <LanguageProvider>
-                <CategoryProvider>
-                  <SkillTypeProvider>
-                    <SkillProvider>
-                      <SkillIndex />
-                    </SkillProvider>
-                  </SkillTypeProvider>
-                </CategoryProvider>
-              </LanguageProvider>
+              <CategoryProvider>
+                <SkillTypeProvider>
+                  <SkillProvider>
+                    <SkillIndex />
+                  </SkillProvider>
+                </SkillTypeProvider>
+              </CategoryProvider>
             } />
             <Route path="skill-types" element={<SkillTypeIndex />} />
             <Route path="categories" element={
-              <LanguageProvider>
-                <CategoryProvider>
-                  <CategoryIndex />
-                </CategoryProvider>
-              </LanguageProvider>
+              <CategoryProvider>
+                <CategoryIndex />
+              </CategoryProvider>
             } />
             <Route path="category-types" element={<CategoryTypeIndex />} />
             <Route path="experiences" element={
-              <LanguageProvider>
-                <ExperienceProvider>
-                  <ExperienceIndex />
-                </ExperienceProvider>
-              </LanguageProvider>
+              <ExperienceProvider>
+                <ExperienceIndex />
+              </ExperienceProvider>
             } />
             <Route path="projects" element={
-              <LanguageProvider>
-                <CategoryProvider>
-                  <ProjectProvider>
-                    <ProjectIndex />
-                  </ProjectProvider>
-                </CategoryProvider>
-              </LanguageProvider>
+              <CategoryProvider>
+                <ProjectProvider>
+                  <ProjectIndex />
+                </ProjectProvider>
+              </CategoryProvider>
             } />
             <Route path="projects/:projectId/images" element={<ProjectImages />} />
             <Route path="projects/:projectId/attachments" element={<ProjectAttachments />} />
@@ -163,9 +159,7 @@ function AppContent() {
             
             {/* System Settings */}
             <Route path="languages" element={
-              <LanguageProvider>
-                <LanguageIndex />
-              </LanguageProvider>
+              <LanguageIndex />
             } />
             <Route path="chatbot" element={<ChatbotConfig />} />
             <Route path="settings" element={<SystemSettings />} />
