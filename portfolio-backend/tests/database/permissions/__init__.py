@@ -1,0 +1,3 @@
+"""
+Permission database tests package
+""" 
