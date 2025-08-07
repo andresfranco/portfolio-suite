@@ -379,7 +379,13 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
     }
     
     try {
-      await changePassword(selectedUser.id, newPassword);
+      // Build payload matching backend schema UserPasswordChange
+      const payload = {
+        username: selectedUser.username,
+        password: newPassword,
+        password_confirmation: confirmPassword
+      };
+      await changePassword(selectedUser.id, payload);
       setSuccessMessage('Password changed successfully');
       handleClosePasswordDialog();
       

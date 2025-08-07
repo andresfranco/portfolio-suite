@@ -193,7 +193,16 @@ const userApi = {
    * @param {Object} data - Contains username, password, and password_confirmation
    * @returns {Promise} - Response from API
    */
-  changePassword: (data) => api.post(`${API_CONFIG.ENDPOINTS.users.list}/change-password`, data),
+  // Change a user's password (requires user ID path segment)
+  // data should include username, password, password_confirmation
+  changePassword: (userId, data) => {
+    // Ensure numeric id to avoid accidental [object Object]
+    userId = Number(userId);
+    if (isNaN(userId)) {
+      throw new Error('Invalid user ID provided for changePassword');
+    }
+    return api.post(`${API_CONFIG.ENDPOINTS.users.list}/${userId}/change-password`, data);
+  },
 
   /**
    * Get all roles (for user role assignment)
