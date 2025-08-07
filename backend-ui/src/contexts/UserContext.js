@@ -302,24 +302,16 @@ export const UserProvider = ({ children }) => {
       
       return response.data;
     } catch (err) {
-      // Process error to ensure it's always a string
       let errorMessage = 'Failed to create user';
-      
       if (err.response?.data?.detail) {
         const detail = err.response.data.detail;
-        
         if (typeof detail === 'string') {
           errorMessage = detail;
         } else if (Array.isArray(detail)) {
-          // Handle validation errors
           errorMessage = detail.map(errorItem => {
-            if (typeof errorItem === 'string') {
-              return errorItem;
-            } else if (errorItem && typeof errorItem === 'object' && errorItem.msg) {
-              return String(errorItem.msg);
-            } else {
-              return String(errorItem);
-            }
+            if (typeof errorItem === 'string') return errorItem;
+            if (errorItem && typeof errorItem === 'object' && errorItem.msg) return String(errorItem.msg);
+            return String(errorItem);
           }).join('. ');
         } else if (typeof detail === 'object') {
           errorMessage = JSON.stringify(detail);
@@ -329,8 +321,13 @@ export const UserProvider = ({ children }) => {
       } else if (err.message) {
         errorMessage = String(err.message);
       }
-      
-      setError(errorMessage);
+      // Only set global error for non-validation/server issues
+      const status = err.response?.status;
+      if (!(status === 400 || status === 422)) {
+        setError(errorMessage);
+      }
+      // Attach friendly message for form consumers
+      err.formMessage = errorMessage;
       throw err;
     } finally {
       setLoading(false);
@@ -385,24 +382,16 @@ export const UserProvider = ({ children }) => {
       
       return normalizedUser;
     } catch (err) {
-      // Process error to ensure it's always a string
       let errorMessage = `Failed to update user ${id}`;
-      
       if (err.response?.data?.detail) {
         const detail = err.response.data.detail;
-        
         if (typeof detail === 'string') {
           errorMessage = detail;
         } else if (Array.isArray(detail)) {
-          // Handle validation errors
           errorMessage = detail.map(errorItem => {
-            if (typeof errorItem === 'string') {
-              return errorItem;
-            } else if (errorItem && typeof errorItem === 'object' && errorItem.msg) {
-              return String(errorItem.msg);
-            } else {
-              return String(errorItem);
-            }
+            if (typeof errorItem === 'string') return errorItem;
+            if (errorItem && typeof errorItem === 'object' && errorItem.msg) return String(errorItem.msg);
+            return String(errorItem);
           }).join('. ');
         } else if (typeof detail === 'object') {
           errorMessage = JSON.stringify(detail);
@@ -412,8 +401,11 @@ export const UserProvider = ({ children }) => {
       } else if (err.message) {
         errorMessage = String(err.message);
       }
-      
-      setError(errorMessage);
+      const status = err.response?.status;
+      if (!(status === 400 || status === 422)) {
+        setError(errorMessage);
+      }
+      err.formMessage = errorMessage;
       throw err;
     } finally {
       setLoading(false);
@@ -440,24 +432,16 @@ export const UserProvider = ({ children }) => {
       
       return response.data;
     } catch (err) {
-      // Process error to ensure it's always a string
       let errorMessage = `Failed to delete user ${id}`;
-      
       if (err.response?.data?.detail) {
         const detail = err.response.data.detail;
-        
         if (typeof detail === 'string') {
           errorMessage = detail;
         } else if (Array.isArray(detail)) {
-          // Handle validation errors
           errorMessage = detail.map(errorItem => {
-            if (typeof errorItem === 'string') {
-              return errorItem;
-            } else if (errorItem && typeof errorItem === 'object' && errorItem.msg) {
-              return String(errorItem.msg);
-            } else {
-              return String(errorItem);
-            }
+            if (typeof errorItem === 'string') return errorItem;
+            if (errorItem && typeof errorItem === 'object' && errorItem.msg) return String(errorItem.msg);
+            return String(errorItem);
           }).join('. ');
         } else if (typeof detail === 'object') {
           errorMessage = JSON.stringify(detail);
@@ -467,8 +451,11 @@ export const UserProvider = ({ children }) => {
       } else if (err.message) {
         errorMessage = String(err.message);
       }
-      
-      setError(errorMessage);
+      const status = err.response?.status;
+      if (!(status === 400 || status === 422)) {
+        setError(errorMessage);
+      }
+      err.formMessage = errorMessage;
       throw err;
     } finally {
       setLoading(false);
@@ -488,24 +475,16 @@ export const UserProvider = ({ children }) => {
       
       return response.data;
     } catch (err) {
-      // Process error to ensure it's always a string
       let errorMessage = 'Failed to change password';
-      
       if (err.response?.data?.detail) {
         const detail = err.response.data.detail;
-        
         if (typeof detail === 'string') {
           errorMessage = detail;
         } else if (Array.isArray(detail)) {
-          // Handle validation errors
           errorMessage = detail.map(errorItem => {
-            if (typeof errorItem === 'string') {
-              return errorItem;
-            } else if (errorItem && typeof errorItem === 'object' && errorItem.msg) {
-              return String(errorItem.msg);
-            } else {
-              return String(errorItem);
-            }
+            if (typeof errorItem === 'string') return errorItem;
+            if (errorItem && typeof errorItem === 'object' && errorItem.msg) return String(errorItem.msg);
+            return String(errorItem);
           }).join('. ');
         } else if (typeof detail === 'object') {
           errorMessage = JSON.stringify(detail);
@@ -515,8 +494,11 @@ export const UserProvider = ({ children }) => {
       } else if (err.message) {
         errorMessage = String(err.message);
       }
-      
-      setError(errorMessage);
+      const status = err.response?.status;
+      if (!(status === 400 || status === 422)) {
+        setError(errorMessage);
+      }
+      err.formMessage = errorMessage;
       throw err;
     } finally {
       setLoading(false);
@@ -592,6 +574,11 @@ export const UserProvider = ({ children }) => {
     setSelectedUser(null);
   }, []);
 
+  // Clear global error manually (e.g., when closing forms)
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
   /**
    * Context value with memoization to prevent unnecessary renders
    */
@@ -622,13 +609,15 @@ export const UserProvider = ({ children }) => {
     // Additional methods
     fetchRoles,
     clearSelectedUser
+  ,clearError
   }), [
     users, selectedUser, roles, loading, error, pagination, filters,
     fetchUsers, fetchUser, createUser, updateUser, deleteUser,
     applyFilters, clearFilters,
-    changePassword,
-    fetchRoles,
-    clearSelectedUser
+  changePassword,
+  fetchRoles,
+  clearSelectedUser,
+  clearError
   ]);
 
   return (

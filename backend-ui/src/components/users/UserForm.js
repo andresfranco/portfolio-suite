@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import userApi from '../../services/userApi';
 import { 
   Box, 
   Button, 
@@ -43,7 +44,8 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
     changePassword, 
     roles, 
     fetchRoles,
-    loading
+    loading,
+    clearError
   } = useUsers();
   
   const [isEditMode, setIsEditMode] = useState(false);
@@ -74,6 +76,8 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [usernameChecking, setUsernameChecking] = useState(false);
+  const [usernameAvailability, setUsernameAvailability] = useState(null); // null | true | false
   
   // Add password strength state
   const [passwordStrength, setPasswordStrength] = useState(0);
@@ -87,6 +91,7 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
   
   // Watch password field for validation
   const passwordValue = watch('password');
+  const usernameWatch = watch('username');
   
   // Fetch roles on component mount
   useEffect(() => {
@@ -193,6 +198,28 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
       setPasswordError('');
     }
   }, [passwordValue, confirmPassword]);
+
+  // Debounced username availability check (create & edit; edit excludes current user)
+  useEffect(() => {
+    let active = true;
+    const username = usernameWatch?.trim();
+    if (!username || username.length < 3) {
+      setUsernameAvailability(null);
+      return;
+    }
+    setUsernameChecking(true);
+    const timer = setTimeout(async () => {
+      try {
+        const resp = await userApi.checkUsername(username, isEditMode ? selectedUser?.id : undefined);
+        if (active) setUsernameAvailability(resp.data.available);
+      } catch (e) {
+        if (active) setUsernameAvailability(null);
+      } finally {
+        if (active) setUsernameChecking(false);
+      }
+    }, 500);
+    return () => { active = false; clearTimeout(timer); };
+  }, [usernameWatch, isEditMode, selectedUser]);
   
   // Check if passwords match when confirm password changes
   const handleConfirmPasswordChange = (e) => {
@@ -211,9 +238,13 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
     // Add confirm password check for create mode
     if (!isEditMode && !isDeleteMode && passwordValue !== confirmPassword) {
       setPasswordError('Passwords do not match');
-        return;
-      }
-      
+      return;
+    }
+    if (usernameAvailability === false) {
+      setApiError('Username already taken');
+      return;
+    }
+    
     setApiError('');
     setSuccessMessage('');
     
@@ -276,7 +307,7 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
       console.error('Error response data:', error.response?.data);
       
       // Set error message based on the error
-      let errorMsg = `Failed to ${isDeleteMode ? 'delete' : isEditMode ? 'update' : 'create'} user.`;
+      let errorMsg = error.formMessage || `Failed to ${isDeleteMode ? 'delete' : isEditMode ? 'update' : 'create'} user.`;
       
       try {
         if (error.response) {
@@ -350,7 +381,7 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
         errorMsg = `Failed to ${isDeleteMode ? 'delete' : isEditMode ? 'update' : 'create'} user. Please try again.`;
       }
       
-      console.log('Setting API error:', errorMsg);
+      console.log('Setting API error (form-local only):', errorMsg);
       setApiError(errorMsg);
     }
   };
@@ -361,10 +392,12 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
     setNewPassword('');
     setConfirmPassword('');
     setPasswordError('');
+    clearError?.();
   };
   
   const handleClosePasswordDialog = () => {
     setPasswordDialogOpen(false);
+    clearError?.();
   };
   
   const handlePasswordChange = async () => {
@@ -402,10 +435,8 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
   // Handle close with transition
   const handleClose = (refresh = false) => {
     console.log('handleClose called with refresh:', refresh);
-    
-    // Set closing state to prevent re-renders
     setIsClosing(true);
-    
+    clearError?.();
     // Clear form errors and reset form values on close
     if (mode === 'create') {
       reset({
@@ -736,9 +767,17 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
                   label="Username"
                   fullWidth
                   size="small"
-                  error={!!errors.username}
-                  helperText={errors.username?.message || 'Unique username for the user'}
-                  disabled={isEditMode || loading}
+                  error={!!errors.username || usernameAvailability === false}
+                  helperText={
+                    errors.username?.message
+                      ? errors.username.message
+                      : usernameChecking
+                        ? 'Checking availability...'
+                        : usernameAvailability === false
+                          ? 'Username already taken'
+                          : 'Unique username for the user'
+                  }
+                  disabled={loading}
                   sx={{
                     '& .MuiInputLabel-root': {
                       fontSize: '13px',
@@ -787,7 +826,6 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
                 <TextField
                   {...field}
                   label="Email"
-                  fullWidth
                   size="small"
                   error={!!errors.email}
                   helperText={errors.email?.message || 'User\'s email address'}
