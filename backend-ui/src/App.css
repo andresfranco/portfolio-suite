@@ -1,0 +1,16 @@
+/* App level styles can be added here if needed */
+
+/* Specific override for css-1oibri1 class only within ReusableDataGrid components */
+.reusable-data-grid-container .MuiBox-root.css-1oibri1,
+.reusable-data-grid-container .css-1oibri1 {
+  background-color: white !important;
+}
+
+/* Additional high-specificity override for Material-UI generated classes */
+div.reusable-data-grid-container div.MuiBox-root.css-1oibri1 {
+  background-color: white !important;
+}
+
+.css-1oibri1 {
+  background-color: white !important;
+}
