@@ -478,12 +478,13 @@ export const UserProvider = ({ children }) => {
   /**
    * Change user password
    */
-  const changePassword = useCallback(async (data) => {
+  // Change password for a specific user
+  const changePassword = useCallback(async (userId, data) => {
     try {
       setLoading(true);
       setError(null);
       
-      const response = await userApi.changePassword(data);
+      const response = await userApi.changePassword(userId, data);
       
       return response.data;
     } catch (err) {
