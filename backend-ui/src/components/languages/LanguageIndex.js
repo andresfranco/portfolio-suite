@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { 
   Box, 
   IconButton, 
@@ -63,6 +63,8 @@ function LanguageIndexContent() {
       sort: 'asc',
     },
   ]);
+  // Track last request signature to suppress identical consecutive fetches
+  const lastFetchSigRef = useRef(null);
 
   // Helper function to convert filters from UI format to backend format
   const convertFiltersForBackend = useCallback((uiFilters) => {
@@ -97,9 +99,20 @@ function LanguageIndexContent() {
   // Fetch languages on component mount
   useEffect(() => {
     const backendFilters = convertFiltersForBackend(filters);
+    const sig = JSON.stringify({
+      p: pagination.page,
+      ps: pagination.page_size,
+      f: backendFilters,
+      s: sortModel
+    });
+    if (lastFetchSigRef.current === sig) {
+      // Prevent identical immediate refetch loop
+      return;
+    }
+    lastFetchSigRef.current = sig;
     fetchLanguages(
-      pagination.page, 
-      pagination.page_size, 
+      pagination.page,
+      pagination.page_size,
       backendFilters,
       sortModel
     );
@@ -128,6 +141,10 @@ function LanguageIndexContent() {
 
   // Handle sort model changes
   const handleSortModelChange = useCallback((newSortModel) => {
+    // Avoid unnecessary state updates/fetches if model effectively unchanged
+    if (newSortModel.length === sortModel.length && newSortModel.every((m, i) => m.field === sortModel[i].field && m.sort === sortModel[i].sort)) {
+      return;
+    }
     logInfo('LanguageIndex - Sort model changed:', newSortModel);
     setSortModel(newSortModel);
     
@@ -136,12 +153,12 @@ function LanguageIndexContent() {
     
     // Refresh data with new sort model
     fetchLanguages(
-      pagination.page, 
-      pagination.page_size, 
+      pagination.page,
+      pagination.page_size,
       backendFilters,
       newSortModel
     );
-  }, [fetchLanguages, pagination.page, pagination.page_size, filters, convertFiltersForBackend]);
+  }, [fetchLanguages, pagination.page, pagination.page_size, filters, convertFiltersForBackend, sortModel]);
 
   // Handle filter changes
   const handleFiltersChange = useCallback((newFilters) => {

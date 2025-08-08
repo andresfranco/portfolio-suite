@@ -449,22 +449,21 @@ def get_roles_paginated(
             
             # Special handling for permissions filters
             if permissions_filters:
+                # Track whether we've already joined permissions to avoid duplicate joins
+                permissions_join_applied = False
                 for perm_filter in permissions_filters:
-                    # Get the permission values and operator
                     perm_values = perm_filter['value']
                     operator = perm_filter.get('operator', 'in')
-                    
+
                     if not isinstance(perm_values, list):
                         perm_values = [perm_values]
-                    
+
                     logger.debug(f"Filtering roles by permissions: {perm_values}, operator: {operator}")
-                    
-                    # Ensure we're joining with permissions
-                    if 'permissions' not in builder.joins:
+
+                    if not permissions_join_applied:
                         builder.query = builder.query.join(Role.permissions)
-                        builder.joins.add('permissions')
-                    
-                    # Apply the filter based on the operator
+                        permissions_join_applied = True
+
                     if operator == 'in':
                         builder.query = builder.query.filter(Permission.name.in_(perm_values))
                     elif operator == 'notin':
@@ -472,9 +471,9 @@ def get_roles_paginated(
                     else:
                         logger.warning(f"Unsupported operator '{operator}' for permissions filter. Using 'in' instead.")
                         builder.query = builder.query.filter(Permission.name.in_(perm_values))
-                    
-                    # We need to add distinct to avoid duplicate roles
-                    builder.query = builder.query.distinct()
+
+                # Ensure distinct roles when permissions filtering applied
+                builder.query = builder.query.distinct()
         
         # Apply sorting
         allowed_sort_fields = ['id', 'name', 'description', 'created_at', 'updated_at', 'users_count']
@@ -506,6 +505,26 @@ def get_roles_paginated(
             )
             count_builder.apply_filters(filter_dicts)
             count_subquery = count_builder.get_query()
+
+        # Apply permissions filters to count as well (to keep totals accurate)
+        if permissions_filters:
+            permissions_join_applied = False
+            for perm_filter in permissions_filters:
+                perm_values = perm_filter['value']
+                operator = perm_filter.get('operator', 'in')
+                if not isinstance(perm_values, list):
+                    perm_values = [perm_values]
+
+                if not permissions_join_applied:
+                    count_subquery = count_subquery.join(Role.permissions)
+                    permissions_join_applied = True
+
+                if operator == 'in':
+                    count_subquery = count_subquery.filter(Permission.name.in_(perm_values))
+                elif operator == 'notin':
+                    count_subquery = count_subquery.filter(~Permission.name.in_(perm_values))
+                else:
+                    count_subquery = count_subquery.filter(Permission.name.in_(perm_values))
         
         total = count_subquery.scalar() or 0
         logger.debug(f"Total roles count: {total}")

@@ -1367,7 +1367,7 @@ function UserIndexContent() {
             </Box>
 
           {/* Error Message Area */}
-          {(error || errorMessage) && (
+          {(error || errorMessage) && !openDialog && (
             <Alert 
               severity="error" 
               sx={{ 

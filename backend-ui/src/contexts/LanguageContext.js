@@ -17,6 +17,8 @@ export const LanguageProvider = ({ children }) => {
   const [languages, setLanguages] = useState([]);
   // Loading state
   const [loading, setLoading] = useState(false);
+  // Track if we've already performed an initial successful fetch to guard against remount loops
+  const hasFetchedOnceRef = useRef(false);
   // Error state - enhanced to include error type
   const [error, setError] = useState(null);
   // Error type state
@@ -75,6 +77,18 @@ export const LanguageProvider = ({ children }) => {
    * @param {Array} sortModel - Sorting model from DataGrid
    */
   const fetchLanguages = useCallback(async (page = 1, pageSize = 10, filters = {}, sortModel = []) => {
+    // If we've already fetched once and no filters / sorting changed, skip redundant identical call
+    if (
+      hasFetchedOnceRef.current &&
+      languages && languages.length > 0 &&
+      (!filters || Object.keys(filters).length === 0) &&
+      (!sortModel || sortModel.length === 0) &&
+      page === 1
+    ) {
+      logInfo('LanguageContext', 'Skipping duplicate initial fetchLanguages call (already have data)');
+      return;
+    }
+
     setLoading(true);
     setError(null);
     logInfo('Fetching languages with filters:', filters);
@@ -164,6 +178,7 @@ export const LanguageProvider = ({ children }) => {
           page_size: pageSize,
           total: response.total || 0
         });
+  hasFetchedOnceRef.current = true;
       } else {
         throw new Error('Invalid response format');
       }
@@ -176,7 +191,7 @@ export const LanguageProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [enqueueSnackbar]);
+  }, [enqueueSnackbar, languages]);
 
   /**
    * Create a new language

@@ -230,9 +230,13 @@ function ReusableDataGrid({
   }, [onPaginationModelChange, isExternalDataMode, paginationModel]);
 
   const handleSortModelChange = useCallback((newModel) => {
+    // Avoid redundant updates if nothing changed
+    if (isEqual(sortModel, newModel)) {
+      return;
+    }
     setSortModel(newModel);
     if (onSortModelChange) onSortModelChange(newModel);
-  }, [onSortModelChange]);
+  }, [onSortModelChange, sortModel]);
 
   const handleFiltersChangeInternal = useCallback((newFilters) => {
     setFilters(newFilters);
