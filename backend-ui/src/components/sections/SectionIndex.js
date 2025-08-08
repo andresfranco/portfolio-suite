@@ -402,7 +402,7 @@ function SectionIndexContent() {
           createButtonText: "Section",
           onCreateClick: handleCreateClick
         } : {})}
-        defaultPageSize={pagination.pageSize}
+  defaultPageSize={pagination.pageSize || 10}
         uiVariant="categoryIndex"
         paginationPosition="top"
         gridSx={{
