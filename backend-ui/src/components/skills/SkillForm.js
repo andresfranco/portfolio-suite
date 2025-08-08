@@ -780,8 +780,22 @@ function SkillForm({ open, onClose, skill, mode = 'create' }) {
     // Get ALL skill types (from skill_types table)
     const allSkillTypes = skillTypes || [];
 
-    // Get ALL categories (no filtering)
-    const allCategories = categories || [];
+    // Filter categories to only those whose category_type name equals 'Skill' (case-insensitive)
+    const allCategories = (categories || []).filter(cat => {
+      if (!cat) return false;
+      // Prefer related category_type name if present
+      const typeName = cat.category_type?.name || cat.category_type?.Name || '';
+      if (typeName && typeof typeName === 'string') {
+        return typeName.toLowerCase() === 'skill';
+      }
+      // Fallback: sometimes only type_code is available; add explicit codes here if needed
+      // Adjust the allowed type codes if your backend uses a specific code for Skill categories
+      const allowedTypeCodes = ['SKILL', 'SKL'];
+      if (cat.type_code && allowedTypeCodes.includes(String(cat.type_code).toUpperCase())) {
+        return true;
+      }
+      return false;
+    });
 
     return (
       <form>
@@ -864,9 +878,9 @@ function SkillForm({ open, onClose, skill, mode = 'create' }) {
                       Loading categories...
                     </Box>
                   </MenuItem>
-                ) : allCategories.length === 0 ? (
+        ) : allCategories.length === 0 ? (
                   <MenuItem disabled>
-                    <em>No categories available</em>
+          <em>No skill categories available</em>
                   </MenuItem>
                 ) : (
                   allCategories.map((category) => (

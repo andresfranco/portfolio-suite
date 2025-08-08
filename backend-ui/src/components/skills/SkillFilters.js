@@ -64,7 +64,20 @@ const FILTER_TYPES = {
     label: 'Category', 
     type: 'select',
     getOptions: (categories) => {
-      return categories.map(cat => ({ 
+      // Only include categories whose type equals 'Skill'
+      const allowedTypeCodes = ['SKILL', 'SKL'];
+      const filtered = (categories || []).filter(cat => {
+        if (!cat) return false;
+        const typeName = cat.category_type?.name || cat.category_type?.Name || '';
+        if (typeName && typeof typeName === 'string' && typeName.toLowerCase() === 'skill') {
+          return true;
+        }
+        if (cat.type_code && allowedTypeCodes.includes(String(cat.type_code).toUpperCase())) {
+          return true;
+        }
+        return false;
+      });
+      return filtered.map(cat => ({ 
         value: cat.id, 
         label: getCategoryDisplayName(cat)
       }));
