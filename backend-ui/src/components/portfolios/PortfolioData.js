@@ -59,7 +59,7 @@ import {
   Language as LanguageIcon
 } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
-import { api, projectsApi } from '../../services/api';
+import { api, projectsApi, experiencesApi, sectionsApi } from '../../services/api';
 import { useSnackbar } from 'notistack';
 import SERVER_URL from '../common/BackendServerData';
 
@@ -114,6 +114,17 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
   const [sectionModalOpen, setSectionModalOpen] = useState(false);
   const [selectedSection, setSelectedSection] = useState(null);
 
+  // Category modal states
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  // Experience modal states
+  const [experienceModalOpen, setExperienceModalOpen] = useState(false);
+  const [selectedExperience, setSelectedExperience] = useState(null);
+
+  // Project modal states
+  const [projectModalOpen, setProjectModalOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState(null);
+
   // Image rename states
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
@@ -163,16 +174,23 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
     try {
       const [categoriesRes, experiencesRes, projectsRes, sectionsRes] = await Promise.all([
         api.get('/api/categories/by-type/PORT'),
-        api.get('/api/experiences/'),
-        api.get('/api/projects/'),
-        api.get('/api/sections/')
+        api.get('/api/experiences/', { params: { page: 1, page_size: 100 } }),
+        api.get('/api/projects/', { params: { page: 1, page_size: 100, include_full_details: true } }),
+        api.get('/api/sections/', { params: { page: 1, page_size: 100 } })
       ]);
       
       // Categories by-type endpoint returns array directly
-      setAvailableCategories(categoriesRes.data || []);
-      setAvailableExperiences(experiencesRes.data.items || experiencesRes.data || []);
-      setAvailableProjects(projectsRes.data.items || projectsRes.data || []);
-      setAvailableSections(sectionsRes.data.items || sectionsRes.data || []);
+      const rawCategories = categoriesRes.data || [];
+      // Ensure only Portfolio-type categories are available (by name or code fallback)
+      const portfolioCategories = rawCategories.filter(cat => {
+        const byName = cat.category_type?.name && String(cat.category_type.name).toLowerCase() === 'portfolio';
+        const byCode = cat.type_code && ['PORT', 'PORTF'].includes(String(cat.type_code).toUpperCase());
+        return byName || byCode;
+      });
+      setAvailableCategories(portfolioCategories);
+  setAvailableExperiences(experiencesRes.data.items || experiencesRes.data || []);
+  setAvailableProjects(projectsRes.data.items || projectsRes.data || []);
+  setAvailableSections(sectionsRes.data.items || sectionsRes.data || []);
       
     } catch (err) {
       console.error('Error fetching available options:', err);
@@ -420,6 +438,24 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
     setSectionModalOpen(true);
   };
 
+  // Category modal handlers
+  const handleViewCategory = (category) => {
+    setSelectedCategory(category);
+    setCategoryModalOpen(true);
+  };
+
+  // Experience modal handlers
+  const handleViewExperience = (experience) => {
+    setSelectedExperience(experience);
+    setExperienceModalOpen(true);
+  };
+
+  // Project modal handlers
+  const handleViewProject = (project) => {
+    setSelectedProject(project);
+    setProjectModalOpen(true);
+  };
+
   // Bulk operations
   const handleBulkAdd = async (itemIds, addHandler) => {
     try {
@@ -450,11 +486,14 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
     onAdd, 
     onRemove, 
     getItemLabel,
-    getItemId 
+    getItemId,
+    defaultShowConnected
   }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedItems, setSelectedItems] = useState([]);
-    const [showConnected, setShowConnected] = useState(true);
+    const [showConnected, setShowConnected] = useState(
+      typeof defaultShowConnected === 'boolean' ? defaultShowConnected : true
+    );
     
     const connectedIds = items.map(item => getItemId(item));
     const availableToAdd = availableItems.filter(item => !connectedIds.includes(getItemId(item)));
@@ -675,6 +714,474 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
     );
   };
 
+  // Multi-select add manager for Categories
+  const CategoryAddManager = ({ categories, availableCategories, onAddMany }) => {
+    const [selectedOptions, setSelectedOptions] = useState([]);
+
+    const connectedIds = categories.map(c => c.id);
+    const options = (availableCategories || []).filter(opt => !connectedIds.includes(opt.id));
+
+    const getLabel = (item) => item?.category_texts?.[0]?.name || item?.code || `Category ${item?.id}`;
+
+    const handleAdd = async () => {
+      if (!selectedOptions.length) return;
+      const ids = selectedOptions.map(o => o.id);
+      await onAddMany(ids);
+      setSelectedOptions([]);
+    };
+
+    const handleRemoveSelected = (id) => {
+      setSelectedOptions(prev => prev.filter(o => o.id !== id));
+    };
+
+    return (
+      <Card>
+        <CardHeader
+          avatar={<Avatar sx={{ bgcolor: '#1976d2' }}><CategoryIcon /></Avatar>}
+          title="Add Categories"
+          subheader={`${options.length} available to add`}
+          action={
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleAdd}
+              disabled={selectedOptions.length === 0}
+              sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
+            >
+              Add {selectedOptions.length > 0 ? `(${selectedOptions.length})` : ''}
+            </Button>
+          }
+        />
+        <CardContent>
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <Autocomplete
+                multiple
+                options={options}
+                value={selectedOptions}
+                onChange={(e, newValue) => setSelectedOptions(newValue)}
+                getOptionLabel={getLabel}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                filterSelectedOptions
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    size="small"
+                    placeholder="Search categories to add…"
+                    InputProps={{
+                      ...params.InputProps,
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                )}
+              />
+            </Grid>
+            {selectedOptions.length > 0 && (
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>Selected:</Typography>
+                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                  {selectedOptions.map(opt => (
+                    <Chip
+                      key={opt.id}
+                      label={getLabel(opt)}
+                      onDelete={() => handleRemoveSelected(opt.id)}
+                    />
+                  ))}
+                </Stack>
+              </Grid>
+            )}
+            {options.length === 0 && (
+              <Grid item xs={12}>
+                <Typography variant="body2" color="text.secondary">
+                  All available categories are already connected.
+                </Typography>
+              </Grid>
+            )}
+          </Grid>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  // Multi-select add manager for Experiences (loads all, client filters)
+  const ExperienceAddManager = ({ experiences, onAddMany }) => {
+    const [selectedOptions, setSelectedOptions] = useState([]);
+    const [options, setOptions] = useState([]);
+    const [loadingOptions, setLoadingOptions] = useState(false);
+
+    const connectedIds = experiences.map(e => e.id);
+    const filteredOptions = (options || []).filter(opt => !connectedIds.includes(opt.id));
+
+    const getLabel = (item) => item?.experience_texts?.[0]?.name || item?.code || `Experience ${item?.id}`;
+
+    const loadAll = async () => {
+      try {
+        setLoadingOptions(true);
+        const res = await experiencesApi.getExperiences({ page: 1, page_size: 100 });
+        const list = res.data?.items || res.data || [];
+        setOptions(list);
+      } catch (e) {
+        // noop
+      } finally {
+        setLoadingOptions(false);
+      }
+    };
+
+    const handleInputChange = async (_e, value, reason) => {
+      if (reason === 'input' && typeof value === 'string') {
+        try {
+          setLoadingOptions(true);
+          // Use backend filters (name contains)
+          const params = { page: 1, page_size: 100, name: value };
+          const res = await experiencesApi.getExperiences(params);
+          const list = res.data?.items || res.data || [];
+          setOptions(list);
+        } catch (_) {
+          // ignore
+        } finally {
+          setLoadingOptions(false);
+        }
+      }
+    };
+
+    const handleAdd = async () => {
+      if (!selectedOptions.length) return;
+      const ids = selectedOptions.map(o => o.id);
+      await onAddMany(ids);
+      setSelectedOptions([]);
+    };
+
+    const handleRemoveSelected = (id) => {
+      setSelectedOptions(prev => prev.filter(o => o.id !== id));
+    };
+
+    return (
+      <Card>
+        <CardHeader
+          avatar={<Avatar sx={{ bgcolor: '#1976d2' }}><WorkIcon /></Avatar>}
+          title="Add Experiences"
+          subheader={`${filteredOptions.length} available to add`}
+          action={
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleAdd}
+              disabled={selectedOptions.length === 0}
+              sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
+            >
+              Add {selectedOptions.length > 0 ? `(${selectedOptions.length})` : ''}
+            </Button>
+          }
+        />
+        <CardContent>
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <Autocomplete
+                multiple
+                options={filteredOptions}
+                value={selectedOptions}
+                onChange={(e, newValue) => setSelectedOptions(newValue)}
+                onOpen={loadAll}
+                onInputChange={handleInputChange}
+                getOptionLabel={getLabel}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                filterSelectedOptions
+                loading={loadingOptions}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    size="small"
+                    placeholder="Search experiences to add…"
+                    InputProps={{
+                      ...params.InputProps,
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                )}
+              />
+            </Grid>
+            {selectedOptions.length > 0 && (
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>Selected:</Typography>
+                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                  {selectedOptions.map(opt => (
+                    <Chip
+                      key={opt.id}
+                      label={getLabel(opt)}
+                      onDelete={() => handleRemoveSelected(opt.id)}
+                    />
+                  ))}
+                </Stack>
+              </Grid>
+            )}
+          </Grid>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  // Multi-select add manager for Projects
+  const ProjectAddManager = ({ projects, onAddMany }) => {
+    const [selectedOptions, setSelectedOptions] = useState([]);
+    const [options, setOptions] = useState([]);
+    const [loadingOptions, setLoadingOptions] = useState(false);
+
+    const connectedIds = projects.map(p => p.id);
+    const filteredOptions = (options || []).filter(opt => !connectedIds.includes(opt.id));
+
+    const getLabel = (item) => item?.project_texts?.[0]?.name || item?.project_texts?.[0]?.title || item?.code || `Project ${item?.id}`;
+
+    const loadAll = async () => {
+      try {
+        setLoadingOptions(true);
+        const res = await projectsApi.getProjects({ page: 1, page_size: 100, include_full_details: true });
+        const list = res.data?.items || res.data || [];
+        setOptions(list);
+      } catch (e) {
+        // noop
+      } finally {
+        setLoadingOptions(false);
+      }
+    };
+
+    const handleInputChange = async (_e, value, reason) => {
+      if (reason === 'input' && typeof value === 'string') {
+        try {
+          setLoadingOptions(true);
+          // Backend accepts name_filter or legacy name
+          const res = await projectsApi.getProjects({ page: 1, page_size: 100, include_full_details: true, name_filter: value });
+          const list = res.data?.items || res.data || [];
+          setOptions(list);
+        } catch (_) {
+          // ignore
+        } finally {
+          setLoadingOptions(false);
+        }
+      }
+    };
+
+    const handleAdd = async () => {
+      if (!selectedOptions.length) return;
+      const ids = selectedOptions.map(o => o.id);
+      await onAddMany(ids);
+      setSelectedOptions([]);
+    };
+
+    const handleRemoveSelected = (id) => {
+      setSelectedOptions(prev => prev.filter(o => o.id !== id));
+    };
+
+    return (
+      <Card>
+        <CardHeader
+          avatar={<Avatar sx={{ bgcolor: '#1976d2' }}><ProjectIcon /></Avatar>}
+          title="Add Projects"
+          subheader={`${filteredOptions.length} available to add`}
+          action={
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleAdd}
+              disabled={selectedOptions.length === 0}
+              sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
+            >
+              Add {selectedOptions.length > 0 ? `(${selectedOptions.length})` : ''}
+            </Button>
+          }
+        />
+        <CardContent>
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <Autocomplete
+                multiple
+                options={filteredOptions}
+                value={selectedOptions}
+                onChange={(e, newValue) => setSelectedOptions(newValue)}
+                onOpen={loadAll}
+                onInputChange={handleInputChange}
+                getOptionLabel={getLabel}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                filterSelectedOptions
+                loading={loadingOptions}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    size="small"
+                    placeholder="Search projects to add…"
+                    InputProps={{
+                      ...params.InputProps,
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                )}
+              />
+            </Grid>
+            {selectedOptions.length > 0 && (
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>Selected:</Typography>
+                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                  {selectedOptions.map(opt => (
+                    <Chip
+                      key={opt.id}
+                      label={getLabel(opt)}
+                      onDelete={() => handleRemoveSelected(opt.id)}
+                    />
+                  ))}
+                </Stack>
+              </Grid>
+            )}
+          </Grid>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  // Multi-select add manager for Sections
+  const SectionAddManager = ({ sectionsConnected, onAddMany }) => {
+    const [selectedOptions, setSelectedOptions] = useState([]);
+    const [options, setOptions] = useState([]);
+    const [loadingOptions, setLoadingOptions] = useState(false);
+
+    const connectedIds = sectionsConnected.map(s => s.id);
+    const filteredOptions = (options || []).filter(opt => !connectedIds.includes(opt.id));
+
+    const getLabel = (item) => item?.code || `Section ${item?.id}`;
+
+    const loadAll = async () => {
+      try {
+        setLoadingOptions(true);
+        const res = await sectionsApi.getSections({ page: 1, page_size: 100 });
+        const list = res.data?.items || res.data || [];
+        setOptions(list);
+      } catch (e) {
+        // noop
+      } finally {
+        setLoadingOptions(false);
+      }
+    };
+
+    const handleInputChange = async (_e, value, reason) => {
+      if (reason === 'input' && typeof value === 'string') {
+        try {
+          setLoadingOptions(true);
+          // Backend supports code or text filters; use filter_field/value pairs
+          const params = {
+            page: 1,
+            page_size: 100,
+            filter_field: ['code','text'],
+            filter_value: [value, value],
+            filter_operator: ['contains','contains']
+          };
+          const res = await sectionsApi.getSections(params);
+          const list = res.data?.items || res.data || [];
+          setOptions(list);
+        } catch (_) {
+          // ignore
+        } finally {
+          setLoadingOptions(false);
+        }
+      }
+    };
+
+    const handleAdd = async () => {
+      if (!selectedOptions.length) return;
+      const ids = selectedOptions.map(o => o.id);
+      await onAddMany(ids);
+      setSelectedOptions([]);
+    };
+
+    const handleRemoveSelected = (id) => {
+      setSelectedOptions(prev => prev.filter(o => o.id !== id));
+    };
+
+    return (
+      <Card>
+        <CardHeader
+          avatar={<Avatar sx={{ bgcolor: '#1976d2' }}><SectionIcon /></Avatar>}
+          title="Add Sections"
+          subheader={`${filteredOptions.length} available to add`}
+          action={
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleAdd}
+              disabled={selectedOptions.length === 0}
+              sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
+            >
+              Add {selectedOptions.length > 0 ? `(${selectedOptions.length})` : ''}
+            </Button>
+          }
+        />
+        <CardContent>
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <Autocomplete
+                multiple
+                options={filteredOptions}
+                value={selectedOptions}
+                onChange={(e, newValue) => setSelectedOptions(newValue)}
+                onOpen={loadAll}
+                onInputChange={handleInputChange}
+                getOptionLabel={getLabel}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                filterSelectedOptions
+                loading={loadingOptions}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    size="small"
+                    placeholder="Search sections to add…"
+                    InputProps={{
+                      ...params.InputProps,
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                )}
+              />
+            </Grid>
+            {selectedOptions.length > 0 && (
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>Selected:</Typography>
+                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                  {selectedOptions.map(opt => (
+                    <Chip
+                      key={opt.id}
+                      label={getLabel(opt)}
+                      onDelete={() => handleRemoveSelected(opt.id)}
+                    />
+                  ))}
+                </Stack>
+              </Grid>
+            )}
+            {filteredOptions.length === 0 && (
+              <Grid item xs={12}>
+                <Typography variant="body2" color="text.secondary">
+                  All available sections are already connected.
+                </Typography>
+              </Grid>
+            )}
+          </Grid>
+        </CardContent>
+      </Card>
+    );
+  };
+
   return (
     <>
       <Dialog
@@ -804,56 +1311,173 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
 
             {/* Categories Tab */}
             <TabPanel value={tabValue} index={1}>
-              <AssociationManager
-                title="Categories"
-                icon={<CategoryIcon />}
-                items={categories}
-                availableItems={availableCategories}
-                onAdd={handleAddCategory}
-                onRemove={handleRemoveCategory}
-                getItemLabel={(item) => {
-                  // Try to get name from category_texts, fallback to code
-                  const name = item.category_texts?.[0]?.name || item.code || `Category ${item.id}`;
-                  return name;
+              {/* Connected Categories (visible list like Sections) */}
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                  <CategoryIcon sx={{ mr: 1 }} />
+                  Connected Categories
+                </Typography>
+                {categories.length > 0 ? (
+                  <List>
+                    {categories.map((cat) => {
+                      const name = cat.category_texts?.[0]?.name || cat.code || `Category ${cat.id}`;
+                      return (
+                        <ListItem key={cat.id} divider>
+                          <ListItemIcon>
+                            <CategoryIcon />
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={name}
+                            secondary={`ID: ${cat.id}${cat.type_code ? ` • Type: ${cat.type_code}` : ''}`}
+                          />
+                          <IconButton
+                            size="small"
+                            onClick={() => handleViewCategory(cat)}
+                            sx={{ mr: 1 }}
+                          >
+                            <VisibilityIcon />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleRemoveCategory(cat.id)}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </ListItem>
+                      );
+                    })}
+                  </List>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    No categories connected yet.
+                  </Typography>
+                )}
+              </Box>
+
+              <Divider sx={{ my: 3 }} />
+
+              {/* Add Categories using multi-select search */}
+              <CategoryAddManager
+                categories={categories}
+                availableCategories={availableCategories}
+                onAddMany={async (ids) => {
+                  await handleBulkAdd(ids, handleAddCategory);
                 }}
-                getItemId={(item) => item.id}
               />
             </TabPanel>
 
             {/* Experiences Tab */}
             <TabPanel value={tabValue} index={2}>
-              <AssociationManager
-                title="Experiences"
-                icon={<WorkIcon />}
-                items={experiences}
-                availableItems={availableExperiences}
-                onAdd={handleAddExperience}
-                onRemove={handleRemoveExperience}
-                getItemLabel={(item) => {
-                  // Try to get name from experience_texts, fallback to code
-                  const name = item.experience_texts?.[0]?.name || item.code || `Experience ${item.id}`;
-                  const years = item.years ? ` (${item.years} years)` : '';
-                  return `${name}${years}`;
+              {/* Connected Experiences */}
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                  <WorkIcon sx={{ mr: 1 }} />
+                  Connected Experiences
+                </Typography>
+                {experiences.length > 0 ? (
+                  <List>
+                    {experiences.map((exp) => {
+                      const base = exp.experience_texts?.[0]?.name || exp.code || `Experience ${exp.id}`;
+                      const years = exp.years ? ` (${exp.years} years)` : '';
+                      const label = `${base}${years}`;
+                      return (
+                        <ListItem key={exp.id} divider>
+                          <ListItemIcon>
+                            <WorkIcon />
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={label}
+                            secondary={`ID: ${exp.id}`}
+                          />
+                          <IconButton
+                            size="small"
+                            onClick={() => handleViewExperience(exp)}
+                            sx={{ mr: 1 }}
+                          >
+                            <VisibilityIcon />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleRemoveExperience(exp.id)}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </ListItem>
+                      );
+                    })}
+                  </List>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    No experiences connected yet.
+                  </Typography>
+                )}
+              </Box>
+
+              <Divider sx={{ my: 3 }} />
+
+              <ExperienceAddManager
+                experiences={experiences}
+                onAddMany={async (ids) => {
+                  await handleBulkAdd(ids, handleAddExperience);
                 }}
-                getItemId={(item) => item.id}
               />
             </TabPanel>
 
             {/* Projects Tab */}
             <TabPanel value={tabValue} index={3}>
-              <AssociationManager
-                title="Projects"
-                icon={<ProjectIcon />}
-                items={projects}
-                availableItems={availableProjects}
-                onAdd={handleAddProject}
-                onRemove={handleRemoveProject}
-                getItemLabel={(item) => {
-                  // Try to get name/title from project_texts, fallback to a generic name
-                  const title = item.project_texts?.[0]?.name || item.project_texts?.[0]?.title || `Project ${item.id}`;
-                  return title;
+              {/* Connected Projects */}
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                  <ProjectIcon sx={{ mr: 1 }} />
+                  Connected Projects
+                </Typography>
+                {projects.length > 0 ? (
+                  <List>
+                    {projects.map((proj) => {
+                      const title = proj.project_texts?.[0]?.name || proj.project_texts?.[0]?.title || `Project ${proj.id}`;
+                      return (
+                        <ListItem key={proj.id} divider>
+                          <ListItemIcon>
+                            <ProjectIcon />
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={title}
+                            secondary={`ID: ${proj.id}`}
+                          />
+                          <IconButton
+                            size="small"
+                            onClick={() => handleViewProject(proj)}
+                            sx={{ mr: 1 }}
+                          >
+                            <VisibilityIcon />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleRemoveProject(proj.id)}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </ListItem>
+                      );
+                    })}
+                  </List>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    No projects connected yet.
+                  </Typography>
+                )}
+              </Box>
+
+              <Divider sx={{ my: 3 }} />
+
+              <ProjectAddManager
+                projects={projects}
+                onAddMany={async (ids) => {
+                  await handleBulkAdd(ids, handleAddProject);
                 }}
-                getItemId={(item) => item.id}
               />
             </TabPanel>
 
@@ -901,17 +1525,11 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
 
               <Divider sx={{ my: 3 }} />
 
-              <AssociationManager
-                title="Available Sections"
-                icon={<SectionIcon />}
-                items={[]}
-                availableItems={availableSections.filter(item => !sections.some(s => s.id === item.id))}
-                onAdd={handleAddSection}
-                onRemove={handleRemoveSection}
-                getItemLabel={(item) => {
-                  return item.code || `Section ${item.id}`;
+              <SectionAddManager
+                sectionsConnected={sections}
+                onAddMany={async (ids) => {
+                  await handleBulkAdd(ids, handleAddSection);
                 }}
-                getItemId={(item) => item.id}
               />
             </TabPanel>
 
@@ -1338,6 +1956,182 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
       </DialogContent>
       <DialogActions>
         <Button onClick={() => setSectionModalOpen(false)}>Close</Button>
+      </DialogActions>
+    </Dialog>
+
+    {/* Category Translations Modal */}
+    <Dialog 
+      open={categoryModalOpen} 
+      onClose={() => setCategoryModalOpen(false)} 
+      maxWidth="md" 
+      fullWidth
+    >
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center' }}>
+        <LanguageIcon sx={{ mr: 1 }} />
+        Category Translations: {selectedCategory?.category_texts?.[0]?.name || selectedCategory?.code || `Category ${selectedCategory?.id ?? ''}`}
+      </DialogTitle>
+      <DialogContent>
+        {selectedCategory?.category_texts && selectedCategory.category_texts.length > 0 ? (
+          <Stack spacing={3}>
+            {selectedCategory.category_texts.map((text, index) => (
+              <Paper key={index} variant="outlined" sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                  {/* Language Flag */}
+                  {text.language?.image ? (
+                    <Box
+                      component="img"
+                      src={`${SERVER_URL}/uploads/${text.language.image.replace(/^.*language_images\//, "language_images/")}`}
+                      alt={`${text.language.name} flag`}
+                      sx={{
+                        width: 32,
+                        height: 24,
+                        border: '1px solid #eee',
+                        borderRadius: 1,
+                        objectFit: 'cover'
+                      }}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'inline-flex';
+                      }}
+                    />
+                  ) : null}
+                  <Box
+                    sx={{
+                      display: text.language?.image ? 'none' : 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 32,
+                      height: 24,
+                      border: '1px solid #eee',
+                      borderRadius: 1,
+                      bgcolor: '#f0f0f0',
+                      fontSize: '10px',
+                      fontWeight: 'bold',
+                      color: '#666'
+                    }}
+                  >
+                    {text.language?.code?.substring(0, 2).toUpperCase() || text.language_code?.substring(0, 2).toUpperCase() || 'XX'}
+                  </Box>
+                  <Typography variant="h6" sx={{ fontWeight: 500 }}>
+                    {text.language?.name || text.language_code || 'Unknown Language'}
+                  </Typography>
+                </Box>
+                <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+                  {text.name || 'No name provided'}
+                </Typography>
+              </Paper>
+            ))}
+          </Stack>
+        ) : (
+          <Alert severity="info">
+            No translations available for this category.
+          </Alert>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setCategoryModalOpen(false)}>Close</Button>
+      </DialogActions>
+    </Dialog>
+
+    {/* Experience Details / Translations Modal */}
+    <Dialog 
+      open={experienceModalOpen} 
+      onClose={() => setExperienceModalOpen(false)} 
+      maxWidth="md" 
+      fullWidth
+    >
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center' }}>
+        <LanguageIcon sx={{ mr: 1 }} />
+        Experience: {selectedExperience?.experience_texts?.[0]?.name || selectedExperience?.code || `Experience ${selectedExperience?.id ?? ''}`}
+      </DialogTitle>
+      <DialogContent>
+        {selectedExperience?.experience_texts && selectedExperience.experience_texts.length > 0 ? (
+          <Stack spacing={3}>
+            {selectedExperience.experience_texts.map((text, index) => (
+              <Paper key={index} variant="outlined" sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                  {text.language?.image ? (
+                    <Box
+                      component="img"
+                      src={`${SERVER_URL}/uploads/${text.language.image.replace(/^.*language_images\//, "language_images/")}`}
+                      alt={`${text.language.name} flag`}
+                      sx={{ width: 32, height: 24, border: '1px solid #eee', borderRadius: 1, objectFit: 'cover' }}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'inline-flex';
+                      }}
+                    />
+                  ) : null}
+                  <Box sx={{ display: text.language?.image ? 'none' : 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 24, border: '1px solid #eee', borderRadius: 1, bgcolor: '#f0f0f0', fontSize: '10px', fontWeight: 'bold', color: '#666' }}>
+                    {text.language?.code?.substring(0, 2).toUpperCase() || text.language_code?.substring(0, 2).toUpperCase() || 'XX'}
+                  </Box>
+                  <Typography variant="h6" sx={{ fontWeight: 500 }}>
+                    {text.language?.name || text.language_code || 'Unknown Language'}
+                  </Typography>
+                </Box>
+                <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+                  {text.name || 'No name provided'}
+                </Typography>
+              </Paper>
+            ))}
+          </Stack>
+        ) : (
+          <Alert severity="info">No multilingual content available for this experience.</Alert>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setExperienceModalOpen(false)}>Close</Button>
+      </DialogActions>
+    </Dialog>
+
+    {/* Project Details / Translations Modal */}
+    <Dialog 
+      open={projectModalOpen} 
+      onClose={() => setProjectModalOpen(false)} 
+      maxWidth="md" 
+      fullWidth
+    >
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center' }}>
+        <LanguageIcon sx={{ mr: 1 }} />
+        Project: {selectedProject?.project_texts?.[0]?.name || selectedProject?.project_texts?.[0]?.title || selectedProject?.code || `Project ${selectedProject?.id ?? ''}`}
+      </DialogTitle>
+      <DialogContent>
+        {selectedProject?.project_texts && selectedProject.project_texts.length > 0 ? (
+          <Stack spacing={3}>
+            {selectedProject.project_texts.map((text, index) => (
+              <Paper key={index} variant="outlined" sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                  {text.language?.image ? (
+                    <Box
+                      component="img"
+                      src={`${SERVER_URL}/uploads/${text.language.image.replace(/^.*language_images\//, "language_images/")}`}
+                      alt={`${text.language.name} flag`}
+                      sx={{ width: 32, height: 24, border: '1px solid #eee', borderRadius: 1, objectFit: 'cover' }}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'inline-flex';
+                      }}
+                    />
+                  ) : null}
+                  <Box sx={{ display: text.language?.image ? 'none' : 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 24, border: '1px solid #eee', borderRadius: 1, bgcolor: '#f0f0f0', fontSize: '10px', fontWeight: 'bold', color: '#666' }}>
+                    {text.language?.code?.substring(0, 2).toUpperCase() || text.language_code?.substring(0, 2).toUpperCase() || 'XX'}
+                  </Box>
+                  <Typography variant="h6" sx={{ fontWeight: 500 }}>
+                    {text.language?.name || text.language_code || 'Unknown Language'}
+                  </Typography>
+                </Box>
+                <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+                  {text.name || text.title || 'No name provided'}
+                </Typography>
+              </Paper>
+            ))}
+          </Stack>
+        ) : (
+          <Alert severity="info">No multilingual content available for this project.</Alert>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setProjectModalOpen(false)}>Close</Button>
       </DialogActions>
     </Dialog>
 
