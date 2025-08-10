@@ -27,6 +27,7 @@ import {
   CloudUpload as UploadIcon
 } from '@mui/icons-material';
 import SERVER_URL from '../common/BackendServerData';
+import PermissionGate from '../common/PermissionGate';
 
 // Define image categories
 const IMAGE_CATEGORIES = [
@@ -179,109 +180,111 @@ function PortfolioImageForm({ open, onClose, portfolio }) {
           </Alert>
         )}
         
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h6" gutterBottom>
-            Upload New Image
-          </Typography>
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={4}>
-              <Box 
-                sx={{ 
-                  border: '1px dashed grey', 
-                  height: 200, 
-                  display: 'flex', 
-                  justifyContent: 'center', 
-                  alignItems: 'center',
-                  position: 'relative',
-                  overflow: 'hidden'
-                }}
-              >
-                {uploadPreview ? (
-                  <Box 
-                    component="img" 
-                    src={uploadPreview} 
-                    sx={{ 
-                      width: '100%', 
-                      height: '100%', 
-                      objectFit: 'cover' 
-                    }} 
-                  />
-                ) : (
-                  <Box sx={{ textAlign: 'center' }}>
-                    <input
-                      accept="image/*"
-                      id="upload-image-button"
-                      type="file"
-                      style={{ display: 'none' }}
-                      onChange={handleFileChange}
+        <PermissionGate permission="EDIT_PORTFOLIO">
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="h6" gutterBottom>
+              Upload New Image
+            </Typography>
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={12} md={4}>
+                <Box 
+                  sx={{ 
+                    border: '1px dashed grey', 
+                    height: 200, 
+                    display: 'flex', 
+                    justifyContent: 'center', 
+                    alignItems: 'center',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {uploadPreview ? (
+                    <Box 
+                      component="img" 
+                      src={uploadPreview} 
+                      sx={{ 
+                        width: '100%', 
+                        height: '100%', 
+                        objectFit: 'cover' 
+                      }} 
                     />
-                    <label htmlFor="upload-image-button">
-                      <Button
-                        variant="outlined"
-                        component="span"
-                        startIcon={<UploadIcon />}
-                      >
-                        Select Image
-                      </Button>
-                    </label>
+                  ) : (
+                    <Box sx={{ textAlign: 'center' }}>
+                      <input
+                        accept="image/*"
+                        id="upload-image-button"
+                        type="file"
+                        style={{ display: 'none' }}
+                        onChange={handleFileChange}
+                      />
+                      <label htmlFor="upload-image-button">
+                        <Button
+                          variant="outlined"
+                          component="span"
+                          startIcon={<UploadIcon />}
+                        >
+                          Select Image
+                        </Button>
+                      </label>
+                    </Box>
+                  )}
+                </Box>
+                {uploadPreview && (
+                  <Box sx={{ mt: 1, textAlign: 'center' }}>
+                    <Button 
+                      size="small" 
+                      color="error" 
+                      onClick={() => {
+                        setNewImage(prev => ({ ...prev, file: null }));
+                        setUploadPreview(null);
+                      }}
+                    >
+                      Remove
+                    </Button>
                   </Box>
                 )}
-              </Box>
-              {uploadPreview && (
-                <Box sx={{ mt: 1, textAlign: 'center' }}>
-                  <Button 
-                    size="small" 
-                    color="error" 
-                    onClick={() => {
-                      setNewImage(prev => ({ ...prev, file: null }));
-                      setUploadPreview(null);
-                    }}
+              </Grid>
+              <Grid item xs={12} md={8}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <FormControl fullWidth>
+                    <InputLabel id="image-category-label">Image Category</InputLabel>
+                    <Select
+                      labelId="image-category-label"
+                      id="image-category"
+                      name="category"
+                      value={newImage.category}
+                      onChange={handleInputChange}
+                      label="Image Category"
+                    >
+                      {IMAGE_CATEGORIES.map((category) => (
+                        <MenuItem key={category.value} value={category.value}>
+                          {category.label}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <TextField
+                    fullWidth
+                    label="Alt Text"
+                    name="alt_text"
+                    value={newImage.alt_text}
+                    onChange={handleInputChange}
+                    placeholder="Describe the image for accessibility"
+                  />
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    startIcon={<AddIcon />}
+                    onClick={handleUploadImage}
+                    disabled={isSubmitting || !newImage.file}
                   >
-                    Remove
+                    {isSubmitting ? 'Uploading...' : 'Upload Image'}
                   </Button>
                 </Box>
-              )}
+              </Grid>
             </Grid>
-            <Grid item xs={12} md={8}>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <FormControl fullWidth>
-                  <InputLabel id="image-category-label">Image Category</InputLabel>
-                  <Select
-                    labelId="image-category-label"
-                    id="image-category"
-                    name="category"
-                    value={newImage.category}
-                    onChange={handleInputChange}
-                    label="Image Category"
-                  >
-                    {IMAGE_CATEGORIES.map((category) => (
-                      <MenuItem key={category.value} value={category.value}>
-                        {category.label}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                <TextField
-                  fullWidth
-                  label="Alt Text"
-                  name="alt_text"
-                  value={newImage.alt_text}
-                  onChange={handleInputChange}
-                  placeholder="Describe the image for accessibility"
-                />
-                <Button
-                  variant="contained"
-                  color="primary"
-                  startIcon={<AddIcon />}
-                  onClick={handleUploadImage}
-                  disabled={isSubmitting || !newImage.file}
-                >
-                  {isSubmitting ? 'Uploading...' : 'Upload Image'}
-                </Button>
-              </Box>
-            </Grid>
-          </Grid>
-        </Box>
+          </Box>
+        </PermissionGate>
         
         <Divider sx={{ my: 3 }} />
         
@@ -315,13 +318,15 @@ function PortfolioImageForm({ open, onClose, portfolio }) {
                     )}
                   </CardContent>
                   <CardActions>
-                    <IconButton 
-                      color="error" 
-                      onClick={() => handleDeleteImage(image.id)}
-                      aria-label="delete image"
-                    >
-                      <DeleteIcon />
-                    </IconButton>
+                    <PermissionGate permission="EDIT_PORTFOLIO">
+                      <IconButton 
+                        color="error" 
+                        onClick={() => handleDeleteImage(image.id)}
+                        aria-label="delete image"
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </PermissionGate>
                   </CardActions>
                 </Card>
               </Grid>

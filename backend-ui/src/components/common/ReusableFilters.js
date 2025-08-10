@@ -13,7 +13,8 @@ import {
   MenuItem,
   Stack,
   Chip,
-  OutlinedInput
+  OutlinedInput,
+  FormHelperText
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -22,6 +23,7 @@ import {
   Add as AddIcon,
   Close as CloseIcon
 } from '@mui/icons-material';
+import { FILTERS_PANEL_MB } from './layoutTokens';
 
 /**
  * Generic filter component following the CategoryTypeFilters design.
@@ -32,13 +34,17 @@ import {
  * @param {Function} props.onFiltersChange - Called when filters are updated
  * @param {Function} props.onSearch - Called when search is submitted
  * @param {Function} props.onClearFilters - Called when filters are cleared
+ * @param {Object}   props.accessNotices - Optional map of filterType -> { isDenied: boolean, message: string }
+ * @param {boolean}  props.searchDisabled - Optional flag to force disable Search button
  */
 function ReusableFilters({
   filterTypes = {},
   filters = {},
   onFiltersChange,
   onSearch,
-  onClearFilters
+  onClearFilters,
+  accessNotices,
+  searchDisabled
 }) {
   const defaultValues = {};
   Object.keys(filterTypes).forEach((key) => {
@@ -243,6 +249,9 @@ function ReusableFilters({
   const renderFilterInput = (filter) => {
     const config = filterTypes[filter.type];
     if (!config) return null;
+    const notice = accessNotices?.[filter.type];
+    const isDenied = !!notice?.isDenied;
+    const helper = isDenied ? notice?.message : undefined;
     
     if (config.type === 'text') {
       return (
@@ -266,6 +275,9 @@ function ReusableFilters({
                 size="small"
                 placeholder={config.placeholder}
                 fullWidth
+                disabled={config.disabled || isDenied}
+                error={isDenied}
+                helperText={helper}
                 sx={{
                   '& .MuiInputLabel-root': {
                     fontSize: '13px',
@@ -313,7 +325,7 @@ function ReusableFilters({
             });
             
             return (
-              <FormControl fullWidth sx={{
+              <FormControl fullWidth error={isDenied} sx={{
                 '& .MuiInputLabel-root': {
                   fontSize: '13px',
                   fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
@@ -346,7 +358,7 @@ function ReusableFilters({
                 <InputLabel>{config.label}</InputLabel>
                 <Select
                   multiple
-                  disabled={config.disabled || config.options.length === 0}
+                  disabled={config.disabled || isDenied || config.options.length === 0}
                   value={Array.isArray(field.value) ? field.value : []}
                   onChange={(e) => {
                     console.log('ReusableFilters - Multiselect onChange:', {
@@ -460,6 +472,9 @@ function ReusableFilters({
                     })
                   )}
                 </Select>
+                {isDenied && helper && (
+                  <FormHelperText sx={{ m: 0, mt: 0.5, fontSize: '12px' }}>{helper}</FormHelperText>
+                )}
               </FormControl>
             );
           }}
@@ -471,7 +486,7 @@ function ReusableFilters({
   };
 
   return (
-    <Box sx={{ p: { xs: 2, sm: 2.5 }, backgroundColor: 'white', border: '1px solid #f0f0f0', borderRadius: '5px', mb: 2.5, boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
+    <Box sx={{ p: { xs: 2, sm: 2.5 }, backgroundColor: 'white', border: '1px solid #f0f0f0', borderRadius: 0, mb: FILTERS_PANEL_MB, boxShadow: 'none' }}>
       <form onSubmit={handleSubmit(onSubmit)}>
         <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -536,7 +551,17 @@ function ReusableFilters({
           ))}
         </Stack>
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
-          <Button type="submit" variant="outlined" size="small" startIcon={<SearchIcon fontSize="small" />} sx={{ borderRadius: '4px', textTransform: 'none', fontWeight: 400, boxShadow: 'none', border: '1px solid #1976d2', color: '#1976d2', py: 0.5, height: '32px', fontSize: '13px', fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif', '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.04)', borderColor: '#1976d2' } }}>
+          <Button 
+            type="submit" 
+            variant="outlined" 
+            size="small" 
+            startIcon={<SearchIcon fontSize="small" />} 
+            disabled={
+              // Disable when explicitly requested or when any active filter is denied
+              !!searchDisabled || activeFilters.some((f) => accessNotices?.[f.type]?.isDenied)
+            }
+            sx={{ borderRadius: '4px', textTransform: 'none', fontWeight: 400, boxShadow: 'none', border: '1px solid #1976d2', color: '#1976d2', py: 0.5, height: '32px', fontSize: '13px', fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif', '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.04)', borderColor: '#1976d2' } }}
+          >
             Search
           </Button>
         </Box>

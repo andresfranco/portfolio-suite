@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { Box, IconButton, Tooltip, Chip, Stack, Typography, Avatar } from '@mui/material';
-import { Edit as EditIcon, Delete as DeleteIcon, PhotoLibrary as PhotoLibraryIcon, AttachFile as AttachFileIcon, ArrowUpward, ArrowDownward, Dashboard as DashboardIcon } from '@mui/icons-material';
+import { Box, IconButton, Tooltip, Chip, Stack, Typography, Avatar, Container } from '@mui/material';
+import { Edit as EditIcon, Delete as DeleteIcon, PhotoLibrary as PhotoLibraryIcon, AttachFile as AttachFileIcon, ArrowUpward, ArrowDownward, Dashboard as DashboardIcon, InfoOutlined } from '@mui/icons-material';
 import PortfolioForm from './PortfolioForm';
 import PortfolioImageForm from './PortfolioImageForm';
 import PortfolioData from './PortfolioData';
@@ -11,6 +11,11 @@ import ErrorBoundary from '../common/ErrorBoundary';
 import { PortfolioProvider, usePortfolios } from '../../contexts/PortfolioContext';
 import SERVER_URL from '../common/BackendServerData';
 import { useNavigate } from 'react-router-dom';
+import ModuleGate from '../common/ModuleGate';
+import PermissionGate from '../common/PermissionGate';
+import { useAuthorization } from '../../contexts/AuthorizationContext';
+import { evaluateGridColumnAccess, evaluateFilterAccess } from '../../utils/accessControl';
+import { CONTAINER_PY, SECTION_PX, GRID_WRAPPER_PB } from '../common/layoutTokens';
 
 function PortfolioIndexContent() {
   const navigate = useNavigate();
@@ -27,6 +32,9 @@ function PortfolioIndexContent() {
     updateFilters,
     updatePagination
   } = usePortfolios();
+
+  // Authorization (must be initialized before any usage below)
+  const { hasPermission, hasAnyPermission, isSystemAdmin } = useAuthorization();
 
   const [sortModel, setSortModel] = useState([{ field: 'name', sort: 'asc' }]);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -48,6 +56,20 @@ function PortfolioIndexContent() {
       placeholder: 'Filter by description'
     }
   }), []);
+
+  // Filter access notices
+  const filterAccessNotices = React.useMemo(() => {
+    const authorization = { isSystemAdmin, hasPermission, hasAnyPermission };
+    const { noticesByType } = evaluateFilterAccess(
+      Object.keys(FILTER_TYPES),
+      {
+        name: { required: 'VIEW_PORTFOLIOS', moduleKey: 'portfolios' },
+        description: { required: 'VIEW_PORTFOLIOS', moduleKey: 'portfolios' }
+      },
+      authorization
+    );
+    return noticesByType;
+  }, [FILTER_TYPES, isSystemAdmin, hasPermission, hasAnyPermission]);
 
   // Initial fetch of portfolios
   useEffect(() => {
@@ -158,8 +180,10 @@ function PortfolioIndexContent() {
     };
   }, [fetchPortfolios]);
 
-  // Define columns for the grid
-  const columns = [
+  // (moved up)
+
+  // Base columns for the grid
+  const baseColumns = [
     { 
       field: 'name', 
       headerName: 'Portfolio Name', 
@@ -244,7 +268,7 @@ function PortfolioIndexContent() {
         </Box>
       )
     },
-    {
+  {
       field: 'actions',
       headerName: 'Actions',
       width: 220,
@@ -264,34 +288,60 @@ function PortfolioIndexContent() {
               <DashboardIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-          <Tooltip title="Edit Portfolio">
-            <IconButton 
-              onClick={() => handleEditClick(params.row)} 
-              size="small"
-              sx={{ 
-                color: '#1976d2',
-                '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.04)' }
-              }}
-            >
-              <EditIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Delete Portfolio">
-            <IconButton 
-              onClick={() => handleDeleteClick(params.row)} 
-              size="small" 
-              sx={{ 
-                color: '#e53935',
-                '&:hover': { backgroundColor: 'rgba(229, 57, 53, 0.04)' }
-              }}
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+          <PermissionGate permission="EDIT_PORTFOLIO">
+            <Tooltip title="Edit Portfolio">
+              <IconButton 
+                onClick={() => handleEditClick(params.row)} 
+                size="small"
+                sx={{ 
+                  color: '#1976d2',
+                  '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.04)' }
+                }}
+              >
+                <EditIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </PermissionGate>
+          <PermissionGate permission="DELETE_PORTFOLIO">
+            <Tooltip title="Delete Portfolio">
+              <IconButton 
+                onClick={() => handleDeleteClick(params.row)} 
+                size="small" 
+                sx={{ 
+                  color: '#e53935',
+                  '&:hover': { backgroundColor: 'rgba(229, 57, 53, 0.04)' }
+                }}
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </PermissionGate>
         </Box>
       )
     }
   ];
+
+  // Permission-based column filtering and friendly denied titles
+  const COLUMN_ACCESS_MAP = React.useMemo(() => ({
+    name: { required: 'VIEW_PORTFOLIOS', moduleKey: 'portfolios' },
+    description: { required: 'VIEW_PORTFOLIOS', moduleKey: 'portfolios' },
+    actions: { required: ['EDIT_PORTFOLIO', 'DELETE_PORTFOLIO', 'MANAGE_PORTFOLIOS'], moduleKey: 'portfolios' }
+  }), []);
+
+  const { allowedColumns, deniedColumns } = React.useMemo(() => {
+    const authorization = { isSystemAdmin, hasPermission, hasAnyPermission };
+    return evaluateGridColumnAccess(COLUMN_ACCESS_MAP, authorization);
+  }, [isSystemAdmin, hasPermission, hasAnyPermission, COLUMN_ACCESS_MAP]);
+
+  const columns = React.useMemo(() => {
+    const hideActions = deniedColumns.length > 0;
+    return baseColumns.filter(col => allowedColumns.has(col.field) && (!hideActions || col.field !== 'actions'));
+  }, [baseColumns, allowedColumns, deniedColumns]);
+
+  const deniedColumnTitles = React.useMemo(() => {
+    const titleFor = (field) => baseColumns.find(c => c.field === field)?.headerName || field;
+    return Array.from(new Set(deniedColumns.map(titleFor)));
+  }, [deniedColumns, baseColumns]);
 
   // Handle create button click
   const handleCreateClick = () => {
@@ -376,8 +426,8 @@ function PortfolioIndexContent() {
   }
 
   return (
-    <Box sx={{ height: '100%', width: '100%', p: 2 }}>
-      <ReusableDataGrid
+    <Box sx={{ height: '100%', width: '100%', px: SECTION_PX, pb: GRID_WRAPPER_PB }}>
+  <ReusableDataGrid
         title="Portfolios Management"
         rows={portfolios}
         columns={columns}
@@ -390,21 +440,28 @@ function PortfolioIndexContent() {
           total: pagination.total || 0
         }}
         onPaginationChange={handlePaginationChange}
-        sortModel={sortModel}
-        onSortModelChange={handleSortModelChange}
-        onCreateClick={handleCreateClick}
-        createButtonText="Portfolio"
+  sortModel={sortModel}
+  onSortModelChange={handleSortModelChange}
         currentFilters={filters}
-        FiltersComponent={() => (
+    FiltersComponent={() => (
           <ReusableFilters
             filterTypes={FILTER_TYPES}
             filters={filters}
             onFiltersChange={handleFiltersChange}
             onSearch={handleSearch}
+      accessNotices={filterAccessNotices}
           />
         )}
         onFiltersChange={handleFiltersChange}
         onSearch={handleSearch}
+        topNotice={deniedColumnTitles.length > 0 ? (
+          <Box sx={{ mt: 0.5, mb: 1, display: 'inline-flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
+            <InfoOutlined sx={{ fontSize: 16 }} />
+            <Typography sx={{ fontSize: '12px', lineHeight: 1.4 }}>
+              {`You do not have permission to view the columns ${deniedColumnTitles.join(', ')}`}
+            </Typography>
+          </Box>
+        ) : null}
         PaginationComponent={(props) => (
           <ReusablePagination
             pagination={{
@@ -415,7 +472,7 @@ function PortfolioIndexContent() {
             onPaginationChange={handlePaginationChange}
           />
         )}
-        defaultPageSize={pagination.pageSize}
+  defaultPageSize={pagination.pageSize}
         uiVariant="categoryIndex"
         paginationPosition="top"
         initialState={{
@@ -447,6 +504,10 @@ function PortfolioIndexContent() {
             backgroundColor: '#f8f9fa'
           }
         }}
+        {...(hasAnyPermission(['CREATE_PORTFOLIO', 'MANAGE_PORTFOLIOS']) ? {
+          createButtonText: 'Portfolio',
+          onCreateClick: handleCreateClick
+        } : {})}
       />
 
       {isFormOpen && (
@@ -480,11 +541,15 @@ function PortfolioIndexContent() {
 
 function PortfolioIndex() {
   return (
-    <PortfolioProvider>
-      <ErrorBoundary>
-        <PortfolioIndexContent />
-      </ErrorBoundary>
-    </PortfolioProvider>
+    <ModuleGate moduleName="portfolios" showError={true}>
+      <PortfolioProvider>
+        <ErrorBoundary>
+          <Container maxWidth={false} disableGutters sx={{ py: CONTAINER_PY }}>
+            <PortfolioIndexContent />
+          </Container>
+        </ErrorBoundary>
+      </PortfolioProvider>
+    </ModuleGate>
   );
 }
 

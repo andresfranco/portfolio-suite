@@ -3,6 +3,8 @@ import categoryTypeApi from '../services/categoryTypeApi';
 import authService from '../services/authService';
 import { logInfo, logError } from '../utils/logger';
 import { getErrorMessage, getErrorType, getErrorMessageByType, ERROR_TYPES } from '../utils/errorUtils';
+import { useAuthorization } from './AuthorizationContext';
+import { buildViewDeniedMessage } from '../utils/permissionMessages';
 
 // Create context
 const CategoryTypeContext = createContext(null);
@@ -23,6 +25,7 @@ export const CategoryTypeProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [errorType, setErrorType] = useState(null);
+  const [accessDenied, setAccessDenied] = useState(false);
   
   // Track authentication state
   const [authToken, setAuthToken] = useState(authService.getToken());
@@ -74,6 +77,7 @@ export const CategoryTypeProvider = ({ children }) => {
   // Store state in refs for use in callbacks without dependencies
   const filtersRef = useRef(filters);
   const paginationRef = useRef(pagination);
+  const accessDeniedRef = useRef(accessDenied);
   
   // Update refs when state changes
   useMemo(() => {
@@ -83,6 +87,23 @@ export const CategoryTypeProvider = ({ children }) => {
   useMemo(() => {
     paginationRef.current = pagination;
   }, [pagination]);
+  useMemo(() => {
+    accessDeniedRef.current = accessDenied;
+  }, [accessDenied]);
+
+  // Authorization helpers (optional): use a ref to keep a stable reference and avoid re-renders changing dependencies
+  const canAccessModuleRef = useRef(() => true);
+  try {
+    const auth = useAuthorization();
+    if (auth && typeof auth.canAccessModule === 'function') {
+      canAccessModuleRef.current = auth.canAccessModule;
+    } else {
+      canAccessModuleRef.current = () => true;
+    }
+  } catch (e) {
+    // AuthorizationProvider not present (e.g., in tests). Allow fetches by default.
+    canAccessModuleRef.current = () => true;
+  }
 
   // Helper to set errors with type information
   const setErrorWithType = useCallback((err) => {
@@ -124,6 +145,9 @@ export const CategoryTypeProvider = ({ children }) => {
       });
       return;
     }
+
+  // Avoid premature gating: rely on server 403 to mark accessDenied.
+  // This prevents false negatives while permissions are still loading.
     
     logInfo('CategoryTypeContext: Starting fetchCategoryTypes', {
       page,
@@ -160,9 +184,21 @@ export const CategoryTypeProvider = ({ children }) => {
       
       // Log the structure of the response to debug
       logInfo('Response from getCategoryTypes API:', response);
-      
+
+      // Defensive: handle undefined/empty responses gracefully to avoid crashes in tests
+      if (!response) {
+        logError('Empty response from getCategoryTypes API; treating as empty result');
+        setCategoryTypes([]);
+        setPagination({
+          page,
+          pageSize,
+          total: 0
+        });
+        return [];
+      }
+
       // Handle both response structures: direct or nested in data
-      const responseData = response.data || response;
+      const responseData = (response && response.data) ? response.data : response;
       const categoryTypesData = responseData.items || [];
 
       logInfo(`Received ${categoryTypesData.length} category types out of ${responseData.total || 0} total`);
@@ -199,6 +235,15 @@ export const CategoryTypeProvider = ({ children }) => {
         authService.logout();
         return;
       }
+
+      // Handle 403 permission errors: set accessDenied to stop further retries
+      if (err.response?.status === 403) {
+        logError('Permission denied for category types (403). Stopping further retries.');
+        setAccessDenied(true);
+        setError(buildViewDeniedMessage('categorytypes'));
+        setErrorType(ERROR_TYPES.PERMISSION);
+        return;
+      }
       
       setErrorWithType(err);
       return Promise.reject(err);
@@ -206,6 +251,24 @@ export const CategoryTypeProvider = ({ children }) => {
       setLoading(false);
     }
   }, [clearError, setErrorWithType]);
+
+  // If access was previously denied but user now has access, clear the flag and refetch
+  useEffect(() => {
+    try {
+      const canAccess = typeof canAccessModuleRef.current === 'function'
+        ? canAccessModuleRef.current('categorytypes')
+        : true;
+      if (accessDenied && canAccess) {
+        logInfo('Permissions updated; clearing accessDenied for category types and refetching');
+        setAccessDenied(false);
+        clearError();
+        // Attempt a lightweight refetch
+        fetchCategoryTypes(0, paginationRef.current.pageSize, filtersRef.current).catch(() => {});
+      }
+    } catch (e) {
+      // no-op
+    }
+  }, [accessDenied, fetchCategoryTypes, clearError]);
 
   // Fetch a single category type by code
   const fetchCategoryTypeByCode = useCallback(async (code) => {
@@ -461,7 +524,7 @@ export const CategoryTypeProvider = ({ children }) => {
     });
     
     // Only fetch if we haven't already loaded category types and user is authenticated
-    if (categoryTypes.length === 0 && !loading && authService.isAuthenticated() && authToken) {
+  if (categoryTypes.length === 0 && !loading && authService.isAuthenticated() && authToken && !accessDeniedRef.current) {
       logInfo('CategoryTypeContext: Conditions met for initial load of category types');
       fetchCategoryTypes(0, 100, {}).catch(err => {
         logError('Failed to load initial category types:', err);
@@ -479,6 +542,7 @@ export const CategoryTypeProvider = ({ children }) => {
     loading,
     error,
     errorType,
+  accessDenied,
     pagination,
     filters,
     fetchCategoryTypes,
@@ -489,12 +553,13 @@ export const CategoryTypeProvider = ({ children }) => {
     checkCodeExists,
     updateFilters,
     clearFilters,
-    clearError
+  clearError
   }), [
     categoryTypes, 
     loading, 
     error, 
     errorType,
+  accessDenied,
     pagination, 
     filters,
     fetchCategoryTypes,

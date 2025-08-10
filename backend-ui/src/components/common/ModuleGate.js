@@ -1,6 +1,8 @@
 import React from 'react';
 import { useAuthorization } from '../../contexts/AuthorizationContext';
-import { Alert, Box, CircularProgress } from '@mui/material';
+import { CircularProgress } from '@mui/material';
+import PermissionDenied from './PermissionDenied';
+import { buildViewDeniedMessage } from '../../utils/permissionMessages';
 
 /**
  * Component that conditionally renders children based on module access
@@ -37,15 +39,8 @@ const ModuleGate = ({
 
   if (!hasAccess) {
     if (showError) {
-      const defaultMessage = operation 
-        ? `You don't have permission to ${operation.toLowerCase()} ${moduleName}.`
-        : `You don't have permission to access the ${moduleName} module.`;
-      
-      return (
-        <Alert severity="error" sx={{ m: 2 }}>
-          {errorMessage || defaultMessage}
-        </Alert>
-      );
+      const defaultMessage = buildViewDeniedMessage(moduleName);
+      return <PermissionDenied message={errorMessage || defaultMessage} />;
     }
     return fallback;
   }

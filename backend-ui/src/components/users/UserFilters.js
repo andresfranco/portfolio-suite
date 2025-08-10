@@ -4,6 +4,7 @@ import {
   Select, MenuItem, FormControl, InputLabel, Button, Tooltip, 
   Chip, OutlinedInput, Checkbox, ListItemText, Autocomplete, CircularProgress, Grid
 } from '@mui/material';
+import { FILTERS_PANEL_MB } from '../common/layoutTokens';
 import {
   Search as SearchIcon,
   Add as AddIcon,
@@ -661,13 +662,13 @@ const UserFilters = ({ onFilterChange, onSearch, filters: initialFilters }) => {
   const formKey = `user-filters-form-${filterKey}`;
   
   return (
-    <Box 
+  <Box 
       sx={{ 
         p: { xs: 2, sm: 2.5 },
         backgroundColor: 'white',
         border: '1px solid #f0f0f0',
         borderRadius: '5px',
-        mb: 2.5,
+    mb: FILTERS_PANEL_MB,
         boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
       }}
     >

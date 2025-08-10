@@ -8,6 +8,7 @@ import { usePermission, PermissionProvider } from '../../contexts/PermissionCont
 import { useAuthorization } from '../../contexts/AuthorizationContext';
 import { logInfo } from '../../utils/logger';
 import PermissionErrorBoundary from './PermissionErrorBoundary';
+import { CONTAINER_PY, SECTION_PX, GRID_WRAPPER_PB } from '../common/layoutTokens';
 
 // Custom pagination component with a native select
 const CustomPagination = (props) => {
@@ -560,7 +561,7 @@ function PermissionIndexContent() {
   }, [currentSortModel]);
 
   return (
-    <Container maxWidth={false} sx={{ py: 3 }}>
+    <Container maxWidth={false} disableGutters sx={{ py: CONTAINER_PY }}>
       <Box 
         sx={{ 
           display: 'flex', 
@@ -572,568 +573,53 @@ function PermissionIndexContent() {
           boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
         }}
       >
-        <Box sx={{ p: 3, pb: 2 }}>
-          <Typography 
-            variant="h5" 
-            sx={{ 
-              fontWeight: 600, 
-              color: '#1976d2',
-              mb: 1,
-              letterSpacing: '0.015em'
-            }}
-          >
-            Permissions Management
-          </Typography>
-          <Box 
-            sx={{ 
-              height: '2px', 
-              width: '100%', 
-              bgcolor: '#1976d2', 
-              opacity: 0.7,
-              mb: 2
-            }} 
-          />
-          
-          <Box sx={{ 
-            display: 'flex', 
-            justifyContent: 'flex-end',
-            alignItems: 'center',
-            mt: 2,
-            mb: 1
-          }}>
-            {/* Removing the New Permission button from here */}
-          </Box>
-        </Box>
-        
-        <Box sx={{ px: 3 }}>
-          <PermissionFilters 
-            onFilterChange={handleFilterChange} 
-            filters={filters} 
-            onSearch={handleFilterChange} 
-            key={`permission-filters-${JSON.stringify(filters)}`}
-          />
-        </Box>
-        
-        <Box sx={{ 
-          flex: 1,
-          minHeight: 'auto', // Changed from '550px' to 'auto'
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          px: 3,
-          pb: 3,
-          '& .css-19midj6': {
-            padding: '0px !important',
-          },
-          '&::-webkit-scrollbar': {
-            display: 'none',
-            width: '0px',
-            height: '0px',
-          },
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none',
-          '& *': {
-            '&::-webkit-scrollbar': {
-              display: 'none',
-              width: '0px',
-              height: '0px',
-            },
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
-          },
-          '& .MuiDataGrid-root': {
-            borderRadius: '5px',
-            overflow: 'hidden',
-          },
-          '& .MuiDataGrid-main': {
-            borderTopLeftRadius: '5px',
-            borderTopRightRadius: '5px'
-          },
-          '& .MuiDataGrid-columnHeaders': {
-            backgroundColor: 'rgba(250, 250, 250, 0.8)',
-            borderTopLeftRadius: '5px',
-            borderTopRightRadius: '5px'
-          }
-        }}>
-          <style>
-            {`
-              ::-webkit-scrollbar {
-                display: none !important;
-                width: 0 !important;
-                height: 0 !important;
-              }
-              * {
-                scrollbar-width: none !important;
-                -ms-overflow-style: none !important;
-              }
-              
-              .css-1xs4aeo-MuiContainer-root {
-                margin: 0 !important;
-                padding: 0 !important;
-                max-width: 100% !important;
-              }
-              
-              /* MAXIMUM FORCE OVERRIDES - Target all possible row/cell classes */
-              
-              /* Disable all virtual scrolling features */
-              .MuiDataGrid-root .MuiDataGrid-virtualScroller,
-              .MuiDataGrid-virtualScroller,
-              .MuiDataGrid-root .MuiDataGrid-virtualScrollerContent,
-              .MuiDataGrid-virtualScrollerContent,
-              .MuiDataGrid-root .MuiDataGrid-virtualScrollerRenderZone,
-              .MuiDataGrid-virtualScrollerRenderZone {
-                position: static !important;
-                transform: none !important;
-                width: 100% !important; 
-                height: auto !important;
-                overflow: visible !important;
-                display: block !important;
-              }
-              
-              /* Direct targeting of base rows - highest priority */
-              .MuiDataGrid-row,
-              .MuiDataGrid-root .MuiDataGrid-row,
-              div[class*="-MuiDataGrid-row"],
-              .css-1jim79h-MuiDataGrid-root .MuiDataGrid-row,
-              div.MuiDataGrid-root div.MuiDataGrid-row {
-                height: auto !important;
-                min-height: 60px !important;
-                max-height: none !important;
-                width: 100% !important;
-                display: flex !important;
-                align-items: stretch !important;
-                position: relative !important;
-                box-sizing: border-box !important;
-                border-bottom: 1px solid rgba(224, 224, 224, 0.7) !important;
-                transform: none !important;
-                overflow: visible !important;
-              }
-              
-              /* Direct targeting of row cells */
-              .MuiDataGrid-cell,
-              .MuiDataGrid-root .MuiDataGrid-cell,
-              div[class*="-MuiDataGrid-cell"],
-              .css-1jim79h-MuiDataGrid-root .MuiDataGrid-cell {
-                height: auto !important;
-                min-height: 100% !important;
-                max-height: none !important;
-                display: flex !important;
-                align-items: stretch !important;
-                white-space: normal !important;
-                line-height: 1.5 !important;
-                position: relative !important;
-                padding: 8px 16px !important;
-                box-sizing: border-box !important;
-                transform: none !important;
-                overflow: visible !important;
-                border-right: 1px solid rgba(224, 224, 224, 0.5) !important;
-              }
-              
-              /* Roles cells override */
-              .MuiDataGrid-cell[data-field="roles"],
-              .MuiDataGrid-root .MuiDataGrid-cell[data-field="roles"],
-              div[class*="-MuiDataGrid-cell"][data-field="roles"],
-              .css-1jim79h-MuiDataGrid-root .MuiDataGrid-cell[data-field="roles"] {
-                height: auto !important;
-                min-height: 100% !important;
-                max-height: none !important;
-                padding: 0 !important;
-                align-items: flex-start !important;
-                overflow: visible !important;
-                z-index: 1 !important;
-              }
-              
-              /* Roles cell inner container */
-              .MuiDataGrid-cell[data-field="roles"] > div,
-              .MuiDataGrid-root .MuiDataGrid-cell[data-field="roles"] > div,
-              div[class*="-MuiDataGrid-cell"][data-field="roles"] > div,
-              .css-1jim79h-MuiDataGrid-root .MuiDataGrid-cell[data-field="roles"] > div {
-                height: auto !important;
-                min-height: 100% !important;
-                max-height: none !important;
-                display: flex !important;
-                flex-wrap: wrap !important;
-                gap: 8px !important;
-                align-items: flex-start !important;
-                align-content: flex-start !important;
-                width: 100% !important;
-                padding: 12px 16px !important;
-                overflow: visible !important;
-              }
-              
-              /* Role chips styling */
-              .MuiDataGrid-cell[data-field="roles"] .MuiChip-root,
-              .MuiDataGrid-root .MuiDataGrid-cell[data-field="roles"] .MuiChip-root {
-                height: auto !important;
-                min-height: 24px !important;
-                margin: 2px !important;
-                border-radius: 16px !important;
-                background-color: #f5f5f5 !important;
-                border: 1px solid #e0e0e0 !important;
-                flex-shrink: 0 !important;
-                max-width: none !important;
-              }
-              
-              /* Actions cell styling */
-              .MuiDataGrid-cell[data-field="actions"],
-              .MuiDataGrid-root .MuiDataGrid-cell[data-field="actions"],
-              div[class*="-MuiDataGrid-cell"][data-field="actions"],
-              .css-1jim79h-MuiDataGrid-root .MuiDataGrid-cell[data-field="actions"] {
-                width: 120px !important;
-                min-width: 120px !important;
-                max-width: 120px !important;
-                justify-content: center !important;
-                align-items: center !important;
-                flex-shrink: 0 !important;
-                padding: 8px 0 !important;
-                overflow: visible !important;
-                z-index: 2 !important;
-              }
-              
-              /* Base grid styling keeps intact */
-              .MuiDataGrid-root {
-                border: 1px solid rgba(224, 224, 224, 1) !important;
-                border-radius: 4px !important;
-                overflow: visible !important;
-              }
-              
-              /* Structure styles to ensure the grid stays cohesive */
-              .MuiDataGrid-columnHeaders {
-                background-color: rgba(245, 247, 250, 1) !important;
-                border-bottom: 1px solid rgba(224, 224, 224, 1) !important;
-                z-index: 10 !important;
-                position: sticky !important;
-                top: 0 !important;
-              }
-              
-              .MuiDataGrid-columnHeaderTitle {
-                font-weight: 500 !important;
-                color: #333 !important;
-              }
-              
-              .MuiDataGrid-columnSeparator {
-                visibility: visible !important;
-                color: rgba(224, 224, 224, 1) !important;
-              }
-              
-              /* Eliminate space between rows and footer */
-              .MuiDataGrid-main {
-                margin-bottom: 0 !important;
-                padding-bottom: 0 !important;
-              }
-              
-              .MuiDataGrid-virtualScroller {
-                margin-bottom: 0 !important;
-                padding-bottom: 0 !important;
-              }
-              
-              .MuiDataGrid-virtualScrollerContent {
-                margin-bottom: 0 !important;
-                padding-bottom: 0 !important;
-              }
-              
-              .MuiDataGrid-virtualScrollerRenderZone {
-                margin-bottom: 0 !important;
-                padding-bottom: 0 !important;
-              }
-              
-              /* Any class that matches DataGrid main container */
-              div[class*="-MuiDataGrid-main"],
-              .MuiDataGrid-main {
-                position: static !important;
-                overflow: visible !important;
-                height: auto !important;
-                width: 100% !important;
-              }
-              
-              /* Catch-all for any internal virtualization classes */
-              [class*="MuiDataGrid-"][style*="height"],
-              [class*="MuiDataGrid-"][style*="maxHeight"],
-              [class*="MuiDataGrid-"][style*="overflow"] {
-                height: auto !important;
-                max-height: none !important;
-                overflow: visible !important;
-              }
-              
-              /* Completely hide built-in pagination footer - extreme approach */
-              .MuiDataGrid-footerContainer, 
-              div.MuiDataGrid-footerContainer,
-              .MuiDataGrid-root .MuiDataGrid-footerContainer,
-              div[class*="-MuiDataGrid-footerContainer"] {
-                display: none !important;
-                visibility: hidden !important;
-                height: 0 !important;
-                min-height: 0 !important;
-                max-height: 0 !important;
-                overflow: hidden !important;
-                opacity: 0 !important;
-                pointer-events: none !important;
-              }
-              
-              /* Fix for sort icons - ONLY hide the buttons, not the entire header */
-              .MuiDataGrid-columnHeader .MuiDataGrid-iconButtonContainer {
-                display: none !important;
-                visibility: hidden !important;
-                width: 0 !important;
-                opacity: 0 !important;
-              }
-              
-              /* Hide ONLY the default sort icon */
-              .MuiDataGrid-sortIcon {
-                display: none !important;
-                visibility: hidden !important;
-                opacity: 0 !important;
-              }
-              
-              /* Make sure column headers stay visible */
-              .MuiDataGrid-columnHeader,
-              .MuiDataGrid-columnHeaderTitle,
-              .MuiDataGrid-columnHeaderTitleContainer {
-                display: flex !important;
-                visibility: visible !important;
-                opacity: 1 !important;
-              }
-              
-              /* Ensure our custom sort icons are always visible */
-              .custom-sort-icon {
-                display: inline-flex !important;
-                visibility: visible !important;
-                opacity: 1 !important;
-              }
-
-              /* For hiding MUI DataGrid native sort icons */
-              .hide-sort-icons {
-                display: none !important;
-                width: 0 !important;
-                height: 0 !important;
-                padding: 0 !important;
-                margin: 0 !important;
-                opacity: 0 !important;
-                visibility: hidden !important;
-              }
-              
-              /* Extra specific selectors to forcibly hide sort icons */
-              div[role="columnheader"] > div > div > button,
-              .MuiDataGrid-columnHeader > .MuiDataGrid-columnHeaderTitleContainer > .MuiDataGrid-iconButtonContainer,
-              .MuiDataGrid-columnSeparator {
-                display: none !important;
-                visibility: hidden !important;
-                width: 0 !important;
-                padding: 0 !important;
-                margin: 0 !important;
-              }
-            `}
-          </style>
+        <Box sx={{ px: SECTION_PX, pb: GRID_WRAPPER_PB }}>
           <PermissionErrorBoundary>
-            {/* Position the custom pagination at the top right, above the grid */}
-            <Box
-              sx={{
-                position: 'relative',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                width: '100%',
-                marginBottom: '16px',
-                paddingTop: '4px',
-                paddingBottom: '4px',
-              }}
-            >
-              {/* New Permission button placed at the left side */}
-              {(hasPermission('CREATE_PERMISSION') || hasPermission('MANAGE_PERMISSIONS')) && (
-                <Button 
-                  variant="outlined" 
-                  size="small" 
-                  startIcon={<Add fontSize="small" />} 
-                  onClick={handleCreateClick}
-                  sx={{ 
-                    borderRadius: '4px',
-                    textTransform: 'none',
-                    fontWeight: 400,
-                    boxShadow: 'none',
-                    border: '1px solid #1976d2',
-                    color: '#1976d2',
-                    py: 0.5,
-                    height: '32px',
-                    fontSize: '13px',
-                    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-                    '&:hover': {
-                      backgroundColor: 'rgba(25, 118, 210, 0.04)',
-                      borderColor: '#1976d2'
-                    }
-                  }}
-                >
-                  New Permission
-                </Button>
-              )}
-
-              <CustomPagination 
-                pagination={{
-                  page: paginationModel.page,
-                  pageSize: paginationModel.pageSize,
-                  total: pagination.total
-                }}
-                pageSizeOptions={[5, 10, 15, 20, 25]}
-                onPaginationChange={(newModel) => {
-                  console.log('Custom pagination change:', newModel);
-                  handlePaginationModelChange(newModel);
-                }}
-              />
-            </Box>
-
-            <Box sx={{
-              backgroundColor: 'rgba(250, 250, 250, 0.8)',
-              borderRadius: '5px',
-              overflow: 'hidden',
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              flex: 1,
-              '& .MuiDataGrid-root, & .MuiDataGrid-main, & .MuiDataGrid-columnHeaders, & .MuiDataGrid-columnHeadersInner': {
-                backgroundColor: 'rgba(250, 250, 250, 0.8) !important',
-                borderTopLeftRadius: '5px !important',
-                borderTopRightRadius: '5px !important',
-              }
-            }}
-            key={`grid-container-${JSON.stringify(sortModel)}-${forceUpdateCounter}`}
-            >
-              {/* Create a key that changes every time sort changes */}
-              <Box 
-                key={`grid-container-${sortModel[0]?.field}-${sortModel[0]?.sort}-${Date.now()}`} 
-                sx={{ width: '100%', height: '100%' }}
-              >
-                <ReusableDataGrid
-                  columns={columns}
-                  rows={permissions || []}
-                  loading={loading}
-                  totalRows={pagination.total || 0}
-                  paginationModel={paginationModel}
-                  onPaginationModelChange={handlePaginationModelChange}
-                  sortModel={sortModel}
-                  onSortModelChange={handleSortModelChange}
-                  paginationMode="server"
-                  sortingMode="server"
-                  filterMode="server"
-                  columnVisibilityModel={columnVisibilityModel}
-                  disableRowSelectionOnClick={true}
-                  height="auto"
-                  autoHeight={true}
-                  hideFooter={true}
-                  hideFooterPagination={true}
-                  hideFooterSelectedRowCount={true}
-                  disableColumnMenu={true}
-                  disableColumnSelector={true}
-                  disableDensitySelector={true}
-                  disableColumnFilter={true}
-                  slots={{
-                    footer: () => null,
-                    pagination: () => null
-                  }}
-                  getRowHeight={(params) => {
-                    const roles = params.model.roles || [];
-                    if (roles.length === 0) {
-                      return 70; // More space for empty rows
-                    }
-                    
-                    // Generous space calculation for chips
-                    const containerPadding = 20;
-                    const chipHeight = 32; // Increased height
-                    const verticalGap = 10; // Increased gap
-                    const horizontalGap = 8;
-                    
-                    // Calculate approximate chips per line
-                    const avgChipWidth = 110; // Assume wider chips
-                    const columnWidth = 320; // Slightly reduced effective width
-                    const approxChipsPerLine = Math.max(1, Math.floor((columnWidth - containerPadding*2) / (avgChipWidth + horizontalGap)));
-                    
-                    // Calculate lines needed with safety buffer
-                    const numLines = Math.ceil(roles.length / approxChipsPerLine) + 1; // +1 for extra safety
-                    const chipsTotalHeight = numLines * chipHeight + Math.max(0, numLines - 1) * verticalGap;
-                    
-                    // Add extra padding for safety
-                    const calculatedHeight = chipsTotalHeight + containerPadding * 2 + 30;
-                    
-                    return Math.max(70, calculatedHeight);
-                  }}
-                  disableVirtualization={true}
-                  sx={{
-                    flex: 1,
-                    minHeight: 'auto',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    border: 'none',
-                    backgroundColor: 'rgba(250, 250, 250, 0.8)',
-                    '.MuiDataGrid-main, .MuiDataGrid-columnHeaders, .MuiDataGrid-columnHeadersInner': {
-                      backgroundColor: 'rgba(250, 250, 250, 0.8) !important',
-                    },
-                    '.MuiDataGrid-footerContainer': {
-                      visibility: 'visible !important',
-                      display: 'flex !important',
-                      borderTop: '1px solid #f0f0f0',
-                      backgroundColor: 'white !important'
-                    },
-                    '.css-e8dn0e': {
-                      backgroundColor: 'white !important'
-                    },
-                    '.MuiDataGrid-columnHeaders': {
-                      backgroundColor: 'rgba(250, 250, 250, 0.8) !important',
-                      color: '#505050',
-                      fontWeight: 500,
-                      fontSize: 13,
-                      letterSpacing: '0.3px',
-                      borderBottom: '1px solid #e0e0e0',
-                      borderTopLeftRadius: '5px',
-                      borderTopRightRadius: '5px',
-                    },
-                    '.MuiDataGrid-main': {
-                      backgroundColor: 'rgba(250, 250, 250, 0.8) !important', 
-                      borderTopLeftRadius: '5px',
-                      borderTopRightRadius: '5px'
-                    },
-                    '.MuiDataGrid-columnHeadersInner': {
-                      backgroundColor: 'rgba(250, 250, 250, 0.8) !important',
-                      borderTopLeftRadius: '5px',
-                      borderTopRightRadius: '5px',
-                    },
-                    '.MuiDataGrid-cell': {
-                      fontSize: '13px',
-                      borderBottom: '1px solid #f5f5f5',
-                      backgroundColor: 'white'
-                    },
-                    '.MuiDataGrid-row': {
-                      backgroundColor: 'white'
-                    },
-                    '.MuiDataGrid-row:hover': {
-                      backgroundColor: 'rgba(25, 118, 210, 0.04)'
-                    },
-                    // Ensure sort icons are hidden but headers are visible
-                    '.MuiDataGrid-iconButtonContainer': {
-                      display: 'none',
-                      visibility: 'hidden',
-                      width: 0,
-                      opacity: 0
-                    },
-                    '.MuiDataGrid-sortIcon': {
-                      display: 'none',
-                      visibility: 'hidden',
-                      opacity: 0
-                    },
-                    // Ensure column headers are visible
-                    '.MuiDataGrid-columnHeader': {
-                      display: 'flex',
-                      visibility: 'visible',
-                      opacity: 1
-                    },
-                    '.MuiDataGrid-columnHeaderTitle': {
-                      display: 'block',
-                      visibility: 'visible',
-                      opacity: 1,
-                      fontWeight: 500,
-                      color: '#505050'
-                    }
-                  }}
+            <ReusableDataGrid
+              title="Permissions Management"
+              columns={columns}
+              rows={permissions || []}
+              loading={loading}
+              totalRows={pagination.total || 0}
+              // External mode handlers
+              onPaginationModelChange={handlePaginationModelChange}
+              sortModel={sortModel}
+              onSortModelChange={handleSortModelChange}
+              // Filters
+              currentFilters={filters}
+              FiltersComponent={() => (
+                <PermissionFilters
+                  onFilterChange={handleFilterChange}
+                  filters={filters}
+                  onSearch={handleFilterChange}
+                  key={`permission-filters-${JSON.stringify(filters)}`}
                 />
-              </Box>
-            </Box>
+              )}
+              // Top toolbar controls
+              PaginationComponent={CustomPagination}
+              paginationPosition="top"
+              // Create button
+              createButtonText="Permission"
+              onCreateClick={(hasPermission('CREATE_PERMISSION') || hasPermission('MANAGE_PERMISSIONS')) ? handleCreateClick : undefined}
+              // Variable row height to accommodate chips
+              getRowHeight={(params) => {
+                const roles = params.model.roles || [];
+                if (roles.length === 0) {
+                  return 70;
+                }
+                const containerPadding = 20;
+                const chipHeight = 26;
+                const verticalGap = 8;
+                const horizontalGap = 8;
+                const avgChipWidth = 110;
+                const columnWidth = 320;
+                const perLine = Math.max(1, Math.floor((columnWidth - containerPadding * 2) / (avgChipWidth + horizontalGap)));
+                const lines = Math.ceil(roles.length / perLine);
+                const chipsHeight = lines * chipHeight + Math.max(0, lines - 1) * verticalGap;
+                return Math.max(60, chipsHeight + containerPadding * 2 + 20);
+              }}
+              disableRowSelectionOnClick
+            />
           </PermissionErrorBoundary>
         </Box>
       </Box>
