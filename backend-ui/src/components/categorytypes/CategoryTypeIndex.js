@@ -9,7 +9,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { Edit as EditIcon, Delete as DeleteIcon, ArrowUpward, ArrowDownward } from '@mui/icons-material';
+import { Edit as EditIcon, Delete as DeleteIcon, ArrowUpward, ArrowDownward, InfoOutlined } from '@mui/icons-material';
 import ReusableDataGrid from '../common/ReusableDataGrid';
 import CategoryTypeForm from './CategoryTypeForm';
 import ReusableFilters from '../common/ReusableFilters';
@@ -18,6 +18,10 @@ import { CategoryTypeErrorBoundary, useCategoryType } from '../../contexts/Categ
 import { useAuthorization } from '../../contexts/AuthorizationContext';
 import ModuleGate from '../common/ModuleGate';
 import PermissionGate from '../common/PermissionGate';
+import PermissionDenied from '../common/PermissionDenied';
+import { buildViewDeniedMessage } from '../../utils/permissionMessages';
+import { evaluateGridColumnAccess, evaluateFilterAccess } from '../../utils/accessControl';
+import { CONTAINER_PY, SECTION_PX, GRID_WRAPPER_PB } from '../common/layoutTokens';
 
 const FILTER_TYPES = {
   code: {
@@ -37,6 +41,7 @@ const CategoryTypeIndexContent = () => {
     categoryTypes,
     loading,
     error,
+  accessDenied,
     pagination,
     fetchCategoryTypes,
     filters,
@@ -44,12 +49,21 @@ const CategoryTypeIndexContent = () => {
     clearFilters,
   } = useCategoryType();
   
-  const { canPerformOperation } = useAuthorization();
+  const { canPerformOperation, isSystemAdmin, hasPermission, hasAnyPermission } = useAuthorization();
 
   const [sortModel, setSortModel] = useState([{ field: 'code', sort: 'asc' }]);
-  const [isFormOpen, setIsFormOpen] = useState(false);
   const [formMode, setFormMode] = useState('create');
   const [selectedCategoryType, setSelectedCategoryType] = useState(null);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+
+  // Build access notices for filters (both require viewing category types)
+  const { noticesByType } = (() => {
+    const authorization = { isSystemAdmin, hasPermission, hasAnyPermission };
+    return evaluateFilterAccess(Object.keys(FILTER_TYPES), {
+      code: { required: 'VIEW_CATEGORY_TYPES', moduleKey: 'categorytypes' },
+      name: { required: 'VIEW_CATEGORY_TYPES', moduleKey: 'categorytypes' }
+    }, authorization);
+  })();
 
   const FiltersWrapper = ({ filters: currentFilters, onFiltersChange, onSearch }) => (
     <ReusableFilters
@@ -57,13 +71,11 @@ const CategoryTypeIndexContent = () => {
       filters={currentFilters}
       onFiltersChange={onFiltersChange}
       onSearch={onSearch}
+      accessNotices={noticesByType}
     />
   );
 
-  useEffect(() => {
-    const initialFilters = filters && Object.keys(filters).length > 0 ? filters : {};
-    fetchCategoryTypes(pagination.page, pagination.pageSize, initialFilters, sortModel);
-  }, [fetchCategoryTypes]);
+  // Initial data is loaded by the CategoryTypeProvider; this component fetches only on user actions.
 
   const handlePaginationChange = (model) => {
     const currentFilters = filters && Object.keys(filters).length > 0 ? filters : {};
@@ -112,7 +124,8 @@ const CategoryTypeIndexContent = () => {
     }
   };
 
-  const columns = [
+  // Base grid columns (permission-independent definition)
+  const baseColumns = [
     {
       field: 'code',
       headerName: 'Code',
@@ -193,6 +206,30 @@ const CategoryTypeIndexContent = () => {
     },
   ];
 
+  // Column access mapping and evaluation
+  const COLUMN_ACCESS_MAP = React.useMemo(() => ({
+    code: { required: 'VIEW_CATEGORY_TYPES', moduleKey: 'categorytypes' },
+    name: { required: 'VIEW_CATEGORY_TYPES', moduleKey: 'categorytypes' },
+    actions: { required: ['EDIT_CATEGORY_TYPE', 'DELETE_CATEGORY_TYPE', 'MANAGE_CATEGORY_TYPES'], moduleKey: 'categorytypes' }
+  }), []);
+
+  const { allowedColumns, deniedColumns } = React.useMemo(() => {
+    const authorization = { isSystemAdmin, hasPermission, hasAnyPermission };
+    return evaluateGridColumnAccess(COLUMN_ACCESS_MAP, authorization);
+  }, [isSystemAdmin, hasPermission, hasAnyPermission, COLUMN_ACCESS_MAP]);
+
+  // Filter visible columns; hide Actions when any denial exists
+  const columns = React.useMemo(() => {
+    const hideActions = deniedColumns.length > 0;
+    return baseColumns.filter(c => allowedColumns.has(c.field) && (!hideActions || c.field !== 'actions'));
+  }, [baseColumns, allowedColumns, deniedColumns]);
+
+  // Friendly titles for denied columns
+  const deniedColumnTitles = React.useMemo(() => {
+    const titleFor = (field) => baseColumns.find(c => c.field === field)?.headerName || field;
+    return Array.from(new Set(deniedColumns.map(titleFor)));
+  }, [deniedColumns, baseColumns]);
+
   if (error) {
     return (
       <Box mt={3} p={3} bgcolor="#ffebee" borderRadius={1}>
@@ -202,36 +239,63 @@ const CategoryTypeIndexContent = () => {
     );
   }
 
+  if (accessDenied) {
+    return <PermissionDenied message={buildViewDeniedMessage('categorytypes')} />;
+  }
+
   return (
     <>
-      <ReusableDataGrid
-        title="Category Types Management"
-        columns={columns}
-        rows={categoryTypes || []}
-        loading={loading}
-        totalRows={pagination.total}
-        disableRowSelectionOnClick
-        sortModel={sortModel}
-        onPaginationModelChange={handlePaginationChange}
-        onSortModelChange={handleSortModelChange}
-        currentFilters={filters}
-        FiltersComponent={FiltersWrapper}
-        onFiltersChange={handleFiltersChange}
-        onSearch={handleSearch}
-        PaginationComponent={ReusablePagination}
-        createButtonText="Category Type"
-        onCreateClick={canPerformOperation('create', 'category_type') ? handleOpenCreateForm : undefined}
-        defaultPageSize={10}
-        uiVariant="categoryIndex"
-        paginationPosition="top"
-        gridSx={{
-          '.MuiDataGrid-iconButtonContainer': { display: 'none', visibility: 'hidden', width: 0, opacity: 0 },
-          '.MuiDataGrid-sortIcon': { display: 'none', visibility: 'hidden', opacity: 0 },
-          '.MuiDataGrid-columnHeader': { display: 'flex', visibility: 'visible', opacity: 1 },
-          '.MuiDataGrid-columnHeaderTitle': { display: 'block', visibility: 'visible', opacity: 1, fontWeight: 500, color: '#505050' },
-          '& .MuiDataGrid-footerContainer': { display: 'none' }
+      {/* Outer container to mirror UserIndex look & spacing (distance to header/menu) */}
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          flexDirection: 'column',
+          minHeight: '650px',
+          overflow: 'hidden',
+          backgroundColor: '#ffffff',
+          borderRadius: '6px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
         }}
-      />
+      >
+  <Box sx={{ px: SECTION_PX, pb: GRID_WRAPPER_PB }}>
+          <ReusableDataGrid
+            title="Category Types Management"
+            columns={columns}
+            rows={categoryTypes || []}
+            loading={loading}
+            totalRows={pagination.total}
+            disableRowSelectionOnClick
+            sortModel={sortModel}
+            onPaginationModelChange={handlePaginationChange}
+            onSortModelChange={handleSortModelChange}
+            currentFilters={filters}
+            FiltersComponent={FiltersWrapper}
+            onFiltersChange={handleFiltersChange}
+            onSearch={handleSearch}
+            PaginationComponent={ReusablePagination}
+            createButtonText="Category Type"
+            onCreateClick={canPerformOperation('create', 'category_type') ? handleOpenCreateForm : undefined}
+            defaultPageSize={10}
+            uiVariant="categoryIndex"
+            paginationPosition="top"
+            topNotice={deniedColumnTitles.length > 0 ? (
+              <Box sx={{ mt: 0.5, mb: 1, display: 'inline-flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
+                <InfoOutlined sx={{ fontSize: 16 }} />
+                <Typography sx={{ fontSize: '12px', lineHeight: 1.4 }}>
+                  {`You do not have permission to view the columns ${deniedColumnTitles.join(', ')}`}
+                </Typography>
+              </Box>
+            ) : null}
+            gridSx={{
+              '.MuiDataGrid-iconButtonContainer': { display: 'none', visibility: 'hidden', width: 0, opacity: 0 },
+              '.MuiDataGrid-sortIcon': { display: 'none', visibility: 'hidden', opacity: 0 },
+              '.MuiDataGrid-columnHeader': { display: 'flex', visibility: 'visible', opacity: 1 },
+              '.MuiDataGrid-columnHeaderTitle': { display: 'block', visibility: 'visible', opacity: 1, fontWeight: 500, color: '#505050' },
+              '& .MuiDataGrid-footerContainer': { display: 'none' }
+            }}
+          />
+        </Box>
+      </Box>
 
       {isFormOpen && (
         <Dialog
@@ -276,13 +340,13 @@ const CategoryTypeIndexContent = () => {
           </DialogContent>
         </Dialog>
       )}
-    </>
+  </>
   );
 };
 
 const CategoryTypeIndex = () => (
-  <ModuleGate moduleName="categorytypes" showError={true}>
-    <Container maxWidth={false} sx={{ py: 0 }}>
+  <ModuleGate moduleName="categorytypes" showError={true} errorMessage={buildViewDeniedMessage('categorytypes')}>
+    <Container maxWidth={false} disableGutters sx={{ py: CONTAINER_PY }}>
       <CategoryTypeErrorBoundary>
         <CategoryTypeIndexContent />
       </CategoryTypeErrorBoundary>

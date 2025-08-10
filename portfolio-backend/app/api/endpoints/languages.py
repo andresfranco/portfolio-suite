@@ -3,7 +3,7 @@ from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from app.api.deps import get_db
+from app.api import deps
 from app.crud import language as language_crud
 from app.schemas.language import (
     LanguageCreate, 
@@ -15,6 +15,8 @@ from app.schemas.language import (
 from app.core.config import settings
 from app.core.logging import setup_logger
 from app.utils.file_utils import save_upload_file
+from app.core.security_decorators import require_permission
+from app import models
 import os
 import uuid
 
@@ -29,7 +31,7 @@ router = APIRouter()
 
 
 @router.get("/codes", response_model=List[str])
-def list_languages(db: Session = Depends(get_db)):
+def list_languages(db: Session = Depends(deps.get_db), current_user: models.User = Depends(deps.get_current_user)):
     """
     Get a list of all language codes.
     
@@ -60,7 +62,8 @@ def read_languages(
     filter_value: Optional[List[str]] = Query(None, description="Values to filter by"),
     filter_operator: Optional[List[str]] = Query(None, description="Operators to use for filtering"),
     json_filter: Optional[str] = Query(None, description="JSON-formatted filter criteria"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_user)
 ):
     """
     Get a paginated list of languages with optional filtering and sorting.
@@ -176,12 +179,14 @@ def read_languages(
 
 
 @router.post("", response_model=LanguageOut, status_code=status.HTTP_201_CREATED)
+@require_permission("CREATE_LANGUAGE")
 async def create_language(
     code: str = Form(..., min_length=2, max_length=10),
     name: str = Form(..., min_length=2, max_length=100),
     is_default: bool = Form(False),
     image: Optional[UploadFile] = File(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_user)
 ):
     """
     Create a new language with optional image upload.
@@ -272,7 +277,7 @@ async def create_language(
 
 
 @router.get("/{language_id}", response_model=LanguageOut)
-def read_language(language_id: int, db: Session = Depends(get_db)):
+def read_language(language_id: int, db: Session = Depends(deps.get_db), current_user: models.User = Depends(deps.get_current_user)):
     """
     Get a single language by ID.
     
@@ -303,13 +308,15 @@ def read_language(language_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{language_id}", response_model=LanguageOut)
+@require_permission("EDIT_LANGUAGE")
 async def update_language(
     language_id: int,
     code: Optional[str] = Form(None, min_length=2, max_length=10),
     name: Optional[str] = Form(None, min_length=2, max_length=100),
     is_default: Optional[bool] = Form(None),
     image: Optional[UploadFile] = File(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_user)
 ):
     """
     Update an existing language with optional image upload.
@@ -425,7 +432,8 @@ async def update_language(
 
 
 @router.delete("/{language_id}", response_model=LanguageOut)
-def delete_language(language_id: int, db: Session = Depends(get_db)):
+@require_permission("DELETE_LANGUAGE")
+def delete_language(language_id: int, db: Session = Depends(deps.get_db), current_user: models.User = Depends(deps.get_current_user)):
     """
     Delete a language by ID.
     

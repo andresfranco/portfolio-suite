@@ -1,6 +1,8 @@
 import React from 'react';
 import { useAuthorization } from '../../contexts/AuthorizationContext';
-import { Alert, Box, CircularProgress } from '@mui/material';
+import { CircularProgress } from '@mui/material';
+import PermissionDenied from './PermissionDenied';
+import { buildGenericDeniedMessage } from '../../utils/permissionMessages';
 
 /**
  * Component that conditionally renders children based on user permissions
@@ -40,11 +42,8 @@ const PermissionGate = ({
 
   if (!hasAccess) {
     if (showError) {
-      return (
-        <Alert severity="error" sx={{ m: 2 }}>
-          {errorMessage}
-        </Alert>
-      );
+      const defaultMsg = buildGenericDeniedMessage();
+      return <PermissionDenied message={errorMessage || defaultMsg} />;
     }
     return fallback;
   }

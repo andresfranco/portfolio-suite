@@ -42,10 +42,12 @@ import { logInfo, logError } from '../../utils/logger';
 import { alpha } from '@mui/material/styles';
 import SaveIcon from '@mui/icons-material/Save';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import { buildViewDeniedMessage } from '../../utils/permissionMessages';
+import usePermissionNotice from '../../hooks/usePermissionNotice';
 
 function CategoryForm({ open, onClose, category, mode = 'create' }) {
   const { createCategory, updateCategory, deleteCategory, getCategoryById, checkCodeExists } = useCategory();
-  const { categoryTypes, loading: loadingCategoryTypes, fetchCategoryTypes } = useCategoryType();
+  const { categoryTypes, loading: loadingCategoryTypes, fetchCategoryTypes, error: categoryTypesError } = useCategoryType();
   const { languages: availableLanguages, loading: loadingLanguages, fetchLanguages } = useLanguage();
 
   const [formData, setFormData] = useState({
@@ -64,13 +66,28 @@ function CategoryForm({ open, onClose, category, mode = 'create' }) {
   const [removedLanguageIds, setRemovedLanguageIds] = useState([]);
   const [originalLanguageIds, setOriginalLanguageIds] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [categoryTypesAccessDenied, setCategoryTypesAccessDenied] = useState(false);
+  const [categoryTypesErrorMessage, setCategoryTypesErrorMessage] = useState('');
+
+  // Field-level permission notice for category types (VIEW or MANAGE)
+  const categoryTypesPerm = usePermissionNotice(['VIEW_CATEGORY_TYPES', 'MANAGE_CATEGORY_TYPES'], 'categorytypes', categoryTypesError);
+  const languagesPerm = usePermissionNotice('VIEW_LANGUAGES', 'languages');
 
   // Explicitly fetch category types when the form opens
   useEffect(() => {
     if (open) {
       // Fetch the category types when the form opens
       logInfo('CategoryForm', 'Explicitly fetching category types');
-      fetchCategoryTypes(0, 100); // Fetch a large number to get all types
+      fetchCategoryTypes(0, 100).then(() => {
+        setCategoryTypesAccessDenied(false);
+        setCategoryTypesErrorMessage('');
+      }).catch(error => {
+        logError('CategoryForm', 'Error fetching category types:', error);
+        if (error?.response?.status === 403) {
+          setCategoryTypesAccessDenied(true);
+          setCategoryTypesErrorMessage(buildViewDeniedMessage('categorytypes'));
+        }
+      }); // Fetch a large number to get all types
     }
   }, [open, fetchCategoryTypes]);
 
@@ -233,6 +250,18 @@ function CategoryForm({ open, onClose, category, mode = 'create' }) {
       setLoading(false);
     }
   }, [mode, category, availableLanguages]);
+
+  // Reflect CategoryTypeContext permission errors into local inline helper
+  useEffect(() => {
+    if (!open) return;
+    if (categoryTypesError) {
+      const msg = String(categoryTypesError).toLowerCase();
+      if (msg.includes('403') || msg.includes('forbidden') || msg.includes('permission')) {
+        setCategoryTypesAccessDenied(true);
+        setCategoryTypesErrorMessage(buildViewDeniedMessage('categorytypes'));
+      }
+    }
+  }, [open, categoryTypesError]);
 
   // Add effect to set default type_code once categoryTypes are loaded
   useEffect(() => {
@@ -889,6 +918,21 @@ function CategoryForm({ open, onClose, category, mode = 'create' }) {
 
   // Render the form body for regular modes (create/edit)
   const renderFormBody = () => {
+    const categoryTypeErrorSx = (categoryTypesAccessDenied || categoryTypesPerm.isDenied) ? {
+      '& .MuiOutlinedInput-notchedOutline': {
+        borderColor: (theme) => theme.palette.error.main
+      },
+      '&:hover .MuiOutlinedInput-notchedOutline': {
+        borderColor: (theme) => theme.palette.error.main
+      },
+      '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': {
+        borderColor: (theme) => theme.palette.error.main
+      },
+      '& .MuiInputLabel-root.Mui-disabled': {
+        color: (theme) => theme.palette.error.main
+      }
+    } : undefined;
+
     return (
       <form>
         <Grid container spacing={2}>
@@ -920,9 +964,10 @@ function CategoryForm({ open, onClose, category, mode = 'create' }) {
             <FormControl
               fullWidth
               required
-              error={!!errors.type_code}
+              error={categoryTypesAccessDenied || categoryTypesPerm.isDenied || !!errors.type_code}
               size="small"
-              disabled={isSubmitting || mode === 'delete'}
+              disabled={categoryTypesAccessDenied || categoryTypesPerm.isDenied || isSubmitting || mode === 'delete'}
+              sx={categoryTypeErrorSx}
             >
               <InputLabel id="category-type-label">Category Type</InputLabel>
               <Select
@@ -932,7 +977,7 @@ function CategoryForm({ open, onClose, category, mode = 'create' }) {
                 value={formData.type_code || ''}
                 onChange={handleChange}
                 label="Category Type"
-                disabled={isSubmitting || mode === 'delete'}
+                disabled={categoryTypesAccessDenied || categoryTypesPerm.isDenied || isSubmitting || mode === 'delete'}
               >
                 <MenuItem value="" disabled>
                   <em>Select a type</em>
@@ -943,6 +988,10 @@ function CategoryForm({ open, onClose, category, mode = 'create' }) {
                       <CircularProgress size={16} sx={{ mr: 1 }} />
                       Loading category types...
                     </Box>
+                  </MenuItem>
+                ) : (categoryTypesAccessDenied || categoryTypesPerm.isDenied) ? (
+                  <MenuItem disabled value="">
+                    Not available
                   </MenuItem>
                 ) : categoryTypes && categoryTypes.length > 0 ? (
                   categoryTypes.map((type) => (
@@ -956,8 +1005,12 @@ function CategoryForm({ open, onClose, category, mode = 'create' }) {
                   </MenuItem>
                 )}
               </Select>
-              {errors.type_code && (
-                <FormHelperText>{errors.type_code}</FormHelperText>
+              {categoryTypesAccessDenied || categoryTypesPerm.isDenied ? (
+                <FormHelperText>{categoryTypesErrorMessage || categoryTypesPerm.message}</FormHelperText>
+              ) : (
+                errors.type_code && (
+                  <FormHelperText>{errors.type_code}</FormHelperText>
+                )
               )}
             </FormControl>
           </Grid>
