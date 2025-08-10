@@ -30,7 +30,6 @@ import {
   Category as CategoryIcon,
   Work as WorkIcon,
   Folder as ProjectIcon,
-  Folder,
   Settings as SettingsIcon,
   Language as LanguageIcon,
   Chat as ChatIcon,
@@ -38,7 +37,8 @@ import {
   FormatListBulleted as ListBulletedIcon,
   ViewModule as SectionIcon,
   AccountCircle as AccountCircleIcon,
-  Logout as LogoutIcon
+  Logout as LogoutIcon,
+  CollectionsBookmark as PortfolioIcon
 } from '@mui/icons-material';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
 import authService from '../../services/authService';
@@ -171,7 +171,7 @@ const Layout = () => {
     },
     { 
       text: 'Portfolios', 
-      icon: <Folder />, 
+  icon: <PortfolioIcon />, 
       path: '/portfolios', 
       requiredPermission: 'VIEW_PORTFOLIOS' 
     },

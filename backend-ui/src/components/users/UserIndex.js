@@ -758,7 +758,7 @@ function UserIndexContent() {
               sx={{ 
                 fontWeight: 500, 
                 fontSize: '13px', 
-                color: isSorted ? '#1976d2' : '#505050'
+                color: '#505050'
               }}
             >
               Username
@@ -797,7 +797,7 @@ function UserIndexContent() {
               sx={{ 
                 fontWeight: 500, 
                 fontSize: '13px', 
-                color: isSorted ? '#1976d2' : '#505050'
+                color: '#505050'
               }}
             >
               Email
@@ -835,7 +835,7 @@ function UserIndexContent() {
               sx={{ 
                 fontWeight: 500, 
                 fontSize: '13px', 
-                color: isSorted ? '#1976d2' : '#505050'
+                color: '#505050'
               }}
             >
               Status
