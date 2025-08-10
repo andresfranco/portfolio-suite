@@ -62,6 +62,7 @@ import { alpha } from '@mui/material/styles';
 import { api, projectsApi, experiencesApi, sectionsApi } from '../../services/api';
 import { useSnackbar } from 'notistack';
 import SERVER_URL from '../common/BackendServerData';
+import PermissionGate from '../common/PermissionGate';
 
 // Tab Panel Component
 function TabPanel({ children, value, index, ...other }) {
@@ -1337,13 +1338,15 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
                           >
                             <VisibilityIcon />
                           </IconButton>
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => handleRemoveCategory(cat.id)}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
+                          <PermissionGate permission="EDIT_PORTFOLIO">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleRemoveCategory(cat.id)}
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </PermissionGate>
                         </ListItem>
                       );
                     })}
@@ -1358,13 +1361,15 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
               <Divider sx={{ my: 3 }} />
 
               {/* Add Categories using multi-select search */}
-              <CategoryAddManager
-                categories={categories}
-                availableCategories={availableCategories}
-                onAddMany={async (ids) => {
-                  await handleBulkAdd(ids, handleAddCategory);
-                }}
-              />
+              <PermissionGate permission="EDIT_PORTFOLIO">
+                <CategoryAddManager
+                  categories={categories}
+                  availableCategories={availableCategories}
+                  onAddMany={async (ids) => {
+                    await handleBulkAdd(ids, handleAddCategory);
+                  }}
+                />
+              </PermissionGate>
             </TabPanel>
 
             {/* Experiences Tab */}
@@ -1397,13 +1402,15 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
                           >
                             <VisibilityIcon />
                           </IconButton>
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => handleRemoveExperience(exp.id)}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
+                          <PermissionGate permission="EDIT_PORTFOLIO">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleRemoveExperience(exp.id)}
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </PermissionGate>
                         </ListItem>
                       );
                     })}
@@ -1417,12 +1424,14 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
 
               <Divider sx={{ my: 3 }} />
 
-              <ExperienceAddManager
-                experiences={experiences}
-                onAddMany={async (ids) => {
-                  await handleBulkAdd(ids, handleAddExperience);
-                }}
-              />
+              <PermissionGate permission="EDIT_PORTFOLIO">
+                <ExperienceAddManager
+                  experiences={experiences}
+                  onAddMany={async (ids) => {
+                    await handleBulkAdd(ids, handleAddExperience);
+                  }}
+                />
+              </PermissionGate>
             </TabPanel>
 
             {/* Projects Tab */}
@@ -1453,13 +1462,15 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
                           >
                             <VisibilityIcon />
                           </IconButton>
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => handleRemoveProject(proj.id)}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
+                          <PermissionGate permission="EDIT_PORTFOLIO">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleRemoveProject(proj.id)}
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </PermissionGate>
                         </ListItem>
                       );
                     })}
@@ -1473,12 +1484,14 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
 
               <Divider sx={{ my: 3 }} />
 
-              <ProjectAddManager
-                projects={projects}
-                onAddMany={async (ids) => {
-                  await handleBulkAdd(ids, handleAddProject);
-                }}
-              />
+              <PermissionGate permission="EDIT_PORTFOLIO">
+                <ProjectAddManager
+                  projects={projects}
+                  onAddMany={async (ids) => {
+                    await handleBulkAdd(ids, handleAddProject);
+                  }}
+                />
+              </PermissionGate>
             </TabPanel>
 
             {/* Sections Tab */}
@@ -1506,13 +1519,15 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
                         >
                           <VisibilityIcon />
                         </IconButton>
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => handleRemoveSection(section.id)}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
+                        <PermissionGate permission="EDIT_PORTFOLIO">
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleRemoveSection(section.id)}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </PermissionGate>
                       </ListItem>
                     ))}
                   </List>
@@ -1525,12 +1540,14 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
 
               <Divider sx={{ my: 3 }} />
 
-              <SectionAddManager
-                sectionsConnected={sections}
-                onAddMany={async (ids) => {
-                  await handleBulkAdd(ids, handleAddSection);
-                }}
-              />
+              <PermissionGate permission="EDIT_PORTFOLIO">
+                <SectionAddManager
+                  sectionsConnected={sections}
+                  onAddMany={async (ids) => {
+                    await handleBulkAdd(ids, handleAddSection);
+                  }}
+                />
+              </PermissionGate>
             </TabPanel>
 
             {/* Images Tab */}
@@ -1541,14 +1558,16 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
                   title="Portfolio Images"
                   subheader={`${images.length} images uploaded`}
                   action={
-                    <Button
-                      variant="contained"
-                      startIcon={<CloudUploadIcon />}
-                      onClick={() => setImageUploadOpen(true)}
-                      sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
-                    >
-                      Upload Image
-                    </Button>
+                    <PermissionGate permission="EDIT_PORTFOLIO">
+                      <Button
+                        variant="contained"
+                        startIcon={<CloudUploadIcon />}
+                        onClick={() => setImageUploadOpen(true)}
+                        sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
+                      >
+                        Upload Image
+                      </Button>
+                    </PermissionGate>
                   }
                 />
                 <CardContent>
@@ -1679,25 +1698,27 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
                                 {new Date(image.created_at).toLocaleDateString()}
                               </Typography>
                               <Box>
-                                <Tooltip title="Rename image">
-                                  <IconButton
-                                    size="small"
-                                    color="primary"
-                                    onClick={() => handleImageRename(image)}
-                                    sx={{ mr: 0.5 }}
-                                  >
-                                    <EditIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                                <Tooltip title="Delete image">
-                                  <IconButton
-                                    size="small"
-                                    color="error"
-                                    onClick={() => handleImageDelete(image)}
-                                  >
-                                    <DeleteIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
+                                <PermissionGate permission="EDIT_PORTFOLIO">
+                                  <Tooltip title="Rename image">
+                                    <IconButton
+                                      size="small"
+                                      color="primary"
+                                      onClick={() => handleImageRename(image)}
+                                      sx={{ mr: 0.5 }}
+                                    >
+                                      <EditIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                  <Tooltip title="Delete image">
+                                    <IconButton
+                                      size="small"
+                                      color="error"
+                                      onClick={() => handleImageDelete(image)}
+                                    >
+                                      <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                </PermissionGate>
                               </Box>
                             </CardActions>
                           </Card>
@@ -1721,14 +1742,16 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
                   title="Portfolio Attachments"
                   subheader={`${attachments.length} files attached`}
                   action={
-                    <Button
-                      variant="contained"
-                      startIcon={<CloudUploadIcon />}
-                      onClick={() => setAttachmentUploadOpen(true)}
-                      sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
-                    >
-                      Upload File
-                    </Button>
+                    <PermissionGate permission="MANAGE_PORTFOLIO_ATTACHMENTS">
+                      <Button
+                        variant="contained"
+                        startIcon={<CloudUploadIcon />}
+                        onClick={() => setAttachmentUploadOpen(true)}
+                        sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
+                      >
+                        Upload File
+                      </Button>
+                    </PermissionGate>
                   }
                 />
                 <CardContent>
@@ -1759,13 +1782,15 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
                             >
                               Download
                             </Button>
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => handleAttachmentDelete(attachment)}
-                            >
-                              <DeleteIcon />
-                            </IconButton>
+                            <PermissionGate permission="MANAGE_PORTFOLIO_ATTACHMENTS">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => handleAttachmentDelete(attachment)}
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </PermissionGate>
                           </Box>
                         </Paper>
                       ))}
@@ -1790,7 +1815,8 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
     </Dialog>
 
     {/* Image Upload Dialog */}
-    <Dialog open={imageUploadOpen} onClose={() => setImageUploadOpen(false)} maxWidth="sm" fullWidth>
+  <PermissionGate permission="EDIT_PORTFOLIO">
+  <Dialog open={imageUploadOpen} onClose={() => setImageUploadOpen(false)} maxWidth="sm" fullWidth>
       <DialogTitle>Upload Portfolio Image</DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, pt: 2 }}>
@@ -1842,9 +1868,11 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
         </Button>
       </DialogActions>
     </Dialog>
+  </PermissionGate>
 
     {/* Attachment Upload Dialog */}
-    <Dialog open={attachmentUploadOpen} onClose={() => setAttachmentUploadOpen(false)} maxWidth="sm" fullWidth>
+  <PermissionGate permission="MANAGE_PORTFOLIO_ATTACHMENTS">
+  <Dialog open={attachmentUploadOpen} onClose={() => setAttachmentUploadOpen(false)} maxWidth="sm" fullWidth>
       <DialogTitle>Upload Portfolio Attachment</DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
@@ -1883,7 +1911,8 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
           {uploadLoading ? 'Uploading...' : 'Upload'}
         </Button>
       </DialogActions>
-    </Dialog>
+  </Dialog>
+  </PermissionGate>
 
     {/* Section Content Modal */}
     <Dialog 

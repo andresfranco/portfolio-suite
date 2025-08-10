@@ -22,6 +22,8 @@ from app.models.portfolio import Portfolio as PortfolioModel
 from app.api import deps
 from app.core.config import settings
 from app.core.logging import setup_logger
+from app.core.security_decorators import require_permission, require_any_permission
+from app import models
 import traceback
 
 # Set up logger using centralized logging
@@ -274,6 +276,7 @@ def process_single_portfolio_for_response(portfolio: PortfolioModel) -> Dict[str
     return processed_portfolios[0] if processed_portfolios else None
 
 @router.get("/", response_model=PaginatedPortfolioResponse)
+@require_permission("VIEW_PORTFOLIOS")
 def read_portfolios(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(10, ge=1, le=100, description="Items per page"),
@@ -286,6 +289,7 @@ def read_portfolios(
     sort_order: Optional[str] = Query("asc", regex="^(asc|desc)$", description="Sort order"),
     include_full_details: bool = Query(False, description="Include full portfolio details"),
     db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Retrieve portfolios with pagination and filtering.
@@ -351,8 +355,10 @@ def read_portfolios(
         )
 
 @router.get("/names", response_model=List[str])
+@require_permission("VIEW_PORTFOLIOS")
 def list_portfolio_names(
     db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Get list of all portfolio names.
@@ -371,10 +377,12 @@ def list_portfolio_names(
         )
 
 @router.post("/", response_model=PortfolioOut, status_code=status.HTTP_201_CREATED)
+@require_permission("CREATE_PORTFOLIO")
 def create_portfolio(
     *,
     db: Session = Depends(deps.get_db),
     portfolio_in: PortfolioCreate,
+    current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Create new portfolio.
@@ -398,10 +406,12 @@ def create_portfolio(
         )
 
 @router.get("/{portfolio_id}", response_model=PortfolioOut)
+@require_permission("VIEW_PORTFOLIOS")
 def read_portfolio(
     *,
     db: Session = Depends(deps.get_db),
     portfolio_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Get portfolio by ID.
@@ -433,11 +443,13 @@ def read_portfolio(
     }
 
 @router.put("/{portfolio_id}", response_model=PortfolioOut)
+@require_permission("EDIT_PORTFOLIO")
 def update_portfolio(
     *,
     db: Session = Depends(deps.get_db),
     portfolio_id: int,
     portfolio_in: PortfolioUpdate,
+    current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Update a portfolio.
@@ -471,10 +483,12 @@ def update_portfolio(
         )
 
 @router.delete("/{portfolio_id}", response_model=PortfolioOut, status_code=status.HTTP_200_OK)
+@require_permission("DELETE_PORTFOLIO")
 def delete_portfolio(
     *,
     db: Session = Depends(deps.get_db),
     portfolio_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Delete a portfolio.
@@ -502,10 +516,12 @@ def delete_portfolio(
         )
 
 @router.get("/{portfolio_id}/images", response_model=List[PortfolioImageOut])
+@require_permission("VIEW_PORTFOLIOS")
 def read_portfolio_images(
     *,
     db: Session = Depends(deps.get_db),
     portfolio_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Get all images for a portfolio.
@@ -539,12 +555,14 @@ def read_portfolio_images(
         )
 
 @router.post("/{portfolio_id}/images", response_model=PortfolioImageOut, status_code=status.HTTP_201_CREATED)
+@require_permission("EDIT_PORTFOLIO")
 async def upload_portfolio_image(
     *,
     db: Session = Depends(deps.get_db),
     portfolio_id: int,
     category: str = Query(..., description="Image category"),
     file: UploadFile = File(...),
+    current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Upload an image for a portfolio.
@@ -618,11 +636,13 @@ async def upload_portfolio_image(
         )
 
 @router.delete("/{portfolio_id}/images/{image_id}", response_model=PortfolioImageOut)
+@require_permission("EDIT_PORTFOLIO")
 def delete_portfolio_image(
     *,
     db: Session = Depends(deps.get_db),
     portfolio_id: int,
     image_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Delete a portfolio image.
@@ -667,12 +687,14 @@ def delete_portfolio_image(
         )
 
 @router.put("/{portfolio_id}/images/{image_id}", response_model=PortfolioImageOut)
+@require_permission("EDIT_PORTFOLIO")
 async def rename_portfolio_image(
     *,
     db: Session = Depends(deps.get_db),
     portfolio_id: int,
     image_id: int,
     image_update: PortfolioImageUpdate,
+    current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Rename a portfolio image or update its category.
@@ -760,10 +782,12 @@ async def rename_portfolio_image(
         )
 
 @router.get("/{portfolio_id}/attachments", response_model=List[PortfolioAttachmentOut])
+@require_any_permission(["VIEW_PORTFOLIOS", "MANAGE_PORTFOLIO_ATTACHMENTS"])
 def read_portfolio_attachments(
     *,
     db: Session = Depends(deps.get_db),
     portfolio_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Get all attachments for a portfolio.
@@ -797,11 +821,13 @@ def read_portfolio_attachments(
         )
 
 @router.post("/{portfolio_id}/attachments", response_model=PortfolioAttachmentOut, status_code=status.HTTP_201_CREATED)
+@require_permission("MANAGE_PORTFOLIO_ATTACHMENTS")
 async def upload_portfolio_attachment(
     *,
     db: Session = Depends(deps.get_db),
     portfolio_id: int,
     file: UploadFile = File(...),
+    current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Upload an attachment for a portfolio.
@@ -903,11 +929,13 @@ async def upload_portfolio_attachment(
         )
 
 @router.delete("/{portfolio_id}/attachments/{attachment_id}", response_model=PortfolioAttachmentOut)
+@require_permission("MANAGE_PORTFOLIO_ATTACHMENTS")
 def delete_portfolio_attachment(
     *,
     db: Session = Depends(deps.get_db),
     portfolio_id: int,
     attachment_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Delete a portfolio attachment.
@@ -954,11 +982,13 @@ def delete_portfolio_attachment(
 # Portfolio Association Endpoints
 
 @router.post("/{portfolio_id}/categories/{category_id}", status_code=status.HTTP_200_OK)
+@require_permission("EDIT_PORTFOLIO")
 def add_portfolio_category(
     *,
     db: Session = Depends(deps.get_db),
     portfolio_id: int,
     category_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Add a category to a portfolio.
@@ -993,11 +1023,13 @@ def add_portfolio_category(
         )
 
 @router.delete("/{portfolio_id}/categories/{category_id}", status_code=status.HTTP_200_OK)
+@require_permission("EDIT_PORTFOLIO")
 def remove_portfolio_category(
     *,
     db: Session = Depends(deps.get_db),
     portfolio_id: int,
     category_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Remove a category from a portfolio.
@@ -1032,11 +1064,13 @@ def remove_portfolio_category(
         )
 
 @router.post("/{portfolio_id}/experiences/{experience_id}", status_code=status.HTTP_200_OK)
+@require_permission("EDIT_PORTFOLIO")
 def add_portfolio_experience(
     *,
     db: Session = Depends(deps.get_db),
     portfolio_id: int,
     experience_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Add an experience to a portfolio.
@@ -1071,11 +1105,13 @@ def add_portfolio_experience(
         )
 
 @router.delete("/{portfolio_id}/experiences/{experience_id}", status_code=status.HTTP_200_OK)
+@require_permission("EDIT_PORTFOLIO")
 def remove_portfolio_experience(
     *,
     db: Session = Depends(deps.get_db),
     portfolio_id: int,
     experience_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Remove an experience from a portfolio.
@@ -1110,11 +1146,13 @@ def remove_portfolio_experience(
         )
 
 @router.post("/{portfolio_id}/projects/{project_id}", status_code=status.HTTP_200_OK)
+@require_permission("EDIT_PORTFOLIO")
 def add_portfolio_project(
     *,
     db: Session = Depends(deps.get_db),
     portfolio_id: int,
     project_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Add a project to a portfolio.
@@ -1149,11 +1187,13 @@ def add_portfolio_project(
         )
 
 @router.delete("/{portfolio_id}/projects/{project_id}", status_code=status.HTTP_200_OK)
+@require_permission("EDIT_PORTFOLIO")
 def remove_portfolio_project(
     *,
     db: Session = Depends(deps.get_db),
     portfolio_id: int,
     project_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Remove a project from a portfolio.
@@ -1188,11 +1228,13 @@ def remove_portfolio_project(
         )
 
 @router.post("/{portfolio_id}/sections/{section_id}", status_code=status.HTTP_200_OK)
+@require_permission("EDIT_PORTFOLIO")
 def add_portfolio_section(
     *,
     db: Session = Depends(deps.get_db),
     portfolio_id: int,
     section_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Add a section to a portfolio.
@@ -1227,11 +1269,13 @@ def add_portfolio_section(
         )
 
 @router.delete("/{portfolio_id}/sections/{section_id}", status_code=status.HTTP_200_OK)
+@require_permission("EDIT_PORTFOLIO")
 def remove_portfolio_section(
     *,
     db: Session = Depends(deps.get_db),
     portfolio_id: int,
     section_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Remove a section from a portfolio.

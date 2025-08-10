@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { Box, IconButton, Tooltip, Chip, Stack, Typography, Button } from '@mui/material';
-import { Edit as EditIcon, Delete as DeleteIcon, PhotoLibrary as PhotoLibraryIcon, AttachFile as AttachFileIcon, ArrowUpward, ArrowDownward, Add } from '@mui/icons-material';
+import { Box, IconButton, Tooltip, Chip, Stack, Typography, Button, Container } from '@mui/material';
+import { Edit as EditIcon, Delete as DeleteIcon, PhotoLibrary as PhotoLibraryIcon, AttachFile as AttachFileIcon, ArrowUpward, ArrowDownward, Add, InfoOutlined } from '@mui/icons-material';
 import ProjectForm from './ProjectForm';
 import ReusableDataGrid from '../common/ReusableDataGrid';
 import ReusableFilters from '../common/ReusableFilters';
@@ -10,8 +10,10 @@ import { ProjectProvider, useProjects } from '../../contexts/ProjectContext';
 import { categoriesApi, languagesApi, skillsApi } from '../../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useAuthorization } from '../../contexts/AuthorizationContext';
+import { evaluateGridColumnAccess, evaluateFilterAccess } from '../../utils/accessControl';
 import ModuleGate from '../common/ModuleGate';
 import PermissionGate from '../common/PermissionGate';
+import { CONTAINER_PY, SECTION_PX, GRID_WRAPPER_PB } from '../common/layoutTokens';
 
 function ProjectIndexContent() {
   const {
@@ -231,6 +233,20 @@ function ProjectIndexContent() {
     }
   }), [availableCategories, availableSkills, availableLanguages, getCategoryName, getSkillName]);
 
+  // Build filter access notices (per filter type)
+  const FILTER_ACCESS_MAP = useMemo(() => ({
+    name: { required: 'VIEW_PROJECTS', moduleKey: 'projects' },
+    category_id: { required: 'VIEW_CATEGORIES', moduleKey: 'categories' },
+    skill_id: { required: 'VIEW_SKILLS', moduleKey: 'skills' },
+    language_id: { required: 'VIEW_LANGUAGES', moduleKey: 'languages' }
+  }), []);
+
+  const filterAccessNotices = useMemo(() => {
+    const authorization = { isSystemAdmin: () => isSystemAdminUser || hasPermission('SYSTEM_ADMIN'), hasPermission, hasAnyPermission };
+    const { noticesByType } = evaluateFilterAccess(Object.keys(FILTER_TYPES), FILTER_ACCESS_MAP, authorization);
+    return noticesByType;
+  }, [FILTER_TYPES, FILTER_ACCESS_MAP, isSystemAdminUser, hasPermission, hasAnyPermission]);
+
   const FiltersWrapper = useCallback(({ filters: currentFilters, onFiltersChange, onSearch }) => {
     return (
       <ReusableFilters
@@ -238,9 +254,10 @@ function ProjectIndexContent() {
         filters={currentFilters}
         onFiltersChange={onFiltersChange}
         onSearch={onSearch}
+        accessNotices={filterAccessNotices}
       />
     );
-  }, [FILTER_TYPES]);
+  }, [FILTER_TYPES, filterAccessNotices]);
 
   // Initial fetch of projects
   useEffect(() => {
@@ -332,7 +349,7 @@ function ProjectIndexContent() {
   };
 
   // Define columns for the grid
-  const columns = useMemo(() => [
+  const baseColumns = useMemo(() => [
     { 
       field: 'project_texts', 
       headerName: 'Names', 
@@ -649,6 +666,33 @@ function ProjectIndexContent() {
     }
   ], [sortModel, getLanguageInfo, getCategoryName, getSkillName]);
 
+  // Column access mapping for Projects grid
+  const COLUMN_ACCESS_MAP = useMemo(() => ({
+    project_texts: { required: 'VIEW_PROJECTS', moduleKey: 'projects' },
+    categories: { required: 'VIEW_CATEGORIES', moduleKey: 'categories' },
+    skills: { required: 'VIEW_SKILLS', moduleKey: 'skills' },
+    urls: { required: 'VIEW_PROJECTS', moduleKey: 'projects' },
+    actions: { required: ['EDIT_PROJECT', 'DELETE_PROJECT', 'MANAGE_PROJECTS'], moduleKey: 'projects' }
+  }), []);
+
+  // Compute allowed/denied columns based on permissions
+  const { allowedColumns, deniedColumns } = useMemo(() => {
+    const authorization = { isSystemAdmin: () => isSystemAdminUser || hasPermission('SYSTEM_ADMIN'), hasPermission, hasAnyPermission };
+    return evaluateGridColumnAccess(COLUMN_ACCESS_MAP, authorization);
+  }, [isSystemAdminUser, hasPermission, hasAnyPermission, COLUMN_ACCESS_MAP]);
+
+  // Filter columns and optionally hide actions when any column was denied
+  const columns = useMemo(() => {
+    const hideActions = deniedColumns.length > 0;
+    return baseColumns.filter(col => allowedColumns.has(col.field) && (!hideActions || col.field !== 'actions'));
+  }, [baseColumns, allowedColumns, deniedColumns]);
+
+  // Friendly titles for denied columns (use headerName)
+  const deniedColumnTitles = useMemo(() => {
+    const mapTitle = (field) => baseColumns.find(c => c.field === field)?.headerName || field;
+    return Array.from(new Set(deniedColumns.map(mapTitle)));
+  }, [deniedColumns, baseColumns]);
+
   // Event handlers
   const handleCreateClick = () => {
     setSelectedProject(null);
@@ -691,7 +735,7 @@ function ProjectIndexContent() {
   }
 
   return (
-    <Box sx={{ height: '100%', width: '100%', p: 2 }}>
+    <Box sx={{ height: '100%', width: '100%', px: SECTION_PX, pb: GRID_WRAPPER_PB }}>
       <ReusableDataGrid
         title="Projects Management"
         columns={columns}
@@ -706,6 +750,14 @@ function ProjectIndexContent() {
         FiltersComponent={FiltersWrapper}
         onFiltersChange={handleFiltersChange}
         onSearch={handleSearch}
+        topNotice={deniedColumnTitles.length > 0 ? (
+          <Box sx={{ mt: 0.5, mb: 1, display: 'inline-flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
+            <InfoOutlined sx={{ fontSize: 16 }} />
+            <Typography sx={{ fontSize: '12px', lineHeight: 1.4 }}>
+              {`You do not have permission to view the columns ${deniedColumnTitles.join(', ')}`}
+            </Typography>
+          </Box>
+        ) : null}
         {...(canCreateProject() ? {
           createButtonText: "Project",
           onCreateClick: handleCreateClick
@@ -770,7 +822,9 @@ function ProjectIndex() {
     <ModuleGate moduleName="projects" showError={true}>
       <ErrorBoundary>
         <ProjectProvider>
-          <ProjectIndexContent />
+          <Container maxWidth={false} disableGutters sx={{ py: CONTAINER_PY }}>
+            <ProjectIndexContent />
+          </Container>
         </ProjectProvider>
       </ErrorBoundary>
     </ModuleGate>

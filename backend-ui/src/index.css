@@ -5,9 +5,28 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: #ffffff;
 }
 
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
+}
+
+/* Admin main area and common containers */
+.app-main {
+  background-color: #ffffff !important;
+}
+
+/* Flatten cards/panels across the admin */
+.app-main .MuiPaper-root,
+.app-main .MuiCard-root,
+.app-main .MuiBox-root {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Tighten top spacing so content sits near the header; title keeps its own margin */
+.app-main > .MuiToolbar-root + div {
+  margin-top: 0 !important;
 }

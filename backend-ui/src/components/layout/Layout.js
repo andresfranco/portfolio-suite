@@ -336,14 +336,17 @@ const Layout = () => {
     <Box sx={{ display: 'flex' }}>
       <AppBar 
         position="fixed" 
-        elevation={1}
+        elevation={0}
         sx={{ 
           zIndex: (theme) => theme.zIndex.drawer + 1,
           backgroundColor: 'white',
-          color: '#424242'
+          color: '#424242',
+          boxShadow: 'none',
+          borderBottom: '1px solid #e0e0e0',
+          borderRadius: 0
         }}
       >
-        <Toolbar>
+        <Toolbar sx={{ borderRadius: 0, minHeight: { xs: 56, sm: 64 } }}>
           <IconButton
             color="inherit"
             aria-label="open drawer"
@@ -420,7 +423,7 @@ const Layout = () => {
         sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}
       >
         {/* Mobile drawer */}
-        <Drawer
+    <Drawer
           variant="temporary"
           open={mobileOpen}
           onClose={handleDrawerToggle}
@@ -429,18 +432,18 @@ const Layout = () => {
           }}
           sx={{
             display: { xs: 'block', md: 'none' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+      '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth, borderRadius: 0 },
           }}
         >
           {drawer}
         </Drawer>
         
         {/* Desktop drawer */}
-        <Drawer
+    <Drawer
           variant="permanent"
           sx={{
             display: { xs: 'none', md: 'block' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+      '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth, borderRadius: 0 },
           }}
           open
         >
@@ -450,19 +453,20 @@ const Layout = () => {
       
       <Box
         component="main"
+        className="app-main"
         sx={{ 
           flexGrow: 1, 
-          pt: 3, 
+          pt: 0, 
           pr: 3, 
           pb: 3, 
           pl: 0,
           width: { md: `calc(100% - ${drawerWidth}px)` },
-          backgroundColor: '#fafafa',
+          backgroundColor: 'white',
           minHeight: '100vh'
         }}
       >
         <Toolbar />
-        <Box sx={{ mt: 2, width: '100%' }}>
+        <Box sx={{ mt: 0, width: '100%' }}>
           <Outlet />
         </Box>
       </Box>

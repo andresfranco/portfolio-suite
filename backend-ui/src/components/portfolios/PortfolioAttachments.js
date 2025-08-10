@@ -37,6 +37,8 @@ import {
 import { alpha } from '@mui/material/styles';
 import SERVER_URL from '../common/BackendServerData';
 import { api } from '../../services/api';
+import ModuleGate from '../common/ModuleGate';
+import PermissionGate from '../common/PermissionGate';
 
 // File type constants
 const ACCEPTED_FILE_TYPES = [
@@ -480,17 +482,19 @@ function PortfolioAttachments() {
           </Typography>
         </Box>
 
-        <Button
-          variant="contained"
-          startIcon={<CloudUploadIcon />}
-          onClick={() => fileInputRef.current?.click()}
-          sx={{
-            bgcolor: '#1976d2',
-            '&:hover': { bgcolor: '#1565c0' }
-          }}
-        >
-          Upload Files
-        </Button>
+        <PermissionGate permission="MANAGE_PORTFOLIO_ATTACHMENTS">
+          <Button
+            variant="contained"
+            startIcon={<CloudUploadIcon />}
+            onClick={() => fileInputRef.current?.click()}
+            sx={{
+              bgcolor: '#1976d2',
+              '&:hover': { bgcolor: '#1565c0' }
+            }}
+          >
+            Upload Files
+          </Button>
+        </PermissionGate>
       </Box>
 
       {/* Selection Toolbar */}
@@ -541,17 +545,19 @@ function PortfolioAttachments() {
       )}
 
       {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        accept={ACCEPTED_FILE_TYPES.join(',')}
-        onChange={handleFileChange}
-        style={{ display: 'none' }}
-      />
+      <PermissionGate permission="MANAGE_PORTFOLIO_ATTACHMENTS">
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept={ACCEPTED_FILE_TYPES.join(',')}
+          onChange={handleFileChange}
+          style={{ display: 'none' }}
+        />
+      </PermissionGate>
 
       {/* Drag and Drop Area */}
-      <Paper
+  <Paper
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
         onDragOver={handleDrag}
@@ -566,7 +572,7 @@ function PortfolioAttachments() {
           cursor: 'pointer',
           transition: 'all 0.2s ease'
         }}
-        onClick={() => fileInputRef.current?.click()}
+  onClick={() => fileInputRef.current?.click()}
       >
         <AttachFileIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
         <Typography variant="h6" gutterBottom>
@@ -581,7 +587,7 @@ function PortfolioAttachments() {
       </Paper>
 
       {/* Attachments Grid */}
-      {attachments.length === 0 ? (
+  {attachments.length === 0 ? (
         <Paper sx={{ p: 4, textAlign: 'center' }}>
           <AttachFileIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
           <Typography variant="h6" color="text.secondary" gutterBottom>
@@ -662,13 +668,15 @@ function PortfolioAttachments() {
                   </Button>
                   
                   {!selectionMode && (
-                    <IconButton
-                      size="small"
-                      onClick={() => handleDeleteClick(attachment)}
-                      sx={{ color: '#e53935' }}
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
+                    <PermissionGate permission="MANAGE_PORTFOLIO_ATTACHMENTS">
+                      <IconButton
+                        size="small"
+                        onClick={() => handleDeleteClick(attachment)}
+                        sx={{ color: '#e53935' }}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </PermissionGate>
                   )}
                 </CardActions>
               </Card>
@@ -678,7 +686,8 @@ function PortfolioAttachments() {
       )}
 
       {/* Upload Dialog */}
-      <Dialog open={isUploadDialogOpen} onClose={() => setIsUploadDialogOpen(false)} maxWidth="md" fullWidth>
+  <PermissionGate permission="MANAGE_PORTFOLIO_ATTACHMENTS">
+  <Dialog open={isUploadDialogOpen} onClose={() => setIsUploadDialogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>Upload Attachments</DialogTitle>
         <DialogContent>
           {uploadError && (
@@ -763,9 +772,11 @@ function PortfolioAttachments() {
           </Button>
         </DialogActions>
       </Dialog>
+  </PermissionGate>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={isDeleteDialogOpen} onClose={() => setIsDeleteDialogOpen(false)}>
+  <PermissionGate permission="MANAGE_PORTFOLIO_ATTACHMENTS">
+  <Dialog open={isDeleteDialogOpen} onClose={() => setIsDeleteDialogOpen(false)}>
         <DialogTitle>Confirm Delete</DialogTitle>
         <DialogContent>
           <Typography>
@@ -779,9 +790,11 @@ function PortfolioAttachments() {
           </Button>
         </DialogActions>
       </Dialog>
+  </PermissionGate>
 
       {/* Bulk Delete Confirmation Dialog */}
-      <Dialog open={isBulkDeleteDialogOpen} onClose={() => setIsBulkDeleteDialogOpen(false)}>
+  <PermissionGate permission="MANAGE_PORTFOLIO_ATTACHMENTS">
+  <Dialog open={isBulkDeleteDialogOpen} onClose={() => setIsBulkDeleteDialogOpen(false)}>
         <DialogTitle>Confirm Bulk Delete</DialogTitle>
         <DialogContent>
           <Typography>
@@ -803,6 +816,7 @@ function PortfolioAttachments() {
           </Button>
         </DialogActions>
       </Dialog>
+  </PermissionGate>
     </Box>
   );
 }
