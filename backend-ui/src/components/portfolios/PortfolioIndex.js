@@ -196,7 +196,7 @@ function PortfolioIndexContent() {
           variant="body2" 
           sx={{ 
             fontWeight: 500,
-            color: '#1976d2',
+            color: '#424242',
             fontSize: '0.875rem'
           }}
         >

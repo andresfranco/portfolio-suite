@@ -18,7 +18,7 @@ import {
   LockPerson as PermissionIcon,
   Language as LanguageIcon,
   Translate as TranslateIcon,
-  Work as PortfolioIcon,
+  CollectionsBookmark as PortfolioIcon,
   ViewModule as SectionIcon,
   Business as ExperienceIcon,
   Code as ProjectIcon,
