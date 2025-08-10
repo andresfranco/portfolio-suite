@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -14,6 +14,7 @@ import { UserIndex } from './components/users';
 import Login from './components/Login';
 import authService from './services/authService';
 import LanguageIndex from './components/languages/LanguageIndex';
+import useIdleSession from './hooks/useIdleSession';
 
 // Importing actual components for previously working modules
 import { RoleIndex } from './components/roles';
@@ -63,7 +64,29 @@ function AppContent() {
     };
 
     checkAuth();
-  }, []);  const handleLogin = async (username, password) => {
+  }, []);
+
+  // Inactivity logout handler
+  const onIdle = useCallback(() => {
+    if (authContextAuthenticated()) {
+      authService.logout();
+    }
+  }, [authContextAuthenticated]);
+
+  // Optional warn callback: could show a snackbar/modal later
+  const onWarn = useCallback(() => {
+    // no-op for now
+  }, []);
+
+  // Start idle session tracking only when authenticated
+  useIdleSession({
+    idleMs: 30 * 60 * 1000, // 30 minutes inactivity
+    warnMs: 60 * 1000,      // warn 1 minute before
+    onIdle,
+    onWarn,
+  });
+
+  const handleLogin = async (username, password) => {
     try {
       await authService.login(username, password);
       
