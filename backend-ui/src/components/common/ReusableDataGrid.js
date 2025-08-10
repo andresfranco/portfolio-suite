@@ -69,6 +69,7 @@ function ReusableDataGrid({
   disableRowSelectionOnClick,
   topNotice,
   standardizeHeaders = true,
+  disableColumnMenu,
 }) {
   const isExternalDataMode = Boolean(rows !== undefined);
   const [data, setData] = useState([]);
@@ -503,6 +504,7 @@ function ReusableDataGrid({
                 columns={processedColumns}
                 rowCount={displayTotal}
                 loading={displayLoading}
+                disableColumnMenu={Boolean(disableColumnMenu)}
                 paginationModel={paginationModel}
                 onPaginationModelChange={handlePaginationModelChange}
                 sortModel={sortModel}

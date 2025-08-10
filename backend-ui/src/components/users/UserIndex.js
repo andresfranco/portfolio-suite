@@ -19,20 +19,27 @@ import DialogTitle from '@mui/material/DialogTitle';
 // Custom pagination component with a native select
 const CustomPagination = (props) => {
   const { pagination, pageSizeOptions = [5, 10, 15, 20, 25], onPaginationChange } = props;
-  
+
+  // Normalize pagination keys from shared grid (page/pageSize) or legacy (page/page_size)
+  const currentPage = typeof pagination.page === 'number' ? pagination.page : 0;
+  const currentPageSize = typeof pagination.pageSize === 'number'
+    ? pagination.pageSize
+    : (typeof pagination.page_size === 'number' ? pagination.page_size : (pageSizeOptions?.[0] || 10));
+  const totalItems = typeof pagination.total === 'number' ? pagination.total : 0;
+
   // Use a ref to maintain selected page size across re-renders
-  const selectedPageSizeRef = useRef(pagination.page_size);
+  const selectedPageSizeRef = useRef(currentPageSize);
   
   // Add a ref to track the last change to prevent duplicate calls
   const lastChangeRef = useRef(null);
   
   // Update ref when pagination changes from parent
   useEffect(() => {
-    if (pagination.page_size && pagination.page_size !== selectedPageSizeRef.current) {
-      console.log('CustomPagination - Syncing selectedPageSizeRef with pagination.page_size:', pagination.page_size);
-      selectedPageSizeRef.current = pagination.page_size;
+    if (currentPageSize && currentPageSize !== selectedPageSizeRef.current) {
+      console.log('CustomPagination - Syncing selectedPageSizeRef with pageSize:', currentPageSize);
+      selectedPageSizeRef.current = currentPageSize;
     }
-  }, [pagination.page_size]);
+  }, [currentPageSize]);
   
   const handleChangePageSize = (e) => {
     const newPageSize = parseInt(e.target.value, 10);
@@ -77,58 +84,57 @@ const CustomPagination = (props) => {
   
   const handlePrevPage = () => {
     console.log('CustomPagination - Previous page calculation:', {
-      totalItems: pagination.total,
-      pageSize: pagination.page_size,
-      currentPage: pagination.page
+      totalItems,
+      pageSize: currentPageSize,
+      currentPage
     });
     
-    if (pagination.page > 0) {
+    if (currentPage > 0) {
       console.log('CustomPagination - Moving to previous page', {
 
       });
-      
-      const targetPage = pagination.page - 1;
+      const targetPage = currentPage - 1;
       if (onPaginationChange) {
         onPaginationChange({ 
           page: targetPage, 
-          pageSize: pagination.page_size
+          pageSize: currentPageSize
         });
       }
     } else {
       console.log('CustomPagination - Already at first page, cannot go back', {
-        currentPage: pagination.page
+        currentPage
       });
     }
   };
   
   const handleNextPage = () => {
-    // Calculate the last possible page more carefully, based on the total and page size
-    const totalPages = Math.max(1, Math.ceil(pagination.total / pagination.page_size));
+    // Calculate the last possible page based on the total and page size
+    const totalPages = Math.max(1, Math.ceil(totalItems / currentPageSize));
     const lastPage = totalPages - 1; // Convert to 0-indexed for UI
     
     console.log('CustomPagination - Next page calculation:', {
-      totalItems: pagination.total,
-      pageSize: pagination.page_size,
+      totalItems,
+      pageSize: currentPageSize,
       totalPages,
       lastPage: lastPage,
-      currentPage: pagination.page
+      currentPage
     });
     
-    if (pagination.page < lastPage) {
+    if (currentPage < lastPage) {
       console.log('CustomPagination - Moving to next page', {
-        currentPage: pagination.page,
-        targetPage: pagination.page + 1
+        currentPage,
+        targetPage: currentPage + 1
       });
       
       // Check if moving to the target page is safe
-      const targetPage = pagination.page + 1;
+      const targetPage = currentPage + 1;
       if (targetPage > lastPage) {
         console.warn(`CustomPagination - Target page ${targetPage} exceeds last valid page ${lastPage}, adjusting to ${lastPage}`);
         
       if (onPaginationChange) {
           onPaginationChange({ 
             page: lastPage,
-            pageSize: pagination.page_size
+            pageSize: currentPageSize
           });
         }
         return;
@@ -137,12 +143,12 @@ const CustomPagination = (props) => {
       if (onPaginationChange) {
         onPaginationChange({ 
           page: targetPage,
-          pageSize: pagination.page_size
+          pageSize: currentPageSize
         });
       }
     } else {
       console.log('CustomPagination - Already at last page, cannot go forward', {
-        currentPage: pagination.page,
+        currentPage,
         lastPage: lastPage
       });
     }
@@ -150,11 +156,11 @@ const CustomPagination = (props) => {
   
   // Calculate displayed range using the page size and making sure it's accurate
   // This is important for showing correct pagination info when the backend returns more items than requested
-  const effectivePageSize = pagination.page_size;
-  const start = pagination.page * effectivePageSize + 1;
-  const end = Math.min((pagination.page + 1) * effectivePageSize, pagination.total);
-  const isFirstPage = pagination.page === 0;
-  const isLastPage = pagination.page >= Math.ceil(pagination.total / effectivePageSize) - 1;
+  const effectivePageSize = currentPageSize;
+  const start = totalItems === 0 ? 0 : currentPage * effectivePageSize + 1;
+  const end = totalItems === 0 ? 0 : Math.min((currentPage + 1) * effectivePageSize, totalItems);
+  const isFirstPage = currentPage === 0;
+  const isLastPage = currentPage >= Math.ceil((totalItems || 1) / (effectivePageSize || 1)) - 1;
   
   console.log('CustomPagination rendering with:', {
     page_size: pagination.page_size,
@@ -165,10 +171,9 @@ const CustomPagination = (props) => {
     actualUsers: props.users?.length || 0
   });
   
-  // Log any discrepancies between the selected page size and the API's page size
-  if (pageSizeOptions.includes(pagination.page_size) && props.onPaginationChange) {
-    // Note: this is just for logging/debugging and doesn't affect functionality
-    console.log('Current page size from API:', pagination.page_size);
+  // Log current page size for debugging
+  if (props.onPaginationChange) {
+    console.log('Current page size (normalized):', currentPageSize);
   }
   
   return (
@@ -224,7 +229,7 @@ const CustomPagination = (props) => {
           textAlign: 'center',
         }}
       >
-        {start}-{end} of {pagination.total}
+  {start}-{end} of {totalItems}
       </Typography>
       
       <Box sx={{ display: 'flex', ml: 2 }}>
@@ -1062,6 +1067,7 @@ function UserIndexContent() {
               onPaginationModelChange={handlePaginationModelChange}
               sortModel={sortModel}
               onSortModelChange={handleSortModelChange}
+              disableColumnMenu
               disableRowSelectionOnClick
               PaginationComponent={CustomPagination}
               paginationPosition="top"
