@@ -1,6 +1,7 @@
 import { API_CONFIG } from '../config/apiConfig';
 import { api } from './api';
 import { logInfo, logError } from '../utils/logger';
+import { isTokenExpired } from '../utils/jwt';
 
 /**
  * Authentication service
@@ -105,17 +106,17 @@ const authService = {
    */
   isAuthenticated: () => {
     const token = localStorage.getItem('accessToken');
-    
-    if (!token) {
-      return false;
-    }
-    
-    // You could add token expiration validation here if the token contains an exp claim
+    if (!token) return false;
     try {
-      // Basic check - if token exists and isn't empty
-      return token && token.length > 20; // Just a simple length check
+      // Treat token as invalid if expired (with small skew)
+      const expired = isTokenExpired(token, 5000);
+      if (expired) {
+        localStorage.removeItem('accessToken');
+        // Don't remove refresh here; let the 401/refresh pipeline decide
+        return false;
+      }
+      return token.length > 20;
     } catch (e) {
-      // If there's any error, clear token and return false
       localStorage.removeItem('accessToken');
       return false;
     }

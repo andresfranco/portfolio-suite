@@ -38,35 +38,72 @@ class RoleApiService {
       }
     );
     
-    // Response interceptor to handle common errors
+    // Response interceptor to handle token refreshes and common errors
+    let isRefreshing = false;
+    let refreshPromise = null;
     this.api.interceptors.response.use(
       (response) => response,
-      (error) => {
-        if (error.response) {
-          // Unauthorized access
-          if (error.response.status === 401) {
+      async (error) => {
+        const { response, config } = error || {};
+        if (!response) return Promise.reject(error);
+
+        if (response.status === 401) {
+          if (config && config._retry) {
             localStorage.removeItem('accessToken');
-            // Redirect to login page if not already there
-            if (!window.location.pathname.includes('/login')) {
-              window.location.href = '/login';
-            }
+            localStorage.removeItem('refresh_token');
+            return Promise.reject(error);
           }
-          
-          // Log detailed error information
-          logError(`API Error (${error.response.status}):`, {
-            url: error.config?.url,
-            method: error.config?.method?.toUpperCase(),
-            status: error.response.status,
-            data: error.response.data
+
+          const refreshToken = localStorage.getItem('refresh_token');
+          if (!refreshToken) {
+            localStorage.removeItem('accessToken');
+            return Promise.reject(error);
+          }
+
+          try {
+            if (!isRefreshing) {
+              isRefreshing = true;
+              refreshPromise = axios.post(`${this.baseURL}${API_CONFIG.ENDPOINTS.auth.refreshToken}`, {
+                refresh_token: refreshToken
+              }, { headers: { 'Content-Type': 'application/json' } })
+              .then((res) => {
+                const newToken = res.data?.access_token;
+                if (newToken) localStorage.setItem('accessToken', newToken);
+                if (res.data?.refresh_token) localStorage.setItem('refresh_token', res.data.refresh_token);
+                return newToken;
+              })
+              .finally(() => { isRefreshing = false; });
+            }
+
+            const newToken = await refreshPromise;
+            if (newToken) {
+              const retryConfig = { ...config, _retry: true };
+              retryConfig.headers = {
+                ...(config.headers || {}),
+                Authorization: `Bearer ${newToken}`,
+              };
+              return this.api.request(retryConfig);
+            }
+          } catch (e) {
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refresh_token');
+          }
+        }
+
+        // Log detailed error information
+        if (response) {
+          logError(`API Error (${response.status}):`, {
+            url: config?.url,
+            method: config?.method?.toUpperCase(),
+            status: response.status,
+            data: response.data
           });
         } else if (error.request) {
-          // The request was made but no response was received
           logError('Network Error - No response from API:', {
             url: error.config?.url,
             method: error.config?.method?.toUpperCase()
           });
         } else {
-          // Something happened in setting up the request
           logError('Request Setup Error:', error.message);
         }
         

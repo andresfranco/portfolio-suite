@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { api } from '../services/api';
 import { logInfo, logError } from '../utils/logger';
+import { isTokenExpired } from '../utils/jwt';
 
 const AuthorizationContext = createContext();
 
@@ -18,7 +19,11 @@ export const AuthorizationProvider = ({ children }) => {
   const [isSystemAdminUser, setIsSystemAdminUser] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [authToken, setAuthToken] = useState(localStorage.getItem('accessToken'));
+  const [authToken, setAuthToken] = useState(() => {
+    const t = localStorage.getItem('accessToken');
+    if (!t) return null;
+    return isTokenExpired(t, 0) ? null : t;
+  });
 
   // System admin users who bypass all permission checks
   const SYSTEM_ADMIN_USERS = ['systemadmin'];
@@ -28,8 +33,10 @@ export const AuthorizationProvider = ({ children }) => {
   useEffect(() => {
     const checkTokenChange = () => {
       const currentToken = localStorage.getItem('accessToken');
-      if (currentToken !== authToken) {
-        setAuthToken(currentToken);
+      // If expired, treat as no token
+      const effectiveToken = currentToken && !isTokenExpired(currentToken, 0) ? currentToken : null;
+      if (effectiveToken !== authToken) {
+        setAuthToken(effectiveToken);
       }
     };
 
@@ -84,7 +91,7 @@ export const AuthorizationProvider = ({ children }) => {
       }
     };
 
-    if (authToken) {
+  if (authToken) {
       logInfo('Auth token detected, loading permissions...');
       loadUserPermissions();
     } else {

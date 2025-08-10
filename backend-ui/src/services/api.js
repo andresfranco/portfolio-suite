@@ -2,6 +2,7 @@ import axios from 'axios';
 import SERVER_URL from '../components/common/BackendServerData';
 import { API_CONFIG } from '../config/apiConfig';
 import { logInfo, logError, logDebug } from '../utils/logger';
+import { isTokenExpired } from '../utils/jwt';
 
 /**
  * Determines if an error is likely an authentication error
@@ -47,6 +48,10 @@ api.interceptors.request.use(
     });
     
     if (token) {
+      // Optionally preemptively reject if token is expired; backend will also return 401
+      if (isTokenExpired(token, 0)) {
+        logDebug('Token appears expired before request; proceeding to let server respond 401');
+      }
       config.headers.Authorization = `Bearer ${token}`;
       logDebug('Authorization header added:', config.headers.Authorization.substring(0, 20) + '...');
     } else {
@@ -58,16 +63,67 @@ api.interceptors.request.use(
 );
 
 // Response interceptor for error handling
+let isRefreshing = false;
+let refreshPromise = null;
+
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    // Handle authentication errors
-    if (error.response && error.response.status === 401) {
+  async (error) => {
+    const { response, config } = error || {};
+    if (!response) return Promise.reject(error);
+    if (response.status !== 401) return Promise.reject(error);
+
+    // Avoid infinite loop
+    if (config && config._retry) {
+      // Finalize: clear tokens and propagate error
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refresh_token');
-      // Redirect to login page if needed
-      // window.location.href = '/login';
+      return Promise.reject(error);
     }
+
+    const refreshToken = localStorage.getItem('refresh_token');
+    if (!refreshToken) {
+      localStorage.removeItem('accessToken');
+      return Promise.reject(error);
+    }
+
+    try {
+      if (!isRefreshing) {
+        isRefreshing = true;
+        refreshPromise = axios.post(`${SERVER_URL || API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.auth.refreshToken}`,
+          { refresh_token: refreshToken },
+          { headers: { 'Content-Type': 'application/json' } }
+        ).then((res) => {
+          const newToken = res.data?.access_token;
+          if (newToken) {
+            localStorage.setItem('accessToken', newToken);
+          }
+          // Optionally update refresh token
+          if (res.data?.refresh_token) {
+            localStorage.setItem('refresh_token', res.data.refresh_token);
+          }
+          return newToken;
+        }).finally(() => {
+          isRefreshing = false;
+        });
+      }
+
+      const newToken = await refreshPromise;
+      if (newToken) {
+        // Retry original request once with new token
+        const retryConfig = { ...config, _retry: true };
+        retryConfig.headers = {
+          ...(config.headers || {}),
+          Authorization: `Bearer ${newToken}`,
+        };
+        return api.request(retryConfig);
+      }
+    } catch (e) {
+      logError('Token refresh failed in api client:', e);
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refresh_token');
+    }
+
     return Promise.reject(error);
   }
 );
