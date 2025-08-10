@@ -42,6 +42,7 @@ import {
 } from '@mui/icons-material';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
 import authService from '../../services/authService';
+import { decodeJwt, isTokenExpired } from '../../utils/jwt';
 import { useAuthorization } from '../../contexts/AuthorizationContext';
 
 const drawerWidth = 240;
@@ -62,23 +63,13 @@ const Layout = () => {
   
   // Get username on component mount
   useEffect(() => {
-    // You could fetch the user profile here or use a stored username
-    // For now we'll use the username from the token or default to 'Admin'
     const token = localStorage.getItem('accessToken');
-    if (token) {
-      try {
-        // JWT tokens are in the format header.payload.signature
-        // We're interested in the payload part
-        const base64Url = token.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const payload = JSON.parse(window.atob(base64));
-        if (payload.sub) {
-          setUsername(payload.sub);
-        }
-      } catch (e) {
-        console.error('Error parsing token:', e);
-      }
+    if (!token || isTokenExpired(token, 0)) {
+      // If no valid token, kick to login
+      return;
     }
+    const payload = decodeJwt(token);
+    if (payload?.sub) setUsername(payload.sub);
   }, []);
 
   const handleOpenUserMenu = (event) => {
