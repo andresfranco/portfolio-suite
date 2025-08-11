@@ -384,6 +384,13 @@ function LanguageIndexContent() {
     }
   };
   
+  // Permission: allow create only for CREATE_LANGUAGE, MANAGE_LANGUAGES, or SYSTEM_ADMIN
+  const canCreateLanguage = React.useMemo(() => (
+    isSystemAdmin() ||
+    hasPermission('MANAGE_LANGUAGES') ||
+    hasPermission('CREATE_LANGUAGE')
+  ), [isSystemAdmin, hasPermission]);
+  
   return (
     <>
       <ReusableDataGrid
@@ -430,7 +437,7 @@ function LanguageIndexContent() {
           );
         }}
   createButtonText="Language"
-  onCreateClick={handleCreateClick}
+  onCreateClick={canCreateLanguage ? handleCreateClick : undefined}
         defaultPageSize={pagination.page_size}
         uiVariant="categoryIndex"
         paginationPosition="top"
