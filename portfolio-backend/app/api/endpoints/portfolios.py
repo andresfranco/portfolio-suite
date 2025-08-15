@@ -22,7 +22,7 @@ from app.models.portfolio import Portfolio as PortfolioModel
 from app.api import deps
 from app.core.config import settings
 from app.core.logging import setup_logger
-from app.core.security_decorators import require_permission, require_any_permission
+from app.core.security_decorators import require_permission, require_any_permission, permission_checker
 from app import models
 import traceback
 
@@ -49,7 +49,12 @@ def get_file_url(file_path: str) -> str:
         return f"/uploads/{file_path}"
 
 # Helper function to process portfolios before sending them in the response
-def process_portfolios_for_response(portfolios: List[PortfolioModel]) -> List[Dict[str, Any]]:
+def process_portfolios_for_response(
+    portfolios: List[PortfolioModel],
+    *,
+    include_images: bool = True,
+    include_attachments: bool = True,
+) -> List[Dict[str, Any]]:
     """
     Process the portfolio objects to ensure they can be properly serialized.
     Particularly important for handling relationships like categories, experiences, projects, etc.
@@ -217,8 +222,8 @@ def process_portfolios_for_response(portfolios: List[PortfolioModel]) -> List[Di
                     
                     portfolio_dict["sections"].append(sect_dict)
             
-            # Process images
-            if hasattr(portfolio, 'images') and portfolio.images:
+            # Process images (permission-aware)
+            if include_images and hasattr(portfolio, 'images') and portfolio.images:
                 for image in portfolio.images:
                     img_dict = {
                         "id": image.id,
@@ -232,8 +237,8 @@ def process_portfolios_for_response(portfolios: List[PortfolioModel]) -> List[Di
                     }
                     portfolio_dict["images"].append(img_dict)
             
-            # Process attachments
-            if hasattr(portfolio, 'attachments') and portfolio.attachments:
+            # Process attachments (permission-aware)
+            if include_attachments and hasattr(portfolio, 'attachments') and portfolio.attachments:
                 for attachment in portfolio.attachments:
                     att_dict = {
                         "id": attachment.id,
@@ -268,11 +273,20 @@ def process_portfolios_for_response(portfolios: List[PortfolioModel]) -> List[Di
     
     return processed_portfolios
 
-def process_single_portfolio_for_response(portfolio: PortfolioModel) -> Dict[str, Any]:
+def process_single_portfolio_for_response(
+    portfolio: PortfolioModel,
+    *,
+    include_images: bool = True,
+    include_attachments: bool = True,
+) -> Dict[str, Any]:
     """
     Process a single portfolio object for serialization.
     """
-    processed_portfolios = process_portfolios_for_response([portfolio])
+    processed_portfolios = process_portfolios_for_response(
+        [portfolio],
+        include_images=include_images,
+        include_attachments=include_attachments,
+    )
     return processed_portfolios[0] if processed_portfolios else None
 
 @router.get("/", response_model=PaginatedPortfolioResponse)
@@ -337,7 +351,14 @@ def read_portfolios(
         logger.info(f"Retrieved {len(portfolios)} portfolios (total: {total})")
         
         # Process portfolios to ensure proper serialization
-        processed_portfolios = process_portfolios_for_response(portfolios)
+        # Permission-aware inclusion of images/attachments
+        can_view_images = permission_checker.user_has_permission(current_user, "VIEW_PORTFOLIO_IMAGES")
+        can_view_attachments = permission_checker.user_has_permission(current_user, "VIEW_PORTFOLIO_ATTACHMENTS")
+        processed_portfolios = process_portfolios_for_response(
+            portfolios,
+            include_images=can_view_images,
+            include_attachments=can_view_attachments,
+        )
         
         return {
             "items": processed_portfolios,
@@ -427,7 +448,13 @@ def read_portfolio(
         )
     
     # Process portfolio data
-    result = process_portfolios_for_response([portfolio])
+    can_view_images = permission_checker.user_has_permission(current_user, "VIEW_PORTFOLIO_IMAGES")
+    can_view_attachments = permission_checker.user_has_permission(current_user, "VIEW_PORTFOLIO_ATTACHMENTS")
+    result = process_portfolios_for_response(
+        [portfolio],
+        include_images=can_view_images,
+        include_attachments=can_view_attachments,
+    )
     return result[0] if result and len(result) > 0 else {
         "id": portfolio.id,
         "name": portfolio.name,
@@ -516,7 +543,7 @@ def delete_portfolio(
         )
 
 @router.get("/{portfolio_id}/images", response_model=List[PortfolioImageOut])
-@require_permission("VIEW_PORTFOLIOS")
+@require_permission("VIEW_PORTFOLIO_IMAGES")
 def read_portfolio_images(
     *,
     db: Session = Depends(deps.get_db),
@@ -555,7 +582,7 @@ def read_portfolio_images(
         )
 
 @router.post("/{portfolio_id}/images", response_model=PortfolioImageOut, status_code=status.HTTP_201_CREATED)
-@require_permission("EDIT_PORTFOLIO")
+@require_permission("UPLOAD_PORTFOLIO_IMAGES")
 async def upload_portfolio_image(
     *,
     db: Session = Depends(deps.get_db),
@@ -636,7 +663,7 @@ async def upload_portfolio_image(
         )
 
 @router.delete("/{portfolio_id}/images/{image_id}", response_model=PortfolioImageOut)
-@require_permission("EDIT_PORTFOLIO")
+@require_permission("DELETE_PORTFOLIO_IMAGES")
 def delete_portfolio_image(
     *,
     db: Session = Depends(deps.get_db),
@@ -687,7 +714,7 @@ def delete_portfolio_image(
         )
 
 @router.put("/{portfolio_id}/images/{image_id}", response_model=PortfolioImageOut)
-@require_permission("EDIT_PORTFOLIO")
+@require_permission("EDIT_PORTFOLIO_IMAGES")
 async def rename_portfolio_image(
     *,
     db: Session = Depends(deps.get_db),
@@ -782,7 +809,7 @@ async def rename_portfolio_image(
         )
 
 @router.get("/{portfolio_id}/attachments", response_model=List[PortfolioAttachmentOut])
-@require_any_permission(["VIEW_PORTFOLIOS", "MANAGE_PORTFOLIO_ATTACHMENTS"])
+@require_permission("VIEW_PORTFOLIO_ATTACHMENTS")
 def read_portfolio_attachments(
     *,
     db: Session = Depends(deps.get_db),
@@ -821,7 +848,7 @@ def read_portfolio_attachments(
         )
 
 @router.post("/{portfolio_id}/attachments", response_model=PortfolioAttachmentOut, status_code=status.HTTP_201_CREATED)
-@require_permission("MANAGE_PORTFOLIO_ATTACHMENTS")
+@require_permission("UPLOAD_PORTFOLIO_ATTACHMENTS")
 async def upload_portfolio_attachment(
     *,
     db: Session = Depends(deps.get_db),
@@ -929,7 +956,7 @@ async def upload_portfolio_attachment(
         )
 
 @router.delete("/{portfolio_id}/attachments/{attachment_id}", response_model=PortfolioAttachmentOut)
-@require_permission("MANAGE_PORTFOLIO_ATTACHMENTS")
+@require_permission("DELETE_PORTFOLIO_ATTACHMENTS")
 def delete_portfolio_attachment(
     *,
     db: Session = Depends(deps.get_db),
