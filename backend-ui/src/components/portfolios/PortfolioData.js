@@ -1241,223 +1241,309 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
           <>
             {/* Overview Tab */}
             <TabPanel value={tabValue} index={0}>
-              <Card>
-                <CardHeader
-                  avatar={<Avatar sx={{ bgcolor: '#1976d2' }}><InfoIcon /></Avatar>}
-                  title="Portfolio Information"
-                  subheader="Basic portfolio details"
-                />
-                <CardContent>
-                  <Grid container spacing={3}>
-                    <Grid item xs={12} md={6}>
-                      <Typography variant="subtitle2" color="text.secondary">Name</Typography>
-                      <Typography variant="body1" sx={{ mb: 2 }}>{portfolioData?.name || '-'}</Typography>
+              <PermissionGate 
+                permission="VIEW_PORTFOLIOS" 
+                showError 
+                errorMessage="You do not have permission to see Portfolio information, please contact your system administrator."
+              >
+                <Card>
+                  <CardHeader
+                    avatar={<Avatar sx={{ bgcolor: '#1976d2' }}><InfoIcon /></Avatar>}
+                    title="Portfolio Information"
+                    subheader="Basic portfolio details"
+                  />
+                  <CardContent>
+                    <Grid container spacing={3}>
+                      <Grid item xs={12} md={6}>
+                        <Typography variant="subtitle2" color="text.secondary">Name</Typography>
+                        <Typography variant="body1" sx={{ mb: 2 }}>{portfolioData?.name || '-'}</Typography>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Typography variant="subtitle2" color="text.secondary">ID</Typography>
+                        <Typography variant="body1" sx={{ mb: 2 }}>{portfolioData?.id || '-'}</Typography>
+                      </Grid>
+                      <Grid item xs={12}>
+                        <Typography variant="subtitle2" color="text.secondary">Description</Typography>
+                        <Typography variant="body1" sx={{ mb: 2 }}>
+                          {portfolioData?.description || 'No description provided'}
+                        </Typography>
+                      </Grid>
                     </Grid>
-                    <Grid item xs={12} md={6}>
-                      <Typography variant="subtitle2" color="text.secondary">ID</Typography>
-                      <Typography variant="body1" sx={{ mb: 2 }}>{portfolioData?.id || '-'}</Typography>
+                    
+                    <Divider sx={{ my: 3 }} />
+                    
+                    <Typography variant="h6" sx={{ mb: 2 }}>Quick Stats</Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={6} sm={4} md={2}>
+                        <Paper sx={{ p: 2, textAlign: 'center' }}>
+                          <Typography variant="h4" color="primary">{categories.length}</Typography>
+                          <Typography variant="caption">Categories</Typography>
+                        </Paper>
+                      </Grid>
+                      <Grid item xs={6} sm={4} md={2}>
+                        <Paper sx={{ p: 2, textAlign: 'center' }}>
+                          <Typography variant="h4" color="primary">{experiences.length}</Typography>
+                          <Typography variant="caption">Experiences</Typography>
+                        </Paper>
+                      </Grid>
+                      <Grid item xs={6} sm={4} md={2}>
+                        <Paper sx={{ p: 2, textAlign: 'center' }}>
+                          <Typography variant="h4" color="primary">{projects.length}</Typography>
+                          <Typography variant="caption">Projects</Typography>
+                        </Paper>
+                      </Grid>
+                      <Grid item xs={6} sm={4} md={2}>
+                        <Paper sx={{ p: 2, textAlign: 'center' }}>
+                          <Typography variant="h4" color="primary">{sections.length}</Typography>
+                          <Typography variant="caption">Sections</Typography>
+                        </Paper>
+                      </Grid>
+                      <Grid item xs={6} sm={4} md={2}>
+                        <Paper sx={{ p: 2, textAlign: 'center' }}>
+                          <Typography variant="h4" color="primary">{images.length}</Typography>
+                          <Typography variant="caption">Images</Typography>
+                        </Paper>
+                      </Grid>
+                      <Grid item xs={6} sm={4} md={2}>
+                        <Paper sx={{ p: 2, textAlign: 'center' }}>
+                          <Typography variant="h4" color="primary">{attachments.length}</Typography>
+                          <Typography variant="caption">Attachments</Typography>
+                        </Paper>
+                      </Grid>
                     </Grid>
-                    <Grid item xs={12}>
-                      <Typography variant="subtitle2" color="text.secondary">Description</Typography>
-                      <Typography variant="body1" sx={{ mb: 2 }}>
-                        {portfolioData?.description || 'No description provided'}
-                      </Typography>
-                    </Grid>
-                  </Grid>
-                  
-                  <Divider sx={{ my: 3 }} />
-                  
-                  <Typography variant="h6" sx={{ mb: 2 }}>Quick Stats</Typography>
-                  <Grid container spacing={2}>
-                    <Grid item xs={6} sm={4} md={2}>
-                      <Paper sx={{ p: 2, textAlign: 'center' }}>
-                        <Typography variant="h4" color="primary">{categories.length}</Typography>
-                        <Typography variant="caption">Categories</Typography>
-                      </Paper>
-                    </Grid>
-                    <Grid item xs={6} sm={4} md={2}>
-                      <Paper sx={{ p: 2, textAlign: 'center' }}>
-                        <Typography variant="h4" color="primary">{experiences.length}</Typography>
-                        <Typography variant="caption">Experiences</Typography>
-                      </Paper>
-                    </Grid>
-                    <Grid item xs={6} sm={4} md={2}>
-                      <Paper sx={{ p: 2, textAlign: 'center' }}>
-                        <Typography variant="h4" color="primary">{projects.length}</Typography>
-                        <Typography variant="caption">Projects</Typography>
-                      </Paper>
-                    </Grid>
-                    <Grid item xs={6} sm={4} md={2}>
-                      <Paper sx={{ p: 2, textAlign: 'center' }}>
-                        <Typography variant="h4" color="primary">{sections.length}</Typography>
-                        <Typography variant="caption">Sections</Typography>
-                      </Paper>
-                    </Grid>
-                    <Grid item xs={6} sm={4} md={2}>
-                      <Paper sx={{ p: 2, textAlign: 'center' }}>
-                        <Typography variant="h4" color="primary">{images.length}</Typography>
-                        <Typography variant="caption">Images</Typography>
-                      </Paper>
-                    </Grid>
-                    <Grid item xs={6} sm={4} md={2}>
-                      <Paper sx={{ p: 2, textAlign: 'center' }}>
-                        <Typography variant="h4" color="primary">{attachments.length}</Typography>
-                        <Typography variant="caption">Attachments</Typography>
-                      </Paper>
-                    </Grid>
-                  </Grid>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </PermissionGate>
             </TabPanel>
 
             {/* Categories Tab */}
             <TabPanel value={tabValue} index={1}>
-              {/* Connected Categories (visible list like Sections) */}
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
-                  <CategoryIcon sx={{ mr: 1 }} />
-                  Connected Categories
-                </Typography>
-                {categories.length > 0 ? (
-                  <List>
-                    {categories.map((cat) => {
-                      const name = cat.category_texts?.[0]?.name || cat.code || `Category ${cat.id}`;
-                      return (
-                        <ListItem key={cat.id} divider>
-                          <ListItemIcon>
-                            <CategoryIcon />
-                          </ListItemIcon>
-                          <ListItemText
-                            primary={name}
-                            secondary={`ID: ${cat.id}${cat.type_code ? ` • Type: ${cat.type_code}` : ''}`}
-                          />
-                          <IconButton
-                            size="small"
-                            onClick={() => handleViewCategory(cat)}
-                            sx={{ mr: 1 }}
-                          >
-                            <VisibilityIcon />
-                          </IconButton>
-                          <PermissionGate permission="EDIT_PORTFOLIO">
+              <PermissionGate 
+                permission="VIEW_CATEGORIES" 
+                showError 
+                errorMessage="You do not have permission to see Categories, please contact your system administrator."
+              >
+                {/* Connected Categories (visible list like Sections) */}
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                    <CategoryIcon sx={{ mr: 1 }} />
+                    Connected Categories
+                  </Typography>
+                  {categories.length > 0 ? (
+                    <List>
+                      {categories.map((cat) => {
+                        const name = cat.category_texts?.[0]?.name || cat.code || `Category ${cat.id}`;
+                        return (
+                          <ListItem key={cat.id} divider>
+                            <ListItemIcon>
+                              <CategoryIcon />
+                            </ListItemIcon>
+                            <ListItemText
+                              primary={name}
+                              secondary={`ID: ${cat.id}${cat.type_code ? ` • Type: ${cat.type_code}` : ''}`}
+                            />
                             <IconButton
                               size="small"
-                              color="error"
-                              onClick={() => handleRemoveCategory(cat.id)}
+                              onClick={() => handleViewCategory(cat)}
+                              sx={{ mr: 1 }}
                             >
-                              <DeleteIcon />
+                              <VisibilityIcon />
                             </IconButton>
-                          </PermissionGate>
-                        </ListItem>
-                      );
-                    })}
-                  </List>
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    No categories connected yet.
-                  </Typography>
-                )}
-              </Box>
+                            <PermissionGate permission="EDIT_PORTFOLIO">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => handleRemoveCategory(cat.id)}
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </PermissionGate>
+                          </ListItem>
+                        );
+                      })}
+                    </List>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      No categories connected yet.
+                    </Typography>
+                  )}
+                </Box>
 
-              <Divider sx={{ my: 3 }} />
+                <Divider sx={{ my: 3 }} />
 
-              {/* Add Categories using multi-select search */}
-              <PermissionGate permission="EDIT_PORTFOLIO">
-                <CategoryAddManager
-                  categories={categories}
-                  availableCategories={availableCategories}
-                  onAddMany={async (ids) => {
-                    await handleBulkAdd(ids, handleAddCategory);
-                  }}
-                />
+                {/* Add Categories using multi-select search */}
+                <PermissionGate permissions={["EDIT_PORTFOLIO", "VIEW_CATEGORIES"]} requireAll>
+                  <CategoryAddManager
+                    categories={categories}
+                    availableCategories={availableCategories}
+                    onAddMany={async (ids) => {
+                      await handleBulkAdd(ids, handleAddCategory);
+                    }}
+                  />
+                </PermissionGate>
               </PermissionGate>
             </TabPanel>
 
             {/* Experiences Tab */}
             <TabPanel value={tabValue} index={2}>
-              {/* Connected Experiences */}
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
-                  <WorkIcon sx={{ mr: 1 }} />
-                  Connected Experiences
-                </Typography>
-                {experiences.length > 0 ? (
-                  <List>
-                    {experiences.map((exp) => {
-                      const base = exp.experience_texts?.[0]?.name || exp.code || `Experience ${exp.id}`;
-                      const years = exp.years ? ` (${exp.years} years)` : '';
-                      const label = `${base}${years}`;
-                      return (
-                        <ListItem key={exp.id} divider>
-                          <ListItemIcon>
-                            <WorkIcon />
-                          </ListItemIcon>
-                          <ListItemText
-                            primary={label}
-                            secondary={`ID: ${exp.id}`}
-                          />
-                          <IconButton
-                            size="small"
-                            onClick={() => handleViewExperience(exp)}
-                            sx={{ mr: 1 }}
-                          >
-                            <VisibilityIcon />
-                          </IconButton>
-                          <PermissionGate permission="EDIT_PORTFOLIO">
+              <PermissionGate 
+                permission="VIEW_EXPERIENCES" 
+                showError 
+                errorMessage="You do not have permission to see Experiences, please contact your system administrator."
+              >
+                {/* Connected Experiences */}
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                    <WorkIcon sx={{ mr: 1 }} />
+                    Connected Experiences
+                  </Typography>
+                  {experiences.length > 0 ? (
+                    <List>
+                      {experiences.map((exp) => {
+                        const base = exp.experience_texts?.[0]?.name || exp.code || `Experience ${exp.id}`;
+                        const years = exp.years ? ` (${exp.years} years)` : '';
+                        const label = `${base}${years}`;
+                        return (
+                          <ListItem key={exp.id} divider>
+                            <ListItemIcon>
+                              <WorkIcon />
+                            </ListItemIcon>
+                            <ListItemText
+                              primary={label}
+                              secondary={`ID: ${exp.id}`}
+                            />
                             <IconButton
                               size="small"
-                              color="error"
-                              onClick={() => handleRemoveExperience(exp.id)}
+                              onClick={() => handleViewExperience(exp)}
+                              sx={{ mr: 1 }}
                             >
-                              <DeleteIcon />
+                              <VisibilityIcon />
                             </IconButton>
-                          </PermissionGate>
-                        </ListItem>
-                      );
-                    })}
-                  </List>
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    No experiences connected yet.
-                  </Typography>
-                )}
-              </Box>
+                            <PermissionGate permission="EDIT_PORTFOLIO">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => handleRemoveExperience(exp.id)}
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </PermissionGate>
+                          </ListItem>
+                        );
+                      })}
+                    </List>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      No experiences connected yet.
+                    </Typography>
+                  )}
+                </Box>
 
-              <Divider sx={{ my: 3 }} />
+                <Divider sx={{ my: 3 }} />
 
-              <PermissionGate permission="EDIT_PORTFOLIO">
-                <ExperienceAddManager
-                  experiences={experiences}
-                  onAddMany={async (ids) => {
-                    await handleBulkAdd(ids, handleAddExperience);
-                  }}
-                />
+                <PermissionGate permissions={["EDIT_PORTFOLIO", "VIEW_EXPERIENCES"]} requireAll>
+                  <ExperienceAddManager
+                    experiences={experiences}
+                    onAddMany={async (ids) => {
+                      await handleBulkAdd(ids, handleAddExperience);
+                    }}
+                  />
+                </PermissionGate>
               </PermissionGate>
             </TabPanel>
 
             {/* Projects Tab */}
             <TabPanel value={tabValue} index={3}>
-              {/* Connected Projects */}
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
-                  <ProjectIcon sx={{ mr: 1 }} />
-                  Connected Projects
-                </Typography>
-                {projects.length > 0 ? (
-                  <List>
-                    {projects.map((proj) => {
-                      const title = proj.project_texts?.[0]?.name || proj.project_texts?.[0]?.title || `Project ${proj.id}`;
-                      return (
-                        <ListItem key={proj.id} divider>
+              <PermissionGate 
+                permission="VIEW_PROJECTS" 
+                showError 
+                errorMessage="You do not have permission to see Projects, please contact your system administrator."
+              >
+                {/* Connected Projects */}
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                    <ProjectIcon sx={{ mr: 1 }} />
+                    Connected Projects
+                  </Typography>
+                  {projects.length > 0 ? (
+                    <List>
+                      {projects.map((proj) => {
+                        const title = proj.project_texts?.[0]?.name || proj.project_texts?.[0]?.title || `Project ${proj.id}`;
+                        return (
+                          <ListItem key={proj.id} divider>
+                            <ListItemIcon>
+                              <ProjectIcon />
+                            </ListItemIcon>
+                            <ListItemText
+                              primary={title}
+                              secondary={`ID: ${proj.id}`}
+                            />
+                            <IconButton
+                              size="small"
+                              onClick={() => handleViewProject(proj)}
+                              sx={{ mr: 1 }}
+                            >
+                              <VisibilityIcon />
+                            </IconButton>
+                            <PermissionGate permission="EDIT_PORTFOLIO">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => handleRemoveProject(proj.id)}
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </PermissionGate>
+                          </ListItem>
+                        );
+                      })}
+                    </List>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      No projects connected yet.
+                    </Typography>
+                  )}
+                </Box>
+
+                <Divider sx={{ my: 3 }} />
+
+                <PermissionGate permissions={["EDIT_PORTFOLIO", "VIEW_PROJECTS"]} requireAll>
+                  <ProjectAddManager
+                    projects={projects}
+                    onAddMany={async (ids) => {
+                      await handleBulkAdd(ids, handleAddProject);
+                    }}
+                  />
+                </PermissionGate>
+              </PermissionGate>
+            </TabPanel>
+
+            {/* Sections Tab */}
+            <TabPanel value={tabValue} index={4}>
+              <PermissionGate 
+                permission="VIEW_SECTIONS" 
+                showError 
+                errorMessage="You do not have permission to see Sections, please contact your system administrator."
+              >
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                    <SectionIcon sx={{ mr: 1 }} />
+                    Connected Sections
+                  </Typography>
+                  {sections.length > 0 ? (
+                    <List>
+                      {sections.map((section) => (
+                        <ListItem key={section.id} divider>
                           <ListItemIcon>
-                            <ProjectIcon />
+                            <SectionIcon />
                           </ListItemIcon>
                           <ListItemText
-                            primary={title}
-                            secondary={`ID: ${proj.id}`}
+                            primary={section.code || `Section ${section.id}`}
+                            secondary={`ID: ${section.id}`}
                           />
                           <IconButton
                             size="small"
-                            onClick={() => handleViewProject(proj)}
+                            onClick={() => handleViewSection(section)}
                             sx={{ mr: 1 }}
                           >
                             <VisibilityIcon />
@@ -1466,99 +1552,50 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
                             <IconButton
                               size="small"
                               color="error"
-                              onClick={() => handleRemoveProject(proj.id)}
+                              onClick={() => handleRemoveSection(section.id)}
                             >
                               <DeleteIcon />
                             </IconButton>
                           </PermissionGate>
                         </ListItem>
-                      );
-                    })}
-                  </List>
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    No projects connected yet.
-                  </Typography>
-                )}
-              </Box>
+                      ))}
+                    </List>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      No sections connected yet.
+                    </Typography>
+                  )}
+                </Box>
 
-              <Divider sx={{ my: 3 }} />
+                <Divider sx={{ my: 3 }} />
 
-              <PermissionGate permission="EDIT_PORTFOLIO">
-                <ProjectAddManager
-                  projects={projects}
-                  onAddMany={async (ids) => {
-                    await handleBulkAdd(ids, handleAddProject);
-                  }}
-                />
-              </PermissionGate>
-            </TabPanel>
-
-            {/* Sections Tab */}
-            <TabPanel value={tabValue} index={4}>
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
-                  <SectionIcon sx={{ mr: 1 }} />
-                  Connected Sections
-                </Typography>
-                {sections.length > 0 ? (
-                  <List>
-                    {sections.map((section) => (
-                      <ListItem key={section.id} divider>
-                        <ListItemIcon>
-                          <SectionIcon />
-                        </ListItemIcon>
-                        <ListItemText
-                          primary={section.code || `Section ${section.id}`}
-                          secondary={`ID: ${section.id}`}
-                        />
-                        <IconButton
-                          size="small"
-                          onClick={() => handleViewSection(section)}
-                          sx={{ mr: 1 }}
-                        >
-                          <VisibilityIcon />
-                        </IconButton>
-                        <PermissionGate permission="EDIT_PORTFOLIO">
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => handleRemoveSection(section.id)}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
-                        </PermissionGate>
-                      </ListItem>
-                    ))}
-                  </List>
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    No sections connected yet.
-                  </Typography>
-                )}
-              </Box>
-
-              <Divider sx={{ my: 3 }} />
-
-              <PermissionGate permission="EDIT_PORTFOLIO">
-                <SectionAddManager
-                  sectionsConnected={sections}
-                  onAddMany={async (ids) => {
-                    await handleBulkAdd(ids, handleAddSection);
-                  }}
-                />
+                <PermissionGate permissions={["EDIT_PORTFOLIO", "VIEW_SECTIONS"]} requireAll>
+                  <SectionAddManager
+                    sectionsConnected={sections}
+                    onAddMany={async (ids) => {
+                      await handleBulkAdd(ids, handleAddSection);
+                    }}
+                  />
+                </PermissionGate>
               </PermissionGate>
             </TabPanel>
 
             {/* Images Tab */}
             <TabPanel value={tabValue} index={5}>
+              <PermissionGate 
+                permissions={["VIEW_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}
+                showError
+                errorMessage="You do not have permission to see Portfolio Images, please contact your system administrator."
+              >
               <Card>
                 <CardHeader
                   avatar={<Avatar sx={{ bgcolor: '#1976d2' }}><PhotoLibraryIcon /></Avatar>}
                   title="Portfolio Images"
                   subheader={`${images.length} images uploaded`}
                   action={
-                    <PermissionGate permission="EDIT_PORTFOLIO">
+                    <PermissionGate 
+                      permissions={["UPLOAD_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}
+                    >
                       <Button
                         variant="contained"
                         startIcon={<CloudUploadIcon />}
@@ -1698,7 +1735,7 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
                                 {new Date(image.created_at).toLocaleDateString()}
                               </Typography>
                               <Box>
-                                <PermissionGate permission="EDIT_PORTFOLIO">
+                                <PermissionGate permissions={["EDIT_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}>
                                   <Tooltip title="Rename image">
                                     <IconButton
                                       size="small"
@@ -1709,6 +1746,8 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
                                       <EditIcon fontSize="small" />
                                     </IconButton>
                                   </Tooltip>
+                                </PermissionGate>
+                                <PermissionGate permissions={["DELETE_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}>
                                   <Tooltip title="Delete image">
                                     <IconButton
                                       size="small"
@@ -1732,17 +1771,23 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
                   )}
                 </CardContent>
               </Card>
+              </PermissionGate>
             </TabPanel>
 
             {/* Attachments Tab */}
             <TabPanel value={tabValue} index={6}>
+              <PermissionGate 
+                permissions={["VIEW_PORTFOLIO_ATTACHMENTS", "MANAGE_PORTFOLIO_ATTACHMENTS", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}
+                showError
+                errorMessage="You do not have permission to see Portfolio Attachments, please contact your system administrator."
+              >
               <Card>
                 <CardHeader
                   avatar={<Avatar sx={{ bgcolor: '#1976d2' }}><AttachFileIcon /></Avatar>}
                   title="Portfolio Attachments"
                   subheader={`${attachments.length} files attached`}
                   action={
-                    <PermissionGate permission="MANAGE_PORTFOLIO_ATTACHMENTS">
+                    <PermissionGate permissions={["UPLOAD_PORTFOLIO_ATTACHMENTS", "MANAGE_PORTFOLIO_ATTACHMENTS", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}>
                       <Button
                         variant="contained"
                         startIcon={<CloudUploadIcon />}
@@ -1782,7 +1827,7 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
                             >
                               Download
                             </Button>
-                            <PermissionGate permission="MANAGE_PORTFOLIO_ATTACHMENTS">
+                            <PermissionGate permissions={["DELETE_PORTFOLIO_ATTACHMENTS", "MANAGE_PORTFOLIO_ATTACHMENTS", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}>
                               <IconButton
                                 size="small"
                                 color="error"
@@ -1802,6 +1847,7 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
                   )}
                 </CardContent>
               </Card>
+              </PermissionGate>
             </TabPanel>
           </>
         )}
@@ -1815,7 +1861,7 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
     </Dialog>
 
     {/* Image Upload Dialog */}
-  <PermissionGate permission="EDIT_PORTFOLIO">
+  <PermissionGate permissions={["UPLOAD_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}>
   <Dialog open={imageUploadOpen} onClose={() => setImageUploadOpen(false)} maxWidth="sm" fullWidth>
       <DialogTitle>Upload Portfolio Image</DialogTitle>
       <DialogContent>
@@ -1871,7 +1917,7 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
   </PermissionGate>
 
     {/* Attachment Upload Dialog */}
-  <PermissionGate permission="MANAGE_PORTFOLIO_ATTACHMENTS">
+  <PermissionGate permissions={["UPLOAD_PORTFOLIO_ATTACHMENTS", "MANAGE_PORTFOLIO_ATTACHMENTS", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}>
   <Dialog open={attachmentUploadOpen} onClose={() => setAttachmentUploadOpen(false)} maxWidth="sm" fullWidth>
       <DialogTitle>Upload Portfolio Attachment</DialogTitle>
       <DialogContent>
