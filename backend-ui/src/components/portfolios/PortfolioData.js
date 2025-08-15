@@ -140,6 +140,7 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
   const [itemToDelete, setItemToDelete] = useState(null);
   const [deleteType, setDeleteType] = useState(null); // 'image' or 'attachment'
   const [deleting, setDeleting] = useState(false);
+  const [downloadingAttachmentId, setDownloadingAttachmentId] = useState(null);
 
   // Fetch portfolio data
   const fetchPortfolioData = useCallback(async () => {
@@ -431,6 +432,69 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
     setItemToDelete(attachment);
     setDeleteType('attachment');
     setDeleteDialogOpen(true);
+  };
+
+  // Force file download without opening a new tab
+  const handleAttachmentDownload = async (attachment) => {
+    if (!attachment) return;
+    try {
+      setDownloadingAttachmentId(attachment.id);
+      const url = attachment.file_url
+        ? `${SERVER_URL}${attachment.file_url}`
+        : (attachment.file_path.startsWith('static/')
+            ? `${SERVER_URL}/${attachment.file_path}`
+            : `${SERVER_URL}/static/${attachment.file_path}`);
+
+      const headers = {};
+      const token = localStorage.getItem('accessToken');
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const response = await fetch(url, { headers });
+      if (!response.ok) {
+        throw new Error(`Download failed (${response.status})`);
+      }
+      const blob = await response.blob();
+
+      // Try to get filename from Content-Disposition, fallback to attachment.file_name
+      let filename = attachment.file_name || 'download';
+      const disposition = response.headers.get('content-disposition');
+      if (disposition) {
+        const match = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(disposition);
+        if (match) {
+          filename = decodeURIComponent(match[1] || match[2] || filename);
+        }
+      }
+
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      const msg = err?.message || 'Failed to download file';
+      enqueueSnackbar(`Error: ${msg}`, { variant: 'error' });
+      // Fallback: attempt basic anchor download
+      try {
+        const fallbackUrl = attachment.file_url
+          ? `${SERVER_URL}${attachment.file_url}`
+          : (attachment.file_path.startsWith('static/')
+              ? `${SERVER_URL}/${attachment.file_path}`
+              : `${SERVER_URL}/static/${attachment.file_path}`);
+        const a = document.createElement('a');
+        a.href = fallbackUrl;
+        a.download = attachment.file_name || '';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } catch (_) {
+        // ignore
+      }
+    } finally {
+      setDownloadingAttachmentId(null);
+    }
   };
 
   // Section modal handlers
@@ -1816,16 +1880,12 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
                             </Box>
                             <Button
                               size="small"
-                              startIcon={<DownloadIcon />}
-                              href={attachment.file_url ? `${SERVER_URL}${attachment.file_url}` :
-                                   (attachment.file_path.startsWith('static/') 
-                                    ? `${SERVER_URL}/${attachment.file_path}` 
-                                    : `${SERVER_URL}/static/${attachment.file_path}`)}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                              startIcon={downloadingAttachmentId === attachment.id ? <CircularProgress size={16} /> : <DownloadIcon />}
+                              onClick={() => handleAttachmentDownload(attachment)}
+                              disabled={downloadingAttachmentId === attachment.id}
                               sx={{ mr: 1 }}
                             >
-                              Download
+                              {downloadingAttachmentId === attachment.id ? 'Downloading…' : 'Download'}
                             </Button>
                             <PermissionGate permissions={["DELETE_PORTFOLIO_ATTACHMENTS", "MANAGE_PORTFOLIO_ATTACHMENTS", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}>
                               <IconButton
