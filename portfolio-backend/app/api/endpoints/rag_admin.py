@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, Body, Query
 import os
+from datetime import datetime, timezone
 import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -79,7 +80,7 @@ def put_rag_settings(
             """
             INSERT INTO system_settings(key, value)
             VALUES (:k, :v)
-            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
             """
         ), {"k": k, "v": str(v)})
     db.commit()
@@ -88,8 +89,21 @@ def put_rag_settings(
 
 
 def _reindex_table(db: Session, table: str, limit: Optional[int], offset: int) -> int:
+    """Reindex all rows for a given table.
+
+    Notes:
+    - Most domain tables use an integer `id` PK, but `skill_types` uses `code`.
+    - Select the appropriate identifier column per table and pass it as string.
+    """
     total = 0
-    q = f"SELECT id FROM {table} ORDER BY id"
+    # Map tables with non-standard PKs
+    pk_col = "id"
+    order_col = "id"
+    if table == "skill_types":
+        pk_col = "code"
+        order_col = "code"
+
+    q = f"SELECT {pk_col} FROM {table} ORDER BY {order_col}"
     if limit is not None:
         q += " LIMIT :lim OFFSET :off"
         rows = db.execute(text(q), {"lim": limit, "off": offset}).fetchall()
@@ -109,12 +123,41 @@ def _reindex_table(db: Session, table: str, limit: Optional[int], offset: int) -
 
 def _background_reindex(tables: List[str], limit: Optional[int], offset: int) -> None:
     with SessionLocal() as db:
-        for t in tables:
+        processed = 0
+        try:
+            for t in tables:
+                try:
+                    processed += _reindex_table(db, t, limit, offset)
+                except Exception:
+                    # Ensure failed transaction is cleared so we can continue and write status flags
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
+                    # continue with other tables
+                    try:
+                        logger.exception(f"reindex table failed: {t}")
+                    except Exception:
+                        pass
+        finally:
+            # Always mark finished and clear active flag, even if errors occurred
             try:
-                _reindex_table(db, t, limit, offset)
+                db.execute(text(
+                    """
+                    INSERT INTO system_settings(key, value)
+                    VALUES
+                      ('rag.last_reindex_finished_at', :ts),
+                      ('rag.last_reindex_processed', :cnt),
+                      ('rag.reindex_active', 'false')
+                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
+                    """
+                ), {"ts": datetime.now(timezone.utc).isoformat(), "cnt": str(processed)})
+                db.commit()
             except Exception:
-                # continue with other tables
-                pass
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
 
 
 class ReindexRequest(BaseModel):
@@ -129,6 +172,7 @@ def reindex_all(
     background_tasks: BackgroundTasks,
     req: ReindexRequest = Body(default=ReindexRequest()),
     current_user: models.User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
 ) -> Any:
     supported = [
         "categories",
@@ -147,6 +191,23 @@ def reindex_all(
     for t in to_run:
         if t not in supported:
             raise HTTPException(status_code=400, detail=f"unsupported table: {t}")
+    # Set start timestamp/flag for UI/metrics
+    try:
+        db.execute(text(
+            """
+            INSERT INTO system_settings(key, value)
+            VALUES
+              ('rag.last_reindex_started_at', :ts),
+              ('rag.reindex_active', 'true')
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
+            """
+        ), {"ts": datetime.now(timezone.utc).isoformat()})
+        db.commit()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
     background_tasks.add_task(_background_reindex, to_run, req.limit, req.offset)
     return {"scheduled": to_run, "limit": req.limit, "offset": req.offset}
 
@@ -247,6 +308,7 @@ def retry_dead_letters(
 def metrics_summary(
     # Inject current_user so the system admin decorator can authenticate properly
     current_user: models.User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
 ):
     """
     Summarize RAG metrics. If PROMETHEUS_MULTIPROC_DIR is set and prometheus_client is available,
@@ -297,6 +359,58 @@ def metrics_summary(
             else:
                 v = _local_counter(rag_chunks_retired)
         out[key] = float(v or 0.0)
+    # Add reindex timestamps/flags from system_settings if available
+    try:
+        rows = db.execute(text(
+            """
+            SELECT key, value FROM system_settings
+            WHERE key IN ('rag.last_reindex_started_at','rag.last_reindex_finished_at','rag.last_reindex_processed','rag.reindex_active')
+            """
+        )).fetchall()
+        # Collect as strings first
+        vals: Dict[str, str] = {}
+        for k, v in rows:
+            vals[k] = str(v)
+        # Map to output
+        for k, v in vals.items():
+            if k == 'rag.reindex_active':
+                out['reindex_active'] = (str(v).lower() == 'true')
+            elif k == 'rag.last_reindex_processed':
+                try:
+                    out['last_reindex_processed'] = float(v)
+                except Exception:
+                    pass
+            elif k == 'rag.last_reindex_started_at':
+                out['last_reindex_started_at'] = str(v)
+            elif k == 'rag.last_reindex_finished_at':
+                out['last_reindex_finished_at'] = str(v)
+        # Heuristic self-heal: if flag is stuck true but we have a finished timestamp >= started, or it's too old, report inactive
+        try:
+            if out.get('reindex_active'):
+                started_s = vals.get('rag.last_reindex_started_at') or ''
+                finished_s = vals.get('rag.last_reindex_finished_at') or ''
+                def _parse_iso(s: str):
+                    try:
+                        ss = s.replace('Z', '+00:00')
+                        return datetime.fromisoformat(ss)
+                    except Exception:
+                        return None
+                started = _parse_iso(started_s)
+                finished = _parse_iso(finished_s)
+                now = datetime.now(timezone.utc)
+                max_age_minutes = int(os.getenv('RAG_REINDEX_MAX_ACTIVE_MINUTES', '15'))
+                too_old = False
+                if started:
+                    try:
+                        too_old = (now - started).total_seconds() > max_age_minutes * 60
+                    except Exception:
+                        too_old = False
+                if (started and finished and finished >= started) or too_old:
+                    out['reindex_active'] = False
+        except Exception:
+            pass
+    except Exception:
+        pass
     return out
 
 
