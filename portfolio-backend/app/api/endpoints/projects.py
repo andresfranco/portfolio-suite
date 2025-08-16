@@ -20,8 +20,8 @@ from app.core.security_decorators import require_permission
 from app.utils.file_utils import save_upload_file, save_project_image, PROJECT_IMAGES_DIR, get_file_url, delete_file
 from app.crud import category as category_crud
 from app.crud import image as image_crud
-
 from app.core.security import create_temp_token, verify_temp_token
+from app.rag.rag_events import stage_event
 
 router = APIRouter()
 
@@ -341,6 +341,14 @@ def create_project(
         except (AttributeError, ImportError):
             project = project_crud.create_project(db, project=project_in)
         
+        # Stage RAG index event
+        stage_event(db, {
+            "op": "insert",
+            "source_table": "projects",
+            "source_id": str(project.id),
+            "changed_fields": ["repository_url", "website_url"]
+        })
+        
         # Convert to dictionary for proper serialization
         project_dict = {
             "id": project.id,
@@ -493,6 +501,14 @@ def update_project(
         except (AttributeError, ImportError):
             updated_project = project_crud.update_project(db, project_id=project_id, project=project_in)
         
+        # Stage RAG update event
+        stage_event(db, {
+            "op": "update",
+            "source_table": "projects",
+            "source_id": str(project_id),
+            "changed_fields": list(project_in.model_dump(exclude_unset=True).keys())
+        })
+        
         # Convert to dictionary for proper serialization
         project_dict = {
             "id": updated_project.id,
@@ -568,6 +584,14 @@ def delete_project(
             deleted_project = crud.project.delete_project(db, project_id=project_id)
         except (AttributeError, ImportError):
             deleted_project = project_crud.delete_project(db, project_id=project_id)
+        
+        # Stage RAG delete event
+        stage_event(db, {
+            "op": "delete",
+            "source_table": "projects",
+            "source_id": str(project_id),
+            "changed_fields": []
+        })
         
         # Convert to dictionary for proper serialization
         project_dict = {
@@ -1073,6 +1097,17 @@ async def upload_project_attachment(
         # Add file URL for frontend
         project_attachment.file_url = get_file_url(project_attachment.file_path)
         
+        # Stage RAG index event for attachment
+        try:
+            stage_event(db, {
+                "op": "insert",
+                "source_table": "project_attachments",
+                "source_id": str(project_attachment.id),
+                "changed_fields": ["file_name", "file_path"]
+            })
+        except Exception:
+            pass
+        
         logger.info(f"Attachment uploaded successfully: {file.filename}")
         return project_attachment
         
@@ -1136,6 +1171,18 @@ def delete_project_attachment(
             deleted_attachment.file_url = get_file_url(deleted_attachment.file_path)
         
         logger.info(f"Attachment {attachment_id} deleted successfully")
+        
+        # Stage RAG delete event for attachment
+        try:
+            stage_event(db, {
+                "op": "delete",
+                "source_table": "project_attachments",
+                "source_id": str(attachment_id),
+                "changed_fields": []
+            })
+        except Exception:
+            pass
+        
         return deleted_attachment
         
     except HTTPException:
