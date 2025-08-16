@@ -11,3 +11,4 @@ from app.models.category_type import CategoryType
 from app.models.category import Category
 from app.models.skill_type import SkillType
 from app.models.skill import Skill
+from app.models.system_setting import SystemSetting
