@@ -191,6 +191,12 @@ const Layout = () => {
       icon: <SettingsIcon />, 
       path: '/settings', 
       requiredPermission: 'SYSTEM_ADMIN' // Only system admin can access system settings
+    },
+    { 
+      text: 'RAG Admin', 
+      icon: <ChatIcon />, 
+      path: '/rag-admin', 
+      requiredPermission: 'SYSTEM_ADMIN' // Only system admin can access RAG admin
     }
   ];
 
@@ -235,7 +241,7 @@ const Layout = () => {
       },
       {
         title: 'System',
-        items: items.filter(item => ['Languages', 'Chatbot Config', 'System Settings'].includes(item.text))
+  items: items.filter(item => ['Languages', 'Chatbot Config', 'System Settings', 'RAG Admin'].includes(item.text))
       }
     ];
 

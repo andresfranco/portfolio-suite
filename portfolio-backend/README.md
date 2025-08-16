@@ -293,6 +293,14 @@ celery -A app.queue.celery_app:get_celery worker --loglevel=INFO
 - Readiness: `GET /readyz`
 - Prometheus metrics: `GET /metrics`
 
+Multiprocess metrics (API + worker):
+
+```bash
+# In both API and worker shells
+export PROMETHEUS_MULTIPROC_DIR=/tmp/prom_multiproc
+rm -rf "$PROMETHEUS_MULTIPROC_DIR"; mkdir -p "$PROMETHEUS_MULTIPROC_DIR"
+```
+
 6) Tuning
 
 - Chunk sizes: `CHUNK_CHARS` (default 4000), `CHUNK_OVERLAP` (default 500)

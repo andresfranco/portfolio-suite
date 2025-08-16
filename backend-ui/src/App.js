@@ -17,6 +17,7 @@ import LanguageIndex from './components/languages/LanguageIndex';
 import useIdleSession from './hooks/useIdleSession';
 import systemSettingsApi from './services/systemSettingsApi';
 import SystemSettings from './components/settings/SystemSettings';
+import RagAdmin from './components/rag/RagAdmin';
 
 // Importing actual components for previously working modules
 import { RoleIndex } from './components/roles';
@@ -201,6 +202,7 @@ function AppContent() {
             } />
             <Route path="chatbot" element={<ChatbotConfig />} />
             <Route path="settings" element={<SystemSettings />} />
+            <Route path="rag-admin" element={<RagAdmin />} />
             
             {/* 404 Not Found */}
             <Route path="*" element={<NotFound />} />
