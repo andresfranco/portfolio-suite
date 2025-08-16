@@ -1,5 +1,5 @@
-from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from datetime import timedelta, datetime, timezone
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Body
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
@@ -11,8 +11,12 @@ from app.auth.jwt import create_access_token, create_refresh_token
 from app.models.user import User
 from app.schemas.token import Token
 from app.core.logging import setup_logger
+from app.models.system_setting import SystemSetting
+from sqlalchemy import text, inspect as sa_inspect
+from sqlalchemy.exc import ProgrammingError, OperationalError
 from app.core.security import verify_password
 from app.core.audit_logger import audit_logger
+from jose import jwt, JWTError
 
 # Set up logger
 logger = setup_logger("app.api.endpoints.auth")
@@ -67,16 +71,39 @@ async def login_for_access_token(
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
+        # Helper to read int setting robustly even if table doesn't exist yet
+        def _get_int_setting(key: str, default_value: int) -> int:
+            try:
+                # Check table existence first to avoid errors in fresh DBs
+                inspector = sa_inspect(db.bind)
+                if not inspector.has_table('system_settings'):
+                    return default_value
+                result = db.execute(text("SELECT value FROM system_settings WHERE key = :k"), {"k": key})
+                val = result.scalar()
+                return int(val) if val is not None and str(val).strip().isdigit() else default_value
+            except (ProgrammingError, OperationalError, Exception):
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                return default_value
+
+        # Resolve access token expiry minutes from DB settings (fallback to env)
+        minutes = _get_int_setting('auth.access_token_expire_minutes', settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+
         # Create access token
-        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token_expires = timedelta(minutes=minutes)
         access_token = create_access_token(
             data={"sub": user.username}, 
             expires_delta=access_token_expires
         )
         
-        # Create refresh token if needed
+        # Resolve refresh token expiry (minutes) from DB settings (fallback)
+        refresh_minutes = _get_int_setting('auth.refresh_token_expire_minutes', settings.REFRESH_TOKEN_EXPIRE_MINUTES)
+
         refresh_token = create_refresh_token(
-            data={"sub": user.username}
+            data={"sub": user.username},
+            expires_delta=timedelta(minutes=refresh_minutes)
         )
         
         # Log successful login
@@ -103,6 +130,7 @@ async def login_for_access_token(
         # Return tokens and user info
         return {
             "access_token": access_token,
+            "refresh_token": refresh_token,
             "token_type": "bearer",
             "user": {
                 "id": user.id,
@@ -135,4 +163,67 @@ async def login_for_access_token(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred"
-        ) 
+        )
+
+
+@router.post("/refresh-token")
+async def refresh_access_token(
+    body: dict = Body(...),
+    db: Session = Depends(get_db)
+):
+    """Issue a new access token (and optionally new refresh token) from a valid refresh token."""
+    refresh_token = body.get("refresh_token")
+    if not refresh_token:
+        raise HTTPException(status_code=400, detail="refresh_token is required")
+
+    try:
+        # Decode refresh token (tokens created with HS256 in app/auth/jwt.py)
+        payload = jwt.decode(refresh_token, settings.SECRET_KEY, algorithms=["HS256"])
+        username = payload.get("sub")
+        exp_ts = payload.get("exp")
+        if not username or not exp_ts:
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+        # Check expiry explicitly
+        if datetime.now(timezone.utc).timestamp() >= float(exp_ts):
+            raise HTTPException(status_code=401, detail="Refresh token expired")
+
+        # Lookup user
+        user = db.query(User).filter(User.username == username).first()
+        if not user or not user.is_active:
+            raise HTTPException(status_code=401, detail="Invalid user for refresh token")
+
+        # Read settings for expiries
+        def _get_int_setting_refresh(key: str, default_value: int) -> int:
+            try:
+                inspector = sa_inspect(db.bind)
+                if not inspector.has_table('system_settings'):
+                    return default_value
+                result = db.execute(text("SELECT value FROM system_settings WHERE key = :k"), {"k": key})
+                val = result.scalar()
+                return int(val) if val is not None and str(val).strip().isdigit() else default_value
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                return default_value
+
+        access_minutes = _get_int_setting_refresh('auth.access_token_expire_minutes', settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        refresh_minutes = _get_int_setting_refresh('auth.refresh_token_expire_minutes', settings.REFRESH_TOKEN_EXPIRE_MINUTES)
+
+        # Create new tokens
+        new_access = create_access_token(data={"sub": user.username}, expires_delta=timedelta(minutes=access_minutes))
+        new_refresh = create_refresh_token(data={"sub": user.username}, expires_delta=timedelta(minutes=refresh_minutes))
+
+        return {
+            "access_token": new_access,
+            "refresh_token": new_refresh,
+            "token_type": "bearer"
+        }
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to refresh token") 

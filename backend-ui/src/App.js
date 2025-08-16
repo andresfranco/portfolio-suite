@@ -15,6 +15,8 @@ import Login from './components/Login';
 import authService from './services/authService';
 import LanguageIndex from './components/languages/LanguageIndex';
 import useIdleSession from './hooks/useIdleSession';
+import systemSettingsApi from './services/systemSettingsApi';
+import SystemSettings from './components/settings/SystemSettings';
 
 // Importing actual components for previously working modules
 import { RoleIndex } from './components/roles';
@@ -42,12 +44,12 @@ import NotFound from './pages/NotFound';
 // Import other module pages
 // In a real implementation, these would be actual imports
 const ChatbotConfig = () => <div><h2>Chatbot Configuration</h2><p>This page is under development</p></div>;
-const SystemSettings = () => <div><h2>System Settings</h2><p>This page is under development</p></div>;
 
 // Wrapper component to access AuthorizationContext
 function AppContent() {
   const [loading, setLoading] = useState(true);
   const { checkAuthState, isAuthenticated: authContextAuthenticated } = useAuthorization();
+  const [idleMs, setIdleMs] = useState(30 * 60 * 1000);
   
   // Use the authentication state from AuthorizationContext instead of local state
   const isAuthenticated = authContextAuthenticated();
@@ -66,6 +68,19 @@ function AppContent() {
     checkAuth();
   }, []);
 
+  // Load idle timeout from system settings
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await systemSettingsApi.get('frontend.idle_timeout_minutes');
+        const v = parseInt(res.data?.value || '30', 10);
+        if (!Number.isNaN(v) && v > 0) setIdleMs(v * 60 * 1000);
+      } catch (_) {
+        // fallback stays 30m
+      }
+    })();
+  }, []);
+
   // Inactivity logout handler
   const onIdle = useCallback(() => {
     if (authContextAuthenticated()) {
@@ -80,7 +95,7 @@ function AppContent() {
 
   // Start idle session tracking only when authenticated
   useIdleSession({
-    idleMs: 30 * 60 * 1000, // 30 minutes inactivity
+    idleMs,
     warnMs: 60 * 1000,      // warn 1 minute before
     onIdle,
     onWarn,
