@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, Body, Query
+import os
 import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -11,6 +12,16 @@ from app.rag.indexer import index_record
 from app import models
 from pydantic import BaseModel
 from app.observability.metrics import rag_index_jobs, rag_retire_jobs, rag_chunks_retired
+try:
+    from prometheus_client import CollectorRegistry, REGISTRY  # type: ignore
+    try:
+        from prometheus_client import multiprocess  # type: ignore
+    except Exception:  # pragma: no cover
+        multiprocess = None  # type: ignore
+except Exception:  # Optional dependency
+    CollectorRegistry = None  # type: ignore
+    REGISTRY = None  # type: ignore
+    multiprocess = None  # type: ignore
 from app.queue.tasks import enqueue_index_job, enqueue_delete_job
 
 
@@ -87,6 +98,12 @@ def _reindex_table(db: Session, table: str, limit: Optional[int], offset: int) -
     for (rid,) in rows:
         index_record(db, table, str(rid))
         total += 1
+        # Reflect processed jobs in metrics when running inline
+        try:
+            if rag_index_jobs:
+                rag_index_jobs.inc()
+        except Exception:
+            pass
     return total
 
 
@@ -231,17 +248,55 @@ def metrics_summary(
     # Inject current_user so the system admin decorator can authenticate properly
     current_user: models.User = Depends(deps.get_current_user),
 ):
-    # Best-effort expose current counter values if available
-    def _val(c):
+    """
+    Summarize RAG metrics. If PROMETHEUS_MULTIPROC_DIR is set and prometheus_client is available,
+    aggregate counters across processes; otherwise fall back to local in-process counters.
+    """
+    def _from_registry(name: str) -> float | None:
         try:
-            # prometheus_client counters expose _value.get()
+            if CollectorRegistry is None or REGISTRY is None:
+                return None
+            # Use multiprocess registry if configured
+            if multiprocess and os.getenv("PROMETHEUS_MULTIPROC_DIR"):
+                reg = CollectorRegistry()
+                multiprocess.MultiProcessCollector(reg)
+            else:
+                reg = REGISTRY
+            val = reg.get_sample_value(name)
+            if val is not None:
+                return float(val)
+            # fallback scan
+            for metric in reg.collect():
+                for s in metric.samples:
+                    if s.name == name:
+                        return float(s.value or 0.0)
+        except Exception:
+            return None
+        return None
+
+    def _local_counter(c) -> float | None:
+        try:
             return float(c._value.get())  # type: ignore[attr-defined]
         except Exception:
             return None
-    return {
-        "index_jobs_total": _val(rag_index_jobs),
-        "retire_jobs_total": _val(rag_retire_jobs),
-        "chunks_retired_total": _val(rag_chunks_retired),
+
+    names = {
+        "index_jobs_total": "rag_index_jobs_total",
+        "retire_jobs_total": "rag_retire_jobs_total",
+        "chunks_retired_total": "rag_chunks_retired_total",
     }
+    out: Dict[str, float] = {}
+    for key, prom_name in names.items():
+        v = _from_registry(prom_name)
+        if v is None:
+            # fallback to local in-process counter
+            if key == "index_jobs_total":
+                v = _local_counter(rag_index_jobs)
+            elif key == "retire_jobs_total":
+                v = _local_counter(rag_retire_jobs)
+            else:
+                v = _local_counter(rag_chunks_retired)
+        out[key] = float(v or 0.0)
+    return out
 
 

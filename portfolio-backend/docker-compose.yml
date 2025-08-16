@@ -14,9 +14,10 @@ services:
       - DATABASE_URL
       - EMBED_PROVIDER
       - EMBED_MODEL
+      - PROMETHEUS_MULTIPROC_DIR=/tmp/prom_multiproc
     volumes:
       - ./:/app
-    command: bash -lc "pip install -q -r requirements.txt && celery -A app.queue.celery_app:get_celery worker --loglevel=INFO"
+    command: bash -lc "pip install -q -r requirements.txt && mkdir -p /tmp/prom_multiproc && celery -A app.queue.celery_app:get_celery worker --loglevel=INFO"
     depends_on:
       - redis
 
