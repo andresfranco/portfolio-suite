@@ -1,8 +1,41 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { Box, Typography, Paper, Button, Stack, Chip, Divider, Table, TableHead, TableRow, TableCell, TableBody, CircularProgress, TextField, FormControl, InputLabel, Select, MenuItem, IconButton, TablePagination } from '@mui/material';
 import ReplayIcon from '@mui/icons-material/Replay';
 import { useSnackbar } from 'notistack';
 import ragAdminApi from '../../services/ragAdminApi';
+
+// Helpers: robustly parse server timestamps and normalize booleans
+const parseServerDate = (v) => {
+  if (!v) return null;
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+  if (typeof v === 'string') {
+    let s = v.trim();
+    // Insert "T" between date and time if missing (e.g., "2025-08-16 12:34:56" -> "2025-08-16T12:34:56")
+    if (s && !s.includes('T') && s.includes(' ')) {
+      s = s.replace(' ', 'T');
+    }
+    // Trim microseconds to milliseconds (.123456 -> .123)
+    s = s.replace(/(\.\d{3})\d+/, '$1');
+    // Ensure timezone if missing; assume Z (UTC)
+  if (!/[zZ]|[+-]\d{2}:?\d{2}$/.test(s)) {
+      s += 'Z';
+    }
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+};
+
+const toBool = (v) => {
+  if (typeof v === 'boolean') return v;
+  if (typeof v === 'number') return v !== 0;
+  if (typeof v === 'string') return v.toLowerCase() === 'true' || v === '1';
+  return undefined;
+};
+const formatMaybeDate = (v) => {
+  const d = parseServerDate(v);
+  return d ? d.toLocaleString() : '—';
+};
 
 const Stat = ({ label, value }) => (
   <Paper variant="outlined" sx={{ p: 2, minWidth: 220 }}>
@@ -25,6 +58,8 @@ export default function RagAdmin() {
   // Reindex indicators
   const [reindexStartedAt, setReindexStartedAt] = useState(null);
   const [reindexFinishedAt, setReindexFinishedAt] = useState(null);
+  const [reindexActive, setReindexActive] = useState(false);
+  const [reindexProcessed, setReindexProcessed] = useState(null);
   const [reindexPolling, setReindexPolling] = useState(false);
   // legacy state kept for minimal diffs but not relied upon for logic
   const [reindexBaseline, setReindexBaseline] = useState(null);
@@ -39,6 +74,7 @@ export default function RagAdmin() {
   const noChangeTicksRef = useRef(0);
   const deadlineRef = useRef(0);
   const startedAtRef = useRef(null);
+  const lastFinishedRef = useRef(null);
 
   const activityValue = useCallback((m) => {
     if (!m) return 0;
@@ -56,9 +92,35 @@ export default function RagAdmin() {
         ragAdminApi.listDeadLetters(200),
         ragAdminApi.getSettings(),
       ]);
-      setMetrics(m.data);
+      const mm = m.data || {};
+      setMetrics(mm);
+      // consume authoritative fields with normalization; reset to null if missing
+      const started = parseServerDate(mm.last_reindex_started_at);
+      const finishedRaw = parseServerDate(mm.last_reindex_finished_at);
+      const active = toBool(mm.reindex_active);
+      setReindexStartedAt(started);
+      let finished = finishedRaw;
+      if (!finished && active === false) {
+        // Preserve last known finished if API omits it and no active job
+        finished = lastFinishedRef.current || null;
+      }
+      setReindexFinishedAt(finished);
+      lastFinishedRef.current = finished;
+      // Normalize active flag if finished >= started
+      let activeNorm = typeof active === 'boolean' ? active : false;
+      if (finished && started && finished.getTime() >= started.getTime()) {
+        activeNorm = false;
+      }
+      setReindexActive(activeNorm);
+      setReindexProcessed(typeof mm.last_reindex_processed !== 'undefined' ? mm.last_reindex_processed : null);
       setDeadLetters(d.data?.items || []);
       setSettings(s.data?.settings || {});
+      // Clear any leftover polling on load to avoid spinners across sessions
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+      setReindexPolling(false);
     } catch (e) {
       enqueueSnackbar('Failed to load RAG admin data', { variant: 'error' });
     } finally {
@@ -67,6 +129,16 @@ export default function RagAdmin() {
   }, [enqueueSnackbar]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Compute a safe, static "in progress" indicator without auto-polling on page open.
+  const isInProgress = useMemo(() => {
+    if (!reindexActive) return false;
+    const started = parseServerDate(reindexStartedAt);
+    const finished = parseServerDate(reindexFinishedAt);
+    if (!started) return false;
+    if (finished && finished.getTime() >= started.getTime()) return false;
+    return true; // active and not finished
+  }, [reindexActive, reindexStartedAt, reindexFinishedAt]);
 
   const onRetryAll = async () => {
     setBusy(true);
@@ -100,12 +172,12 @@ export default function RagAdmin() {
       increasedObservedRef.current = false;
       noChangeTicksRef.current = 0;
 
-      await ragAdminApi.reindexAll({ tables: null, limit: null, offset: 0 });
+  await ragAdminApi.reindexAll({ tables: null, limit: null, offset: 0 });
       enqueueSnackbar('Reindex scheduled', { variant: 'info' });
-      const started = new Date();
-      setReindexStartedAt(started);
+  const started = new Date();
+  setReindexStartedAt(started);
       setReindexFinishedAt(null);
-      setReindexPolling(true);
+  setReindexPolling(true);
       startedAtRef.current = started;
       const NOOP_GRACE_MS = 8000;
       const HARD_TIMEOUT_MS = 60000;
@@ -121,6 +193,18 @@ export default function RagAdmin() {
           const m = await ragAdminApi.getMetricsSummary();
           const cur = m.data || {};
           setMetrics(cur);
+          const parsedStarted = parseServerDate(cur.last_reindex_started_at);
+          const parsedFinished = parseServerDate(cur.last_reindex_finished_at);
+          setReindexStartedAt(parsedStarted);
+          setReindexFinishedAt(parsedFinished);
+          if (parsedFinished) lastFinishedRef.current = parsedFinished;
+          const activeRaw = toBool(cur.reindex_active);
+          let activeNorm = typeof activeRaw === 'boolean' ? activeRaw : false;
+          if (parsedFinished && parsedStarted && parsedFinished.getTime() >= parsedStarted.getTime()) {
+            activeNorm = false;
+          }
+          setReindexActive(activeNorm);
+          if (typeof cur.last_reindex_processed !== 'undefined') setReindexProcessed(cur.last_reindex_processed);
           const v = activityValue(cur);
           if (v > baselineValueRef.current) {
             increasedObservedRef.current = true;
@@ -137,9 +221,11 @@ export default function RagAdmin() {
             (!increasedObservedRef.current && elapsedMs >= NOOP_GRACE_MS) ||
             Date.now() >= deadlineRef.current
           );
-          if (finished) {
-            setReindexFinishedAt(new Date());
+          // Stop if heuristically finished, or backend inactive, or backend provided finished timestamp
+          if (finished || activeNorm === false || parsedFinished) {
+            setReindexFinishedAt(parsedFinished || new Date());
             setReindexPolling(false);
+            setReindexActive(false);
             if (pollTimerRef.current) {
               clearInterval(pollTimerRef.current);
               pollTimerRef.current = null;
@@ -149,6 +235,49 @@ export default function RagAdmin() {
           // ignore transient errors
         }
       }, 2000);
+      // Also perform an immediate poll once to update UI promptly without waiting for the first interval tick
+      try {
+        const m = await ragAdminApi.getMetricsSummary();
+        const cur = m.data || {};
+        setMetrics(cur);
+        const parsedStarted = parseServerDate(cur.last_reindex_started_at);
+        const parsedFinished = parseServerDate(cur.last_reindex_finished_at);
+        setReindexStartedAt(parsedStarted);
+        setReindexFinishedAt(parsedFinished);
+        if (parsedFinished) lastFinishedRef.current = parsedFinished;
+        const activeRaw = toBool(cur.reindex_active);
+        let activeNorm = typeof activeRaw === 'boolean' ? activeRaw : false;
+        if (parsedFinished && parsedStarted && parsedFinished.getTime() >= parsedStarted.getTime()) {
+          activeNorm = false;
+        }
+        setReindexActive(activeNorm);
+        if (typeof cur.last_reindex_processed !== 'undefined') setReindexProcessed(cur.last_reindex_processed);
+        const v = activityValue(cur);
+        if (v > baselineValueRef.current) {
+          increasedObservedRef.current = true;
+        }
+        if (v === lastValueRef.current) {
+          noChangeTicksRef.current += 1;
+        } else {
+          noChangeTicksRef.current = 0;
+        }
+        lastValueRef.current = v;
+        const elapsedMs = Date.now() - (startedAtRef.current?.getTime?.() || Date.now());
+        const finished = (
+          (increasedObservedRef.current && noChangeTicksRef.current >= 2) ||
+          (!increasedObservedRef.current && elapsedMs >= NOOP_GRACE_MS) ||
+          Date.now() >= deadlineRef.current
+        );
+        if (finished || activeNorm === false || parsedFinished) {
+          setReindexFinishedAt(parsedFinished || new Date());
+          setReindexPolling(false);
+          setReindexActive(false);
+          if (pollTimerRef.current) {
+            clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+          }
+        }
+      } catch {}
     } catch (e) {
       enqueueSnackbar('Failed to schedule reindex', { variant: 'error' });
     } finally {
@@ -288,20 +417,21 @@ export default function RagAdmin() {
       <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
         <Stat label="Index Jobs" value={metrics?.index_jobs_total} />
         <Stat label="Retire Jobs" value={metrics?.retire_jobs_total} />
-        <Stat label="Chunks Retired" value={metrics?.chunks_retired_total} />
+  <Stat label="Chunks Retired" value={metrics?.chunks_retired_total} />
+  <Stat label="Last Reindex Processed" value={reindexProcessed ?? '—'} />
       </Stack>
       {/* Reindex indicators */}
       <Box sx={{ mb: 3 }}>
         <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-          Last reindex started: {reindexStartedAt ? new Date(reindexStartedAt).toLocaleString() : '—'}
+          Last reindex started: {formatMaybeDate(reindexStartedAt)}
         </Typography>
         <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-          {reindexPolling ? (
+          {(reindexActive && isInProgress) ? (
             <>
               In progress <CircularProgress size={12} sx={{ ml: 1, verticalAlign: 'middle' }} />
             </>
           ) : (
-            <>Last reindex finished: {reindexFinishedAt ? new Date(reindexFinishedAt).toLocaleString() : '—'}</>
+            <>Last reindex finished: {formatMaybeDate(reindexFinishedAt)}</>
           )}
         </Typography>
       </Box>

@@ -85,16 +85,16 @@ def _set_status(db: Session, source_table: str, source_id: str, error: str | Non
             INSERT INTO rag_index_status (source_table, source_id, last_error)
             VALUES (:t, :i, :e)
             ON CONFLICT (source_table, source_id)
-            DO UPDATE SET last_error = EXCLUDED.last_error, updated_at = now()
+            DO UPDATE SET last_error = EXCLUDED.last_error, updated_at = CURRENT_TIMESTAMP
             """
         ), {"t": source_table, "i": source_id, "e": error[:1000]})
     else:
         db.execute(text(
             """
             INSERT INTO rag_index_status (source_table, source_id, last_indexed_at, last_error)
-            VALUES (:t, :i, now(), NULL)
+            VALUES (:t, :i, CURRENT_TIMESTAMP, NULL)
             ON CONFLICT (source_table, source_id)
-            DO UPDATE SET last_indexed_at = now(), last_error = NULL, updated_at = now()
+            DO UPDATE SET last_indexed_at = CURRENT_TIMESTAMP, last_error = NULL, updated_at = CURRENT_TIMESTAMP
             """
         ), {"t": source_table, "i": source_id})
     db.commit()
@@ -402,7 +402,7 @@ def index_record(db: Session, source_table: str, source_id: str) -> None:
                 INSERT INTO rag_chunk (source_table, source_id, source_field, part_index, version, modality, text, checksum, tenant_id, visibility)
                 VALUES (:t, :i, :f, :p, :v, 'text', :tx, :ck, :tenant, :vis)
                 ON CONFLICT (source_table, source_id, source_field, part_index, version)
-                DO UPDATE SET text = EXCLUDED.text, checksum = EXCLUDED.checksum, is_deleted = FALSE, updated_at = NOW(), tenant_id = EXCLUDED.tenant_id, visibility = EXCLUDED.visibility
+                DO UPDATE SET text = EXCLUDED.text, checksum = EXCLUDED.checksum, is_deleted = FALSE, updated_at = CURRENT_TIMESTAMP, tenant_id = EXCLUDED.tenant_id, visibility = EXCLUDED.visibility
                 RETURNING id
                 """
             ), {"t": source_table, "i": source_id, "f": field, "p": i, "v": version, "tx": chunk, "ck": cks, "tenant": default_tenant, "vis": default_visibility}).mappings().first()
@@ -418,12 +418,13 @@ def index_record(db: Session, source_table: str, source_id: str) -> None:
             if vectors:
                 dim = len(vectors[0])
                 for (chunk_id, _), vec in zip(to_embed, vectors):
+                    # Store embedding both as text (for compatibility) and as vector (for HNSW index)
                     db.execute(text(
                         """
-                        INSERT INTO rag_embedding (chunk_id, model, modality, dim, embedding)
-                        VALUES (:cid, :m, 'text', :d, :e)
+                        INSERT INTO rag_embedding (chunk_id, model, modality, dim, embedding, embedding_vec)
+                        VALUES (:cid, :m, 'text', :d, :e, CAST(:e AS vector))
                         ON CONFLICT (chunk_id, model, modality)
-                        DO UPDATE SET embedding = EXCLUDED.embedding
+                        DO UPDATE SET embedding = EXCLUDED.embedding, embedding_vec = EXCLUDED.embedding_vec
                         """
                     ), {"cid": chunk_id, "m": os.getenv("EMBED_MODEL", "text-embedding-3-small"), "d": dim, "e": f"[{', '.join(str(x) for x in vec)}]"})
                     embedded_count += 1
