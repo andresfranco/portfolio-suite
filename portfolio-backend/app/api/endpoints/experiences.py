@@ -9,6 +9,7 @@ from app.api import deps
 from app.crud import experience as experience_crud
 from app.core.logging import setup_logger
 from app.core.security_decorators import require_permission
+from app.rag.rag_events import stage_event
 
 # Set up logger using centralized logging
 logger = setup_logger("app.api.endpoints.experiences")
@@ -262,7 +263,8 @@ def create_experience(
                 detail=f"Experience with code '{experience_in.code}' already exists"
             )
         
-        experience = experience_crud.create_experience(db, experience=experience_in)
+        experience = experience_crud.create_experience(db, experience_in)
+        stage_event(db, {"op":"insert","source_table":"experiences","source_id":str(experience.id),"changed_fields":["code","years"]})
         logger.info(f"Experience created successfully with ID: {experience.id}")
         return experience
     except HTTPException:
@@ -341,6 +343,7 @@ def update_experience(
                 )
         
         experience = experience_crud.update_experience(db, experience_id=experience_id, experience=experience_in)
+        stage_event(db, {"op":"update","source_table":"experiences","source_id":str(experience_id),"changed_fields":list(experience_in.model_dump(exclude_unset=True).keys())})
         logger.info(f"Experience updated successfully with ID: {experience.id}")
         logger.info(f"Updated experience final values - code: {experience.code}, years: {experience.years}")
         return experience
@@ -376,6 +379,7 @@ def delete_experience(
             )
         
         experience = experience_crud.delete_experience(db, experience_id=experience_id)
+        stage_event(db, {"op":"delete","source_table":"experiences","source_id":str(experience_id),"changed_fields":[]})
         logger.info(f"Experience deleted successfully with ID: {experience_id}")
         return experience
     except HTTPException:

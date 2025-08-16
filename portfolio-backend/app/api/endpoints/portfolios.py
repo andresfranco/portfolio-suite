@@ -25,6 +25,7 @@ from app.core.logging import setup_logger
 from app.core.security_decorators import require_permission, require_any_permission, permission_checker
 from app import models
 import traceback
+from app.rag.rag_events import stage_event
 
 # Set up logger using centralized logging
 logger = setup_logger("app.api.endpoints.portfolios")
@@ -402,29 +403,12 @@ def list_portfolio_names(
 def create_portfolio(
     *,
     db: Session = Depends(deps.get_db),
-    portfolio_in: PortfolioCreate,
     current_user: models.User = Depends(deps.get_current_user),
+    portfolio_in: PortfolioCreate,
 ) -> Any:
-    """
-    Create new portfolio.
-    """
-    logger.info(f"Creating portfolio: {portfolio_in.name}")
-    try:
-        portfolio = portfolio_crud.create_portfolio(db, portfolio=portfolio_in)
-        logger.info(f"Portfolio created successfully with ID {portfolio.id}")
-        return process_single_portfolio_for_response(portfolio)
-    except ValueError as e:
-        logger.warning(f"Validation error creating portfolio: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(e)
-        )
-    except Exception as e:
-        logger.error(f"Error creating portfolio: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error creating portfolio: {str(e)}"
-        )
+    portfolio = portfolio_crud.create_portfolio(db, portfolio_in)
+    stage_event(db, {"op":"insert","source_table":"portfolios","source_id":str(portfolio.id),"changed_fields":["name"]})
+    return portfolio
 
 @router.get("/{portfolio_id}", response_model=PortfolioOut)
 @require_permission("VIEW_PORTFOLIOS")
@@ -474,73 +458,25 @@ def read_portfolio(
 def update_portfolio(
     *,
     db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_user),
     portfolio_id: int,
     portfolio_in: PortfolioUpdate,
-    current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
-    """
-    Update a portfolio.
-    """
-    logger.info(f"Updating portfolio with ID {portfolio_id}")
-    try:
-        portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
-        if not portfolio:
-            logger.warning(f"Portfolio with ID {portfolio_id} not found for update")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Portfolio not found"
-            )
-        
-        portfolio = portfolio_crud.update_portfolio(db, portfolio_id=portfolio_id, portfolio=portfolio_in)
-        logger.info(f"Portfolio {portfolio_id} updated successfully")
-        return process_single_portfolio_for_response(portfolio)
-    except HTTPException:
-        raise
-    except ValueError as e:
-        logger.warning(f"Validation error updating portfolio {portfolio_id}: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(e)
-        )
-    except Exception as e:
-        logger.error(f"Error updating portfolio {portfolio_id}: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error updating portfolio: {str(e)}"
-        )
+    portfolio = portfolio_crud.update_portfolio(db, portfolio_id, portfolio_in)
+    stage_event(db, {"op":"update","source_table":"portfolios","source_id":str(portfolio_id),"changed_fields":list(portfolio_in.model_dump(exclude_unset=True).keys())})
+    return portfolio
 
 @router.delete("/{portfolio_id}", response_model=PortfolioOut, status_code=status.HTTP_200_OK)
 @require_permission("DELETE_PORTFOLIO")
 def delete_portfolio(
     *,
     db: Session = Depends(deps.get_db),
-    portfolio_id: int,
     current_user: models.User = Depends(deps.get_current_user),
+    portfolio_id: int,
 ) -> Any:
-    """
-    Delete a portfolio.
-    """
-    logger.info(f"Deleting portfolio with ID {portfolio_id}")
-    try:
-        portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
-        if not portfolio:
-            logger.warning(f"Portfolio with ID {portfolio_id} not found for deletion")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Portfolio not found"
-            )
-        
-        portfolio = portfolio_crud.delete_portfolio(db, portfolio_id=portfolio_id)
-        logger.info(f"Portfolio {portfolio_id} deleted successfully")
-        return process_single_portfolio_for_response(portfolio)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error deleting portfolio {portfolio_id}: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error deleting portfolio: {str(e)}"
-        )
+    portfolio = portfolio_crud.delete_portfolio(db, portfolio_id)
+    stage_event(db, {"op":"delete","source_table":"portfolios","source_id":str(portfolio_id),"changed_fields":[]})
+    return portfolio
 
 @router.get("/{portfolio_id}/images", response_model=List[PortfolioImageOut])
 @require_permission("VIEW_PORTFOLIO_IMAGES")
@@ -652,6 +588,7 @@ async def upload_portfolio_image(
             portfolio_image.image_url = get_file_url(portfolio_image.image_path)
         
         logger.info(f"Image uploaded successfully for portfolio {portfolio_id}")
+        stage_event(db, {"op":"insert","source_table":"portfolio_images","source_id":str(portfolio_image.id),"changed_fields":["file_name","image_path","category"]})
         return portfolio_image
     except HTTPException:
         raise
@@ -703,6 +640,7 @@ def delete_portfolio_image(
                     logger.warning(f"Could not delete image file {file_path}: {str(e)}")
         
         logger.info(f"Image {image_id} deleted successfully")
+        stage_event(db, {"op":"delete","source_table":"portfolio_images","source_id":str(image_id),"changed_fields":[]})
         return portfolio_image
     except HTTPException:
         raise
@@ -945,6 +883,7 @@ async def upload_portfolio_attachment(
         portfolio_attachment.file_url = get_file_url(portfolio_attachment.file_path)
         
         logger.info(f"Attachment uploaded successfully for portfolio {portfolio_id}")
+        stage_event(db, {"op":"insert","source_table":"portfolio_attachments","source_id":str(portfolio_attachment.id),"changed_fields":["file_name","file_path"]})
         return portfolio_attachment
     except HTTPException:
         raise
@@ -996,6 +935,7 @@ def delete_portfolio_attachment(
                     logger.warning(f"Could not delete attachment file {file_path}: {str(e)}")
         
         logger.info(f"Attachment {attachment_id} deleted successfully")
+        stage_event(db, {"op":"delete","source_table":"portfolio_attachments","source_id":str(attachment_id),"changed_fields":[]})
         return portfolio_attachment
     except HTTPException:
         raise
@@ -1039,6 +979,7 @@ def add_portfolio_category(
             )
         
         logger.info(f"Category {category_id} added to portfolio {portfolio_id} successfully")
+        stage_event(db, {"op":"update","source_table":"portfolios","source_id":str(portfolio_id),"changed_fields":["categories"]})
         return {"message": "Category added successfully"}
     except HTTPException:
         raise
@@ -1080,6 +1021,7 @@ def remove_portfolio_category(
             )
         
         logger.info(f"Category {category_id} removed from portfolio {portfolio_id} successfully")
+        stage_event(db, {"op":"update","source_table":"portfolios","source_id":str(portfolio_id),"changed_fields":["categories"]})
         return {"message": "Category removed successfully"}
     except HTTPException:
         raise
@@ -1121,6 +1063,7 @@ def add_portfolio_experience(
             )
         
         logger.info(f"Experience {experience_id} added to portfolio {portfolio_id} successfully")
+        stage_event(db, {"op":"update","source_table":"portfolios","source_id":str(portfolio_id),"changed_fields":["experiences"]})
         return {"message": "Experience added successfully"}
     except HTTPException:
         raise
@@ -1162,6 +1105,7 @@ def remove_portfolio_experience(
             )
         
         logger.info(f"Experience {experience_id} removed from portfolio {portfolio_id} successfully")
+        stage_event(db, {"op":"update","source_table":"portfolios","source_id":str(portfolio_id),"changed_fields":["experiences"]})
         return {"message": "Experience removed successfully"}
     except HTTPException:
         raise
@@ -1203,6 +1147,7 @@ def add_portfolio_project(
             )
         
         logger.info(f"Project {project_id} added to portfolio {portfolio_id} successfully")
+        stage_event(db, {"op":"update","source_table":"portfolios","source_id":str(portfolio_id),"changed_fields":["projects"]})
         return {"message": "Project added successfully"}
     except HTTPException:
         raise
@@ -1244,6 +1189,7 @@ def remove_portfolio_project(
             )
         
         logger.info(f"Project {project_id} removed from portfolio {portfolio_id} successfully")
+        stage_event(db, {"op":"update","source_table":"portfolios","source_id":str(portfolio_id),"changed_fields":["projects"]})
         return {"message": "Project removed successfully"}
     except HTTPException:
         raise
@@ -1285,6 +1231,7 @@ def add_portfolio_section(
             )
         
         logger.info(f"Section {section_id} added to portfolio {portfolio_id} successfully")
+        stage_event(db, {"op":"update","source_table":"portfolios","source_id":str(portfolio_id),"changed_fields":["sections"]})
         return {"message": "Section added successfully"}
     except HTTPException:
         raise
@@ -1326,6 +1273,7 @@ def remove_portfolio_section(
             )
         
         logger.info(f"Section {section_id} removed from portfolio {portfolio_id} successfully")
+        stage_event(db, {"op":"update","source_table":"portfolios","source_id":str(portfolio_id),"changed_fields":["sections"]})
         return {"message": "Section removed successfully"}
     except HTTPException:
         raise

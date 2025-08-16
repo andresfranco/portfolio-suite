@@ -21,7 +21,9 @@ try:
         skills,
         skill_types,
         email,
-        system_settings
+        system_settings,
+        search,
+        rag_admin
     )
     logger.debug("Successfully imported all endpoint modules")
 except ImportError as e:
@@ -55,6 +57,8 @@ try:
     api_router.include_router(skill_types.router, prefix="/skill-types", tags=["Skill Types"])
     # System settings (admin)
     api_router.include_router(system_settings.router, prefix="/settings", tags=["System Settings"])
+    api_router.include_router(search.router, prefix="/search", tags=["Search"])
+    api_router.include_router(rag_admin.router, prefix="/rag", tags=["RAG Admin"])
     logger.debug("Successfully included all routers")
 except Exception as e:
     logger.error(f"Error including router: {e}", exc_info=True)

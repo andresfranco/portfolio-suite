@@ -10,3 +10,18 @@ pydantic
 pydantic-settings
 python-dotenv
 psycopg2-binary
+
+# Testing
+pytest
+testcontainers
+alembic
+
+# Optional RAG parsers (safe defaults)
+PyPDF2
+beautifulsoup4
+markdown-it-py
+html2text
+
+# Optional worker
+celery
+prometheus_client

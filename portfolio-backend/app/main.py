@@ -24,6 +24,12 @@ from app.core.db_config import db_config
 from app.api.router import api_router
 from app.crud.permission import initialize_core_permissions
 from app.crud.role import initialize_core_roles  # Add this import
+from app.core.database import SessionLocal as _SessionLocal
+from sqlalchemy import text as _text
+from app.rag.hooks import register_after_commit_hook
+from sqlalchemy.orm import Session as _SQLASession
+from app.queue.celery_app import is_enabled as _celery_enabled
+from app.observability.metrics import CONTENT_TYPE_LATEST, generate_latest
 
 # Set up logger
 logger = setup_logger("app.main")
@@ -49,10 +55,47 @@ async def lifespan(app: FastAPI):
         # Initialize core roles (which will also initialize permissions)
         initialize_core_roles(db)
         logger.info("Core roles and permissions initialized successfully")
+        # Apply RAG and embedding settings from system_settings to environment
+        try:
+            rows = db.execute(_text("SELECT key, value FROM system_settings WHERE key IN ('rag.default_tenant_id','rag.default_visibility','rag.chunk_chars','rag.chunk_overlap','rag.debounce_seconds','rag.allow_fields','rag.redact_regex','embed.provider','embed.model')")).fetchall()
+            kv = {k: v for k, v in rows}
+            env_map = {
+                'rag.default_tenant_id': 'DEFAULT_TENANT_ID',
+                'rag.default_visibility': 'DEFAULT_VISIBILITY',
+                'rag.chunk_chars': 'CHUNK_CHARS',
+                'rag.chunk_overlap': 'CHUNK_OVERLAP',
+                'rag.debounce_seconds': 'RAG_DEBOUNCE_SECONDS',
+                'rag.allow_fields': 'RAG_ALLOW_FIELDS',
+                'rag.redact_regex': 'RAG_REDACT_REGEX',
+                'embed.provider': 'EMBED_PROVIDER',
+                'embed.model': 'EMBED_MODEL',
+            }
+            for k, envk in env_map.items():
+                val = kv.get(k)
+                if val is not None and str(val) != "":
+                    os.environ[envk] = str(val)
+            logger.info("Applied RAG settings from system_settings to environment")
+        except Exception as e:
+            logger.warning(f"Could not apply RAG settings from DB: {e}")
     except Exception as e:
         logger.error(f"Error initializing core roles: {e}")
     finally:
         db.close()
+    # Ensure vector extension if available (non-fatal)
+    try:
+        with _SessionLocal() as s:
+            s.execute(_text("CREATE EXTENSION IF NOT EXISTS vector;"))
+            s.commit()
+    except Exception:
+        pass
+    # Log celery readiness
+    try:
+        if _celery_enabled():
+            logger.info("Celery broker configured; background worker can be used")
+        else:
+            logger.info("Celery broker not configured; using inline indexing")
+    except Exception:
+        pass
     
     yield
     
@@ -225,6 +268,13 @@ async def value_error_handler(request: Request, exc: ValueError):
 app.include_router(api_router, prefix=settings.API_V1_STR)
 logger.debug("API router included with prefix '/api'")
 
+# Register after_commit hook for RAG events
+try:
+    from sqlalchemy.orm import Session as _Session
+    register_after_commit_hook(_Session)
+except Exception:
+    pass
+
 # Mount static files directory for serving uploads
 app.mount("/uploads", StaticFiles(directory=str(settings.UPLOADS_DIR)), name="uploads")
 logger.debug(f"Static files mounted at /uploads -> {settings.UPLOADS_DIR}")
@@ -248,6 +298,22 @@ async def health_check():
         "db_type": "PostgreSQL",
         "env": db_config.current_environment
     }
+
+@app.get("/readyz")
+async def readyz():
+    """Readiness probe with Celery status hint."""
+    ready = True
+    worker = False
+    try:
+        worker = _celery_enabled()
+    except Exception:
+        worker = False
+    return {"ready": ready, "worker_enabled": worker}
+
+@app.get("/metrics")
+async def metrics():
+    body = generate_latest()
+    return Response(content=body, media_type=CONTENT_TYPE_LATEST)
 
 if __name__ == "__main__":
     import uvicorn
