@@ -1,18 +1,26 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Body, status
 from sqlalchemy.orm import Session
 from typing import Any, List, Optional
-from app.crud import translation as translation_crud
+from app import models, schemas
 from app.api import deps
-from app.schemas.translation import TranslationOut as Translation, PaginatedTranslationResponse, TranslationCreate, TranslationUpdate
+from app.crud import translation as translation_crud
+from app.schemas.translation import PaginatedTranslationResponse
 from app.models.translation import Translation as TranslationModel
 from app.models.language import Language
 from app.core.logging import setup_logger
+from app.core.security_decorators import require_permission
+from app.rag.rag_events import stage_event
 
 # Set up logger using centralized logging
 logger = setup_logger("app.api.endpoints.translations")
 
 # Define router
 router = APIRouter()
+
+# Aliases to match existing schema names referenced below
+Translation = schemas.Translation
+TranslationCreate = schemas.TranslationCreate
+TranslationUpdate = schemas.TranslationUpdate
 
 @router.get("/", response_model=List[str])
 def list_translation_identifiers(
@@ -28,16 +36,16 @@ def list_translation_identifiers(
 
 @router.get("/full", response_model=PaginatedTranslationResponse)
 def read_translations(
-    page: int = Query(1, gt=0),
-    pageSize: int = Query(10, gt=0, le=100),
+    page: int = 1,
+    pageSize: int = 10,
     identifier: Optional[str] = None,
     text: Optional[str] = None,
-    language_id: Optional[List[str]] = Query(None),
-    filterField: Optional[List[str]] = Query(None),
-    filterValue: Optional[List[str]] = Query(None),
-    filterOperator: Optional[List[str]] = Query(None),
+    language_id: Optional[List[str]] = None,
+    filterField: Optional[List[str]] = None,
+    filterValue: Optional[List[str]] = None,
+    filterOperator: Optional[List[str]] = None,
     sortField: Optional[str] = None,
-    sortOrder: Optional[str] = Query(None, pattern="^(asc|desc)$"),
+    sortOrder: Optional[str] = "asc",
     db: Session = Depends(deps.get_db),
 ) -> Any:
     """
@@ -94,9 +102,11 @@ def read_translations(
 
 
 @router.post("/", response_model=Translation)
+@require_permission("CREATE_TRANSLATION")
 def create_translation(
     *,
     db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_user),
     translation_in: TranslationCreate,
 ) -> Any:
     """
@@ -108,11 +118,12 @@ def create_translation(
     # No need to check only by identifier here
     
     try:
-        new_translation = translation_crud.create_translation(db, translation=translation_in)
+        tr = translation_crud.create_translation(db, translation_in)
         db.commit()
-        db.refresh(new_translation)
-        logger.debug(f"Translation created successfully with ID: {new_translation.id}")
-        return new_translation
+        db.refresh(tr)
+        logger.debug(f"Translation created successfully with ID: {tr.id}")
+        stage_event(db, {"op":"insert","source_table":"translations","source_id":str(tr.id),"changed_fields":["name","text"]})
+        return tr
     except ValueError as e:
         logger.error(f"Error creating translation: {str(e)}")
         raise HTTPException(
@@ -142,9 +153,11 @@ def read_translation(
 
 
 @router.put("/{translation_id}", response_model=Translation)
+@require_permission("EDIT_TRANSLATION")
 def update_translation(
     *,
     db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_user),
     translation_id: int,
     translation_in: TranslationUpdate,
 ) -> Any:
@@ -164,11 +177,12 @@ def update_translation(
     # No need to check only by identifier here
     
     try:
-        updated_translation = translation_crud.update_translation(db, translation_id=translation_id, translation=translation_in)
+        tr = translation_crud.update_translation(db, translation_id, translation_in)
         db.commit()
-        db.refresh(updated_translation)
+        db.refresh(tr)
         logger.debug(f"Translation updated successfully: {translation_id}")
-        return updated_translation
+        stage_event(db, {"op":"update","source_table":"translations","source_id":str(translation_id),"changed_fields":list(translation_in.model_dump(exclude_unset=True).keys())})
+        return tr
     except ValueError as e:
         logger.error(f"Error updating translation: {str(e)}")
         raise HTTPException(
@@ -178,9 +192,11 @@ def update_translation(
 
 
 @router.delete("/{translation_id}", response_model=Translation)
+@require_permission("DELETE_TRANSLATION")
 def delete_translation(
     *,
     db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_user),
     translation_id: int,
 ) -> Any:
     """
@@ -195,10 +211,11 @@ def delete_translation(
             detail="Translation not found",
         )
     
-    deleted_translation = translation_crud.delete_translation(db, translation_id=translation_id)
+    tr = translation_crud.delete_translation(db, translation_id)
     db.commit()
     logger.debug(f"Translation deleted successfully: {translation_id}")
-    return deleted_translation
+    stage_event(db, {"op":"delete","source_table":"translations","source_id":str(translation_id),"changed_fields":[]})
+    return tr
 
 
 @router.get("/check-unique", response_model=dict)

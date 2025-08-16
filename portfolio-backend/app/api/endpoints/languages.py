@@ -19,6 +19,7 @@ from app.core.security_decorators import require_permission
 from app import models
 import os
 import uuid
+from app.rag.rag_events import stage_event
 
 # Set up logger
 logger = setup_logger("app.api.endpoints.languages")

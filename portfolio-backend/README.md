@@ -249,94 +249,52 @@ test data from accumulating in the database.
 For unit tests, all test data is prefixed with `TEST_` to make it easy to identify and clean up. Integration tests 
 using the API typically prefix test data with `TEST_API_`.
 
-## Directory Structure
+## RAG Indexing Quickstart
 
-The directory structure of the backend is organized as follows:
-
-- `app/`: Main application code
-- `scripts/`: Utility scripts for database setup and management
-  - `db/`: Database-specific scripts
-- `static/`: Static files served by the application
-- `tests/`: Test suite
-  - `unit/`: Unit tests
-  - `integration/`: Integration tests
-  - `examples/`: Example code for testing
-- `alembic/`: Database migrations
-- `docs/`: Documentation
-
-## Project Structure
-
-- `app/`: Main application package
-  - `api/`: API endpoints and routers
-  - `core/`: Core functionality (config, security, database)
-    - `db_config.py`: Environment-aware PostgreSQL database configuration
-    - `database.py`: SQLAlchemy setup and session management
-  - `crud/`: Database CRUD operations
-  - `db/`: Database session and utilities
-  - `models/`: SQLAlchemy ORM models
-  - `schemas/`: Pydantic schemas for validation
-- `tests/`: Test suite
-  - `api/`: API endpoint tests
-  - `conftest.py`: Test configuration and fixtures
-- `alembic/`: Database migrations
-- `scripts/`: Utility scripts
-  - `db_init.py`: PostgreSQL database environment initialization script
-- `init_postgres_db.py`: Script to initialize PostgreSQL database with permissions and roles
-
-## Permissions
-
-The application uses a role-based access control system with the following standard permissions:
-
-- VIEW_DASHBOARD: Permission to view the dashboard
-- MANAGE_USERS: Permission to manage users
-- MANAGE_ROLES: Permission to manage roles
-- MANAGE_PERMISSIONS: Permission to manage permissions
-- MANAGE_PORTFOLIOS: Permission to manage portfolios
-- MANAGE_PROJECTS: Permission to manage projects
-- MANAGE_SKILLS: Permission to manage skills
-- MANAGE_CATEGORIES: Permission to manage categories
-- MANAGE_EXPERIENCES: Permission to manage experiences
-- SYSTEM_ADMIN: Full system administration permissions
-
-## Authentication
-
-The API uses JWT (JSON Web Tokens) for authentication. Protected endpoints require a valid token in the Authorization header.
-
-### Obtaining a Token
-
-To authenticate, send a POST request to the login endpoint:
+1) Apply migrations and run API
 
 ```bash
-curl -X POST "http://localhost:8000/api/auth/login" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "username=your_username&password=your_password"
+cd portfolio-backend
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+alembic upgrade head
+uvicorn app.main:app --reload
 ```
 
-The response will include an access token:
-
-```json
-{
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "bearer"
-}
-```
-
-### Using the Token
-
-Include the token in the Authorization header for all protected API requests:
+2) Backfill existing rows
 
 ```bash
-curl -X GET "http://localhost:8000/api/users/" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+source venv/bin/activate
+python scripts/backfill_rag.py --table categories --limit 100
 ```
 
-### Creating an Admin User
-
-To create an admin user for initial setup:
+3) Test retrieval endpoints
 
 ```bash
-python create_user_directly.py admin admin@example.com secure_password
+curl 'http://127.0.0.1:8000/api/search/embedding?limit=5' -H 'Authorization: Bearer <token>'
+curl 'http://127.0.0.1:8000/api/search/vector?q=hello&limit=5' -H 'Authorization: Bearer <token>'
+curl 'http://127.0.0.1:8000/api/search/hybrid?q=hello&limit=5' -H 'Authorization: Bearer <token>'
 ```
 
-This will create a user with administrator privileges that can manage other users, roles, and permissions.
+4) Optional: run async worker
+
+```bash
+cd portfolio-backend
+docker compose up -d redis
+source venv/bin/activate
+export CELERY_BROKER_URL=redis://localhost:6379/0
+export CELERY_RESULT_BACKEND=redis://localhost:6379/1
+celery -A app.queue.celery_app:get_celery worker --loglevel=INFO
+```
+
+5) Metrics & readiness
+
+- Readiness: `GET /readyz`
+- Prometheus metrics: `GET /metrics`
+
+6) Tuning
+
+- Chunk sizes: `CHUNK_CHARS` (default 4000), `CHUNK_OVERLAP` (default 500)
+- Embeddings: `EMBED_PROVIDER` (e.g., openai), `EMBED_MODEL`
+- Default ACL: `DEFAULT_TENANT_ID` (default `default`), `DEFAULT_VISIBILITY` (default `public`)

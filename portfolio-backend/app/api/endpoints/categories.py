@@ -9,6 +9,7 @@ from app.crud import category as category_crud
 from app.core.logging import setup_logger
 from app.core.security_decorators import require_permission
 from app.schemas.category import CategoryCreate, CategoryUpdate, CategoryOut, PaginatedCategoryResponse, Filter
+from app.rag.rag_events import stage_event
 
 # Set up logger using centralized logging
 logger = setup_logger("app.api.endpoints.categories")
@@ -353,6 +354,19 @@ def create_category(
         # Attempt to create the category
         category = category_crud.create_category(db, category=category_in)
         
+        # Stage RAG index event after commit
+        stage_event(db, {
+            "op": "insert",
+            "source_table": "categories",
+            "source_id": str(category.id),
+            "changed_fields": ["code", "type_code"]
+        })
+        # Trigger after_commit hook
+        try:
+            db.commit()
+        except Exception:
+            pass
+        
         # Process category to ensure language objects are properly serialized as dictionaries
         category_dict = {
             "id": category.id,
@@ -522,6 +536,18 @@ def update_category(
                 detail="Category not found",
             )
         
+        # Stage RAG update event
+        stage_event(db, {
+            "op": "update",
+            "source_table": "categories",
+            "source_id": str(category.id),
+            "changed_fields": list(category_in.model_dump(exclude_unset=True).keys())
+        })
+        try:
+            db.commit()
+        except Exception:
+            pass
+        
         # Process category to ensure language objects are properly serialized as dictionaries
         category_dict = {
             "id": category.id,
@@ -598,6 +624,18 @@ def delete_category(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Category not found",
             )
+        
+        # Stage RAG delete event
+        stage_event(db, {
+            "op": "delete",
+            "source_table": "categories",
+            "source_id": str(category_id),
+            "changed_fields": []
+        })
+        try:
+            db.commit()
+        except Exception:
+            pass
         
         logger.info(f"Category deleted successfully: {category_id}")
         # Don't return anything for 204 response
