@@ -102,6 +102,9 @@ def _reindex_table(db: Session, table: str, limit: Optional[int], offset: int) -
     if table == "skill_types":
         pk_col = "code"
         order_col = "code"
+    if table == "category_types":
+        pk_col = "code"
+        order_col = "code"
 
     q = f"SELECT {pk_col} FROM {table} ORDER BY {order_col}"
     if limit is not None:
@@ -180,6 +183,7 @@ def reindex_all(
         "portfolios",
         "sections",
         "experiences",
+        "category_types",
         "languages",
         "translations",
         "skills",
