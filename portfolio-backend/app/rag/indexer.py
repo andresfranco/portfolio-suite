@@ -141,7 +141,7 @@ def _build_canonical_fields(record: Dict[str, any], source_table: str) -> Dict[s
             parts.append("Sections: " + ", ".join(sorted({s for s in secs if s})))
         if parts:
             fields["tags"] = "\n".join(parts)
-    elif source_table in {"sections", "experiences", "skills", "skill_types", "languages", "translations"}:
+    elif source_table in {"sections", "experiences", "skills", "skill_types", "category_types", "languages", "translations"}:
         # Simple join of common textual fields if present
         body_parts: List[str] = []
         for key in ("name", "code", "text", "description"):
@@ -298,6 +298,12 @@ def _load_current_state(db: Session, source_table: str, source_id: str) -> Dict[
     if source_table == "skill_types":
         try:
             rec = db.execute(text("SELECT code FROM skill_types WHERE code=:i"), {"i": source_id}).mappings().first()
+            return dict(rec) if rec else {}
+        except Exception:
+            return {"code": str(source_id)}
+    if source_table == "category_types":
+        try:
+            rec = db.execute(text("SELECT code, name, updated_at FROM category_types WHERE code=:i"), {"i": source_id}).mappings().first()
             return dict(rec) if rec else {}
         except Exception:
             return {"code": str(source_id)}
