@@ -23,7 +23,8 @@ try:
         email,
         system_settings,
         search,
-        rag_admin
+        rag_admin,
+        agents
     )
     logger.debug("Successfully imported all endpoint modules")
 except ImportError as e:
@@ -59,6 +60,7 @@ try:
     api_router.include_router(system_settings.router, prefix="/settings", tags=["System Settings"])
     api_router.include_router(search.router, prefix="/search", tags=["Search"])
     api_router.include_router(rag_admin.router, prefix="/rag", tags=["RAG Admin"])
+    api_router.include_router(agents.router, prefix="/agents", tags=["Agents"]) 
     logger.debug("Successfully included all routers")
 except Exception as e:
     logger.error(f"Error including router: {e}", exc_info=True)
