@@ -19,6 +19,9 @@ def _stub_vectors(texts: List[str]) -> List[List[float]]:
 
 def embed_text_batch(texts: List[str]) -> List[List[float]]:
     provider = os.getenv('EMBED_PROVIDER', '').lower()
+    # Heuristic: if an OpenAI key exists but provider not set, assume openai
+    if not provider and os.getenv('OPENAI_API_KEY'):
+        provider = 'openai'
     if not provider:
         return _stub_vectors(texts)
     if provider == 'openai':

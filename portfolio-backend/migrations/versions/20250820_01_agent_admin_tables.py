@@ -47,7 +47,7 @@ def upgrade():
         'agent_templates',
         sa.Column('id', sa.Integer(), primary_key=True),
         sa.Column('agent_id', sa.Integer(), sa.ForeignKey('agents.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('system_prompt', sa.Text(), nullable=False, server_default=sa.text("'You are a helpful assistant that answers strictly from the provided context. If the context does not contain the answer, say you don't know.'")),
+        sa.Column('system_prompt', sa.Text(), nullable=False, server_default=sa.text("'You are a helpful assistant that answers strictly from the provided context. If the context does not contain the answer, say you don''t know.'")),
         sa.Column('user_prefix', sa.String(100), nullable=True),
         sa.Column('citation_format', sa.String(20), nullable=False, server_default='markdown'),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),

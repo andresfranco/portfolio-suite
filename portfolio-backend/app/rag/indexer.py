@@ -380,6 +380,13 @@ def index_record(db: Session, source_table: str, source_id: str) -> None:
         new_count = 0
         upd_count = 0
         skip_count = 0
+        # Determine expected embedding dimension for current provider/model (probe once)
+        try:
+            _probe_vec = embed_text_batch(["__dim_probe__"]) or [[]]
+            expected_dim = len(_probe_vec[0]) if _probe_vec and _probe_vec[0] else 0
+        except Exception:
+            expected_dim = 0
+
         for field, i, chunk, cks in plan:
             planned_keys.append((field, i))
             # Check existing row to decide if embedding needed
@@ -414,6 +421,20 @@ def index_record(db: Session, source_table: str, source_id: str) -> None:
             ), {"t": source_table, "i": source_id, "f": field, "p": i, "v": version, "tx": chunk, "ck": cks, "tenant": default_tenant, "vis": default_visibility}).mappings().first()
 
             chunk_id = row["id"]
+            # If checksum unchanged, ensure an embedding exists for current model with correct dimension; else mark for re-embed
+            if not needs_embed and expected_dim:
+                try:
+                    emb_row = db.execute(text(
+                        """
+                        SELECT dim FROM rag_embedding
+                        WHERE chunk_id = :cid AND model = :m AND modality = 'text'
+                        """
+                    ), {"cid": chunk_id, "m": os.getenv("EMBED_MODEL", "text-embedding-3-small")}).mappings().first()
+                    if (not emb_row) or (int(emb_row.get("dim") or 0) != expected_dim):
+                        needs_embed = True
+                except Exception:
+                    needs_embed = True
+
             if needs_embed:
                 to_embed.append((chunk_id, chunk))
 
@@ -430,7 +451,7 @@ def index_record(db: Session, source_table: str, source_id: str) -> None:
                         INSERT INTO rag_embedding (chunk_id, model, modality, dim, embedding, embedding_vec)
                         VALUES (:cid, :m, 'text', :d, :e, CAST(:e AS vector))
                         ON CONFLICT (chunk_id, model, modality)
-                        DO UPDATE SET embedding = EXCLUDED.embedding, embedding_vec = EXCLUDED.embedding_vec
+                        DO UPDATE SET embedding = EXCLUDED.embedding, embedding_vec = EXCLUDED.embedding_vec, dim = EXCLUDED.dim
                         """
                     ), {"cid": chunk_id, "m": os.getenv("EMBED_MODEL", "text-embedding-3-small"), "d": dim, "e": f"[{', '.join(str(x) for x in vec)}]"})
                     embedded_count += 1
