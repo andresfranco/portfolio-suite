@@ -62,6 +62,32 @@ def list_credentials(
     return creds
 
 
+@router.get("/", response_model=List[AgentOut])
+@require_any_permission(["MANAGE_AGENTS", "SYSTEM_ADMIN"])  # list agents
+def list_agents(
+    *,
+    db: Session = Depends(deps.get_db),
+    current_user=Depends(deps.get_current_user),
+):
+    agents = db.query(Agent).order_by(Agent.name.asc()).all()
+    return agents
+
+
+@router.get("/{agent_id}/template", response_model=AgentTemplateOut)
+@require_any_permission(["MANAGE_AGENTS", "SYSTEM_ADMIN"])  # read template
+def get_agent_template(
+    *,
+    agent_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user=Depends(deps.get_current_user),
+):
+    tpl = db.query(AgentTemplate).filter(AgentTemplate.agent_id == agent_id).first()
+    if not tpl:
+        # Return a transient default response (not persisted)
+        tpl = AgentTemplate(agent_id=agent_id, system_prompt="You are a helpful assistant that answers strictly from the provided context. If the context does not contain the answer, say you don't know.")
+    return tpl
+
+
 @router.post("/", response_model=AgentOut)
 @require_any_permission(["MANAGE_AGENTS", "SYSTEM_ADMIN"])  # create agent
 def create_agent(
@@ -107,16 +133,38 @@ def upsert_template(
     tpl_in: AgentTemplateCreate,
     current_user=Depends(deps.get_current_user),
 ):
-    tpl = db.query(AgentTemplate).filter(AgentTemplate.agent_id == tpl_in.agent_id).first()
+    # If name provided, upsert by (agent_id, name); otherwise upsert the (legacy) single template
+    tpl = None
+    if tpl_in.name:
+        tpl = db.query(AgentTemplate).filter(AgentTemplate.agent_id == tpl_in.agent_id, AgentTemplate.name == tpl_in.name).first()
+    else:
+        tpl = db.query(AgentTemplate).filter(AgentTemplate.agent_id == tpl_in.agent_id, AgentTemplate.name.is_(None)).first()
+
     if not tpl:
         tpl = AgentTemplate(**tpl_in.model_dump())
         db.add(tpl)
     else:
         for k, v in tpl_in.model_dump(exclude_unset=True).items():
             setattr(tpl, k, v)
+
+    # Ensure only one default per agent
+    if tpl_in.is_default:
+        db.query(AgentTemplate).filter(AgentTemplate.agent_id == tpl.agent_id, AgentTemplate.id != tpl.id).update({AgentTemplate.is_default: False})
     db.commit()
     db.refresh(tpl)
     return tpl
+
+
+@router.get("/{agent_id}/templates", response_model=List[AgentTemplateOut])
+@require_any_permission(["MANAGE_AGENTS", "SYSTEM_ADMIN"])  # list templates
+def list_templates(
+    *,
+    agent_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user=Depends(deps.get_current_user),
+):
+    tpls = db.query(AgentTemplate).filter(AgentTemplate.agent_id == agent_id).order_by(AgentTemplate.is_default.desc(), AgentTemplate.name.asc().nullsfirst()).all()
+    return tpls
 
 
 @router.post("/test", response_model=AgentTestResponse)
@@ -127,7 +175,7 @@ def test_agent(
     req: AgentTestRequest,
     current_user=Depends(deps.get_current_user),
 ):
-    return run_agent_test(db, agent_id=req.agent_id, prompt=req.prompt)
+    return run_agent_test(db, agent_id=req.agent_id, prompt=req.prompt, template_id=req.template_id, portfolio_id=req.portfolio_id)
 
 
 @router.post("/{agent_id}/chat")
@@ -139,6 +187,6 @@ def agent_chat(
     current_user=Depends(deps.get_current_user),
 ):
     # Non-streaming response
-    return run_agent_chat(db, agent_id=agent_id, user_message=payload.message, session_id=payload.session_id)
+    return run_agent_chat(db, agent_id=agent_id, user_message=payload.message, session_id=payload.session_id, template_id=None, portfolio_id=payload.portfolio_id)
 
 

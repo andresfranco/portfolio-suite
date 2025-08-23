@@ -5,6 +5,7 @@ import time
 from datetime import timedelta
 
 from fastapi import FastAPI, Request, Depends, HTTPException, status, Response
+from dotenv import load_dotenv  # Ensure .env values load into os.environ for non-Settings reads
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware  # Add CORS middleware
@@ -30,6 +31,10 @@ from app.rag.hooks import register_after_commit_hook
 from sqlalchemy.orm import Session as _SQLASession
 from app.queue.celery_app import is_enabled as _celery_enabled
 from app.observability.metrics import CONTENT_TYPE_LATEST, generate_latest
+from app import models as _models
+
+# Load .env into process environment so os.getenv works for keys like AGENT_KMS_KEY / OPENAI_API_KEY
+load_dotenv()
 
 # Set up logger
 logger = setup_logger("app.main")
@@ -77,6 +82,24 @@ async def lifespan(app: FastAPI):
             logger.info("Applied RAG settings from system_settings to environment")
         except Exception as e:
             logger.warning(f"Could not apply RAG settings from DB: {e}")
+        # Ensure embedding provider/model and OPENAI key are present for indexers
+        try:
+            # Defaults if not explicitly configured
+            os.environ.setdefault('EMBED_PROVIDER', os.getenv('EMBED_PROVIDER') or 'openai')
+            os.environ.setdefault('EMBED_MODEL', os.getenv('EMBED_MODEL') or 'text-embedding-3-small')
+            # Decrypt first OpenAI credential if OPENAI_API_KEY not set
+            if not os.getenv('OPENAI_API_KEY'):
+                cred = db.query(_models.AgentCredential).filter(_models.AgentCredential.provider == 'openai').first()
+                if cred and cred.api_key_encrypted:
+                    row = db.execute(_text("SELECT pgp_sym_decrypt(decode(:b64,'base64'), :k) AS api_key"), {
+                        'b64': cred.api_key_encrypted,
+                        'k': os.getenv('AGENT_KMS_KEY')
+                    }).first()
+                    if row and row[0]:
+                        os.environ['OPENAI_API_KEY'] = row[0]
+                        logger.info("Loaded OPENAI_API_KEY from database credential for embedding/indexing")
+        except Exception as e:
+            logger.warning(f"Could not set embedding provider/api key from DB: {e}")
     except Exception as e:
         logger.error(f"Error initializing core roles: {e}")
     finally:

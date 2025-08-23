@@ -52,7 +52,9 @@ class AgentTemplate(Base):
     __tablename__ = "agent_templates"
 
     id = Column(Integer, primary_key=True, index=True)
-    agent_id = Column(Integer, ForeignKey("agents.id", ondelete="CASCADE"), nullable=False, unique=True)
+    agent_id = Column(Integer, ForeignKey("agents.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(120), nullable=True)
+    is_default = Column(Boolean, nullable=False, default=False)
     system_prompt = Column(Text, nullable=False, default="You are a helpful assistant that answers strictly from the provided context. If the context does not contain the answer, say you don't know.")
     user_prefix = Column(String(100), nullable=True)
     citation_format = Column(String(20), nullable=False, default="markdown")  # markdown | text | json
