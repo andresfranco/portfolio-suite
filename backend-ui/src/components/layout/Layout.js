@@ -162,7 +162,7 @@ const Layout = () => {
     },
     { 
       text: 'Portfolios', 
-  icon: <PortfolioIcon />, 
+      icon: <PortfolioIcon />, 
       path: '/portfolios', 
       requiredPermission: 'VIEW_PORTFOLIOS' 
     },
@@ -179,6 +179,12 @@ const Layout = () => {
       icon: <LanguageIcon />, 
       path: '/languages', 
       requiredPermission: 'VIEW_LANGUAGES' 
+    },
+    { 
+      text: 'Agents', 
+      icon: <ChatIcon />, 
+      path: '/agents', 
+      requiredPermission: 'MANAGE_AGENTS' 
     },
     { 
       text: 'Chatbot Config', 
@@ -206,6 +212,11 @@ const Layout = () => {
       // System admin can see everything
       if (isSystemAdmin()) {
         return true;
+      }
+      
+      // If Agents item, allow SYSTEM_ADMIN too
+      if (item.text === 'Agents') {
+        return hasPermission('MANAGE_AGENTS') || isSystemAdmin();
       }
       
       // Check if user has the required permission for this menu item
@@ -241,7 +252,7 @@ const Layout = () => {
       },
       {
         title: 'System',
-  items: items.filter(item => ['Languages', 'Chatbot Config', 'System Settings', 'RAG Admin'].includes(item.text))
+        items: items.filter(item => ['Languages', 'Agents', 'Chatbot Config', 'System Settings', 'RAG Admin'].includes(item.text))
       }
     ];
 
@@ -420,7 +431,7 @@ const Layout = () => {
         sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}
       >
         {/* Mobile drawer */}
-    <Drawer
+        <Drawer
           variant="temporary"
           open={mobileOpen}
           onClose={handleDrawerToggle}
@@ -429,18 +440,18 @@ const Layout = () => {
           }}
           sx={{
             display: { xs: 'block', md: 'none' },
-      '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth, borderRadius: 0 },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth, borderRadius: 0 },
           }}
         >
           {drawer}
         </Drawer>
         
         {/* Desktop drawer */}
-    <Drawer
+        <Drawer
           variant="permanent"
           sx={{
             display: { xs: 'none', md: 'block' },
-      '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth, borderRadius: 0 },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth, borderRadius: 0 },
           }}
           open
         >

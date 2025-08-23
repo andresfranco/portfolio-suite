@@ -23,25 +23,44 @@ class ProviderConfig:
 class OpenAIProvider:
     def __init__(self, cfg: ProviderConfig):
         from openai import OpenAI  # type: ignore
-        self.client = OpenAI(api_key=cfg.api_key, base_url=cfg.base_url)
+        import httpx  # type: ignore
+        # Apply a conservative default timeout; allow override via extra
+        default_timeout = 12.0
+        try:
+            timeout_cfg = float((cfg.extra or {}).get("timeout_seconds", default_timeout))
+        except Exception:
+            timeout_cfg = default_timeout
+        self._timeout_seconds = timeout_cfg
+        # Enforce timeouts via a dedicated httpx client
+        http_timeout = httpx.Timeout(self._timeout_seconds)
+        http_client = httpx.Client(timeout=http_timeout)
+        self.client = OpenAI(api_key=cfg.api_key, base_url=cfg.base_url, http_client=http_client)
 
     def chat(self, *, model: str, system_prompt: str, messages: List[Dict[str, str]]) -> Dict[str, Any]:
         started = time.time()
         # System prompt as first message
         final_messages = [{"role": "system", "content": system_prompt}] + messages
-        resp = self.client.chat.completions.create(model=model, messages=final_messages)
-        content = resp.choices[0].message.content or ""
-        usage = getattr(resp, "usage", None)
-        latency_ms = int((time.time() - started) * 1000)
-        return {
-            "text": content,
-            "usage": usage.model_dump() if hasattr(usage, "model_dump") else {},
-            "latency_ms": latency_ms,
-        }
+        try:
+            resp = self.client.chat.completions.create(model=model, messages=final_messages)
+            content = resp.choices[0].message.content or ""
+            usage = getattr(resp, "usage", None)
+            latency_ms = int((time.time() - started) * 1000)
+            return {
+                "text": content,
+                "usage": usage.model_dump() if hasattr(usage, "model_dump") else {},
+                "latency_ms": latency_ms,
+            }
+        except Exception as e:
+            latency_ms = int((time.time() - started) * 1000)
+            # Surface as a simple structured error to the caller
+            raise RuntimeError(f"LLM chat request failed after {latency_ms}ms: {e}")
 
     def embed(self, *, model: str, texts: List[str]) -> List[List[float]]:
-        resp = self.client.embeddings.create(model=model, input=texts)
-        return [d.embedding for d in resp.data]
+        try:
+            resp = self.client.embeddings.create(model=model, input=texts)
+            return [d.embedding for d in resp.data]
+        except Exception as e:
+            raise RuntimeError(f"Embedding request failed: {e}")
 
 
 class AnthropicProvider:

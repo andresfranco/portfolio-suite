@@ -60,6 +60,8 @@ class AgentOut(AgentBase):
 
 class AgentTemplateCreate(BaseModel):
     agent_id: int
+    name: Optional[str] = None
+    is_default: Optional[bool] = False
     system_prompt: str
     user_prefix: Optional[str] = None
     citation_format: str = "markdown"
@@ -75,6 +77,7 @@ class AgentTemplateOut(AgentTemplateCreate):
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[int] = None
+    portfolio_id: Optional[int] = None
 
 
 class ChatResponse(BaseModel):
@@ -87,6 +90,8 @@ class ChatResponse(BaseModel):
 class AgentTestRequest(BaseModel):
     agent_id: int
     prompt: str
+    template_id: Optional[int] = None
+    portfolio_id: Optional[int] = None
 
 
 class AgentTestResponse(BaseModel):

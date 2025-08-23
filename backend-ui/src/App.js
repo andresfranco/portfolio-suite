@@ -18,6 +18,8 @@ import useIdleSession from './hooks/useIdleSession';
 import systemSettingsApi from './services/systemSettingsApi';
 import SystemSettings from './components/settings/SystemSettings';
 import RagAdmin from './components/rag/RagAdmin';
+import AgentsIndex from './components/agents/AgentsIndex';
+import { AgentAdminProvider } from './contexts/AgentAdminContext';
 
 // Importing actual components for previously working modules
 import { RoleIndex } from './components/roles';
@@ -199,6 +201,11 @@ function AppContent() {
             {/* System Settings */}
             <Route path="languages" element={
               <LanguageIndex />
+            } />
+            <Route path="agents" element={
+              <AgentAdminProvider>
+                <AgentsIndex />
+              </AgentAdminProvider>
             } />
             <Route path="chatbot" element={<ChatbotConfig />} />
             <Route path="settings" element={<SystemSettings />} />
