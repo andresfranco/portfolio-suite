@@ -2,17 +2,60 @@ from __future__ import annotations
 from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+import os
 
 
 def embed_query(db: Session, *, provider, embedding_model: str, query: str) -> List[float]:
-    # Use provider embeddings
-    vec = provider.embed(model=embedding_model, texts=[query])[0]
+    """Return a normalized embedding for the query.
+
+    Attempts provider.embed first. If the active chat provider does not
+    implement embeddings, falls back to an OpenAI-compatible embeddings
+    provider using OPENAI_API_KEY (or decrypts the first OpenAI credential
+    from the database if available and AGENT_KMS_KEY is set).
+    """
+    try:
+        vec = provider.embed(model=embedding_model, texts=[query])[0]
+    except Exception:
+        # Fallback: try OpenAI embeddings safely
+        from app.services.llm.providers import build_provider  # local import to avoid cycles
+
+        api_key = os.getenv("OPENAI_API_KEY") or ""
+        if not api_key:
+            # Best-effort: decrypt first OpenAI credential
+            try:
+                kms_key = os.getenv("AGENT_KMS_KEY")
+                if kms_key:
+                    row = db.execute(text(
+                        """
+                        SELECT encode(pgp_sym_decrypt(decode(ac.api_key_encrypted,'base64'), :k), 'escape') AS k
+                        FROM agent_credentials ac
+                        WHERE ac.provider='openai' AND ac.api_key_encrypted IS NOT NULL
+                        ORDER BY ac.id ASC
+                        LIMIT 1
+                        """
+                    ), {"k": kms_key}).first()
+                    if row and row[0]:
+                        api_key = row[0]
+            except Exception:
+                # Rollback if query failed
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                api_key = api_key or ""
+
+        if not api_key:
+            raise RuntimeError("No embedding provider available: set OPENAI_API_KEY or configure an OpenAI credential")
+
+        fallback = build_provider("openai", api_key=api_key)
+        vec = fallback.embed(model=embedding_model, texts=[query])[0]
+
     # Normalize for cosine if needed: pg uses cosine ops; upstream vectors may not be unit length
     norm = sum(x * x for x in vec) ** 0.5 or 1.0
     return [x / norm for x in vec]
 
 
-def vector_search(db: Session, *, qvec: List[float], model: str, k: int, score_threshold: Optional[float], portfolio_id: Optional[int] = None) -> List[Dict[str, Any]]:
+def vector_search(db: Session, *, qvec: List[float], model: str, k: int, score_threshold: Optional[float], portfolio_id: Optional[int] = None, tables_filter: Optional[List[str]] = None) -> List[Dict[str, Any]]:
     # Ensure query vector is cast to the correct dimensional type to match stored vectors
     dim = max(1, len(qvec))
     portfolio_filter = ""
@@ -21,7 +64,7 @@ def vector_search(db: Session, *, qvec: List[float], model: str, k: int, score_t
         portfolio_filter = (
             """
             AND (
-                (c.source_table = 'portfolios' AND c.source_id = :pid::text)
+                (c.source_table = 'portfolios' AND c.source_id = CAST(:pid AS TEXT))
              OR (c.source_table = 'experiences' AND c.source_id IN (
                     SELECT CAST(e.id AS TEXT) FROM portfolio_experiences pe JOIN experiences e ON e.id = pe.experience_id WHERE pe.portfolio_id = :pid
                 ))
@@ -43,6 +86,27 @@ def vector_search(db: Session, *, qvec: List[float], model: str, k: int, score_t
             """
         )
 
+    # Optional filter by source_table (whitelist to avoid SQL injection)
+    table_filter_sql = ""
+    if tables_filter:
+        allowed = {
+            "portfolios",
+            "experiences",
+            "projects",
+            "sections",
+            "portfolio_attachments",
+            "project_attachments",
+            "skills",
+            "skill_types",
+            "category_types",
+            "languages",
+            "translations",
+        }
+        safe_tables = [t for t in tables_filter if t in allowed]
+        if safe_tables:
+            quoted = ", ".join([f"'{t}'" for t in safe_tables])
+            table_filter_sql = f"\n          AND c.source_table IN ({quoted})\n        "
+
     sql = text(
         f"""
         WITH q AS (SELECT CAST(:q AS vector({dim})) AS qvec)
@@ -56,6 +120,7 @@ def vector_search(db: Session, *, qvec: List[float], model: str, k: int, score_t
           AND e.dim = :d
           AND c.is_deleted = FALSE
           {portfolio_filter}
+          {table_filter_sql}
         ORDER BY distance
         LIMIT :k
         """
@@ -64,7 +129,18 @@ def vector_search(db: Session, *, qvec: List[float], model: str, k: int, score_t
     params = {"q": qparam, "m": model, "k": k, "d": dim}
     if portfolio_id is not None:
         params["pid"] = portfolio_id
-    rows = db.execute(sql, params).mappings().all()
+    
+    try:
+        rows = db.execute(sql, params).mappings().all()
+    except Exception as e:
+        # If vector search fails, rollback and return empty results
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        print(f"Warning: Vector search failed: {str(e)[:100]}")
+        return []
+    
     items: List[Dict[str, Any]] = []
     for r in rows:
         score = 1.0 - float(r["distance"])  # cosine similarity proxy
