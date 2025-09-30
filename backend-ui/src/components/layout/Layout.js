@@ -187,6 +187,12 @@ const Layout = () => {
       requiredPermission: 'MANAGE_AGENTS' 
     },
     { 
+      text: 'Agent Chat', 
+      icon: <ChatIcon />, 
+      path: '/agent-chat', 
+      requiredPermission: 'MANAGE_AGENTS' 
+    },
+    { 
       text: 'Chatbot Config', 
       icon: <ChatIcon />, 
       path: '/chatbot', 
@@ -252,7 +258,7 @@ const Layout = () => {
       },
       {
         title: 'System',
-        items: items.filter(item => ['Languages', 'Agents', 'Chatbot Config', 'System Settings', 'RAG Admin'].includes(item.text))
+        items: items.filter(item => ['Languages', 'Agents', 'Agent Chat', 'Chatbot Config', 'System Settings', 'RAG Admin'].includes(item.text))
       }
     ];
 

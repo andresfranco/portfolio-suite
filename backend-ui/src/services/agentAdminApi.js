@@ -34,11 +34,17 @@ const agentAdminApi = {
     return data;
   },
   testAgent: async (payload) => {
-    const { data } = await api.post('/api/agents/test', payload);
+    // Allow longer time for RAG + LLM on first run
+    const { data } = await api.post('/api/agents/test', payload, { timeout: 90000 });
     return data;
   },
   chat: async (agentId, payload) => {
-    const { data } = await api.post(`/api/agents/${agentId}/chat`, payload);
+    const { data } = await api.post(`/api/agents/${agentId}/chat`, payload, { timeout: 90000 });
+    return data;
+  },
+  listPortfolios: async () => {
+    // Fetch all portfolios (no pagination for dropdown)
+    const { data } = await api.get('/api/portfolios?page=1&page_size=100');
     return data;
   },
 };
