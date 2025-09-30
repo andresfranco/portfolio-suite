@@ -57,8 +57,8 @@ export const AgentAdminProvider = ({ children }) => {
     return agentAdminApi.upsertTemplate({ agent_id, name, is_default, system_prompt, user_prefix, citation_format });
   }, []);
 
-  const runTest = useCallback(async ({ agent_id, prompt, template_id }) => {
-    return agentAdminApi.testAgent({ agent_id, prompt, template_id });
+  const runTest = useCallback(async ({ agent_id, prompt, template_id, portfolio_id }) => {
+    return agentAdminApi.testAgent({ agent_id, prompt, template_id, portfolio_id });
   }, []);
 
   const value = {

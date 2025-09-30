@@ -43,8 +43,8 @@ class FakeProvider:
         return {"text": answer, "usage": {"total_tokens": 0}, "latency_ms": 1}
 
     def embed(self, *, model: str, texts: List[str]) -> List[List[float]]:
-        # Return a small fixed-dim vector per input
-        return [[0.1, 0.2, 0.3] for _ in texts]
+        # Simulate providers that don't implement embeddings by raising
+        raise RuntimeError("embeddings not supported")
 
 
 def _install_fakes():
@@ -63,8 +63,22 @@ def _install_fakes():
     state: Dict[str, Any] = {"last_query": ""}
 
     def fake_embed_query(db, *, provider, embedding_model: str, query: str) -> List[float]:  # type: ignore
+        # Use real embed_query to exercise fallback path while keeping deterministic vectors
+        from app.services.rag_service import embed_query as real_embed
         state["last_query"] = query
-        return [0.1, 0.2, 0.3]
+        # Provide OPENAI_API_KEY so fallback path is taken and succeeds without network
+        os.environ.setdefault("OPENAI_API_KEY", "test-openai-key")
+        # Monkeypatch OpenAI provider builder used in embed_query fallback to return deterministic vectors
+        from app.services.llm import providers as _prov
+        _orig_builder = _prov.build_provider
+        class _OpenAIProv:
+            def embed(self, *, model: str, texts: List[str]) -> List[List[float]]:
+                return [[0.1, 0.2, 0.3] for _ in texts]
+        _prov.build_provider = lambda *a, **k: _OpenAIProv()  # type: ignore
+        try:
+            return real_embed(db, provider=FakeProvider(), embedding_model=embedding_model, query=query)
+        finally:
+            _prov.build_provider = _orig_builder  # type: ignore
 
     def fake_vector_search(db, *, qvec, model: str, k: int, score_threshold: Optional[float], portfolio_id: Optional[int] = None):  # type: ignore
         q = state.get("last_query", "").lower()

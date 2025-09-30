@@ -41,6 +41,8 @@ export default function AgentsIndex() {
   const [agentCredentialId, setAgentCredentialId] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('You are a helpful assistant that answers strictly from the provided context.');
   const [testPrompt, setTestPrompt] = useState('What projects mention React?');
+  const [portfolioId, setPortfolioId] = useState('');
+  const [portfolioQuery, setPortfolioQuery] = useState('');
   const [testResult, setTestResult] = useState(null);
   const [testError, setTestError] = useState('');
   const [isTesting, setIsTesting] = useState(false);
@@ -109,7 +111,13 @@ export default function AgentsIndex() {
     setTestResult(null);
     setIsTesting(true);
     try {
-      const res = await runTest({ agent_id: Number(selectedAgentId), prompt: testPrompt, template_id: selectedTemplateId ? Number(selectedTemplateId) : undefined });
+      const res = await runTest({
+        agent_id: Number(selectedAgentId),
+        prompt: testPrompt,
+        template_id: selectedTemplateId ? Number(selectedTemplateId) : undefined,
+        portfolio_id: portfolioId ? Number(portfolioId) : undefined,
+        portfolio_query: portfolioQuery || undefined,
+      });
       setTestResult(res);
     } catch (e) {
       const msg = e?.response?.data?.detail || e?.message || 'Failed to run test';
@@ -210,6 +218,8 @@ export default function AgentsIndex() {
               <MenuItem key={t.id} value={String(t.id)}>{t.name || '(unnamed)'} {t.is_default ? '(default)' : ''}</MenuItem>
             ))}
           </TextField>
+          <TextField label="Portfolio ID (optional)" value={portfolioId} onChange={(e) => setPortfolioId(e.target.value)} size="small" sx={{ minWidth: 180 }} />
+          <TextField label="Portfolio Name (optional)" value={portfolioQuery} onChange={(e) => setPortfolioQuery(e.target.value)} size="small" sx={{ minWidth: 220 }} placeholder="e.g., Andres Franco Data Engineering" />
           <TextField label="Template Name" value={templateName} onChange={(e) => setTemplateName(e.target.value)} size="small" sx={{ minWidth: 220 }} placeholder="e.g., Retrieval-focused" />
           <TextField
             fullWidth
@@ -242,6 +252,20 @@ export default function AgentsIndex() {
               <Typography variant="subtitle2" gutterBottom>Assistant</Typography>
               <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>{testResult.answer}</Typography>
             </Paper>
+            {Array.isArray(testResult.citations) && testResult.citations.length > 0 && (
+              <Paper variant="outlined" sx={{ p: 2, mt: 1, borderRadius: 1.5 }}>
+                <Typography variant="subtitle2" gutterBottom>Citations</Typography>
+                <ul style={{ margin: 0, paddingLeft: 18 }}>
+                  {testResult.citations.map((c) => (
+                    <li key={`${c.source_table}-${c.source_id}-${c.chunk_id}`}>
+                      <Typography variant="caption">
+                        {c.source_table}#{c.source_id} — score: {typeof c.score === 'number' ? c.score.toFixed(3) : c.score}
+                      </Typography>
+                    </li>
+                  ))}
+                </ul>
+              </Paper>
+            )}
           </Box>
         )}
       </Paper>

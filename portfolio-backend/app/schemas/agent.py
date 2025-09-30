@@ -78,6 +78,9 @@ class ChatRequest(BaseModel):
     message: str
     session_id: Optional[int] = None
     portfolio_id: Optional[int] = None
+    # Optional free-text portfolio name or query; backend will attempt to resolve to an ID
+    portfolio_query: Optional[str] = None
+    language_id: Optional[int] = None
 
 
 class ChatResponse(BaseModel):
@@ -92,6 +95,8 @@ class AgentTestRequest(BaseModel):
     prompt: str
     template_id: Optional[int] = None
     portfolio_id: Optional[int] = None
+    # Optional free-text portfolio name or query; backend will attempt to resolve to an ID
+    portfolio_query: Optional[str] = None
 
 
 class AgentTestResponse(BaseModel):

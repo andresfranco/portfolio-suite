@@ -5,6 +5,8 @@ from sqlalchemy import text
 from app.models.agent import Agent, AgentCredential, AgentTemplate, AgentSession, AgentMessage, AgentTestRun
 from app.services.llm.providers import build_provider
 from app.services.rag_service import embed_query, vector_search, assemble_context
+from app.services.prompt_builder import build_rag_prompt, build_fallback_prompt, extract_conversational_history
+from app.services.citation_service import enrich_citations, deduplicate_citations
 import os
 
 
@@ -29,6 +31,34 @@ def _get_agent_bundle(db: Session, agent_id: int, template_id: Optional[int] = N
     return agent, cred, tpl
 
 
+def _build_context_only_answer(user_message: str, context_text: str, citations: List[Dict[str, Any]]) -> str:
+    """Fallback composition when the LLM call fails.
+
+    Parses the assembled context to extract simple, grounded facts. For portfolio queries,
+    it will list project names detected from lines like "Project: <name>". Otherwise,
+    it returns the first few sentences from the context.
+    """
+    text = (context_text or "").strip()
+    if not text:
+        return "I don't know based on the provided context."
+    lower_q = (user_message or "").lower()
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    projects: List[str] = []
+    for ln in lines:
+        if ln.lower().startswith("project:"):
+            name = ln.split(":", 1)[1].strip()
+            if name:
+                projects.append(name)
+    projects = list(dict.fromkeys(projects))  # de-duplicate preserving order
+    if projects and ("project" in lower_q or "projects" in lower_q):
+        head = "Projects found in the portfolio:"
+        bullets = "\n".join([f"- {p}" for p in projects[:20]])
+        return f"{head}\n{bullets}"
+    # Generic fallback: return first paragraph up to ~400 chars
+    para = " ".join(lines[:6])
+    return para[:400]
+
+
 def _decrypt_api_key(db: Session, encrypted: str) -> str:
     # Encrypted is base64 from pgp_sym_encrypt; decrypt via pg function using env-provided key
     kms_key = os.getenv("AGENT_KMS_KEY")
@@ -41,7 +71,35 @@ def _decrypt_api_key(db: Session, encrypted: str) -> str:
     return row[0] if row and row[0] else ""
 
 
-def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id: int | None, template_id: Optional[int] = None, portfolio_id: Optional[int] = None) -> Dict[str, Any]:
+def _resolve_portfolio_id(db: Session, provided_id: Optional[int], portfolio_query: Optional[str]) -> Optional[int]:
+    if provided_id is not None:
+        return provided_id
+    if not portfolio_query:
+        return None
+    try:
+        # Case-insensitive, diacritics-insensitive match by name with simple normalization
+        row = db.execute(text(
+            """
+            SELECT id
+            FROM portfolios
+            WHERE lower(regexp_replace(name, '[^a-z0-9]+', '', 'g')) = lower(regexp_replace(:q, '[^a-z0-9]+', '', 'g'))
+            ORDER BY id ASC
+            LIMIT 1
+            """
+        ), {"q": portfolio_query}).first()
+        if row and row[0]:
+            return int(row[0])
+    except Exception:
+        return None
+    return None
+
+
+def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id: int | None, template_id: Optional[int] = None, portfolio_id: Optional[int] = None, portfolio_query: Optional[str] = None, language_id: Optional[int] = None) -> Dict[str, Any]:
+    # Always ensure we begin in a clean transaction state
+    try:
+        db.rollback()
+    except Exception:
+        pass
     agent, cred, tpl = _get_agent_bundle(db, agent_id, template_id)
 
     # Decrypt API key using pgcrypto; AGENT_KMS_KEY must be set in DB or provided as env setting applied to current session
@@ -64,20 +122,143 @@ def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id:
 
     # Embed query and retrieve chunks
     qvec = embed_query(db, provider=provider, embedding_model=agent.embedding_model, query=user_message)
-    chunks = vector_search(db, qvec=qvec, model=agent.embedding_model, k=agent.top_k, score_threshold=agent.score_threshold, portfolio_id=portfolio_id)
+    # Resolve portfolio id from free-text if provided
+    effective_portfolio_id = _resolve_portfolio_id(db, portfolio_id, portfolio_query)
+    # If the user asks about "project"/"projects", restrict retrieval primarily to projects
+    lower_q = (user_message or "").lower()
+    tables_filter = ["projects"] if ("project" in lower_q) else None
+    chunks = vector_search(db, qvec=qvec, model=agent.embedding_model, k=agent.top_k, score_threshold=agent.score_threshold, portfolio_id=effective_portfolio_id, tables_filter=tables_filter)
     context, citations = assemble_context(chunks, max_tokens=agent.max_context_tokens)
+
+    # Intent-specific deterministic handling for project names when a portfolio is known
+    if effective_portfolio_id is not None and ("project" in lower_q):
+        try:
+            rows = db.execute(text(
+                """
+                SELECT p.id, p.name
+                FROM portfolio_projects pp
+                JOIN projects p ON p.id = pp.project_id
+                WHERE pp.portfolio_id = :pid
+                ORDER BY p.id
+                """
+            ), {"pid": effective_portfolio_id}).mappings().all()
+            names = [r["name"] for r in rows if (r.get("name") or "").strip()]
+            if names:
+                answer = "Projects: " + ", ".join(names)
+                # Persist session
+                sess_id = session_id
+                if not sess_id:
+                    s = AgentSession(agent_id=agent.id)
+                    db.add(s)
+                    db.flush()
+                    sess_id = s.id
+                db.add(AgentMessage(session_id=sess_id, role="user", content=user_message))
+                db.add(AgentMessage(session_id=sess_id, role="assistant", content=answer, citations=[{"source_table":"projects","source_id":str(r["id"]),"score":1.0} for r in rows], tokens=0, latency_ms=0))
+                db.commit()
+                return {
+                    "answer": answer,
+                    "citations": [{"source_table":"projects","source_id":str(r["id"]),"score":1.0} for r in rows],
+                    "token_usage": {},
+                    "latency_ms": 0,
+                    "session_id": sess_id,
+                }
+        except Exception:
+            # Rollback to clear any failed transaction state
+            try:
+                db.rollback()
+            except Exception:
+                pass
     # Short-circuit if no context was found to avoid slow external calls
     if not context.strip():
+        # Deterministic DB fallback for common questions when portfolio scope is known
+        if effective_portfolio_id is not None and ("project" in lower_q):
+            # Try to build context from existing rag_chunk rows for projects
+            try:
+                rows = db.execute(text(
+                    """
+                    SELECT c.id as chunk_id, c.text, c.source_id
+                    FROM rag_chunk c
+                    WHERE c.source_table='projects'
+                      AND c.source_id IN (
+                        SELECT CAST(p.id AS TEXT)
+                        FROM portfolio_projects pp JOIN projects p ON p.id = pp.project_id
+                        WHERE pp.portfolio_id = :pid
+                      )
+                      AND c.is_deleted=FALSE
+                    ORDER BY c.source_id, c.part_index
+                    LIMIT 50
+                    """
+                ), {"pid": effective_portfolio_id}).mappings().all()
+                if rows:
+                    ctx_parts: List[str] = []
+                    cits: List[Dict[str, Any]] = []
+                    for r in rows:
+                        txt = (r.get("text") or "").strip()
+                        if txt:
+                            ctx_parts.append(txt)
+                            cits.append({
+                                "chunk_id": r["chunk_id"],
+                                "source_table": "projects",
+                                "source_id": r["source_id"],
+                                "score": 1.0,
+                            })
+                    context = "\n\n---\n\n".join(ctx_parts)
+                    citations = cits
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+
+            # If still empty, read project names directly as a last resort
+            if not context.strip():
+                try:
+                    names = db.execute(text(
+                        """
+                        SELECT p.id, p.name, COALESCE(p.description,'') AS description
+                        FROM portfolio_projects pp
+                        JOIN projects p ON p.id = pp.project_id
+                        WHERE pp.portfolio_id = :pid
+                        ORDER BY p.id
+                        """
+                    ), {"pid": effective_portfolio_id}).mappings().all()
+                    if names:
+                        ctx_parts: List[str] = []
+                        cits: List[Dict[str, Any]] = []
+                        for n in names:
+                            line = f"Project: {n['name']}\n\n{n['description']}".strip()
+                            ctx_parts.append(line)
+                            cits.append({
+                                "chunk_id": 0,
+                                "source_table": "projects",
+                                "source_id": str(n["id"]),
+                                "score": 1.0,
+                            })
+                        context = "\n\n---\n\n".join(ctx_parts)
+                        citations = cits
+                except Exception:
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
+
+        # If still no context, persist and return the canonical fallback
         # Persist session messages even on no-context for traceability
         sess_id = session_id
         if not sess_id:
+            # Clear any prior failed state to avoid aborted transaction
+            try:
+                db.rollback()
+            except Exception:
+                pass
             s = AgentSession(agent_id=agent.id)
             db.add(s)
             db.flush()
             sess_id = s.id
         m_user = AgentMessage(session_id=sess_id, role="user", content=user_message)
         db.add(m_user)
-        fallback = "I don't know based on the provided context. Please upload or link your resume, or add experiences to the portfolio."
+        # Use smart fallback from prompt_builder
+        fallback = build_fallback_prompt(user_message)
         m_assist = AgentMessage(session_id=sess_id, role="assistant", content=fallback, citations=[], tokens=0, latency_ms=0)
         db.add(m_assist)
         db.commit()
@@ -89,24 +270,100 @@ def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id:
             "session_id": sess_id,
         }
 
-    # Prepare chat messages
+    # Enrich citations with metadata for user-friendly display
+    # Use a savepoint (nested transaction) to isolate enrichment queries
+    # This prevents metadata query failures from aborting the main transaction
+    enriched_citations = citations  # Default to basic citations
+    savepoint = None
+    try:
+        # Create a savepoint (nested transaction)
+        savepoint = db.begin_nested()
+        enriched_citations = enrich_citations(db, citations, language_id=language_id)
+        # Deduplicate to avoid showing same source multiple times
+        enriched_citations = deduplicate_citations(enriched_citations)
+        # Commit the savepoint if enrichment succeeded
+        savepoint.commit()
+    except Exception as e:
+        # If enrichment fails, rollback ONLY the savepoint (not the main transaction)
+        print(f"Warning: Citation enrichment failed, using basic citations: {e}")
+        if savepoint:
+            try:
+                savepoint.rollback()
+            except Exception:
+                pass
+        # Use basic citations without enrichment
+        enriched_citations = citations
+    
+    # Load conversation history for context (if session exists)
+    conversation_history = []
+    if session_id:
+        try:
+            recent_msgs = db.query(AgentMessage)\
+                .filter(AgentMessage.session_id == session_id)\
+                .order_by(AgentMessage.id.desc())\
+                .limit(6)\
+                .all()
+            conversation_history = extract_conversational_history(list(reversed(recent_msgs)), max_turns=3)
+        except Exception:
+            # If history fetch fails, continue without it
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            conversation_history = []
+    
+    # Build optimized RAG prompt using prompt_builder service
+    # Determine template style from agent template (default to 'conversational')
+    template_style = tpl.citation_format if hasattr(tpl, 'citation_format') and tpl.citation_format else 'conversational'
+    if template_style not in ['conversational', 'technical', 'summary']:
+        template_style = 'conversational'
+    
     user_text = user_message if not tpl.user_prefix else f"{tpl.user_prefix} {user_message}"
-    # Strengthen system prompt for simple, context-only answers
-    system_prompt = (tpl.system_prompt or "").strip() or (
-        "You are a helpful portfolio chatbot. Answer in simple, clear language. "
-        "Use only the provided context from the portfolio database and its attachments (like resumes). "
-        "If the answer is not in the context, say you don't know and suggest what info to provide."
+    messages = build_rag_prompt(
+        user_message=user_text,
+        context=context,
+        citations=enriched_citations,
+        template_style=template_style,
+        conversation_history=conversation_history
     )
-    messages = [
-        {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {user_text}"}
-    ]
 
     # Choose low-cost default OpenAI chat model per your guidance
     chat_model = agent.chat_model or "gpt-4o-mini"  # default low-cost model; adjust as needed
     try:
-        result = provider.chat(model=chat_model, system_prompt=system_prompt, messages=messages)
+        # Extract system prompt from messages if present
+        system_prompt = None
+        chat_messages = messages
+        if messages and messages[0].get('role') == 'system':
+            system_prompt = messages[0]['content']
+            chat_messages = messages[1:]
+        
+        result = provider.chat(model=chat_model, system_prompt=system_prompt, messages=chat_messages)
     except Exception as e:
-        # Return a graceful error that fits the API envelope to avoid frontend timeouts
+        # Ensure we don't continue in an aborted transaction state
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        # If we have context, synthesize a deterministic, grounded fallback answer
+        if context.strip():
+            synthesized = _build_context_only_answer(user_message, context, citations)
+            sess_id = session_id
+            if not sess_id:
+                s = AgentSession(agent_id=agent.id)
+                db.add(s)
+                db.flush()
+                sess_id = s.id
+            db.add(AgentMessage(session_id=sess_id, role="user", content=user_message))
+            db.add(AgentMessage(session_id=sess_id, role="assistant", content=synthesized, citations=enriched_citations, tokens=0, latency_ms=0))
+            db.commit()
+            return {
+                "answer": synthesized,
+                "citations": enriched_citations,
+                "token_usage": {},
+                "latency_ms": 0,
+                "session_id": sess_id,
+            }
+        # Otherwise, return a graceful error that fits the API envelope to avoid frontend timeouts
         fail_text = "I couldn't complete the request in time. Please try again in a moment."
         sess_id = session_id
         if not sess_id:
@@ -134,21 +391,21 @@ def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id:
         sess_id = s.id
     m_user = AgentMessage(session_id=sess_id, role="user", content=user_message)
     db.add(m_user)
-    m_assist = AgentMessage(session_id=sess_id, role="assistant", content=result.get("text") or "", citations=citations, tokens=(result.get("usage") or {}).get("total_tokens"), latency_ms=result.get("latency_ms"))
+    m_assist = AgentMessage(session_id=sess_id, role="assistant", content=result.get("text") or "", citations=enriched_citations, tokens=(result.get("usage") or {}).get("total_tokens"), latency_ms=result.get("latency_ms"))
     db.add(m_assist)
     db.commit()
 
     return {
         "answer": result.get("text") or "",
-        "citations": citations,
+        "citations": enriched_citations,
         "token_usage": result.get("usage") or {},
         "latency_ms": result.get("latency_ms") or 0,
         "session_id": sess_id,
     }
 
 
-def run_agent_test(db: Session, *, agent_id: int, prompt: str, template_id: Optional[int] = None, portfolio_id: Optional[int] = None) -> Dict[str, Any]:
-    out = run_agent_chat(db, agent_id=agent_id, user_message=prompt, session_id=None, template_id=template_id, portfolio_id=portfolio_id)
+def run_agent_test(db: Session, *, agent_id: int, prompt: str, template_id: Optional[int] = None, portfolio_id: Optional[int] = None, portfolio_query: Optional[str] = None) -> Dict[str, Any]:
+    out = run_agent_chat(db, agent_id=agent_id, user_message=prompt, session_id=None, template_id=template_id, portfolio_id=portfolio_id, portfolio_query=portfolio_query)
     tr = AgentTestRun(agent_id=agent_id, prompt=prompt, response=out.get("answer"), status="ok", latency_ms=out.get("latency_ms"), token_usage=out.get("token_usage"), citations=out.get("citations"))
     db.add(tr)
     db.commit()

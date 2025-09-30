@@ -175,7 +175,7 @@ def test_agent(
     req: AgentTestRequest,
     current_user=Depends(deps.get_current_user),
 ):
-    return run_agent_test(db, agent_id=req.agent_id, prompt=req.prompt, template_id=req.template_id, portfolio_id=req.portfolio_id)
+    return run_agent_test(db, agent_id=req.agent_id, prompt=req.prompt, template_id=req.template_id, portfolio_id=req.portfolio_id, portfolio_query=getattr(req, 'portfolio_query', None))
 
 
 @router.post("/{agent_id}/chat")
@@ -187,6 +187,6 @@ def agent_chat(
     current_user=Depends(deps.get_current_user),
 ):
     # Non-streaming response
-    return run_agent_chat(db, agent_id=agent_id, user_message=payload.message, session_id=payload.session_id, template_id=None, portfolio_id=payload.portfolio_id)
+    return run_agent_chat(db, agent_id=agent_id, user_message=payload.message, session_id=payload.session_id, template_id=None, portfolio_id=payload.portfolio_id, portfolio_query=getattr(payload, 'portfolio_query', None), language_id=getattr(payload, 'language_id', None))
 
 

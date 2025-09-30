@@ -32,7 +32,8 @@ class OpenAIProvider:
             timeout_cfg = default_timeout
         self._timeout_seconds = timeout_cfg
         # Enforce timeouts via a dedicated httpx client
-        http_timeout = httpx.Timeout(self._timeout_seconds)
+        # Set connect/read/write timeouts explicitly; total ~ provider default
+        http_timeout = httpx.Timeout(self._timeout_seconds, connect=self._timeout_seconds, read=self._timeout_seconds, write=self._timeout_seconds)
         http_client = httpx.Client(timeout=http_timeout)
         self.client = OpenAI(api_key=cfg.api_key, base_url=cfg.base_url, http_client=http_client)
 
@@ -41,6 +42,8 @@ class OpenAIProvider:
         # System prompt as first message
         final_messages = [{"role": "system", "content": system_prompt}] + messages
         try:
+            # Call OpenAI chat completions. Avoid passing max_tokens to support newer models that require
+            # different parameter names (e.g., max_completion_tokens). Keep defaults conservative server-side.
             resp = self.client.chat.completions.create(model=model, messages=final_messages)
             content = resp.choices[0].message.content or ""
             usage = getattr(resp, "usage", None)
