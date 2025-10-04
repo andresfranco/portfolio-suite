@@ -29,6 +29,10 @@ const agentAdminApi = {
     const { data } = await api.put(`/api/agents/${agentId}`, payload);
     return data;
   },
+  deleteAgent: async (agentId) => {
+    const { data } = await api.delete(`/api/agents/${agentId}`);
+    return data;
+  },
   upsertTemplate: async (payload) => {
     const { data } = await api.post('/api/agents/templates', payload);
     return data;

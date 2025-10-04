@@ -125,6 +125,22 @@ def update_agent(
     return agent
 
 
+@router.delete("/{agent_id}")
+@require_any_permission(["MANAGE_AGENTS", "SYSTEM_ADMIN"])  # delete agent
+def delete_agent(
+    *,
+    agent_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user=Depends(deps.get_current_user),
+):
+    agent = db.query(Agent).filter(Agent.id == agent_id).first()
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    db.delete(agent)
+    db.commit()
+    return {"message": "Agent deleted successfully"}
+
+
 @router.post("/templates", response_model=AgentTemplateOut)
 @require_any_permission(["MANAGE_AGENTS", "SYSTEM_ADMIN"])  # upsert template
 def upsert_template(

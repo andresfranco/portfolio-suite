@@ -84,7 +84,16 @@ export const AgentAdminProvider = ({ children }) => {
       await refreshAgents();
       return res;
     },
-    updateAgent: agentAdminApi.updateAgent,
+    updateAgent: async (agentId, payload) => {
+      const res = await agentAdminApi.updateAgent(agentId, payload);
+      await refreshAgents();
+      return res;
+    },
+    deleteAgent: async (agentId) => {
+      const res = await agentAdminApi.deleteAgent(agentId);
+      await refreshAgents();
+      return res;
+    },
     upsertTemplate: agentAdminApi.upsertTemplate,
     testAgent: agentAdminApi.testAgent,
     chat: agentAdminApi.chat,
