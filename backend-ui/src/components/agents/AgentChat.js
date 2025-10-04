@@ -194,10 +194,10 @@ export default function AgentChat() {
   };
 
   return (
-    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', bgcolor: 'grey.50' }}>
+    <Box sx={{ height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column', bgcolor: 'grey.50' }}>
       {/* Header */}
-      <Paper sx={{ p: 2, borderRadius: 0, boxShadow: 2, flexShrink: 0 }}>
-        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" gap={1}>
+      <Paper sx={{ p: 1.5, borderRadius: 0, boxShadow: 2, flexShrink: 0 }}>
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" gap={0.5}>
           <FormControl size="small" sx={{ minWidth: 200 }}>
             <InputLabel>Select Agent</InputLabel>
             <Select
@@ -265,7 +265,7 @@ export default function AgentChat() {
           <Box sx={{ flex: 1 }} />
           
           {selectedAgent && (
-            <Stack direction="row" spacing={2} alignItems="center">
+            <Stack direction="row" spacing={1} alignItems="center">
               <Typography variant="body2" color="text.secondary">
                 Model: {selectedAgent.chat_model || 'gpt-4o-mini'}
               </Typography>
@@ -310,15 +310,15 @@ export default function AgentChat() {
         sx={{ 
           flex: 1, 
           overflowY: 'auto', 
-          p: 3,
+          p: 2,
           display: 'flex',
           flexDirection: 'column',
           minHeight: 0  // Critical for proper flex scrolling
         }}
       >
         {messages.length === 0 && (
-          <Box sx={{ textAlign: 'center', mt: 8, color: 'text.secondary' }}>
-            <SmartToyIcon sx={{ fontSize: 64, opacity: 0.3, mb: 2 }} />
+          <Box sx={{ textAlign: 'center', mt: 4, color: 'text.secondary' }}>
+            <SmartToyIcon sx={{ fontSize: 48, opacity: 0.3, mb: 1 }} />
             <Typography variant="h6" gutterBottom>
               {selectedAgentId ? 'Start a conversation' : 'Select an agent to begin'}
             </Typography>
@@ -366,7 +366,7 @@ export default function AgentChat() {
       {/* Input Area - Fixed at bottom with flexShrink: 0 */}
       <Paper 
         sx={{ 
-          p: 2, 
+          p: 1.5, 
           borderRadius: 0,
           borderTop: '1px solid',
           borderColor: 'divider',

@@ -26,6 +26,8 @@ Guidelines for responses:
 - Never make up or infer information not in the Context
 - Use natural, friendly language (avoid technical jargon unless asked)
 - When mentioning projects or experiences, include key details like technologies used
+- NEVER mention internal codes, IDs, or technical metadata (like category codes, section codes, etc.)
+- Only present information in natural, user-friendly language
 
 Example good answers:
 - "Based on the portfolio, there are 3 React projects: [specific names with brief details]"
@@ -41,6 +43,7 @@ Your role:
 - Structure technical answers clearly with proper terminology
 - Always cite specific projects or experiences when providing examples
 - Use technical accuracy over simplicity
+- NEVER mention internal codes, IDs, or database metadata (like category codes, section codes, etc.)
 
 Guidelines:
 - List technologies and tools explicitly mentioned
@@ -48,6 +51,7 @@ Guidelines:
 - Describe technical implementations when asked
 - Acknowledge gaps: if technical details aren't in Context, say so
 - Use industry-standard terminology
+- Focus on technical content, not internal database identifiers
 
 Example good answers:
 - "The React Dashboard project uses React 19, Material-UI, and TanStack Query for state management. The backend is FastAPI with PostgreSQL and SQLAlchemy 2.x async sessions."
@@ -62,6 +66,7 @@ Your role:
 - Use clear, professional language suitable for recruiters or executives
 - Highlight patterns across multiple projects/experiences when relevant
 - Synthesize information rather than listing everything
+- NEVER mention internal codes, IDs, or database metadata
 
 Guidelines:
 - Emphasize results and impact when available
@@ -69,13 +74,14 @@ Guidelines:
 - Use business-friendly language
 - Keep summaries concise (2-4 sentences for brief, 1-2 paragraphs for detailed)
 - If Context lacks strategic details, focus on what's available
+- Present information naturally without revealing internal identifiers
 
 Example good answers:
 - "The portfolio demonstrates strong full-stack expertise, with 5+ projects using React/TypeScript frontends paired with FastAPI/Python backends. Key strengths include API design, database optimization, and cloud deployment."
 - "Experience spans 3 companies over 5 years, with progressive responsibility from junior developer to technical lead. Consistent focus on scalable architecture and team collaboration."
 """,
 
-    "default": """You are a helpful portfolio assistant. Answer questions clearly and accurately based on the provided Context. If the Context doesn't contain the answer, say so. Be natural and conversational."""
+    "default": """You are a helpful portfolio assistant. Answer questions clearly and accurately based on the provided Context. If the Context doesn't contain the answer, say so. Be natural and conversational. Never mention internal codes, IDs, or technical metadata - only present information in user-friendly language."""
 }
 
 
@@ -84,7 +90,8 @@ def build_rag_prompt(
     context: str,
     citations: List[Dict[str, Any]],
     template_style: str = "conversational",
-    conversation_history: Optional[List[Dict[str, str]]] = None
+    conversation_history: Optional[List[Dict[str, str]]] = None,
+    language_name: Optional[str] = None
 ) -> List[Dict[str, str]]:
     """
     Build an optimized prompt for natural RAG responses.
@@ -95,12 +102,27 @@ def build_rag_prompt(
         citations: List of citation metadata
         template_style: One of 'conversational', 'technical', 'summary', 'default'
         conversation_history: Optional recent conversation turns for context
+        language_name: Optional language name to enforce response language (e.g., "English", "Spanish")
         
     Returns:
         List of message dicts in OpenAI chat format
     """
     # Select system prompt
     system_prompt = SYSTEM_PROMPTS.get(template_style, SYSTEM_PROMPTS["default"])
+    
+    # Add language enforcement if specified
+    if language_name:
+        system_prompt = f"""{system_prompt}
+
+CRITICAL LANGUAGE REQUIREMENT:
+You MUST respond ONLY in {language_name}. This is MANDATORY and NON-NEGOTIABLE:
+- ALL text in your response must be in {language_name}
+- Translate ALL project titles, names, headings, and descriptions to {language_name}
+- Translate ALL content from the Context to {language_name}, regardless of its original language
+- Do NOT keep any text in other languages, even if they appear to be proper names or titles
+- Do NOT mix languages under any circumstances
+- If the Context contains text in Spanish/English/other languages, you MUST translate it to {language_name}
+- Your ENTIRE response from start to finish must be readable by someone who ONLY speaks {language_name}"""
     
     # Format context with source labels for better citation
     formatted_context = _format_context_with_sources(context, citations)

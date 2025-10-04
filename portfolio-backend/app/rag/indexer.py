@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 import os
 import logging
 from datetime import datetime
@@ -101,47 +101,73 @@ def _set_status(db: Session, source_table: str, source_id: str, error: str | Non
 
 
 
-def _build_canonical_fields(record: Dict[str, any], source_table: str) -> Dict[str, str]:
+def _build_canonical_fields(record: Dict[str, any], source_table: str, language_code: Optional[str] = None) -> Dict[str, str]:
     # Minimal canonical extractors per module; can be expanded
+    # If language_code is provided, only use texts matching that language
     fields: Dict[str, str] = {}
     if source_table == "categories":
         name = record.get("code") or ""
         descs = record.get("texts", [])
+        # Filter by language if specified
+        if language_code:
+            descs = [t for t in descs if t.get('language_code') == language_code]
         desc_join = "\n\n".join(
             [f"{t.get('name','')}\n\n{t.get('description','')}" for t in descs]
         )
         fields["body"] = f"Category: {name}\n\n{desc_join}".strip()
     elif source_table == "projects":
-        name = record.get("name") or record.get("id")
-        desc = record.get("description") or ""
+        texts = record.get("texts", [])
+        # Filter by language if specified
+        if language_code:
+            texts = [t for t in texts if t.get('language_code') == language_code]
+        
+        # Use first matching text or fallback to record fields
+        if texts:
+            name = texts[0].get("name") or record.get("name") or record.get("id")
+            desc = texts[0].get("description") or ""
+        else:
+            name = record.get("name") or record.get("id")
+            desc = record.get("description") or ""
+        
         fields["body"] = f"Project: {name}\n\n{desc}".strip()
-        # include tags from categories and skills if present
-        cats = record.get("categories") or []
-        skills = record.get("skills") or []
-        if cats:
-            fields["tags"] = "Categories: " + ", ".join(sorted({c for c in cats if c}))
-        if skills:
-            fields.setdefault("tags", "")
-            fields["tags"] = (fields["tags"] + ("\n" if fields["tags"] else "") + "Skills: " + ", ".join(sorted({s for s in skills if s}))).strip()
+        # Note: We intentionally do NOT index raw category/skill codes as they are internal metadata
+        # that should not be exposed to users in natural language responses
     elif source_table == "portfolios":
         fields["body"] = (record.get("name") or "").strip()
         desc = record.get("description")
         if desc:
             fields["body"] = (fields["body"] + ("\n\n" if fields["body"] else "") + desc).strip()
-        # add tags
-        parts: List[str] = []
-        cats = record.get("categories") or []
-        exps = record.get("experiences") or []
-        secs = record.get("sections") or []
-        if cats:
-            parts.append("Categories: " + ", ".join(sorted({c for c in cats if c})))
-        if exps:
-            parts.append("Experiences: " + ", ".join(sorted({e for e in exps if e})))
-        if secs:
-            parts.append("Sections: " + ", ".join(sorted({s for s in secs if s})))
-        if parts:
-            fields["tags"] = "\n".join(parts)
-    elif source_table in {"sections", "experiences", "skills", "skill_types", "category_types", "languages", "translations"}:
+        # Note: We intentionally do NOT index raw category/experience/section codes as they are internal metadata
+        # that should not be exposed to users in natural language responses
+    elif source_table == "sections":
+        # Note: We intentionally do NOT include the section code in the indexed content
+        # as it is internal metadata that should not be exposed to users
+        texts = record.get("texts", [])
+        # Filter by language if specified
+        if language_code:
+            texts = [t for t in texts if t.get('language_code') == language_code]
+        # Use first matching text or fallback
+        text_content = texts[0].get("text") if texts else record.get("text", "")
+        fields["body"] = text_content.strip() if text_content else ""
+    elif source_table == "experiences":
+        # Note: We intentionally do NOT include the experience code in the indexed content
+        # as it is internal metadata that should not be exposed to users
+        years = record.get("years") or ""
+        texts = record.get("texts", [])
+        # Filter by language if specified
+        if language_code:
+            texts = [t for t in texts if t.get('language_code') == language_code]
+        # Use first matching text or fallback
+        if texts:
+            name = texts[0].get("name") or ""
+            desc = texts[0].get("description") or ""
+        else:
+            name = record.get("name", "")
+            desc = record.get("description", "")
+        # Include years if available as it's user-relevant information
+        years_text = f"Experience: {years} years of experience" if years else "Experience"
+        fields["body"] = f"{years_text}\n{name}\n\n{desc}".strip() if name or desc else years_text
+    elif source_table in {"skills", "skill_types", "category_types", "languages", "translations"}:
         # Simple join of common textual fields if present
         body_parts: List[str] = []
         for key in ("name", "code", "text", "description"):
@@ -189,7 +215,10 @@ def _load_current_state(db: Session, source_table: str, source_id: str) -> Dict[
             if not rec:
                 return {}
             texts = db.execute(text(
-                "SELECT name, description FROM category_texts WHERE category_id=:i ORDER BY id"
+                """SELECT ct.name, ct.description, l.code as language_code
+                   FROM category_texts ct
+                   JOIN languages l ON l.id = ct.language_id
+                   WHERE ct.category_id=:i ORDER BY ct.id"""
             ), {"i": source_id}).mappings().all()
             # Related skills (names)
             sks = db.execute(text(
@@ -245,7 +274,10 @@ def _load_current_state(db: Session, source_table: str, source_id: str) -> Dict[
             if not rec:
                 return {}
             texts = db.execute(text(
-                "SELECT name, description FROM project_texts WHERE project_id=:i ORDER BY id"
+                """SELECT pt.name, pt.description, l.code as language_code
+                   FROM project_texts pt
+                   JOIN languages l ON l.id = pt.language_id
+                   WHERE pt.project_id=:i ORDER BY pt.id"""
             ), {"i": source_id}).mappings().all()
             cats = db.execute(text(
                 """
@@ -266,6 +298,7 @@ def _load_current_state(db: Session, source_table: str, source_id: str) -> Dict[
                 "id": rec["id"],
                 "name": "\n".join([t["name"] or "" for t in texts]),
                 "description": "\n\n".join([t["description"] or "" for t in texts]),
+                "texts": [dict(t) for t in texts],  # Include structured texts with language_code
                 "categories": [r["code"] for r in cats],
                 "skills": [r["name"] for r in sks if r.get("name")],
             }
@@ -277,15 +310,43 @@ def _load_current_state(db: Session, source_table: str, source_id: str) -> Dict[
     if source_table == "sections":
         try:
             rec = db.execute(text("SELECT id, code, updated_at FROM sections WHERE id=:i"), {"i": source_id}).mappings().first()
-            text_rows = db.execute(text("SELECT text FROM section_texts WHERE section_id=:i ORDER BY id"), {"i": source_id}).mappings().all()
-            return {"id": rec["id"], "code": rec.get("code"), "text": "\n\n".join([r["text"] or "" for r in text_rows]), "updated_at": rec.get("updated_at")} if rec else {}
+            if not rec:
+                return {}
+            texts = db.execute(text(
+                """SELECT st.text, l.code as language_code
+                   FROM section_texts st
+                   JOIN languages l ON l.id = st.language_id
+                   WHERE st.section_id=:i ORDER BY st.id"""
+            ), {"i": source_id}).mappings().all()
+            return {
+                "id": rec["id"], 
+                "code": rec.get("code"), 
+                "text": "\n\n".join([r["text"] or "" for r in texts]), 
+                "texts": [dict(t) for t in texts],  # Include structured texts with language_code
+                "updated_at": rec.get("updated_at")
+            }
         except Exception:
             return {"id": source_id, "code": str(source_id), "text": ""}
     if source_table == "experiences":
         try:
-            rec = db.execute(text("SELECT id, code, updated_at FROM experiences WHERE id=:i"), {"i": source_id}).mappings().first()
-            text_rows = db.execute(text("SELECT name, description FROM experience_texts WHERE experience_id=:i ORDER BY id"), {"i": source_id}).mappings().all()
-            return {"id": rec["id"], "code": rec.get("code"), "name": "\n".join([r["name"] or "" for r in text_rows]), "description": "\n\n".join([r["description"] or "" for r in text_rows]), "updated_at": rec.get("updated_at")} if rec else {}
+            rec = db.execute(text("SELECT id, code, years, updated_at FROM experiences WHERE id=:i"), {"i": source_id}).mappings().first()
+            if not rec:
+                return {}
+            texts = db.execute(text(
+                """SELECT et.name, et.description, l.code as language_code
+                   FROM experience_texts et
+                   JOIN languages l ON l.id = et.language_id
+                   WHERE et.experience_id=:i ORDER BY et.id"""
+            ), {"i": source_id}).mappings().all()
+            return {
+                "id": rec["id"], 
+                "code": rec.get("code"),
+                "years": rec.get("years"),
+                "name": "\n".join([r["name"] or "" for r in texts]), 
+                "description": "\n\n".join([r["description"] or "" for r in texts]),
+                "texts": [dict(t) for t in texts],  # Include structured texts with language_code
+                "updated_at": rec.get("updated_at")
+            }
         except Exception:
             return {"id": source_id, "code": str(source_id), "name": "", "description": ""}
     if source_table == "skills":
@@ -344,8 +405,32 @@ def index_record(db: Session, source_table: str, source_id: str) -> None:
             retire_record(db, source_table, source_id)
             return
 
-        # Build canonical fields
-        fields = _build_canonical_fields(record, source_table)
+        # Detect if this table has multilingual content
+        multilingual_tables = {"categories", "projects", "experiences", "sections", "skills"}
+        has_languages = source_table in multilingual_tables
+        
+        # Get available language codes for this record
+        language_codes = []
+        if has_languages and "texts" in record:
+            language_codes = list({t.get("language_code") for t in record.get("texts", []) if t.get("language_code")})
+        
+        # If no languages found or not multilingual, index without language filter
+        if not language_codes:
+            language_codes = [None]
+        
+        # Create chunks for each language separately
+        for lang_code in language_codes:
+            _index_record_for_language(db, source_table, source_id, record, lang_code)
+            
+    except Exception as e:
+        _set_status(db, source_table, source_id, f"indexing failed: {str(e)[:200]}")
+        print(f"Indexer error for {source_table}/{source_id}: {str(e)[:200]}")
+
+
+def _index_record_for_language(db: Session, source_table: str, source_id: str, record: Dict[str, any], language_code: Optional[str]) -> None:
+    try:
+        # Build canonical fields filtered by language
+        fields = _build_canonical_fields(record, source_table, language_code)
 
         # Plan chunks and checksums
         plan: List[Tuple[str, int, str, str]] = []  # (field, part_index, text, checksum)
@@ -412,13 +497,13 @@ def index_record(db: Session, source_table: str, source_id: str) -> None:
 
             row = db.execute(text(
                 """
-                INSERT INTO rag_chunk (source_table, source_id, source_field, part_index, version, modality, text, checksum, tenant_id, visibility)
-                VALUES (:t, :i, :f, :p, :v, 'text', :tx, :ck, :tenant, :vis)
+                INSERT INTO rag_chunk (source_table, source_id, source_field, part_index, version, modality, text, checksum, lang, tenant_id, visibility)
+                VALUES (:t, :i, :f, :p, :v, 'text', :tx, :ck, :lang, :tenant, :vis)
                 ON CONFLICT (source_table, source_id, source_field, part_index, version)
-                DO UPDATE SET text = EXCLUDED.text, checksum = EXCLUDED.checksum, is_deleted = FALSE, updated_at = CURRENT_TIMESTAMP, tenant_id = EXCLUDED.tenant_id, visibility = EXCLUDED.visibility
+                DO UPDATE SET text = EXCLUDED.text, checksum = EXCLUDED.checksum, lang = EXCLUDED.lang, is_deleted = FALSE, updated_at = CURRENT_TIMESTAMP, tenant_id = EXCLUDED.tenant_id, visibility = EXCLUDED.visibility
                 RETURNING id
                 """
-            ), {"t": source_table, "i": source_id, "f": field, "p": i, "v": version, "tx": chunk, "ck": cks, "tenant": default_tenant, "vis": default_visibility}).mappings().first()
+            ), {"t": source_table, "i": source_id, "f": field, "p": i, "v": version, "tx": chunk, "ck": cks, "lang": language_code, "tenant": default_tenant, "vis": default_visibility}).mappings().first()
 
             chunk_id = row["id"]
             # If checksum unchanged, ensure an embedding exists for current model with correct dimension; else mark for re-embed
