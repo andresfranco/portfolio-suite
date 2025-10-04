@@ -41,6 +41,13 @@ class Agent(Base):
     chat_model = Column(String(100), nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
 
+    # Usage tracking and limits
+    usage_limit = Column(Integer, nullable=True)  # Monthly request limit
+    budget_limit = Column(Float, nullable=True)  # Monthly budget limit in USD
+    current_usage = Column(Integer, nullable=False, default=0)  # Current month requests
+    current_cost = Column(Float, nullable=False, default=0.0)  # Current month cost in USD
+    usage_reset_at = Column(DateTime(timezone=True), nullable=True)  # When usage was last reset
+
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
