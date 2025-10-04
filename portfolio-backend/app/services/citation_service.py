@@ -111,13 +111,13 @@ def _get_source_metadata(
             if language_id:
                 params["lang_id"] = language_id
             
-            # Use a simpler query that's less likely to fail
+            # Use correct column names: name and description (not title/short_description)
             result = db.execute(text(f"""
                 SELECT 
                     p.id, 
-                    p.url,
-                    pt.title,
-                    pt.short_description as description
+                    p.website_url as url,
+                    pt.name as title,
+                    pt.description
                 FROM projects p
                 LEFT JOIN project_texts pt ON pt.project_id = p.id {lang_filter}
                 WHERE p.id = :id
@@ -150,27 +150,36 @@ def _get_source_metadata(
         savepoint = None
         try:
             savepoint = db.begin_nested()
-            result = db.execute(text("""
+            
+            # Build language filter
+            lang_filter = "AND et.language_id = :lang_id" if language_id else ""
+            params = {"id": source_id}
+            if language_id:
+                params["lang_id"] = language_id
+            
+            # Use correct columns: code and years from experiences, name and description from experience_texts
+            result = db.execute(text(f"""
                 SELECT 
                     e.id, 
-                    e.title, 
-                    e.company, 
-                    e.start_date, 
-                    e.end_date,
-                    e.description
+                    e.code,
+                    e.years,
+                    et.name,
+                    et.description
                 FROM experiences e
+                LEFT JOIN experience_texts et ON et.experience_id = e.id {lang_filter}
                 WHERE e.id = :id
-            """), {"id": source_id}).mappings().first()
+                LIMIT 1
+            """), params).mappings().first()
             
             if result:
                 savepoint.commit()
-                period = f"{result['start_date']} - {result['end_date'] or 'Present'}"
+                years_text = f"{result['years']} years" if result.get('years') else ""
                 return {
-                    "title": f"{result['title']} at {result['company']}",
-                    "preview": f"{period}. {(result.get('description') or '')[:150]}",
+                    "title": result.get('name') or result.get('code') or f"Experience {source_id}",
+                    "preview": f"{years_text}. {(result.get('description') or '')[:150]}".strip(),
                     "type": "Experience",
-                    "company": result["company"],
-                    "period": period
+                    "code": result.get("code"),
+                    "years": result.get("years")
                 }
             else:
                 savepoint.commit()
@@ -191,8 +200,7 @@ def _get_source_metadata(
                 SELECT 
                     id, 
                     name,
-                    title,
-                    summary
+                    description
                 FROM portfolios
                 WHERE id = :id
             """), {"id": source_id}).mappings().first()
@@ -200,8 +208,8 @@ def _get_source_metadata(
             if result:
                 savepoint.commit()
                 return {
-                    "title": result["name"] or result.get("title") or f"Portfolio {source_id}",
-                    "preview": (result.get("summary") or "")[:200],
+                    "title": result["name"] or f"Portfolio {source_id}",
+                    "preview": (result.get("description") or "")[:200],
                     "type": "Portfolio"
                 }
             else:
@@ -226,12 +234,12 @@ def _get_source_metadata(
             if language_id:
                 params["lang_id"] = language_id
             
-            # Simplified query
+            # Use correct column names: code from sections, text from section_texts
             result = db.execute(text(f"""
                 SELECT 
                     s.id,
-                    st.title,
-                    st.content
+                    s.code,
+                    st.text
                 FROM sections s
                 LEFT JOIN section_texts st ON st.section_id = s.id {lang_filter}
                 WHERE s.id = :id
@@ -241,8 +249,8 @@ def _get_source_metadata(
             if result:
                 savepoint.commit()
                 return {
-                    "title": result["title"] or f"Section {source_id}",
-                    "preview": (result.get("content") or "")[:200],
+                    "title": result["code"] or f"Section {source_id}",
+                    "preview": (result.get("text") or "")[:200],
                     "type": "Section"
                 }
             else:
@@ -264,23 +272,19 @@ def _get_source_metadata(
                 SELECT 
                     id, 
                     file_name, 
-                    file_path,
-                    file_size,
-                    mime_type
+                    file_path
                 FROM portfolio_attachments
                 WHERE id = :id
             """), {"id": source_id}).mappings().first()
             
             if result:
                 savepoint.commit()
-                file_size_kb = (result.get("file_size") or 0) / 1024
                 return {
                     "title": result["file_name"] or f"Document {source_id}",
-                    "preview": f"Attached document ({file_size_kb:.1f} KB)",
+                    "preview": "Attached document",
                     "type": "Document",
                     "file_name": result["file_name"],
-                    "file_path": result["file_path"],
-                    "mime_type": result.get("mime_type")
+                    "file_path": result["file_path"]
                 }
             else:
                 savepoint.commit()
@@ -307,7 +311,7 @@ def _get_source_metadata(
                     pa.file_name, 
                     pa.file_path,
                     p.id as project_id,
-                    COALESCE(pt.title, p.id::text) as project_title
+                    COALESCE(pt.name, p.id::text) as project_title
                 FROM project_attachments pa
                 LEFT JOIN projects p ON pa.project_id = p.id
                 LEFT JOIN project_texts pt ON pt.project_id = p.id AND pt.language_id = :lang_id
