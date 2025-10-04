@@ -8,6 +8,7 @@ import AgentList from './AgentList';
 import AgentFormDialog from './AgentFormDialog';
 import AgentDetailDrawer from './AgentDetailDrawer';
 import CredentialManager from './CredentialManager';
+import TestAgentDialog from './TestAgentDialog';
 import { useSnackbar } from 'notistack';
 
 /**
@@ -34,7 +35,8 @@ export default function AgentAdmin() {
     updateAgent,
     deleteAgent,
     upsertTemplate,
-    getTemplate
+    getTemplate,
+    testAgent
   } = useAgentAdmin();
 
   const { enqueueSnackbar } = useSnackbar();
@@ -42,6 +44,7 @@ export default function AgentAdmin() {
   const [currentTab, setCurrentTab] = useState(0);
   const [formDialogOpen, setFormDialogOpen] = useState(false);
   const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
+  const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState(null);
   const [formLoading, setFormLoading] = useState(false);
 
@@ -181,10 +184,21 @@ export default function AgentAdmin() {
     setDetailDrawerOpen(true);
   };
 
-  // Handler: Test Agent (placeholder - could integrate with test dialog)
+  // Handler: Test Agent
   const handleTest = (agent) => {
-    enqueueSnackbar(`Testing agent "${agent.name}" - Feature coming soon!`, { variant: 'info' });
-    // TODO: Implement test dialog or navigate to chat
+    setSelectedAgent(agent);
+    setTestDialogOpen(true);
+  };
+
+  // Handler: Run Test
+  const handleRunTest = async (testPayload) => {
+    try {
+      const result = await testAgent(testPayload);
+      return result;
+    } catch (error) {
+      console.error('Test error:', error);
+      throw error;
+    }
   };
 
   // Handler: Create Credential
@@ -280,6 +294,16 @@ export default function AgentAdmin() {
           credentials={credentials}
           onEdit={handleEdit}
           onTest={handleTest}
+        />
+
+        <TestAgentDialog
+          open={testDialogOpen}
+          onClose={() => {
+            setTestDialogOpen(false);
+            setSelectedAgent(null);
+          }}
+          agent={selectedAgent}
+          onTest={handleRunTest}
         />
       </Box>
     </PermissionGate>
