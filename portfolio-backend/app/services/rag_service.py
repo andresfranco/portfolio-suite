@@ -55,7 +55,7 @@ def embed_query(db: Session, *, provider, embedding_model: str, query: str) -> L
     return [x / norm for x in vec]
 
 
-def vector_search(db: Session, *, qvec: List[float], model: str, k: int, score_threshold: Optional[float], portfolio_id: Optional[int] = None, tables_filter: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+def vector_search(db: Session, *, qvec: List[float], model: str, k: int, score_threshold: Optional[float], portfolio_id: Optional[int] = None, tables_filter: Optional[List[str]] = None, language_code: Optional[str] = None) -> List[Dict[str, Any]]:
     # Ensure query vector is cast to the correct dimensional type to match stored vectors
     dim = max(1, len(qvec))
     portfolio_filter = ""
@@ -107,6 +107,11 @@ def vector_search(db: Session, *, qvec: List[float], model: str, k: int, score_t
             quoted = ", ".join([f"'{t}'" for t in safe_tables])
             table_filter_sql = f"\n          AND c.source_table IN ({quoted})\n        "
 
+    # Optional filter by language code
+    language_filter_sql = ""
+    if language_code:
+        language_filter_sql = "\n          AND (c.lang = :lang_code OR c.lang IS NULL)\n        "
+
     sql = text(
         f"""
         WITH q AS (SELECT CAST(:q AS vector({dim})) AS qvec)
@@ -121,6 +126,7 @@ def vector_search(db: Session, *, qvec: List[float], model: str, k: int, score_t
           AND c.is_deleted = FALSE
           {portfolio_filter}
           {table_filter_sql}
+          {language_filter_sql}
         ORDER BY distance
         LIMIT :k
         """
@@ -129,6 +135,8 @@ def vector_search(db: Session, *, qvec: List[float], model: str, k: int, score_t
     params = {"q": qparam, "m": model, "k": k, "d": dim}
     if portfolio_id is not None:
         params["pid"] = portfolio_id
+    if language_code:
+        params["lang_code"] = language_code
     
     try:
         rows = db.execute(sql, params).mappings().all()

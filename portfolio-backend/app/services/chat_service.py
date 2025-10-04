@@ -3,6 +3,7 @@ from typing import Dict, Any, List, Tuple, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.models.agent import Agent, AgentCredential, AgentTemplate, AgentSession, AgentMessage, AgentTestRun
+from app.models.language import Language
 from app.services.llm.providers import build_provider
 from app.services.rag_service import embed_query, vector_search, assemble_context
 from app.services.prompt_builder import build_rag_prompt, build_fallback_prompt, extract_conversational_history
@@ -120,18 +121,28 @@ def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id:
 
     provider = build_provider(cred.provider, api_key=api_key, base_url=(cred.extra or {}).get("base_url"), extra=cred.extra or {})
 
+    # Note: We intentionally do NOT filter RAG retrieval by language_code here.
+    # The agent should be able to access content in ANY language, regardless of which 
+    # language the user selected for the response. The language_id is only used to 
+    # enforce the OUTPUT language via the prompt (see language_name below).
+    # This ensures the agent can work effectively even when content exists primarily 
+    # in one language but the user requests a response in another language.
+
     # Embed query and retrieve chunks
     qvec = embed_query(db, provider=provider, embedding_model=agent.embedding_model, query=user_message)
     # Resolve portfolio id from free-text if provided
     effective_portfolio_id = _resolve_portfolio_id(db, portfolio_id, portfolio_query)
-    # If the user asks about "project"/"projects", restrict retrieval primarily to projects
+    # If the user asks about "project"/"projects" in any language, restrict retrieval primarily to projects
     lower_q = (user_message or "").lower()
-    tables_filter = ["projects"] if ("project" in lower_q) else None
-    chunks = vector_search(db, qvec=qvec, model=agent.embedding_model, k=agent.top_k, score_threshold=agent.score_threshold, portfolio_id=effective_portfolio_id, tables_filter=tables_filter)
+    # Check for project keywords in multiple languages (English, Spanish, etc.)
+    is_project_query = any(keyword in lower_q for keyword in ["project", "proyecto"])
+    tables_filter = ["projects"] if is_project_query else None
+    # Do NOT pass language_code to vector_search - we want to retrieve content in all languages
+    chunks = vector_search(db, qvec=qvec, model=agent.embedding_model, k=agent.top_k, score_threshold=agent.score_threshold, portfolio_id=effective_portfolio_id, tables_filter=tables_filter, language_code=None)
     context, citations = assemble_context(chunks, max_tokens=agent.max_context_tokens)
 
     # Intent-specific deterministic handling for project names when a portfolio is known
-    if effective_portfolio_id is not None and ("project" in lower_q):
+    if effective_portfolio_id is not None and is_project_query:
         try:
             rows = db.execute(text(
                 """
@@ -171,7 +182,7 @@ def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id:
     # Short-circuit if no context was found to avoid slow external calls
     if not context.strip():
         # Deterministic DB fallback for common questions when portfolio scope is known
-        if effective_portfolio_id is not None and ("project" in lower_q):
+        if effective_portfolio_id is not None and is_project_query:
             # Try to build context from existing rag_chunk rows for projects
             try:
                 rows = db.execute(text(
@@ -312,6 +323,20 @@ def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id:
                 pass
             conversation_history = []
     
+    # Fetch language name if language_id is provided
+    language_name = None
+    if language_id:
+        try:
+            language = db.query(Language).filter(Language.id == language_id).first()
+            if language:
+                language_name = language.name
+        except Exception:
+            # If language fetch fails, continue without language enforcement
+            try:
+                db.rollback()
+            except Exception:
+                pass
+    
     # Build optimized RAG prompt using prompt_builder service
     # Determine template style from agent template (default to 'conversational')
     template_style = tpl.citation_format if hasattr(tpl, 'citation_format') and tpl.citation_format else 'conversational'
@@ -324,7 +349,8 @@ def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id:
         context=context,
         citations=enriched_citations,
         template_style=template_style,
-        conversation_history=conversation_history
+        conversation_history=conversation_history,
+        language_name=language_name
     )
 
     # Choose low-cost default OpenAI chat model per your guidance
