@@ -18,7 +18,7 @@ import useIdleSession from './hooks/useIdleSession';
 import systemSettingsApi from './services/systemSettingsApi';
 import SystemSettings from './components/settings/SystemSettings';
 import RagAdmin from './components/rag/RagAdmin';
-import AgentsIndex from './components/agents/AgentsIndex';
+import AgentAdmin from './components/agents/AgentAdmin';
 import AgentChat from './components/agents/AgentChat';
 import { AgentAdminProvider } from './contexts/AgentAdminContext';
 
@@ -205,7 +205,7 @@ function AppContent() {
             } />
             <Route path="agents" element={
               <AgentAdminProvider>
-                <AgentsIndex />
+                <AgentAdmin />
               </AgentAdminProvider>
             } />
             <Route path="agent-chat" element={

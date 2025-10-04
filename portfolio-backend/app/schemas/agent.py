@@ -31,6 +31,8 @@ class AgentBase(BaseModel):
     rerank_model: Optional[str] = None
     chat_model: Optional[str] = None
     is_active: bool = True
+    usage_limit: Optional[int] = None
+    budget_limit: Optional[float] = None
 
 
 class AgentCreate(AgentBase):
@@ -49,10 +51,15 @@ class AgentUpdate(BaseModel):
     rerank_model: Optional[str] = None
     chat_model: Optional[str] = None
     is_active: Optional[bool] = None
+    usage_limit: Optional[int] = None
+    budget_limit: Optional[float] = None
 
 
 class AgentOut(AgentBase):
     id: int
+    current_usage: int = 0
+    current_cost: float = 0.0
+    usage_reset_at: Optional[str] = None
 
     class Config:
         from_attributes = True
