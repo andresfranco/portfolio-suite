@@ -11,6 +11,29 @@ from app.services.citation_service import enrich_citations, deduplicate_citation
 import os
 
 
+# Language-specific translations for common phrases
+TRANSLATIONS = {
+    "en": {
+        "projects_found": "Projects found in the portfolio:",
+        "projects": "Projects:",
+        "no_context": "I don't know based on the provided context.",
+    },
+    "es": {
+        "projects_found": "Proyectos encontrados en el portafolio:",
+        "projects": "Proyectos:",
+        "no_context": "No lo sé basado en el contexto proporcionado.",
+    },
+}
+
+
+def _get_translation(key: str, language_code: str = "en") -> str:
+    """Get translated string for a given key and language code."""
+    lang_code = (language_code or "en").lower()[:2]  # Normalize to 2-letter code
+    if lang_code not in TRANSLATIONS:
+        lang_code = "en"  # Default to English
+    return TRANSLATIONS[lang_code].get(key, TRANSLATIONS["en"][key])
+
+
 def _get_agent_bundle(db: Session, agent_id: int, template_id: Optional[int] = None) -> Tuple[Agent, AgentCredential, AgentTemplate]:
     agent = db.query(Agent).filter(Agent.id == agent_id, Agent.is_active == True).first()
     if not agent:
@@ -32,27 +55,33 @@ def _get_agent_bundle(db: Session, agent_id: int, template_id: Optional[int] = N
     return agent, cred, tpl
 
 
-def _build_context_only_answer(user_message: str, context_text: str, citations: List[Dict[str, Any]]) -> str:
+def _build_context_only_answer(user_message: str, context_text: str, citations: List[Dict[str, Any]], language_code: str = "en") -> str:
     """Fallback composition when the LLM call fails.
 
     Parses the assembled context to extract simple, grounded facts. For portfolio queries,
     it will list project names detected from lines like "Project: <name>". Otherwise,
     it returns the first few sentences from the context.
+    
+    Args:
+        user_message: The user's question
+        context_text: Assembled context from RAG
+        citations: List of citation metadata
+        language_code: Language code (e.g., 'en', 'es') for translated responses
     """
     text = (context_text or "").strip()
     if not text:
-        return "I don't know based on the provided context."
+        return _get_translation("no_context", language_code)
     lower_q = (user_message or "").lower()
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     projects: List[str] = []
     for ln in lines:
-        if ln.lower().startswith("project:"):
+        if ln.lower().startswith("project:") or ln.lower().startswith("proyecto:"):
             name = ln.split(":", 1)[1].strip()
             if name:
                 projects.append(name)
     projects = list(dict.fromkeys(projects))  # de-duplicate preserving order
-    if projects and ("project" in lower_q or "projects" in lower_q):
-        head = "Projects found in the portfolio:"
+    if projects and any(kw in lower_q for kw in ["project", "projects", "proyecto", "proyectos"]):
+        head = _get_translation("projects_found", language_code)
         bullets = "\n".join([f"- {p}" for p in projects[:20]])
         return f"{head}\n{bullets}"
     # Generic fallback: return first paragraph up to ~400 chars
@@ -121,6 +150,22 @@ def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id:
 
     provider = build_provider(cred.provider, api_key=api_key, base_url=(cred.extra or {}).get("base_url"), extra=cred.extra or {})
 
+    # Fetch language information early so we can use it in all responses
+    language_name = None
+    language_code = "en"  # Default to English
+    if language_id:
+        try:
+            language = db.query(Language).filter(Language.id == language_id).first()
+            if language:
+                language_name = language.name
+                language_code = language.code if hasattr(language, 'code') and language.code else "en"
+        except Exception:
+            # If language fetch fails, continue with defaults
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
     # Note: We intentionally do NOT filter RAG retrieval by language_code here.
     # The agent should be able to access content in ANY language, regardless of which 
     # language the user selected for the response. The language_id is only used to 
@@ -155,7 +200,7 @@ def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id:
             ), {"pid": effective_portfolio_id}).mappings().all()
             names = [r["name"] for r in rows if (r.get("name") or "").strip()]
             if names:
-                answer = "Projects: " + ", ".join(names)
+                answer = _get_translation("projects", language_code) + " " + ", ".join(names)
                 # Persist session
                 sess_id = session_id
                 if not sess_id:
@@ -323,21 +368,8 @@ def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id:
                 pass
             conversation_history = []
     
-    # Fetch language name if language_id is provided
-    language_name = None
-    if language_id:
-        try:
-            language = db.query(Language).filter(Language.id == language_id).first()
-            if language:
-                language_name = language.name
-        except Exception:
-            # If language fetch fails, continue without language enforcement
-            try:
-                db.rollback()
-            except Exception:
-                pass
-    
     # Build optimized RAG prompt using prompt_builder service
+    # (Note: language_name and language_code are already fetched earlier in the function)
     # Determine template style from agent template (default to 'conversational')
     template_style = tpl.citation_format if hasattr(tpl, 'citation_format') and tpl.citation_format else 'conversational'
     if template_style not in ['conversational', 'technical', 'summary']:
@@ -372,7 +404,7 @@ def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id:
             pass
         # If we have context, synthesize a deterministic, grounded fallback answer
         if context.strip():
-            synthesized = _build_context_only_answer(user_message, context, citations)
+            synthesized = _build_context_only_answer(user_message, context, citations, language_code)
             sess_id = session_id
             if not sess_id:
                 s = AgentSession(agent_id=agent.id)
