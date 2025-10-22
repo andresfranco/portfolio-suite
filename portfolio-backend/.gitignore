@@ -25,6 +25,25 @@ wheels/
 venv/
 ENV/
 .env
+.env.*
+!.env.example
+
+# Security & Secrets
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+secrets/
+.secrets
+.vault
+credentials.json
+service-account.json
+
+# SSL/TLS Certificates
+ssl/
+certs/
+*.ca-bundle
 
 # IDEs
 .idea/
