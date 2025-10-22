@@ -1,0 +1,25 @@
+# Systemd timer unit for automated database backups
+# Copy to /etc/systemd/system/portfolio-backup.timer
+# Enable with: sudo systemctl enable --now portfolio-backup.timer
+
+[Unit]
+Description=Portfolio Database Backup Timer
+Requires=portfolio-backup.service
+
+[Timer]
+# Run daily at 2 AM
+OnCalendar=daily
+OnCalendar=*-*-* 02:00:00
+
+# Run 15 minutes after boot if last execution was missed
+Persistent=true
+
+# Randomize start time by up to 10 minutes to avoid conflicts
+RandomizedDelaySec=600
+
+# Accuracy (how close to scheduled time)
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target
+

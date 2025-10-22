@@ -16,6 +16,7 @@ from sqlalchemy import text, inspect as sa_inspect
 from sqlalchemy.exc import ProgrammingError, OperationalError
 from app.core.security import verify_password
 from app.core.audit_logger import audit_logger
+from app.core.account_security import account_security_manager
 from jose import jwt, JWTError
 
 # Set up logger
@@ -43,9 +44,41 @@ async def login_for_access_token(
         # Find user by username
         user = db.query(User).filter(User.username == form_data.username).first()
         
+        # Check if account is locked (before password check to prevent timing attacks)
+        if user and user.username not in SYSTEM_ADMIN_USERS:
+            is_locked, minutes_remaining = account_security_manager.is_account_locked(user)
+            if is_locked:
+                audit_logger.log_login_attempt(
+                    form_data.username, False, client_ip, user_agent,
+                    {"reason": "account_locked", "minutes_remaining": minutes_remaining}
+                )
+                logger.warning(f"Locked account attempted login: {user.username} from IP: {client_ip}")
+                return JSONResponse(
+                    status_code=status.HTTP_423_LOCKED,
+                    content={
+                        "detail": f"Account is temporarily locked. Try again in {minutes_remaining} minutes.",
+                        "locked_until_minutes": minutes_remaining
+                    },
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+        
         # Validate username and password
         if not user or not verify_password(form_data.password, user.hashed_password):
-            # Record failed attempt
+            # Record failed attempt for existing user
+            if user and user.username not in SYSTEM_ADMIN_USERS:
+                is_locked, lockout_minutes = account_security_manager.record_failed_login(
+                    user, db, client_ip
+                )
+                
+                if is_locked:
+                    audit_logger.log_security_event(
+                        "ACCOUNT_LOCKED",
+                        user=user,
+                        details={"lockout_minutes": lockout_minutes, "failed_attempts": user.failed_login_attempts},
+                        ip_address=client_ip
+                    )
+            
+            # Log failed attempt
             audit_logger.log_login_attempt(
                 form_data.username, False, client_ip, user_agent,
                 {"reason": "invalid_credentials"}
@@ -70,6 +103,33 @@ async def login_for_access_token(
                 content={"detail": "Account is inactive"},
                 headers={"WWW-Authenticate": "Bearer"},
             )
+        
+        # Check for forced password change
+        if user.force_password_change and user.username not in SYSTEM_ADMIN_USERS:
+            audit_logger.log_login_attempt(
+                form_data.username, False, client_ip, user_agent,
+                {"reason": "password_change_required"}
+            )
+            return JSONResponse(
+                status_code=status.HTTP_403_FORBIDDEN,
+                content={"detail": "Password change required. Please reset your password."},
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # Detect suspicious login
+        if user.username not in SYSTEM_ADMIN_USERS:
+            is_suspicious, reasons = account_security_manager.detect_suspicious_login(
+                user, client_ip, user_agent
+            )
+            
+            if is_suspicious:
+                audit_logger.log_security_event(
+                    "SUSPICIOUS_LOGIN_DETECTED",
+                    user=user,
+                    details={"reasons": reasons, "ip": client_ip},
+                    ip_address=client_ip
+                )
+                # Future: Send email notification
         
         # Helper to read int setting robustly even if table doesn't exist yet
         def _get_int_setting(key: str, default_value: int) -> int:
@@ -105,6 +165,12 @@ async def login_for_access_token(
             data={"sub": user.username},
             expires_delta=timedelta(minutes=refresh_minutes)
         )
+        
+        # Update login metadata (reset failed attempts, update last login)
+        if user.username not in SYSTEM_ADMIN_USERS:
+            account_security_manager.update_login_metadata(
+                user, db, client_ip, user_agent
+            )
         
         # Log successful login
         audit_logger.log_login_attempt(
