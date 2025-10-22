@@ -88,6 +88,15 @@ const API_CONFIG = {
     categoryTypes: {
       list: '/api/category-types',
       detail: '/api/category-types/:id'
+    },
+    
+    // MFA (Multi-Factor Authentication) endpoints
+    mfa: {
+      status: '/api/mfa/status',
+      enroll: '/api/mfa/enroll',
+      verifyEnrollment: '/api/mfa/verify-enrollment',
+      disable: '/api/mfa/disable',
+      regenerateBackupCodes: '/api/mfa/regenerate-backup-codes'
     }
   }
 };

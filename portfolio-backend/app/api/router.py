@@ -7,6 +7,8 @@ logger = logging.getLogger("app.api.router")
 try:
     from app.api.endpoints import (
         auth,
+        mfa,
+        account_security,
         users,
         roles,
         permissions,
@@ -36,6 +38,8 @@ api_router = APIRouter()
 # Authentication
 try:
     api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+    api_router.include_router(mfa.router, prefix="/mfa", tags=["Multi-Factor Authentication"])
+    api_router.include_router(account_security.router, prefix="/account", tags=["Account Security"])
     
     # User management
     api_router.include_router(users.router, prefix="/users", tags=["Users"])

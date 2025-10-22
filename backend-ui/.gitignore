@@ -27,4 +27,23 @@ yarn-error.log*
 .vscode
 *.swp
 *.swo
+
+# Environment files
 .env
+.env.*
+!.env.example
+
+# Security & Secrets
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+secrets/
+.secrets
+credentials.json
+service-account.json
+
+# SSL/TLS Certificates
+ssl/
+certs/
