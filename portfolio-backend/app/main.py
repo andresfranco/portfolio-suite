@@ -241,9 +241,15 @@ async def block_unauthorized_loops(request: Request, call_next):
     
     # Check if this is an unauthorized request to category-types
     # BUT allow OPTIONS requests (CORS preflight) to pass through
+    # Check for authentication via Authorization header OR access_token cookie
+    has_auth = (
+        request.headers.get("authorization") or 
+        request.cookies.get("access_token")
+    )
+    
     if ("/api/category-types" in request.url.path and 
         request.method != "OPTIONS" and 
-        not request.headers.get("authorization")):
+        not has_auth):
         
         # Log detailed information about the source of these requests
         client_ip = request.client.host
