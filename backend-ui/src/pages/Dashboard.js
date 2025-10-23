@@ -144,13 +144,6 @@ const Dashboard = () => {
       requiredPermission: "VIEW_LANGUAGES"
     },
     {
-      title: "Chatbot Configuration",
-      description: "Configure the AI chatbot that answers questions about your portfolio.",
-      icon: <ChatIcon />,
-      link: "/chatbot",
-      requiredPermission: "SYSTEM_ADMIN" // Only system admin can access chatbot config
-    },
-    {
       title: "System Settings",
       description: "Configure global application settings and preferences.",
       icon: <SettingsIcon />,
