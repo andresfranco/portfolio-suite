@@ -17,6 +17,7 @@ from sqlalchemy.exc import ProgrammingError, OperationalError
 from app.core.security import verify_password
 from app.core.audit_logger import audit_logger
 from app.core.account_security import account_security_manager
+from app.core.mfa import mfa_manager
 from jose import jwt, JWTError
 
 # Set up logger
@@ -27,7 +28,7 @@ router = APIRouter()
 # System admin users who bypass certain checks
 SYSTEM_ADMIN_USERS = ["systemadmin"]
 
-@router.post("/login", response_model=Token)
+@router.post("/login")
 async def login_for_access_token(
     request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
@@ -35,6 +36,11 @@ async def login_for_access_token(
 ):
     """
     Enhanced OAuth2 login with comprehensive security features
+    
+    Returns:
+    - Token response if login successful and MFA not required
+    - MFA required response if user has MFA enabled
+    - Error response for failed authentication
     """
     # Get client information for security logging
     client_ip = request.client.host
@@ -115,6 +121,30 @@ async def login_for_access_token(
                 content={"detail": "Password change required. Please reset your password."},
                 headers={"WWW-Authenticate": "Bearer"},
             )
+        
+        # Check if MFA is enabled for this user
+        if user.mfa_enabled and user.username not in SYSTEM_ADMIN_USERS:
+            # Create a temporary session token for MFA verification
+            mfa_session_token = create_access_token(
+                data={"sub": user.username, "mfa_pending": True},
+                expires_delta=timedelta(minutes=5)  # Short-lived token for MFA verification
+            )
+            
+            audit_logger.log_security_event(
+                "MFA_REQUIRED_AT_LOGIN",
+                user=user,
+                details={"username": user.username, "mfa_enabled": True},
+                ip_address=client_ip
+            )
+            
+            logger.info(f"MFA required for user: {user.username} (mfa_enabled={user.mfa_enabled}) from IP: {client_ip}")
+            
+            # Return MFA required response
+            return {
+                "mfa_required": True,
+                "message": "MFA verification required",
+                "session_token": mfa_session_token
+            }
         
         # Detect suspicious login
         if user.username not in SYSTEM_ADMIN_USERS:
@@ -292,4 +322,167 @@ async def refresh_access_token(
     except HTTPException:
         raise
     except Exception:
-        raise HTTPException(status_code=500, detail="Failed to refresh token") 
+        raise HTTPException(status_code=500, detail="Failed to refresh token")
+
+
+@router.post("/mfa/verify-login", response_model=Token)
+async def verify_mfa_login(
+    request: Request,
+    body: dict = Body(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Complete login by verifying MFA code.
+    
+    Required fields in body:
+    - session_token: Temporary token from initial login
+    - code: 6-digit TOTP code or 8-character backup code
+    """
+    session_token = body.get("session_token")
+    code = body.get("code")
+    
+    if not session_token or not code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="session_token and code are required"
+        )
+    
+    client_ip = request.client.host if request.client else "unknown"
+    user_agent = request.headers.get("user-agent", "unknown")
+    
+    try:
+        # Decode session token
+        payload = jwt.decode(session_token, settings.SECRET_KEY, algorithms=["HS256"])
+        username = payload.get("sub")
+        mfa_pending = payload.get("mfa_pending")
+        
+        if not username or not mfa_pending:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid session token"
+            )
+        
+        # Get user
+        user = db.query(User).filter(User.username == username).first()
+        if not user or not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid user"
+            )
+        
+        # Check if MFA is enabled
+        if not user.mfa_enabled:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="MFA is not enabled for this user"
+            )
+        
+        # Verify MFA code (supports both TOTP and backup codes)
+        is_valid = False
+        used_backup_code = False
+        
+        # Try TOTP first (6 digits)
+        if len(code) == 6 and code.isdigit():
+            is_valid = mfa_manager.verify_totp_code(user.mfa_secret, code)
+        # Try backup code (8 characters with dash)
+        elif len(code) == 9 and '-' in code:  # Format: XXXX-XXXX
+            is_valid, remaining = mfa_manager.verify_backup_code(
+                code, user.mfa_backup_codes or []
+            )
+            if is_valid:
+                used_backup_code = True
+                # Update user's backup codes (remove used one)
+                user.mfa_backup_codes = remaining
+                db.commit()
+        
+        if not is_valid:
+            audit_logger.log_security_event(
+                "MFA_LOGIN_VERIFICATION_FAILED",
+                user=user,
+                details={"reason": "invalid_code"},
+                ip_address=client_ip
+            )
+            
+            logger.warning(f"Invalid MFA code for user: {username} from IP: {client_ip}")
+            
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid MFA code"
+            )
+        
+        # Helper to read int setting
+        def _get_int_setting(key: str, default_value: int) -> int:
+            try:
+                inspector = sa_inspect(db.bind)
+                if not inspector.has_table('system_settings'):
+                    return default_value
+                result = db.execute(text("SELECT value FROM system_settings WHERE key = :k"), {"k": key})
+                val = result.scalar()
+                return int(val) if val is not None and str(val).strip().isdigit() else default_value
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                return default_value
+        
+        # Create tokens
+        access_minutes = _get_int_setting('auth.access_token_expire_minutes', settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        refresh_minutes = _get_int_setting('auth.refresh_token_expire_minutes', settings.REFRESH_TOKEN_EXPIRE_MINUTES)
+        
+        access_token = create_access_token(
+            data={"sub": user.username},
+            expires_delta=timedelta(minutes=access_minutes)
+        )
+        
+        refresh_token = create_refresh_token(
+            data={"sub": user.username},
+            expires_delta=timedelta(minutes=refresh_minutes)
+        )
+        
+        # Update login metadata
+        if user.username not in SYSTEM_ADMIN_USERS:
+            account_security_manager.update_login_metadata(
+                user, db, client_ip, user_agent
+            )
+        
+        # Log successful MFA login
+        audit_logger.log_security_event(
+            "MFA_LOGIN_SUCCESS",
+            user=user,
+            details={
+                "used_backup_code": used_backup_code,
+                "backup_codes_remaining": len(user.mfa_backup_codes or []) if used_backup_code else None
+            },
+            ip_address=client_ip
+        )
+        
+        logger.info(f"Successful MFA login: {user.username} from IP: {client_ip}")
+        
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "is_active": user.is_active,
+                "is_systemadmin": user.username in SYSTEM_ADMIN_USERS,
+                "roles": [{"id": role.id, "name": role.name} for role in user.roles]
+            }
+        }
+        
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired session token"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"MFA login verification error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to verify MFA"
+        ) 

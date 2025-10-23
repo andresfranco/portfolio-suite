@@ -59,9 +59,9 @@ class RateLimiter:
         # Endpoint-specific limits
         self.endpoint_limits = {
             # Authentication endpoints - strict limits
-            "/api/auth/login": {"per_minute": 5, "per_hour": 20},
-            "/api/auth/register": {"per_minute": 3, "per_hour": 10},
-            "/api/auth/forgot-password": {"per_minute": 3, "per_hour": 10},
+            "/api/auth/login": {"per_minute": 30, "per_hour": 100},
+            "/api/auth/register": {"per_minute": 10, "per_hour": 30},
+            "/api/auth/forgot-password": {"per_minute": 10, "per_hour": 30},
             
             # API endpoints - moderate limits
             "/api/users": {"per_minute": 30, "per_hour": 500},

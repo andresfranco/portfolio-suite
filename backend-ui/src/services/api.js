@@ -66,12 +66,37 @@ api.interceptors.request.use(
 let isRefreshing = false;
 let refreshPromise = null;
 
+/**
+ * Check if the 401 error is due to password verification failure (not token expiry)
+ * These errors should NOT trigger token refresh
+ */
+const isPasswordVerificationError = (error) => {
+  const { config, response } = error || {};
+  
+  // Check if it's an MFA endpoint with password verification
+  const isMfaEndpoint = config?.url?.includes('/api/mfa/');
+  const isAccountSecurityEndpoint = config?.url?.includes('/api/account/');
+  
+  // Check if the error message indicates password verification failure
+  const errorDetail = response?.data?.detail || '';
+  const isPasswordError = errorDetail.toLowerCase().includes('password') || 
+                          errorDetail.toLowerCase().includes('invalid password');
+  
+  return (isMfaEndpoint || isAccountSecurityEndpoint) && isPasswordError;
+};
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const { response, config } = error || {};
     if (!response) return Promise.reject(error);
     if (response.status !== 401) return Promise.reject(error);
+
+    // Don't try to refresh token for password verification errors
+    if (isPasswordVerificationError(error)) {
+      logDebug('Password verification failed, not attempting token refresh');
+      return Promise.reject(error);
+    }
 
     // Avoid infinite loop
     if (config && config._retry) {

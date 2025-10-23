@@ -190,7 +190,7 @@ class MFAManager:
         self,
         plain_code: str,
         hashed_codes: List[str]
-    ) -> Tuple[bool, Optional[str]]:
+    ) -> Tuple[bool, Optional[List[str]]]:
         """
         Verify backup code against stored hashed codes.
         
@@ -199,9 +199,9 @@ class MFAManager:
             hashed_codes: List of hashed backup codes
         
         Returns:
-            Tuple of (is_valid, matched_hash)
+            Tuple of (is_valid, remaining_codes)
             - is_valid: True if code matches
-            - matched_hash: The hash that matched (to mark as used)
+            - remaining_codes: List of hashes with the used one removed (None if invalid)
         """
         # Remove dashes and convert to uppercase
         plain_code = plain_code.replace("-", "").replace(" ", "").upper()
@@ -215,7 +215,10 @@ class MFAManager:
             try:
                 if pwd_context.verify(plain_code, hashed_code):
                     logger.info("Backup code verified successfully")
-                    return True, hashed_code
+                    # Return remaining codes (all except the matched one)
+                    remaining = [h for h in hashed_codes if h != hashed_code]
+                    logger.info(f"Backup code used. Remaining codes: {len(remaining)}")
+                    return True, remaining
             except Exception as e:
                 logger.error(f"Error verifying backup code: {e}")
                 continue

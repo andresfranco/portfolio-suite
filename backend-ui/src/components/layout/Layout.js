@@ -87,7 +87,7 @@ const Layout = () => {
 
   const handleSettings = () => {
     handleCloseUserMenu();
-    navigate('/settings');
+    navigate('/my-settings');
   };
 
   const handleDrawerToggle = () => {
@@ -417,9 +417,9 @@ const Layout = () => {
             >
               <MenuItem onClick={handleSettings}>
                 <ListItemIcon>
-                  <SettingsIcon fontSize="small" />
+                  <AccountCircleIcon fontSize="small" />
                 </ListItemIcon>
-                <ListItemText primary="Settings" />
+                <ListItemText primary="My Settings" />
               </MenuItem>
               <MenuItem onClick={handleLogout}>
                 <ListItemIcon>

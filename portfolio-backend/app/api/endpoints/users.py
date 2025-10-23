@@ -167,6 +167,103 @@ def read_users(
         logger.error(f"Error getting users list: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+# Additional endpoints for frontend integration
+# Note: These /me endpoints must come BEFORE /{user_id} to avoid route conflicts
+@router.get("/me", response_model=schemas.UserOut)
+def get_current_user_info(
+    current_user: models.User = Depends(deps.get_current_user)
+):
+    """
+    Get current user's information.
+    No special permission required - any authenticated user can access their own data.
+    """
+    try:
+        return current_user
+    except Exception as e:
+        logger.error(f"Error getting current user info: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error"
+        )
+
+@router.get("/me/permissions")
+def get_current_user_permissions(
+    current_user: models.User = Depends(deps.get_current_user)
+):
+    """Get current user's permissions and roles."""
+    try:
+        permissions = []
+        roles = []
+        
+        # Check if user is system admin
+        if permission_checker.is_system_admin(current_user):
+            # System admin gets all permissions
+            from app.crud.permission import COMPREHENSIVE_PERMISSIONS
+            permissions = [perm["name"] for perm in COMPREHENSIVE_PERMISSIONS]
+        else:
+            # Regular user permissions
+            for role in current_user.roles:
+                roles.append({"id": role.id, "name": role.name})
+                for permission in role.permissions:
+                    if permission.name not in permissions:
+                        permissions.append(permission.name)
+        
+        return {
+            "permissions": permissions,
+            "roles": roles,
+            "is_systemadmin": permission_checker.is_system_admin(current_user)
+        }
+    
+    except Exception as e:
+        logger.error(f"Error getting user permissions: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error"
+        )
+
+@router.post("/me/change-password", response_model=schemas.UserOut)
+def change_own_password(
+    password_data: schemas.UserSelfPasswordChange,
+    db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_user),
+):
+    """
+    Change current user's password (self-service).
+    No special permission required - any authenticated user can change their own password.
+    """
+    logger.debug(f"User {current_user.username} is changing their own password")
+    try:
+        from app.core.security import verify_password
+        
+        # Verify old password
+        if not verify_password(password_data.old_password, current_user.hashed_password):
+            logger.warning(f"Incorrect old password for user {current_user.username}")
+            raise HTTPException(
+                status_code=400,
+                detail="Incorrect old password"
+            )
+        
+        # Change the password
+        updated_user = user_crud.change_user_password(
+            db=db,
+            user_id=current_user.id,
+            new_password=password_data.new_password,
+            current_user_id=current_user.id
+        )
+        
+        if not updated_user:
+            logger.warning(f"Password change failed for user {current_user.username}")
+            raise HTTPException(status_code=500, detail="Password change failed")
+        
+        logger.info(f"User {current_user.username} successfully changed their own password")
+        return updated_user
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error changing own password: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/{user_id}", response_model=schemas.UserOut)
 @require_permission("VIEW_USERS")
 def read_user(
@@ -418,42 +515,6 @@ def check_username(
     except Exception as e:
         logger.error(f"Error checking username availability: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
-
-# Additional endpoints for frontend integration
-@router.get("/me/permissions")
-def get_current_user_permissions(
-    current_user: models.User = Depends(deps.get_current_user)
-):
-    """Get current user's permissions and roles."""
-    try:
-        permissions = []
-        roles = []
-        
-        # Check if user is system admin
-        if permission_checker.is_system_admin(current_user):
-            # System admin gets all permissions
-            from app.crud.permission import COMPREHENSIVE_PERMISSIONS
-            permissions = [perm["name"] for perm in COMPREHENSIVE_PERMISSIONS]
-        else:
-            # Regular user permissions
-            for role in current_user.roles:
-                roles.append({"id": role.id, "name": role.name})
-                for permission in role.permissions:
-                    if permission.name not in permissions:
-                        permissions.append(permission.name)
-        
-        return {
-            "permissions": permissions,
-            "roles": roles,
-            "is_systemadmin": permission_checker.is_system_admin(current_user)
-        }
-    
-    except Exception as e:
-        logger.error(f"Error getting user permissions: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail="Internal server error"
-        )
 
 @router.get("/{user_id}/permissions")
 @require_permission("VIEW_USERS")
