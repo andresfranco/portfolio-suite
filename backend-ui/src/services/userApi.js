@@ -198,7 +198,38 @@ const userApi = {
   },
 
   /**
-   * Change user password
+   * Get current user's information
+   * @returns {Promise} - Response from API with current user data
+   */
+  getCurrentUser: async () => {
+    try {
+      logInfo('Fetching current user information');
+      const response = await api.get(`${API_CONFIG.ENDPOINTS.users.list}/me`);
+      return response;
+    } catch (error) {
+      logError('Error fetching current user:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Change current user's own password (self-service)
+   * @param {Object} data - Contains old_password, new_password, and confirm_password
+   * @returns {Promise} - Response from API
+   */
+  changeOwnPassword: async (data) => {
+    try {
+      logInfo('Changing own password');
+      const response = await api.post(`${API_CONFIG.ENDPOINTS.users.list}/me/change-password`, data);
+      return response;
+    } catch (error) {
+      logError('Error changing own password:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Change user password (admin function)
    * @param {Object} data - Contains username, password, and password_confirmation
    * @returns {Promise} - Response from API
    */

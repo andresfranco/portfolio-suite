@@ -17,6 +17,7 @@ import LanguageIndex from './components/languages/LanguageIndex';
 import useIdleSession from './hooks/useIdleSession';
 import systemSettingsApi from './services/systemSettingsApi';
 import SystemSettings from './components/settings/SystemSettings';
+import MySettings from './components/MySettings';
 import RagAdmin from './components/rag/RagAdmin';
 import AgentAdmin from './components/agents/AgentAdmin';
 import AgentChat from './components/agents/AgentChat';
@@ -107,7 +108,12 @@ function AppContent() {
 
   const handleLogin = async (username, password) => {
     try {
-      await authService.login(username, password);
+      const result = await authService.login(username, password);
+      
+      // Check if MFA is required
+      if (result && result.mfa_required) {
+        return result; // Return MFA required info to Login component
+      }
       
       // Immediately trigger permission loading after successful login
       setTimeout(() => {
@@ -215,6 +221,7 @@ function AppContent() {
             } />
             <Route path="chatbot" element={<ChatbotConfig />} />
             <Route path="settings" element={<SystemSettings />} />
+            <Route path="my-settings" element={<MySettings />} />
             <Route path="rag-admin" element={<RagAdmin />} />
             
             {/* 404 Not Found */}
