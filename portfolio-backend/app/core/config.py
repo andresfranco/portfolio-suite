@@ -60,9 +60,15 @@ class Settings(BaseSettings):
     
     # Security settings
     SECRET_KEY: str = os.getenv("SECRET_KEY", "")
-    ALGORITHM: str = "HS256"
+    ALGORITHM: str = os.getenv("ALGORITHM", "HS256")  # HS256 or RS256
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    
+    # RSA Keys for RS256 (if using asymmetric JWT signing)
+    JWT_PRIVATE_KEY_PATH: Optional[str] = os.getenv("JWT_PRIVATE_KEY_PATH")
+    JWT_PUBLIC_KEY_PATH: Optional[str] = os.getenv("JWT_PUBLIC_KEY_PATH")
+    JWT_PRIVATE_KEY: Optional[str] = os.getenv("JWT_PRIVATE_KEY")  # Alternative: key as env var
+    JWT_PUBLIC_KEY: Optional[str] = os.getenv("JWT_PUBLIC_KEY")  # Alternative: key as env var
     
     # CORS settings
     FRONTEND_ORIGINS: str = os.getenv(
@@ -185,6 +191,91 @@ class Settings(BaseSettings):
     def is_testing(self) -> bool:
         """Check if running in testing"""
         return self.ENVIRONMENT.lower() == "testing"
+    
+    def get_private_key(self) -> Optional[str]:
+        """
+        Get RSA private key for JWT signing (RS256 only).
+        
+        Returns:
+            Private key as PEM string, or None if using HS256
+        """
+        if self.ALGORITHM != "RS256":
+            return None
+        
+        # Check if key is provided as environment variable
+        if self.JWT_PRIVATE_KEY:
+            return self.JWT_PRIVATE_KEY
+        
+        # Check if key file path is provided
+        if self.JWT_PRIVATE_KEY_PATH:
+            try:
+                with open(self.JWT_PRIVATE_KEY_PATH, 'r') as f:
+                    return f.read()
+            except FileNotFoundError:
+                logging.error(f"Private key file not found: {self.JWT_PRIVATE_KEY_PATH}")
+                raise ValueError(
+                    f"JWT_PRIVATE_KEY_PATH points to non-existent file: {self.JWT_PRIVATE_KEY_PATH}. "
+                    f"Generate keys with: python scripts/generate_rsa_keys.py"
+                )
+            except PermissionError:
+                logging.error(f"Cannot read private key file: {self.JWT_PRIVATE_KEY_PATH}")
+                raise ValueError(
+                    f"Permission denied reading private key: {self.JWT_PRIVATE_KEY_PATH}. "
+                    f"Ensure file permissions are set to 600 (owner read/write only)"
+                )
+        
+        # RS256 requires private key
+        raise ValueError(
+            "RS256 algorithm requires JWT_PRIVATE_KEY or JWT_PRIVATE_KEY_PATH. "
+            "Generate keys with: python scripts/generate_rsa_keys.py"
+        )
+    
+    def get_public_key(self) -> Optional[str]:
+        """
+        Get RSA public key for JWT verification (RS256 only).
+        
+        Returns:
+            Public key as PEM string, or None if using HS256
+        """
+        if self.ALGORITHM != "RS256":
+            return None
+        
+        # Check if key is provided as environment variable
+        if self.JWT_PUBLIC_KEY:
+            return self.JWT_PUBLIC_KEY
+        
+        # Check if key file path is provided
+        if self.JWT_PUBLIC_KEY_PATH:
+            try:
+                with open(self.JWT_PUBLIC_KEY_PATH, 'r') as f:
+                    return f.read()
+            except FileNotFoundError:
+                logging.error(f"Public key file not found: {self.JWT_PUBLIC_KEY_PATH}")
+                raise ValueError(
+                    f"JWT_PUBLIC_KEY_PATH points to non-existent file: {self.JWT_PUBLIC_KEY_PATH}. "
+                    f"Generate keys with: python scripts/generate_rsa_keys.py"
+                )
+        
+        # RS256 requires public key
+        raise ValueError(
+            "RS256 algorithm requires JWT_PUBLIC_KEY or JWT_PUBLIC_KEY_PATH. "
+            "Generate keys with: python scripts/generate_rsa_keys.py"
+        )
+    
+    def get_jwt_secret_or_key(self) -> str:
+        """
+        Get the appropriate secret/key for JWT operations based on algorithm.
+        
+        For HS256: Returns SECRET_KEY
+        For RS256: Returns private key for signing, public key for verification
+        
+        Returns:
+            Secret key (HS256) or private key (RS256)
+        """
+        if self.ALGORITHM == "RS256":
+            return self.get_private_key()
+        else:
+            return self.SECRET_KEY
 
     # Replace class Config with model_config
     model_config = ConfigDict(

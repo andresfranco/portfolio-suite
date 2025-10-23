@@ -48,8 +48,14 @@ def get_current_user(
         raise credentials_exception
     
     try:
+        # Get appropriate key for JWT verification based on algorithm
+        if settings.ALGORITHM == "RS256":
+            verification_key = settings.get_public_key()
+        else:
+            verification_key = settings.SECRET_KEY
+        
         payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+            token, verification_key, algorithms=[settings.ALGORITHM]
         )
         username: str = payload.get("sub")
         if username is None:
