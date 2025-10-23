@@ -34,6 +34,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         "/api/auth/login",
         "/api/auth/register",
         "/api/auth/password-reset-request",
+        "/api/auth/mfa/verify-login",
         "/docs",
         "/openapi.json",
         "/healthz",
