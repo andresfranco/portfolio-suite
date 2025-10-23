@@ -1,5 +1,5 @@
 from datetime import timedelta, datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Body, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
@@ -18,6 +18,7 @@ from app.core.security import verify_password
 from app.core.audit_logger import audit_logger
 from app.core.account_security import account_security_manager
 from app.core.mfa import mfa_manager
+from app.core.secure_cookies import SecureCookieManager
 from jose import jwt, JWTError
 
 # Set up logger
@@ -31,6 +32,7 @@ SYSTEM_ADMIN_USERS = ["systemadmin"]
 @router.post("/login")
 async def login_for_access_token(
     request: Request,
+    response: Response,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
@@ -223,11 +225,20 @@ async def login_for_access_token(
         
         logger.info(f"Successful login: {user.username} from IP: {client_ip}")
         
-        # Return tokens and user info
+        # Set authentication cookies (httpOnly, secure)
+        csrf_token = SecureCookieManager.set_auth_cookies(
+            response=response,
+            access_token=access_token,
+            refresh_token=refresh_token,
+            access_token_expires=access_token_expires,
+            refresh_token_expires=timedelta(minutes=refresh_minutes),
+            request=request
+        )
+        
+        # Return user info and CSRF token (no tokens in response body!)
         return {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
+            "success": True,
+            "csrf_token": csrf_token,  # Frontend needs this for subsequent requests
             "user": {
                 "id": user.id,
                 "username": user.username,
@@ -264,13 +275,15 @@ async def login_for_access_token(
 
 @router.post("/refresh-token")
 async def refresh_access_token(
-    body: dict = Body(...),
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db)
 ):
-    """Issue a new access token (and optionally new refresh token) from a valid refresh token."""
-    refresh_token = body.get("refresh_token")
+    """Issue a new access token (and optionally new refresh token) from httpOnly cookie."""
+    # Get refresh token from cookie (not from body!)
+    refresh_token = SecureCookieManager.get_refresh_token(request)
     if not refresh_token:
-        raise HTTPException(status_code=400, detail="refresh_token is required")
+        raise HTTPException(status_code=400, detail="No refresh token found")
 
     try:
         # Decode refresh token (tokens created with HS256 in app/auth/jwt.py)
@@ -309,13 +322,25 @@ async def refresh_access_token(
         refresh_minutes = _get_int_setting_refresh('auth.refresh_token_expire_minutes', settings.REFRESH_TOKEN_EXPIRE_MINUTES)
 
         # Create new tokens
-        new_access = create_access_token(data={"sub": user.username}, expires_delta=timedelta(minutes=access_minutes))
-        new_refresh = create_refresh_token(data={"sub": user.username}, expires_delta=timedelta(minutes=refresh_minutes))
+        access_token_expires = timedelta(minutes=access_minutes)
+        refresh_token_expires = timedelta(minutes=refresh_minutes)
+        
+        new_access = create_access_token(data={"sub": user.username}, expires_delta=access_token_expires)
+        new_refresh = create_refresh_token(data={"sub": user.username}, expires_delta=refresh_token_expires)
+
+        # Set new authentication cookies
+        csrf_token = SecureCookieManager.set_auth_cookies(
+            response=response,
+            access_token=new_access,
+            refresh_token=new_refresh,
+            access_token_expires=access_token_expires,
+            refresh_token_expires=refresh_token_expires,
+            request=request
+        )
 
         return {
-            "access_token": new_access,
-            "refresh_token": new_refresh,
-            "token_type": "bearer"
+            "success": True,
+            "csrf_token": csrf_token
         }
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
@@ -325,9 +350,10 @@ async def refresh_access_token(
         raise HTTPException(status_code=500, detail="Failed to refresh token")
 
 
-@router.post("/mfa/verify-login", response_model=Token)
+@router.post("/mfa/verify-login")
 async def verify_mfa_login(
     request: Request,
+    response: Response,
     body: dict = Body(...),
     db: Session = Depends(get_db)
 ):
@@ -430,14 +456,17 @@ async def verify_mfa_login(
         access_minutes = _get_int_setting('auth.access_token_expire_minutes', settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         refresh_minutes = _get_int_setting('auth.refresh_token_expire_minutes', settings.REFRESH_TOKEN_EXPIRE_MINUTES)
         
+        access_token_expires = timedelta(minutes=access_minutes)
+        refresh_token_expires = timedelta(minutes=refresh_minutes)
+        
         access_token = create_access_token(
             data={"sub": user.username},
-            expires_delta=timedelta(minutes=access_minutes)
+            expires_delta=access_token_expires
         )
         
         refresh_token = create_refresh_token(
             data={"sub": user.username},
-            expires_delta=timedelta(minutes=refresh_minutes)
+            expires_delta=refresh_token_expires
         )
         
         # Update login metadata
@@ -459,10 +488,19 @@ async def verify_mfa_login(
         
         logger.info(f"Successful MFA login: {user.username} from IP: {client_ip}")
         
+        # Set authentication cookies (httpOnly, secure)
+        csrf_token = SecureCookieManager.set_auth_cookies(
+            response=response,
+            access_token=access_token,
+            refresh_token=refresh_token,
+            access_token_expires=access_token_expires,
+            refresh_token_expires=refresh_token_expires,
+            request=request
+        )
+        
         return {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
+            "success": True,
+            "csrf_token": csrf_token,
             "user": {
                 "id": user.id,
                 "username": user.username,
@@ -485,4 +523,58 @@ async def verify_mfa_login(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to verify MFA"
-        ) 
+        )
+
+
+@router.post("/logout")
+async def logout(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db)
+):
+    """
+    Logout user by clearing authentication cookies
+    
+    Clears all httpOnly cookies (access_token, refresh_token, csrf_token, token_fp)
+    """
+    client_ip = request.client.host if request.client else "unknown"
+    
+    try:
+        # Try to get username from access token if available
+        access_token = SecureCookieManager.get_access_token(request)
+        username = None
+        
+        if access_token:
+            try:
+                payload = jwt.decode(access_token, settings.SECRET_KEY, algorithms=["HS256"])
+                username = payload.get("sub")
+            except JWTError:
+                pass  # Token invalid or expired, that's okay for logout
+        
+        # Clear authentication cookies
+        SecureCookieManager.clear_auth_cookies(response)
+        
+        # Log logout event
+        if username:
+            audit_logger.log_security_event(
+                "USER_LOGOUT",
+                details={"username": username},
+                ip_address=client_ip
+            )
+            logger.info(f"User logged out: {username} from IP: {client_ip}")
+        else:
+            logger.info(f"Logout request from IP: {client_ip}")
+        
+        return {
+            "success": True,
+            "message": "Successfully logged out"
+        }
+        
+    except Exception as e:
+        logger.error(f"Logout error: {str(e)}", exc_info=True)
+        # Even if there's an error, clear the cookies
+        SecureCookieManager.clear_auth_cookies(response)
+        return {
+            "success": True,
+            "message": "Successfully logged out"
+        } 
