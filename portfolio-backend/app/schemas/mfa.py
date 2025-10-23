@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, field_validator
 class MFAEnrollmentRequest(BaseModel):
     """Request to start MFA enrollment"""
     password: str = Field(..., description="Current password for verification")
+    user_id: Optional[int] = Field(None, description="User ID (for admin to enroll other users)")
 
 
 class MFAEnrollmentResponse(BaseModel):
@@ -35,6 +36,7 @@ class MFAEnrollmentResponse(BaseModel):
 class MFAVerifyEnrollmentRequest(BaseModel):
     """Request to verify and complete MFA enrollment"""
     code: str = Field(..., min_length=6, max_length=6, description="6-digit TOTP code")
+    user_id: Optional[int] = Field(None, description="User ID (for admin to verify other users)")
     
     @field_validator('code')
     @classmethod
@@ -69,6 +71,7 @@ class MFADisableRequest(BaseModel):
     """Request to disable MFA"""
     password: str = Field(..., description="Current password for verification")
     code: Optional[str] = Field(None, description="Current TOTP code or backup code")
+    user_id: Optional[int] = Field(None, description="User ID (for admin to disable other users)")
 
 
 class MFADisableResponse(BaseModel):
@@ -77,10 +80,25 @@ class MFADisableResponse(BaseModel):
     message: str
 
 
+class MFAResetDeviceRequest(BaseModel):
+    """Request to reset MFA device (for users who lost their authenticator)"""
+    password: str = Field(..., description="Current password for verification")
+    user_id: Optional[int] = Field(None, description="User ID (for admin to reset other users)")
+
+
+class MFAResetDeviceResponse(BaseModel):
+    """Response with new MFA device enrollment data"""
+    secret: str = Field(..., description="New TOTP secret (base32)")
+    qr_code_url: str = Field(..., description="Data URL of QR code image")
+    backup_codes: List[str] = Field(..., description="New one-time backup codes")
+    message: str = Field(default="MFA device reset successfully. Scan the QR code with your new authenticator app.")
+
+
 class MFARegenerateBackupCodesRequest(BaseModel):
     """Request to regenerate backup codes"""
-    password: str = Field(..., description="Current password for verification")
-    code: str = Field(..., min_length=6, max_length=6, description="Current TOTP code")
+    password: str = Field(..., description="Admin password for verification")
+    code: Optional[str] = Field(None, min_length=6, max_length=6, description="Admin TOTP code (only if admin has MFA)")
+    user_id: Optional[int] = Field(None, description="User ID (for admin to regenerate codes for other users)")
 
 
 class MFARegenerateBackupCodesResponse(BaseModel):

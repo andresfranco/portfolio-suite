@@ -42,6 +42,7 @@ const MfaEnrollmentDialog = ({ open, onClose, user, onComplete }) => {
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [secret, setSecret] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
+  const [backupCodes, setBackupCodes] = useState([]);
 
   const steps = [
     {
@@ -71,6 +72,7 @@ const MfaEnrollmentDialog = ({ open, onClose, user, onComplete }) => {
       
       setQrCodeUrl(response.data.qr_code_url);
       setSecret(response.data.secret);
+      setBackupCodes(response.data.backup_codes || []);
       setActiveStep(1);
       
       logInfo('MFA enrollment started successfully');
@@ -95,9 +97,9 @@ const MfaEnrollmentDialog = ({ open, onClose, user, onComplete }) => {
       
       logInfo('MFA enrollment verified successfully');
       
-      // Pass backup codes to parent
+      // Pass backup codes to parent (from enrollment response, not verification)
       if (onComplete) {
-        onComplete(response.data.backup_codes);
+        onComplete(backupCodes);
       }
       
       onClose();

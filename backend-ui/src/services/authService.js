@@ -29,6 +29,16 @@ const authService = {
         }
       });
       
+      // Check if MFA is required
+      if (response.data && response.data.mfa_required) {
+        logInfo('MFA verification required');
+        return {
+          mfa_required: true,
+          session_token: response.data.session_token,
+          message: response.data.message
+        };
+      }
+      
       // Store token in localStorage
       if (response.data && response.data.access_token) {
         const token = response.data.access_token;
@@ -85,6 +95,47 @@ const authService = {
       
       // Generic error message for unknown errors
       throw new Error('Login failed. Please check your credentials and try again');
+    }
+  },
+
+  /**
+   * Verify MFA code to complete login
+   * @param {string} sessionToken - Temporary session token from initial login
+   * @param {string} code - 6-digit TOTP code or backup code
+   * @returns {Promise} - Login response with token
+   */
+  verifyMfaLogin: async (sessionToken, code) => {
+    try {
+      logInfo('Attempting MFA verification');
+      
+      const response = await api.post(API_CONFIG.ENDPOINTS.auth.mfaVerifyLogin, {
+        session_token: sessionToken,
+        code: code
+      });
+      
+      // Store token in localStorage
+      if (response.data && response.data.access_token) {
+        const token = response.data.access_token;
+        localStorage.setItem('accessToken', token);
+        logInfo('Token stored in localStorage after MFA verification');
+        
+        // Store refresh token if provided
+        if (response.data.refresh_token) {
+          localStorage.setItem('refresh_token', response.data.refresh_token);
+        }
+        
+        logInfo('MFA verification successful');
+      }
+      
+      return response.data;
+    } catch (error) {
+      logError('MFA verification failed:', error);
+      
+      const errorMessage = error.response?.data?.detail || 
+                           error.message || 
+                           'Invalid MFA code';
+      
+      throw new Error(errorMessage);
     }
   },
   

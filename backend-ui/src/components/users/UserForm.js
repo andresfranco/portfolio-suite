@@ -25,7 +25,8 @@ import {
   Collapse,
   Tabs,
   Tab,
-  Divider
+  Divider,
+  Paper
 } from '@mui/material';
 import { useForm, Controller } from 'react-hook-form';
 import { useUsers } from '../../contexts/UserContext';
@@ -37,7 +38,8 @@ import {
   Check as CheckIcon,
   Clear as ClearIcon,
   Security as SecurityIcon,
-  Person as PersonIcon
+  Person as PersonIcon,
+  VpnKey as VpnKeyIcon
 } from '@mui/icons-material';
 import MfaManagement from './MfaManagement';
 
@@ -84,7 +86,7 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
   const [passwordError, setPasswordError] = useState('');
   const [usernameChecking, setUsernameChecking] = useState(false);
   const [usernameAvailability, setUsernameAvailability] = useState(null); // null | true | false
-  const [activeTab, setActiveTab] = useState(0); // 0 = Basic Info, 1 = MFA
+  const [activeTab, setActiveTab] = useState(0); // 0 = Basic Info, 1 = MFA Security, 2 = Change Password
   
   // Add password strength state
   const [passwordStrength, setPasswordStrength] = useState(0);
@@ -177,7 +179,7 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
     const hasUppercase = /[A-Z]/.test(passwordValue);
     const hasLowercase = /[a-z]/.test(passwordValue);
     const hasNumber = /[0-9]/.test(passwordValue);
-    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/.test(passwordValue);
+    const hasSpecialChar = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]+/.test(passwordValue);
     
     // Update checks
     setPasswordChecks({
@@ -427,12 +429,19 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
       };
       await changePassword(selectedUser.id, payload);
       setSuccessMessage('Password changed successfully');
-      handleClosePasswordDialog();
       
-      // Wait briefly to show success message before closing
+      // Clear password fields
+      setNewPassword('');
+      setConfirmPassword('');
+      setPasswordError('');
+      
+      // Switch back to Basic Info tab after successful password change
+      setActiveTab(0);
+      
+      // Show success message briefly
       setTimeout(() => {
-        if (onClose) onClose(true);
-      }, 500);
+        setSuccessMessage('');
+      }, 3000);
     } catch (error) {
       console.error('Error changing password:', error);
       setPasswordError('Failed to change password. Please try again.');
@@ -552,6 +561,7 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
             >
               <Tab icon={<PersonIcon fontSize="small" />} iconPosition="start" label="Basic Information" />
               <Tab icon={<SecurityIcon fontSize="small" />} iconPosition="start" label="MFA Security" />
+              <Tab icon={<VpnKeyIcon fontSize="small" />} iconPosition="start" label="Change Password" />
             </Tabs>
           </Box>
         )}
@@ -1084,6 +1094,70 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
                 />
               </Box>
             )}
+            
+            {/* Tab Panel 2: Change Password */}
+            {activeTab === 2 && selectedUser && (
+              <Box sx={{ py: 2 }}>
+                <Paper 
+                  elevation={0}
+                  sx={{ 
+                    p: 2.5, 
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: '6px'
+                  }}
+                >
+                  <Stack spacing={2.5}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                      <VpnKeyIcon color="primary" />
+                      <Typography variant="h6" sx={{ fontSize: '16px', fontWeight: 500 }}>
+                        Change Password for {selectedUser.username}
+                      </Typography>
+                    </Box>
+                    
+                    <Divider />
+                    
+                    {passwordError && (
+                      <Alert severity="error" onClose={() => setPasswordError('')}>
+                        {passwordError}
+                      </Alert>
+                    )}
+                    
+                    <TextField
+                      fullWidth
+                      type="password"
+                      label="New Password"
+                      value={newPassword}
+                      onChange={(e) => {
+                        setNewPassword(e.target.value);
+                        setPasswordError('');
+                      }}
+                      size="medium"
+                      autoComplete="new-password"
+                    />
+                    
+                    <TextField
+                      fullWidth
+                      type="password"
+                      label="Confirm New Password"
+                      value={confirmPassword}
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value);
+                        setPasswordError('');
+                      }}
+                      size="medium"
+                      autoComplete="new-password"
+                    />
+                    
+                    <Alert severity="info" icon={<VpnKeyIcon />}>
+                      <Typography variant="caption">
+                        Password must be at least 8 characters long and include uppercase, lowercase, numbers, and special characters.
+                      </Typography>
+                    </Alert>
+                  </Stack>
+                </Paper>
+              </Box>
+            )}
           </Box>
         ) : (
           // Create mode - original form
@@ -1214,7 +1288,7 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
                       hasNumber: (value) => 
                         /[0-9]/.test(value) || 'Password must contain at least one number',
                       hasSpecialChar: (value) => 
-                        /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/.test(value) || 'Password must contain at least one special character'
+                        /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]+/.test(value) || 'Password must contain at least one special character'
                     }
                   }}
                   render={({ field }) => (
@@ -1585,11 +1659,14 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
       {!isViewMode && (
         <DialogActions sx={{ px: 2.5, py: 2, borderTop: '1px solid rgba(0, 0, 0, 0.08)' }}>
           <Box sx={{ display: 'flex', gap: 1, ml: 'auto', width: '100%', justifyContent: 'flex-end' }}>
-          {isEditMode && !isDeleteMode && (
-            <Button
+          
+          {/* Cancel button - show on Basic Info (0) and Change Password (2) tabs */}
+          {(activeTab === 0 || activeTab === 2) && (
+            <Button 
               variant="outlined"
-              onClick={handleOpenPasswordDialog}
+              onClick={() => handleClose(false)}
               disabled={loading}
+              startIcon={<CloseIcon fontSize="small" />}
               sx={{
                 borderRadius: '4px',
                 textTransform: 'none',
@@ -1601,42 +1678,16 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
                 color: '#757575',
                 border: '1px solid #757575',
                 boxShadow: 'none',
-                mr: 'auto',
+                minWidth: '80px',
                 '&:hover': {
                   backgroundColor: alpha('#757575', 0.04),
                   borderColor: '#757575'
                 }
               }}
             >
-              Change Password
+              Cancel
             </Button>
           )}
-          
-          <Button 
-            variant="outlined"
-            onClick={() => handleClose(false)}
-            disabled={loading}
-            startIcon={<CloseIcon fontSize="small" />}
-            sx={{
-              borderRadius: '4px',
-              textTransform: 'none',
-              fontWeight: 400,
-              py: 0.5,
-              height: '32px',
-              fontSize: '13px',
-              fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-              color: '#757575',
-              border: '1px solid #757575',
-              boxShadow: 'none',
-              minWidth: '80px',
-              '&:hover': {
-                backgroundColor: alpha('#757575', 0.04),
-                borderColor: '#757575'
-              }
-            }}
-          >
-            Cancel
-          </Button>
           
           {isDeleteMode ? (
           <Button 
@@ -1673,10 +1724,11 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
             </Button>
           ) : (
             <Button
-              type="submit"
-              form="user-form"
+              type={activeTab === 0 ? "submit" : "button"}
+              form={activeTab === 0 ? "user-form" : undefined}
+              onClick={activeTab === 1 ? () => handleClose(false) : activeTab === 2 ? handlePasswordChange : undefined}
               variant="outlined"
-              disabled={loading || Object.keys(errors).length > 0}
+              disabled={loading || (activeTab === 0 && Object.keys(errors).length > 0) || (activeTab === 2 && (!newPassword || !confirmPassword))}
               sx={{
                 px: 2,
                 py: 0.5,
@@ -1700,9 +1752,9 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
                   color: 'rgba(0, 0, 0, 0.26)',
                 }
               }}
-              startIcon={loading ? <CircularProgress size={16} /> : isEditMode ? <SaveIcon fontSize="small" /> : <AddIcon fontSize="small" />}
+              startIcon={loading ? <CircularProgress size={16} /> : activeTab === 1 ? <CloseIcon fontSize="small" /> : activeTab === 2 ? <VpnKeyIcon fontSize="small" /> : isEditMode ? <SaveIcon fontSize="small" /> : <AddIcon fontSize="small" />}
             >
-              {loading ? 'Processing...' : isEditMode ? 'Save' : 'Create'}
+              {loading ? 'Processing...' : activeTab === 1 ? 'Close' : activeTab === 2 ? 'Change Password' : isEditMode ? 'Save' : 'Create'}
           </Button>
           )}
         </Box>
