@@ -104,7 +104,7 @@ class CategoryBase(BaseModel):
 
 class CategoryCreate(CategoryBase):
     """Schema for creating a new category"""
-    category_texts: List[CategoryTextCreate] = Field(..., min_items=1, description="List of category texts (at least one required)")
+    category_texts: List[CategoryTextCreate] = Field(..., min_length=1, description="List of category texts (at least one required)")
     
     @field_validator('category_texts')
     @classmethod
