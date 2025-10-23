@@ -59,6 +59,20 @@ certs/
 
 # Logs
 *.log
+logs/
+*.log.*
+
+# Temporary files
+*.tmp
+*.temp
+*.cache
+cookies.txt
+*.cookie
+
+# Uploads and static files (may contain user data)
+uploads/*
+!uploads/.gitkeep
+static/uploads/*
 
 # Unit test / coverage reports
 htmlcov/

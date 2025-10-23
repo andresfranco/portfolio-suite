@@ -1,15 +1,72 @@
 # Portfolio Backend
 
-## Overview
-This is the backend API for the Portfolio AI project, built with FastAPI and PostgreSQL.
+FastAPI-based REST API with PostgreSQL, featuring enterprise-grade security, RAG/AI capabilities, and comprehensive documentation.
 
-## Features
-- User authentication and authorization
+## 📋 Table of Contents
+
+- [Features](#features)
+- [Project Structure](#project-structure)
+- [Quick Start](#quick-start)
+- [Documentation](#documentation)
+- [Development](#development)
+- [Testing](#testing)
+- [Deployment](#deployment)
+- [Scripts & Utilities](#scripts--utilities)
+
+---
+
+## ✨ Features
+- User authentication and authorization (JWT with RS256/HS256)
+- Multi-factor authentication (TOTP-based 2FA)
+- Role-based access control (RBAC)
 - Project management with images and attachments
-- Multilingual content support
+- Multilingual content support (English/Spanish)
 - Category and skill management
-- File upload and management
+- File upload with ClamAV scanning
+- GDPR compliance (data export, erasure, consent)
+- Security audit logging
+- RAG/AI search capabilities
 - **External Document Preview** - Support for previewing DOCX/XLSX files using temporary tokens
+
+---
+
+## 📁 Project Structure
+
+```
+portfolio-backend/
+├── app/                    # Application code
+│   ├── api/               # API routes and endpoints
+│   ├── core/              # Core functionality (config, security)
+│   ├── db/                # Database models and repositories
+│   └── schemas/           # Pydantic schemas
+├── docs/                   # 📚 Documentation (organized by topic)
+│   ├── security/          # Security implementation guides
+│   ├── deployment/        # Deployment and infrastructure
+│   ├── development/       # Development guides
+│   ├── api/               # API documentation
+│   └── README.md          # Documentation index
+├── scripts/                # 🛠️ Utility scripts (organized by purpose)
+│   ├── admin/             # User/admin management
+│   ├── backup/            # Backup and restore
+│   ├── database/          # Database utilities
+│   ├── generate_rsa_keys.py  # RSA key generation
+│   └── README.md          # Scripts documentation
+├── tests/                  # Test suite
+│   ├── unit/              # Unit tests
+│   └── integration/       # Integration tests
+├── alembic/               # Database migrations
+├── static/                # Static files
+├── uploads/               # User uploads (gitignored)
+├── .env.example           # Environment variables template
+├── .gitignore             # Git ignore rules
+├── requirements.txt       # Python dependencies
+├── run.py                 # Development server
+└── README.md              # This file
+```
+
+---
+
+## 🚀 Quick Start
 
 ## Document Preview System
 
@@ -219,6 +276,142 @@ To run a specific test:
 ```bash
 python -m pytest tests/unit/test_permission_model.py::TestPermissionModel::test_create_permission
 ```
+
+---
+
+## 📚 Documentation
+
+Comprehensive documentation is available in the `docs/` directory:
+
+### By Topic
+
+- **Security**: `docs/security/` - MFA, JWT, input validation, encryption
+- **Deployment**: `docs/deployment/` - Production deployment, ClamAV, backups
+- **Development**: `docs/development/` - Permissions, roles, user management
+- **API**: `docs/api/` - Endpoints guide, filtering, pagination
+
+### Quick Links
+
+| Topic | Document | Description |
+|-------|----------|-------------|
+| **Getting Started** | `README.md` (this file) | Quick start and overview |
+| **API Reference** | `docs/api/endpoints_guide.txt` | Complete API endpoints |
+| **Security Guide** | `docs/security/SECURITY.md` | Security policy and practices |
+| **MFA Setup** | `docs/security/MFA_IMPLEMENTATION_GUIDE.md` | Two-factor authentication |
+| **Deployment** | `docs/deployment/DEPLOYMENT.md` | Production deployment guide |
+| **Backup** | `docs/deployment/BACKUP_RECOVERY.md` | Backup and recovery procedures |
+
+**See**: `docs/README.md` for complete documentation index
+
+### API Documentation
+
+- **Swagger UI**: http://localhost:8000/docs (when running)
+- **ReDoc**: http://localhost:8000/redoc (when running)
+- **OpenAPI JSON**: http://localhost:8000/openapi.json
+
+---
+
+## 🛠️ Scripts & Utilities
+
+Utility scripts are organized in the `scripts/` directory:
+
+### Admin Scripts (`scripts/admin/`)
+
+- **create_admin.py** - Create admin users
+- **create_user_directly.py** - Create standard users
+- **setup_systemadmin.py** - Setup system administrator
+- **reset_systemadmin_password.py** - Emergency password reset
+
+**Example:**
+```bash
+source venv/bin/activate
+python scripts/admin/create_admin.py
+```
+
+### Backup Scripts (`scripts/backup/`)
+
+- **backup.py** - Database backup
+- **restore.py** - Database restore
+- **backup.cron.example** - Cron configuration
+- **portfolio-backup.service** - Systemd service
+- **portfolio-backup.timer** - Systemd timer
+
+**Example:**
+```bash
+python scripts/backup/backup.py
+```
+
+### Database Scripts (`scripts/database/`)
+
+- **backfill_rag.py** - Generate RAG embeddings for existing content
+
+**Example:**
+```bash
+python scripts/database/backfill_rag.py --table categories --limit 100
+```
+
+### Security Scripts
+
+- **generate_rsa_keys.py** - Generate RSA keys for JWT RS256
+
+**Example:**
+```bash
+python scripts/generate_rsa_keys.py --key-size 4096
+```
+
+**See**: `scripts/README.md` for complete scripts documentation
+
+---
+
+## 🚀 Deployment
+
+### Production Checklist
+
+- [ ] Generate RSA keys for JWT (`scripts/generate_rsa_keys.py`)
+- [ ] Configure environment variables (`.env`)
+- [ ] Setup PostgreSQL with SSL
+- [ ] Configure ClamAV for file scanning
+- [ ] Setup HTTPS with TLS 1.3
+- [ ] Configure Nginx reverse proxy
+- [ ] Setup automated backups
+- [ ] Enable security audit logging
+- [ ] Configure monitoring and alerts
+- [ ] Review security documentation
+
+### Deployment Guides
+
+- **Complete Guide**: `docs/deployment/DEPLOYMENT.md`
+- **ClamAV Setup**: `docs/deployment/CLAMAV_DEPLOYMENT_GUIDE.md`
+- **Backup Guide**: `docs/deployment/BACKUP_RECOVERY.md`
+- **Nginx Config**: `/deployment/README.md` (repository root)
+
+---
+
+## 🔒 Security
+
+### Features Implemented
+
+- ✅ JWT authentication (HS256/RS256)
+- ✅ Multi-factor authentication (2FA/TOTP)
+- ✅ Role-based access control
+- ✅ Input validation and sanitization
+- ✅ File upload scanning (ClamAV)
+- ✅ GDPR compliance
+- ✅ Security audit logging
+- ✅ Rate limiting
+- ✅ HTTPS/TLS 1.3
+
+### Security Documentation
+
+- **Security Policy**: `docs/security/SECURITY.md`
+- **MFA Guide**: `docs/security/MFA_IMPLEMENTATION_GUIDE.md`
+- **JWT Guide**: `docs/security/JWT_SECURITY_GUIDE.md`
+- **Input Validation**: `docs/security/INPUT_VALIDATION_GUIDE.md`
+- **Data Encryption**: `docs/security/DATA_ENCRYPTION_GUIDE.md`
+
+---
+
+## 📊 Document Preview System
 
 ### Running Tests Without Warnings
 
