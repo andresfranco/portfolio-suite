@@ -1,5 +1,5 @@
 from typing import Optional, List, Any, Dict
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AgentCredentialBase(BaseModel):
@@ -14,9 +14,8 @@ class AgentCredentialCreate(AgentCredentialBase):
 
 class AgentCredentialOut(AgentCredentialBase):
     id: int
-
-    class Config:
-        from_attributes = True
+    
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AgentBase(BaseModel):
@@ -60,9 +59,8 @@ class AgentOut(AgentBase):
     current_usage: int = 0
     current_cost: float = 0.0
     usage_reset_at: Optional[str] = None
-
-    class Config:
-        from_attributes = True
+    
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AgentTemplateCreate(BaseModel):
@@ -76,9 +74,8 @@ class AgentTemplateCreate(BaseModel):
 
 class AgentTemplateOut(AgentTemplateCreate):
     id: int
-
-    class Config:
-        from_attributes = True
+    
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ChatRequest(BaseModel):

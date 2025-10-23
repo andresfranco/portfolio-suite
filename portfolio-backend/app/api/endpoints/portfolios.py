@@ -301,7 +301,7 @@ def read_portfolios(
     filter_value: Optional[List[str]] = Query(None, description="Filter values"),
     filter_operator: Optional[List[str]] = Query(None, description="Filter operators"),
     sort_field: Optional[str] = Query(None, description="Sort field"),
-    sort_order: Optional[str] = Query("asc", regex="^(asc|desc)$", description="Sort order"),
+    sort_order: Optional[str] = Query("asc", pattern="^(asc|desc)$", description="Sort order"),
     include_full_details: bool = Query(False, description="Include full portfolio details"),
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user),
