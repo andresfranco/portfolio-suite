@@ -153,6 +153,7 @@ app = FastAPI(
 # Import security middleware
 from app.middleware.security_headers import SecurityHeadersMiddleware, RequestIDMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware, SlowRequestMiddleware, RequestSizeLimitMiddleware
+from app.middleware.csrf import CSRFProtectionMiddleware
 
 # Determine allowed CORS origins based on environment
 if settings.is_production():
@@ -193,6 +194,14 @@ else:
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestIDMiddleware)
 
+# Add CSRF protection middleware (enabled by default, can be disabled via env)
+csrf_enabled = getattr(settings, 'CSRF_PROTECTION_ENABLED', True)
+app.add_middleware(CSRFProtectionMiddleware, enabled=csrf_enabled)
+if csrf_enabled:
+    logger.info("CSRF protection middleware enabled")
+else:
+    logger.warning("CSRF protection is DISABLED - only for development!")
+
 # Add rate limiting middleware (if enabled)
 if settings.RATE_LIMIT_ENABLED:
     app.add_middleware(RateLimitMiddleware, max_request_size=settings.MAX_REQUEST_SIZE)
@@ -210,9 +219,9 @@ if settings.is_production():
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
-        allow_credentials=True,
+        allow_credentials=True,  # Required for httpOnly cookies
         allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],  # Specific methods only
-        allow_headers=["Content-Type", "Authorization", "X-Request-ID"],  # Specific headers only
+        allow_headers=["Content-Type", "Authorization", "X-Request-ID", "X-CSRF-Token"],  # Include CSRF token
         max_age=3600,  # Cache preflight requests for 1 hour
     )
 else:
@@ -220,7 +229,7 @@ else:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
-        allow_credentials=True,
+        allow_credentials=True,  # Required for httpOnly cookies
         allow_methods=["*"],
         allow_headers=["*"],
     )
