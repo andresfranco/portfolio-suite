@@ -46,10 +46,6 @@ import SectionIndex from './components/sections/SectionIndex';
 
 import NotFound from './pages/NotFound';
 
-// Import other module pages
-// In a real implementation, these would be actual imports
-const ChatbotConfig = () => <div><h2>Chatbot Configuration</h2><p>This page is under development</p></div>;
-
 // Wrapper component to access AuthorizationContext
 function AppContent() {
   const [loading, setLoading] = useState(true);
@@ -219,7 +215,6 @@ function AppContent() {
                 <AgentChat />
               </AgentAdminProvider>
             } />
-            <Route path="chatbot" element={<ChatbotConfig />} />
             <Route path="settings" element={<SystemSettings />} />
             <Route path="my-settings" element={<MySettings />} />
             <Route path="rag-admin" element={<RagAdmin />} />

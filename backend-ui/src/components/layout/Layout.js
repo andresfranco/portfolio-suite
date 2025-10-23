@@ -193,12 +193,6 @@ const Layout = () => {
       requiredPermission: 'MANAGE_AGENTS' 
     },
     { 
-      text: 'Chatbot Config', 
-      icon: <ChatIcon />, 
-      path: '/chatbot', 
-      requiredPermission: 'SYSTEM_ADMIN' // Only system admin can access chatbot config
-    },
-    { 
       text: 'System Settings', 
       icon: <SettingsIcon />, 
       path: '/settings', 
