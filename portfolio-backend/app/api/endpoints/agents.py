@@ -7,6 +7,7 @@ import os
 from app.core.security_decorators import require_any_permission
 from app.schemas.agent import (
     AgentCredentialCreate,
+    AgentCredentialUpdate,
     AgentCredentialOut,
     AgentCreate,
     AgentUpdate,
@@ -60,6 +61,87 @@ def list_credentials(
 ):
     creds = db.query(AgentCredential).order_by(AgentCredential.name.asc()).all()
     return creds
+
+
+@router.put("/credentials/{credential_id}", response_model=AgentCredentialOut)
+@require_any_permission(["MANAGE_AGENTS", "SYSTEM_ADMIN"])  # update credential
+def update_credential(
+    *,
+    credential_id: int,
+    db: Session = Depends(deps.get_db),
+    cred_in: AgentCredentialUpdate = Body(...),
+    current_user=Depends(deps.get_current_user),
+):
+    """
+    Update an agent API credential.
+    
+    Note: API key cannot be updated for security reasons.
+    Only name, provider, and extra fields can be modified.
+    
+    Raises:
+        404: If credential not found
+        409: If updating name to one that already exists
+    """
+    credential = db.query(AgentCredential).filter(AgentCredential.id == credential_id).first()
+    if not credential:
+        raise HTTPException(status_code=404, detail="Credential not found")
+    
+    # Check if new name conflicts with existing credential
+    if cred_in.name and cred_in.name != credential.name:
+        existing = db.query(AgentCredential).filter(
+            AgentCredential.name == cred_in.name,
+            AgentCredential.id != credential_id
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail=f"A credential with name '{cred_in.name}' already exists"
+            )
+    
+    # Update fields
+    if cred_in.name is not None:
+        credential.name = cred_in.name
+    if cred_in.provider is not None:
+        credential.provider = cred_in.provider
+    if cred_in.extra is not None:
+        credential.extra = cred_in.extra
+    
+    db.commit()
+    db.refresh(credential)
+    return credential
+
+
+@router.delete("/credentials/{credential_id}")
+@require_any_permission(["MANAGE_AGENTS", "SYSTEM_ADMIN"])  # delete credential
+def delete_credential(
+    *,
+    credential_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user=Depends(deps.get_current_user),
+):
+    """
+    Delete an agent API credential if it's not associated with any agent.
+    
+    Raises:
+        404: If credential not found
+        409: If credential is associated with one or more agents
+    """
+    credential = db.query(AgentCredential).filter(AgentCredential.id == credential_id).first()
+    if not credential:
+        raise HTTPException(status_code=404, detail="Credential not found")
+    
+    # Check if any agents are using this credential
+    associated_agents = db.query(Agent).filter(Agent.credential_id == credential_id).all()
+    if associated_agents:
+        agent_names = [agent.name for agent in associated_agents]
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot delete credential. It is currently associated with {len(associated_agents)} agent(s): {', '.join(agent_names)}"
+        )
+    
+    db.delete(credential)
+    db.commit()
+    return {"message": "Credential deleted successfully"}
 
 
 @router.get("/", response_model=List[AgentOut])

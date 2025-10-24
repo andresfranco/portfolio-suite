@@ -9,6 +9,14 @@ const agentAdminApi = {
     const { data } = await api.get('/api/agents/credentials');
     return data;
   },
+  updateCredential: async (credentialId, payload) => {
+    const { data } = await api.put(`/api/agents/credentials/${credentialId}`, payload);
+    return data;
+  },
+  deleteCredential: async (credentialId) => {
+    const { data } = await api.delete(`/api/agents/credentials/${credentialId}`);
+    return data;
+  },
   createAgent: async (payload) => {
     const { data } = await api.post('/api/agents', payload);
     return data;
