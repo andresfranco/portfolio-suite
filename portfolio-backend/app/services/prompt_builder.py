@@ -85,13 +85,31 @@ Example good answers:
 }
 
 
+# Conversational-only system prompt (for queries without portfolio context)
+CONVERSATIONAL_SYSTEM_PROMPT = """You are a friendly AI assistant helping with a professional portfolio system.
+
+When the user asks general questions, greetings, or conversational queries:
+- Respond naturally and helpfully
+- Be professional but warm
+- You can discuss your capabilities and purpose
+- Acknowledge that you're designed to help with portfolio information
+
+When asked about portfolio content (projects, experience, skills, etc.):
+- Explain that you need more specific information to search the portfolio
+- Suggest asking specific questions like "What React projects are in the portfolio?" or "Tell me about work experience at [Company]"
+- Be helpful in guiding users to ask effective questions
+
+Your primary purpose is to answer questions about the portfolio database, but you can also handle general conversation naturally."""
+
+
 def build_rag_prompt(
     user_message: str,
     context: str,
     citations: List[Dict[str, Any]],
     template_style: str = "conversational",
     conversation_history: Optional[List[Dict[str, str]]] = None,
-    language_name: Optional[str] = None
+    language_name: Optional[str] = None,
+    custom_system_prompt: Optional[str] = None
 ) -> List[Dict[str, str]]:
     """
     Build an optimized prompt for natural RAG responses.
@@ -103,12 +121,50 @@ def build_rag_prompt(
         template_style: One of 'conversational', 'technical', 'summary', 'default'
         conversation_history: Optional recent conversation turns for context
         language_name: Optional language name to enforce response language (e.g., "English", "Spanish")
+        custom_system_prompt: Optional custom system prompt from agent template (overrides built-in prompts)
+        conversation_history: Optional recent conversation turns for context
+        language_name: Optional language name to enforce response language (e.g., "English", "Spanish")
         
     Returns:
         List of message dicts in OpenAI chat format
     """
-    # Select system prompt
-    system_prompt = SYSTEM_PROMPTS.get(template_style, SYSTEM_PROMPTS["default"])
+    # Check if this is a conversational query with no context
+    # In this case, use a simpler conversational prompt instead of RAG prompt
+    if not context.strip():
+        # Detect if this is a conversational/greeting query
+        lower_msg = user_message.lower().strip()
+        conversational_indicators = [
+            "hello", "hi ", "hey", "good morning", "good afternoon", "good evening",
+            "hola", "buenos días", "buenas tardes",
+            "how are you", "what's up", "cómo estás", "qué tal",
+            "are you working", "can you help", "test", "testing",
+            "what can you do", "who are you", "help me"
+        ]
+        
+        is_conversational = any(indicator in lower_msg for indicator in conversational_indicators)
+        
+        if is_conversational:
+            # Use conversational-only system prompt
+            messages = [
+                {"role": "system", "content": CONVERSATIONAL_SYSTEM_PROMPT}
+            ]
+            
+            # Add conversation history if available
+            if conversation_history:
+                recent_history = conversation_history[-6:]
+                messages.extend(recent_history)
+            
+            # Add the user message directly without RAG context
+            messages.append({"role": "user", "content": user_message})
+            
+            return messages
+    
+    # Standard RAG prompt with context
+    # Select system prompt - use custom if provided, otherwise use built-in
+    if custom_system_prompt:
+        system_prompt = custom_system_prompt
+    else:
+        system_prompt = SYSTEM_PROMPTS.get(template_style, SYSTEM_PROMPTS["default"])
     
     # Add language enforcement if specified
     if language_name:
