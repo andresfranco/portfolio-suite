@@ -445,11 +445,8 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
             ? `${SERVER_URL}/${attachment.file_path}`
             : `${SERVER_URL}/static/${attachment.file_path}`);
 
-      const headers = {};
-      const token = localStorage.getItem('accessToken');
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const response = await fetch(url, { headers });
+      // Cookies are sent automatically with credentials: 'include'
+      const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) {
         throw new Error(`Download failed (${response.status})`);
       }

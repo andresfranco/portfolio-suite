@@ -74,21 +74,12 @@ const MySettings = () => {
   const [disableMfaLoading, setDisableMfaLoading] = useState(false);
   
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
-    if (!token || isTokenExpired(token, 0)) {
-      setError('Invalid or expired token');
-      setLoading(false);
-      return;
-    }
-    
-    const payload = decodeJwt(token);
-    if (payload?.sub) {
-      setUsername(payload.sub);
-      fetchCurrentUser(payload.sub);
-    }
+    // With httpOnly cookies, we can't decode the token
+    // Fetch user info directly from the API
+    fetchCurrentUser();
   }, []);
   
-  const fetchCurrentUser = async (usernameParam) => {
+  const fetchCurrentUser = async () => {
     try {
       setLoading(true);
       // Get current user info (no special permission required)
@@ -96,6 +87,7 @@ const MySettings = () => {
       const currentUser = response.data;
       
       if (currentUser) {
+        setUsername(currentUser.username); // Set username from API response
         setUserId(currentUser.id);
         
         // Fetch MFA status

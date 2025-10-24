@@ -90,15 +90,20 @@ describe('RagAdmin', () => {
 
     const btn = screen.getByRole('button', { name: /Reindex All/i });
     // After clicking, the component performs an immediate poll (third queued item -> finished)
+    // Wrap the click and all subsequent async updates in act
     await act(async () => {
       fireEvent.click(btn);
+      // Wait for all promises to resolve including the immediate poll
+      await flushMicrotasks();
+      await flushMicrotasks();
+      await flushMicrotasks();
     });
-    await flushMicrotasks();
-    await flushMicrotasks();
 
+    // Now assert after all state updates are complete
     await waitFor(() => {
       expect(screen.getByText(/Last reindex finished:/i)).toBeInTheDocument();
-    });
+    }, { timeout: 1000 });
+    
     expect(screen.queryByText(/In progress/i)).toBeNull();
 
     intervalSpy.mockRestore();

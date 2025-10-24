@@ -38,11 +38,12 @@ import {
   ViewModule as SectionIcon,
   AccountCircle as AccountCircleIcon,
   Logout as LogoutIcon,
-  CollectionsBookmark as PortfolioIcon
+  CollectionsBookmark as PortfolioIcon,
+  Shield as ShieldIcon
 } from '@mui/icons-material';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
 import authService from '../../services/authService';
-import { decodeJwt, isTokenExpired } from '../../utils/jwt';
+import userApi from '../../services/userApi';
 import { useAuthorization } from '../../contexts/AuthorizationContext';
 
 const drawerWidth = 240;
@@ -55,7 +56,7 @@ const Layout = () => {
   const navigate = useNavigate();
   
   // Authorization context for permission checking
-  const { permissions, isSystemAdmin, hasPermission } = useAuthorization();
+  const { permissions, isSystemAdmin, hasPermission, loading: permissionsLoading } = useAuthorization();
   
   // User menu state
   const [anchorElUser, setAnchorElUser] = useState(null);
@@ -63,13 +64,20 @@ const Layout = () => {
   
   // Get username on component mount
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
-    if (!token || isTokenExpired(token, 0)) {
-      // If no valid token, kick to login
-      return;
-    }
-    const payload = decodeJwt(token);
-    if (payload?.sub) setUsername(payload.sub);
+    const fetchUsername = async () => {
+      try {
+        // Fetch current user from API (tokens are in httpOnly cookies)
+        const response = await userApi.getCurrentUser();
+        if (response.data?.username) {
+          setUsername(response.data.username);
+        }
+      } catch (error) {
+        console.error('Failed to fetch username:', error);
+        // Keep default 'User' on error
+      }
+    };
+    
+    fetchUsername();
   }, []);
 
   const handleOpenUserMenu = (event) => {
@@ -203,11 +211,22 @@ const Layout = () => {
       icon: <ChatIcon />, 
       path: '/rag-admin', 
       requiredPermission: 'SYSTEM_ADMIN' // Only system admin can access RAG admin
+    },
+    { 
+      text: 'Security Dashboard', 
+      icon: <ShieldIcon />, 
+      path: '/security', 
+      requiredPermission: 'SYSTEM_ADMIN' // Only system admin can access security dashboard
     }
   ];
 
   // Filter menu items based on user permissions
   const filterMenuItems = (items) => {
+    // If permissions are still loading, return empty array to avoid flicker
+    if (permissionsLoading) {
+      return [];
+    }
+    
     return items.filter(item => {
       // System admin can see everything
       if (isSystemAdmin()) {
@@ -295,7 +314,6 @@ const Layout = () => {
           >
             {group.items.map((item) => (
               <ListItem 
-                button 
                 key={item.text} 
                 component={Link} 
                 to={item.path}

@@ -20,35 +20,34 @@ export const AuthorizationProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [authToken, setAuthToken] = useState(() => {
-    const t = localStorage.getItem('accessToken');
-    if (!t) return null;
-    return isTokenExpired(t, 0) ? null : t;
+    // With httpOnly cookies, we check the isAuthenticated flag instead of token
+    return localStorage.getItem('isAuthenticated') === 'true' ? 'cookie-based' : null;
   });
 
   // System admin users who bypass all permission checks
   const SYSTEM_ADMIN_USERS = ['systemadmin'];
   const SYSTEM_ADMIN_PERMISSION = 'SYSTEM_ADMIN';
 
-  // Watch for token changes in localStorage
+  // Watch for authentication changes in localStorage
   useEffect(() => {
-    const checkTokenChange = () => {
-      const currentToken = localStorage.getItem('accessToken');
-      // If expired, treat as no token
-      const effectiveToken = currentToken && !isTokenExpired(currentToken, 0) ? currentToken : null;
+    const checkAuthChange = () => {
+      const isAuth = localStorage.getItem('isAuthenticated') === 'true';
+      const effectiveToken = isAuth ? 'cookie-based' : null;
       if (effectiveToken !== authToken) {
         setAuthToken(effectiveToken);
       }
     };
 
-    // Check for token changes less frequently and only if we currently have a token
-    // If we don't have a token, we don't need to poll as frequently
+    // Check for auth changes less frequently and only if we currently have auth
+    // If we don't have auth, we don't need to poll as frequently
     const pollInterval = authToken ? 2000 : 5000; // 2 seconds if authenticated, 5 seconds if not
-    const interval = setInterval(checkTokenChange, pollInterval);
+    const interval = setInterval(checkAuthChange, pollInterval);
     
     // Also listen for storage events (though these only fire in other tabs)
     const handleStorageChange = (e) => {
-      if (e.key === 'accessToken') {
-        setAuthToken(e.newValue);
+      if (e.key === 'isAuthenticated') {
+        const isAuth = e.newValue === 'true';
+        setAuthToken(isAuth ? 'cookie-based' : null);
       }
     };
     
@@ -274,12 +273,13 @@ export const AuthorizationProvider = ({ children }) => {
     }
   }, []);
 
-  // Force token check (useful for login scenarios)
+  // Force auth check (useful for login scenarios)
   const checkAuthState = useCallback(() => {
-    const currentToken = localStorage.getItem('accessToken');
-    if (currentToken !== authToken) {
-      logInfo('Forcing auth state check, token changed');
-      setAuthToken(currentToken);
+    const isAuth = localStorage.getItem('isAuthenticated') === 'true';
+    const effectiveToken = isAuth ? 'cookie-based' : null;
+    if (effectiveToken !== authToken) {
+      logInfo('Forcing auth state check, authentication changed');
+      setAuthToken(effectiveToken);
     }
   }, [authToken]);
 

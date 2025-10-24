@@ -365,10 +365,10 @@ function UserIndexContent() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Verify token before fetching
-        const token = localStorage.getItem('accessToken');
-        if (!token) {
-          console.error('No authentication token found in UserIndex');
+        // Verify authentication before fetching
+        const isAuth = localStorage.getItem('isAuthenticated') === 'true';
+        if (!isAuth) {
+          console.error('User not authenticated in UserIndex');
           setOpenDeleteDialog(false);
           setOpenDialog(false);
           setTimeout(() => {
