@@ -8,6 +8,8 @@ from app.services.llm.providers import build_provider
 from app.services.rag_service import embed_query, vector_search, assemble_context
 from app.services.prompt_builder import build_rag_prompt, build_fallback_prompt, extract_conversational_history
 from app.services.citation_service import enrich_citations, deduplicate_citations
+from app.services.cache_service import cache_service
+from app.services.query_complexity import analyze_query_complexity, QueryComplexity
 import os
 
 
@@ -221,6 +223,42 @@ def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id:
             except Exception:
                 pass
 
+    # Analyze query complexity for dynamic context sizing
+    complexity, top_k_dynamic, max_context_dynamic = analyze_query_complexity(user_message)
+    
+    # Check cache first for ALL queries (including trivial greetings)
+    # Caching greetings provides instant responses (<5ms) on repeat
+    cached_response = cache_service.get_agent_response(
+        agent_id=agent_id,
+        user_message=user_message,
+        portfolio_id=portfolio_id,
+        language_id=language_id
+    )
+    if cached_response:
+            # Return cached response immediately
+            answer = cached_response.get("answer", "")
+            citations = cached_response.get("citations", [])
+            
+            # Save to database session
+            sess_id = session_id
+            if not sess_id:
+                s = AgentSession(agent_id=agent.id)
+                db.add(s)
+                db.flush()
+                sess_id = s.id
+            db.add(AgentMessage(session_id=sess_id, role="user", content=user_message))
+            db.add(AgentMessage(session_id=sess_id, role="assistant", content=answer, citations=citations, tokens=0, latency_ms=5))
+            db.commit()
+            
+            return {
+                "answer": answer,
+                "citations": citations,
+                "token_usage": {},
+                "latency_ms": 5,  # Cache hit is ~5ms
+                "session_id": sess_id,
+                "cached": True
+            }
+
     # Note: We intentionally do NOT filter RAG retrieval by language_code here.
     # The agent should be able to access content in ANY language, regardless of which 
     # language the user selected for the response. The language_id is only used to 
@@ -293,6 +331,16 @@ def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id:
             db.add(AgentMessage(session_id=sess_id, role="assistant", content=result.get("text") or "", citations=[], tokens=(result.get("usage") or {}).get("total_tokens"), latency_ms=result.get("latency_ms")))
             db.commit()
             
+            # Cache greeting response so second "Hello" is instant (<5ms)
+            cache_service.set_agent_response(
+                agent_id=agent_id,
+                user_message=user_message,
+                response={"answer": result.get("text") or "", "citations": []},
+                portfolio_id=portfolio_id,
+                language_id=language_id,
+                ttl_seconds=3600  # 1 hour
+            )
+            
             return {
                 "answer": result.get("text") or "",
                 "citations": [],
@@ -324,7 +372,7 @@ def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id:
                 "session_id": sess_id,
             }
 
-    # Embed query and retrieve chunks
+    # Embed query and retrieve chunks with dynamic context sizing
     qvec = embed_query(db, provider=provider, embedding_model=agent.embedding_model, query=user_message)
     # Resolve portfolio id from free-text if provided
     effective_portfolio_id = _resolve_portfolio_id(db, portfolio_id, portfolio_query)
@@ -334,9 +382,14 @@ def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id:
     # Check for project keywords in multiple languages (English, Spanish, etc.)
     is_project_query = any(keyword in lower_q for keyword in ["project", "proyecto"])
     tables_filter = ["projects"] if is_project_query else None
+    
+    # Use dynamic top_k and max_context_tokens based on query complexity
+    effective_top_k = top_k_dynamic if 'top_k_dynamic' in locals() else agent.top_k
+    effective_max_tokens = max_context_dynamic if 'max_context_dynamic' in locals() else agent.max_context_tokens
+    
     # Do NOT pass language_code to vector_search - we want to retrieve content in all languages
-    chunks = vector_search(db, qvec=qvec, model=agent.embedding_model, k=agent.top_k, score_threshold=agent.score_threshold, portfolio_id=effective_portfolio_id, tables_filter=tables_filter, language_code=None)
-    context, citations = assemble_context(chunks, max_tokens=agent.max_context_tokens)
+    chunks = vector_search(db, qvec=qvec, model=agent.embedding_model, k=effective_top_k, score_threshold=agent.score_threshold, portfolio_id=effective_portfolio_id, tables_filter=tables_filter, language_code=None)
+    context, citations = assemble_context(chunks, max_tokens=effective_max_tokens)
 
     # Intent-specific deterministic handling for project names when a portfolio is known
     if effective_portfolio_id is not None and is_project_query:
@@ -612,6 +665,17 @@ def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id:
     m_assist = AgentMessage(session_id=sess_id, role="assistant", content=result.get("text") or "", citations=enriched_citations, tokens=(result.get("usage") or {}).get("total_tokens"), latency_ms=result.get("latency_ms"))
     db.add(m_assist)
     db.commit()
+
+    # Cache the response for future queries (cache ALL responses including greetings)
+    # This ensures second "Hello" takes <5ms instead of 4+ seconds
+    cache_service.set_agent_response(
+        agent_id=agent_id,
+        user_message=user_message,
+        response={"answer": result.get("text") or "", "citations": enriched_citations},
+        portfolio_id=effective_portfolio_id,
+        language_id=language_id,
+        ttl_seconds=3600  # 1 hour
+    )
 
     return {
         "answer": result.get("text") or "",

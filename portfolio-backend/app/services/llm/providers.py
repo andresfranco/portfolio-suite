@@ -1,11 +1,15 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Protocol, Dict, Any, List, Optional
+from typing import Protocol, Dict, Any, List, Optional, AsyncIterator
 import time
 
 
 class ChatProvider(Protocol):
     def chat(self, *, model: str, system_prompt: str, messages: List[Dict[str, str]]) -> Dict[str, Any]:
+        ...
+
+    def chat_stream(self, *, model: str, system_prompt: str, messages: List[Dict[str, str]]) -> AsyncIterator[str]:
+        """Stream chat response chunks. Yields text deltas."""
         ...
 
     def embed(self, *, model: str, texts: List[str]) -> List[List[float]]:
@@ -22,7 +26,7 @@ class ProviderConfig:
 
 class OpenAIProvider:
     def __init__(self, cfg: ProviderConfig):
-        from openai import OpenAI  # type: ignore
+        from openai import OpenAI, AsyncOpenAI  # type: ignore
         import httpx  # type: ignore
         # Apply a reasonable default timeout for GPT-5-mini and other models
         # GPT-5-mini can take 7-15s for complex queries, so allow more time
@@ -36,7 +40,9 @@ class OpenAIProvider:
         # Set connect/read/write timeouts explicitly; total ~ provider default
         http_timeout = httpx.Timeout(self._timeout_seconds, connect=self._timeout_seconds, read=self._timeout_seconds, write=self._timeout_seconds)
         http_client = httpx.Client(timeout=http_timeout)
+        async_http_client = httpx.AsyncClient(timeout=http_timeout)
         self.client = OpenAI(api_key=cfg.api_key, base_url=cfg.base_url, http_client=http_client)
+        self.async_client = AsyncOpenAI(api_key=cfg.api_key, base_url=cfg.base_url, http_client=async_http_client)
 
     def chat(self, *, model: str, system_prompt: str, messages: List[Dict[str, str]]) -> Dict[str, Any]:
         started = time.time()
@@ -58,6 +64,22 @@ class OpenAIProvider:
             latency_ms = int((time.time() - started) * 1000)
             # Surface as a simple structured error to the caller
             raise RuntimeError(f"LLM chat request failed after {latency_ms}ms: {e}")
+
+    async def chat_stream(self, *, model: str, system_prompt: str, messages: List[Dict[str, str]]) -> AsyncIterator[str]:
+        """Stream chat response chunks from OpenAI."""
+        final_messages = [{"role": "system", "content": system_prompt}] + messages
+        try:
+            stream = await self.async_client.chat.completions.create(
+                model=model,
+                messages=final_messages,
+                stream=True
+            )
+            async for chunk in stream:
+                delta = chunk.choices[0].delta
+                if hasattr(delta, 'content') and delta.content:
+                    yield delta.content
+        except Exception as e:
+            raise RuntimeError(f"LLM streaming request failed: {e}")
 
     def embed(self, *, model: str, texts: List[str]) -> List[List[float]]:
         try:
@@ -122,6 +144,18 @@ class MistralProvider:
         text = resp.choices[0].message.content
         latency_ms = int((time.time() - started) * 1000)
         return {"text": text, "usage": {}, "latency_ms": latency_ms}
+
+    async def chat_stream(self, *, model: str, system_prompt: str, messages: List[Dict[str, str]]) -> AsyncIterator[str]:
+        """Stream chat response chunks from Mistral."""
+        final_messages = [{"role": "system", "content": system_prompt}] + messages
+        try:
+            stream = self.client.chat.stream(model=model, messages=final_messages)
+            for chunk in stream:
+                delta = chunk.data.choices[0].delta
+                if hasattr(delta, 'content') and delta.content:
+                    yield delta.content
+        except Exception as e:
+            raise RuntimeError(f"Mistral streaming request failed: {e}")
 
     def embed(self, *, model: str, texts: List[str]) -> List[List[float]]:
         raise NotImplementedError("Mistral embeddings not wired; use OpenAI for embeddings.")
