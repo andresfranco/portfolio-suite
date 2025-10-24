@@ -31,9 +31,11 @@ export default function AgentAdmin() {
     refreshCredentials,
     refreshAgents,
     createCredential,
+    updateCredential,
     createAgent,
     updateAgent,
     deleteAgent,
+    deleteCredential,
     upsertTemplate,
     getTemplate,
     testAgent
@@ -217,6 +219,34 @@ export default function AgentAdmin() {
     }
   };
 
+  // Handler: Delete Credential
+  const handleDeleteCredential = async (credentialId) => {
+    try {
+      await deleteCredential(credentialId);
+      enqueueSnackbar('Credential deleted successfully!', { variant: 'success' });
+      await refreshCredentials();
+    } catch (error) {
+      console.error('Error deleting credential:', error);
+      const errorMessage = error?.response?.data?.detail || 'Failed to delete credential';
+      enqueueSnackbar(errorMessage, { variant: 'error' });
+      throw error;
+    }
+  };
+
+  // Handler: Update Credential
+  const handleUpdateCredential = async (credentialId, payload) => {
+    try {
+      await updateCredential(credentialId, payload);
+      enqueueSnackbar('Credential updated successfully!', { variant: 'success' });
+      await refreshCredentials();
+    } catch (error) {
+      console.error('Error updating credential:', error);
+      const errorMessage = error?.response?.data?.detail || 'Failed to update credential';
+      enqueueSnackbar(errorMessage, { variant: 'error' });
+      throw error;
+    }
+  };
+
   return (
     <PermissionGate permissions={['MANAGE_AGENTS', 'SYSTEM_ADMIN']} requireAll={false}>
       <Box p={3}>
@@ -267,6 +297,8 @@ export default function AgentAdmin() {
           <CredentialManager
             credentials={credentials}
             onCreate={handleCreateCredential}
+            onUpdate={handleUpdateCredential}
+            onDelete={handleDeleteCredential}
             loading={loading}
           />
         )}

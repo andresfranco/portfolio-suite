@@ -94,6 +94,16 @@ export const AgentAdminProvider = ({ children }) => {
       await refreshAgents();
       return res;
     },
+    deleteCredential: async (credentialId) => {
+      const res = await agentAdminApi.deleteCredential(credentialId);
+      await refreshCredentials();
+      return res;
+    },
+    updateCredential: async (credentialId, payload) => {
+      const res = await agentAdminApi.updateCredential(credentialId, payload);
+      await refreshCredentials();
+      return res;
+    },
     upsertTemplate: agentAdminApi.upsertTemplate,
     testAgent: agentAdminApi.testAgent,
     chat: agentAdminApi.chat,

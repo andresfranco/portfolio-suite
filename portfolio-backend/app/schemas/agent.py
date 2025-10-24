@@ -12,6 +12,14 @@ class AgentCredentialCreate(AgentCredentialBase):
     api_key: str = Field(..., min_length=1)
 
 
+class AgentCredentialUpdate(BaseModel):
+    name: Optional[str] = None
+    provider: Optional[str] = None
+    extra: Optional[Dict[str, Any]] = None
+    # Note: API key cannot be updated for security reasons
+    # If a new key is needed, create a new credential
+
+
 class AgentCredentialOut(AgentCredentialBase):
     id: int
     
