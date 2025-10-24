@@ -26,6 +26,7 @@ const isLikelyAuthError = (error) => {
 const api = axios.create({
   baseURL: SERVER_URL || 'http://localhost:8000',
   timeout: API_CONFIG.TIMEOUT,
+  withCredentials: true, // Important: Send cookies with every request
   headers: {
     'Content-Type': 'application/json',
     ...API_CONFIG.HEADERS
@@ -35,28 +36,35 @@ const api = axios.create({
   }
 });
 
-// Request interceptor for authentication
+// Request interceptor for CSRF token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('accessToken');
+    const csrfToken = localStorage.getItem('csrf_token');
     logDebug('API Request Interceptor:', {
       url: config.url,
       method: config.method,
-      tokenExists: !!token,
-      tokenLength: token ? token.length : 0,
-      headers: config.headers
+      csrfTokenExists: !!csrfToken,
+      headers: config.headers,
+      isFormData: config.data instanceof FormData
     });
     
-    if (token) {
-      // Optionally preemptively reject if token is expired; backend will also return 401
-      if (isTokenExpired(token, 0)) {
-        logDebug('Token appears expired before request; proceeding to let server respond 401');
-      }
-      config.headers.Authorization = `Bearer ${token}`;
-      logDebug('Authorization header added:', config.headers.Authorization.substring(0, 20) + '...');
-    } else {
-      logDebug('No access token found in localStorage');
+    // Add CSRF token for state-changing requests (POST, PUT, DELETE, PATCH)
+    const stateMutatingMethods = ['post', 'put', 'delete', 'patch'];
+    if (csrfToken && stateMutatingMethods.includes(config.method?.toLowerCase())) {
+      config.headers['X-CSRF-Token'] = csrfToken;
+      logDebug('CSRF token added to request');
     }
+    
+    // Handle FormData: Remove Content-Type to let axios/browser set it with boundary
+    if (config.data instanceof FormData) {
+      // Delete the Content-Type header to let browser set it with proper boundary
+      delete config.headers['Content-Type'];
+      logDebug('FormData detected, removed Content-Type header for proper boundary');
+    }
+    
+    // Note: Access token is now in httpOnly cookie, sent automatically by browser
+    // No need to manually add Authorization header
+    
     return config;
   },
   (error) => Promise.reject(error)
@@ -100,15 +108,16 @@ api.interceptors.response.use(
 
     // Avoid infinite loop
     if (config && config._retry) {
-      // Finalize: clear tokens and propagate error
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refresh_token');
+      // Finalize: clear authentication state
+      localStorage.removeItem('csrf_token');
+      localStorage.removeItem('isAuthenticated');
       return Promise.reject(error);
     }
 
-    const refreshToken = localStorage.getItem('refresh_token');
-    if (!refreshToken) {
-      localStorage.removeItem('accessToken');
+    // Check if we're authenticated (refresh token is in httpOnly cookie)
+    const isAuth = localStorage.getItem('isAuthenticated');
+    if (!isAuth) {
+      localStorage.removeItem('csrf_token');
       return Promise.reject(error);
     }
 
@@ -116,37 +125,40 @@ api.interceptors.response.use(
       if (!isRefreshing) {
         isRefreshing = true;
         refreshPromise = axios.post(`${SERVER_URL || API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.auth.refreshToken}`,
-          { refresh_token: refreshToken },
-          { headers: { 'Content-Type': 'application/json' } }
+          {},
+          { 
+            headers: { 'Content-Type': 'application/json' },
+            withCredentials: true // Important: Send cookies
+          }
         ).then((res) => {
-          const newToken = res.data?.access_token;
-          if (newToken) {
-            localStorage.setItem('accessToken', newToken);
+          // Update CSRF token if provided
+          if (res.data?.csrf_token) {
+            localStorage.setItem('csrf_token', res.data.csrf_token);
           }
-          // Optionally update refresh token
-          if (res.data?.refresh_token) {
-            localStorage.setItem('refresh_token', res.data.refresh_token);
-          }
-          return newToken;
+          return res.data?.success;
         }).finally(() => {
           isRefreshing = false;
         });
       }
 
-      const newToken = await refreshPromise;
-      if (newToken) {
-        // Retry original request once with new token
+      const success = await refreshPromise;
+      if (success) {
+        // Retry original request once (new token is in cookie)
         const retryConfig = { ...config, _retry: true };
-        retryConfig.headers = {
-          ...(config.headers || {}),
-          Authorization: `Bearer ${newToken}`,
-        };
+        // Update CSRF token header if needed
+        const csrfToken = localStorage.getItem('csrf_token');
+        if (csrfToken) {
+          retryConfig.headers = {
+            ...(config.headers || {}),
+            'X-CSRF-Token': csrfToken,
+          };
+        }
         return api.request(retryConfig);
       }
     } catch (e) {
       logError('Token refresh failed in api client:', e);
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('csrf_token');
+      localStorage.removeItem('isAuthenticated');
     }
 
     return Promise.reject(error);
@@ -163,19 +175,13 @@ const projectsApi = {
   
   // Project images
   getProjectImages: (projectId) => api.get(`/api/projects/${projectId}/images/`),
-  uploadProjectImage: (projectId, formData) => api.post(`/api/projects/${projectId}/images/`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }),
-  updateProjectImage: (projectId, imageId, formData) => api.put(`/api/projects/${projectId}/images/${imageId}`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }),
+  uploadProjectImage: (projectId, formData) => api.post(`/api/projects/${projectId}/images/`, formData),
+  updateProjectImage: (projectId, imageId, formData) => api.put(`/api/projects/${projectId}/images/${imageId}`, formData),
   deleteProjectImage: (projectId, imageId) => api.delete(`/api/projects/${projectId}/images/${imageId}`),
   
   // Project attachments
   getProjectAttachments: (projectId) => api.get(`/api/projects/${projectId}/attachments/`),
-  uploadProjectAttachment: (projectId, formData) => api.post(`/api/projects/${projectId}/attachments/`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }),
+  uploadProjectAttachment: (projectId, formData) => api.post(`/api/projects/${projectId}/attachments/`, formData),
   deleteProjectAttachment: (projectId, attachmentId) => api.delete(`/api/projects/${projectId}/attachments/${attachmentId}`),
   
   // Portfolio image methods
@@ -184,11 +190,7 @@ const projectsApi = {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('category', category);
-    return api.post(`/api/portfolios/${portfolioId}/images?category=${category}`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    return api.post(`/api/portfolios/${portfolioId}/images?category=${category}`, formData);
   },
   deletePortfolioImage: (portfolioId, imageId) => api.delete(`/api/portfolios/${portfolioId}/images/${imageId}`),
   renamePortfolioImage: (portfolioId, imageId, updateData) => api.put(`/api/portfolios/${portfolioId}/images/${imageId}`, updateData),
@@ -198,11 +200,7 @@ const projectsApi = {
   uploadPortfolioAttachment: (portfolioId, file) => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post(`/api/portfolios/${portfolioId}/attachments`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    return api.post(`/api/portfolios/${portfolioId}/attachments`, formData);
   },
   deletePortfolioAttachment: (portfolioId, attachmentId) => api.delete(`/api/portfolios/${portfolioId}/attachments/${attachmentId}`),
 };

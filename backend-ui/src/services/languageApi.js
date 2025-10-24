@@ -84,15 +84,8 @@ const languageApi = {
    */
   createLanguage: (formData) => {
     logInfo('Creating language with FormData');
-    // When sending FormData, don't set Content-Type - let the browser set it
-    // with the correct boundary parameter for multipart/form-data
-    return api.post('/api/languages', formData, {
-      headers: {
-        // Don't manually set Content-Type for FormData
-        // It will be set automatically with the correct boundary
-        'Content-Type': undefined
-      }
-    });
+    // Interceptor will handle Content-Type for FormData automatically
+    return api.post('/api/languages', formData);
   },
 
   /**
@@ -103,15 +96,8 @@ const languageApi = {
    */
   updateLanguage: (id, formData) => {
     logInfo('Updating language:', id);
-    // When sending FormData, don't set Content-Type - let the browser set it
-    // with the correct boundary parameter for multipart/form-data
-    return api.put(`/api/languages/${id}`, formData, {
-      headers: {
-        // Don't manually set Content-Type for FormData
-        // It will be set automatically with the correct boundary
-        'Content-Type': undefined
-      }
-    });
+    // Interceptor will handle Content-Type for FormData automatically
+    return api.put(`/api/languages/${id}`, formData);
   },
 
   /**

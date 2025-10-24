@@ -36,28 +36,50 @@ jobs:
           pip install -r requirements.txt
       
       - name: Run Safety Check (Dependency Vulnerabilities)
+        id: safety-check
         run: |
           pip install safety
           cd portfolio-backend
           safety check --json --output safety-report.json || true
+          # Check for CRITICAL vulnerabilities and fail if found
+          if safety check --bare 2>&1 | grep -i "critical"; then
+            echo "::error::CRITICAL vulnerabilities found in Python dependencies"
+            echo "has_critical_vuln=true" >> $GITHUB_OUTPUT
+            safety check --short-report
+            exit 1
+          fi
           safety check --short-report || echo "Vulnerabilities found, check report"
-        continue-on-error: true
+        continue-on-error: false
       
       - name: Run Bandit (SAST for Python)
+        id: bandit-check
         run: |
           pip install bandit[toml]
           cd portfolio-backend
           bandit -r app/ -f json -o bandit-report.json || true
-          bandit -r app/ -ll || echo "Security issues found, check report"
-        continue-on-error: true
+          # Fail on high severity issues
+          bandit -r app/ -ll -f txt | tee bandit-output.txt
+          if grep -q "High:" bandit-output.txt; then
+            echo "::error::High severity security issues found by Bandit"
+            echo "has_high_severity=true" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+        continue-on-error: false
       
       - name: Run pip-audit (Advanced Vulnerability Scanner)
+        id: pip-audit-check
         run: |
           pip install pip-audit
           cd portfolio-backend
           pip-audit --format json --output pip-audit-report.json || true
+          # Fail on critical vulnerabilities
+          if pip-audit --desc 2>&1 | grep -E "critical|CRITICAL"; then
+            echo "::error::CRITICAL vulnerabilities found by pip-audit"
+            echo "has_critical=true" >> $GITHUB_OUTPUT
+            exit 1
+          fi
           pip-audit || echo "Vulnerabilities found, check report"
-        continue-on-error: true
+        continue-on-error: false
       
       - name: Upload Security Reports
         if: always()
@@ -95,11 +117,20 @@ jobs:
           npm ci
       
       - name: Run npm audit
+        id: npm-audit-check
         run: |
           cd backend-ui
           npm audit --json > npm-audit-report.json || true
-          npm audit || echo "Vulnerabilities found, check report"
-        continue-on-error: true
+          # Fail on critical vulnerabilities
+          if npm audit --audit-level=critical 2>&1; then
+            echo "No critical vulnerabilities found"
+          else
+            echo "::error::CRITICAL vulnerabilities found in npm dependencies"
+            echo "has_critical=true" >> $GITHUB_OUTPUT
+            npm audit
+            exit 1
+          fi
+        continue-on-error: false
       
       - name: Run npm outdated
         run: |

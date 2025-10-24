@@ -403,11 +403,7 @@ function ProjectAttachmentsContent() {
         }
 
         console.log(`ProjectAttachments - Uploading file: ${fileObj.name}`);
-        const response = await api.post(`/api/projects/${projectId}/attachments`, formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data'
-          }
-        });
+        const response = await api.post(`/api/projects/${projectId}/attachments`, formData);
 
         console.log(`ProjectAttachments - Upload response status: ${response.status} for file: ${fileObj.name}`);
 
