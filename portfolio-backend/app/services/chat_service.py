@@ -237,10 +237,18 @@ def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id:
         "are you working", "are you there", "can you help", "test", "testing",
         "what can you do", "who are you", "help me", "can you confirm"
     ]
+    # Content keywords that indicate the user wants actual portfolio information
+    content_keywords = [
+        "project", "proyecto", "experience", "experiencia", "skill", "habilidad",
+        "work", "trabajo", "resume", "cv", "portfolio", "portafolio",
+        "education", "educación", "certificate", "certificado"
+    ]
     is_conversational = any(indicator in lower_msg for indicator in conversational_indicators)
+    asks_for_content = any(keyword in lower_msg for keyword in content_keywords)
     
-    # For conversational queries, skip RAG search and use conversational prompt
-    if is_conversational and not portfolio_id and not portfolio_query:
+    # For conversational queries without content requests, skip RAG search
+    # This makes greetings instant even when portfolio/language is selected
+    if is_conversational and not asks_for_content:
         # Build conversational-only prompt
         from app.services.prompt_builder import CONVERSATIONAL_SYSTEM_PROMPT
         messages = [

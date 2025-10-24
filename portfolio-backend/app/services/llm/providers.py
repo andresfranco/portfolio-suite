@@ -24,8 +24,9 @@ class OpenAIProvider:
     def __init__(self, cfg: ProviderConfig):
         from openai import OpenAI  # type: ignore
         import httpx  # type: ignore
-        # Apply a conservative default timeout; allow override via extra
-        default_timeout = 12.0
+        # Apply a reasonable default timeout for GPT-5-mini and other models
+        # GPT-5-mini can take 7-15s for complex queries, so allow more time
+        default_timeout = 45.0
         try:
             timeout_cfg = float((cfg.extra or {}).get("timeout_seconds", default_timeout))
         except Exception:
