@@ -6,13 +6,41 @@ Comprehensive documentation for the Portfolio Suite backend API.
 
 ```
 docs/
-├── security/           # Security implementation guides
-├── deployment/         # Deployment and infrastructure guides
-├── development/        # Development guides and implementation docs
-├── api/               # API documentation and guides
-├── guides/            # General guides (reserved for future use)
-└── README.md          # This file
+├── agents/            # AI agent configuration and prompts
+├── performance/       # Performance optimization documentation
+├── security/          # Security implementation guides
+├── deployment/        # Deployment and infrastructure guides
+├── development/       # Development guides and implementation docs
+├── api/              # API documentation and guides
+├── guides/           # General guides (reserved for future use)
+└── README.md         # This file
 ```
+
+---
+
+## 🤖 Agent Documentation
+
+**Location**: `docs/agents/`
+
+### Configuration & Prompts
+- **OPTIMAL_AGENT_PROMPT.md** - Optimal agent prompt structure and guidelines
+- **OPTIMAL_AGENT_SYSTEM_PROMPT.txt** - System prompt template for agents
+- **AGENT_CHAT_FIX_SUMMARY.md** - Agent chat functionality fixes and improvements
+
+### Related
+- See also: `/tests/test_agents_conversational.py` (agent conversation tests)
+- See also: `/scripts/update_agent_prompts.py` (prompt update utility)
+
+---
+
+## ⚡ Performance Documentation
+
+**Location**: `docs/performance/`
+
+### Testing & Optimization
+- Performance optimization guides and reports
+- See also: `/tests/test_*_performance.py` (performance test scripts)
+- See also: `/scripts/profile_agent_performance.py` (performance profiling utility)
 
 ---
 
@@ -80,7 +108,19 @@ docs/
 
 ---
 
-## 🗂️ Quick Reference
+### Quick Reference
+
+### Agent Guides
+| Guide | Purpose | Audience |
+|-------|---------|----------|
+| OPTIMAL_AGENT_PROMPT.md | Agent prompting best practices | Developers, AI Engineers |
+| OPTIMAL_AGENT_SYSTEM_PROMPT.txt | System prompt template | Developers |
+| AGENT_CHAT_FIX_SUMMARY.md | Chat functionality fixes | Developers |
+
+### Performance Guides
+| Guide | Purpose | Audience |
+|-------|---------|----------|
+| performance/ | Performance optimization | Developers, DevOps |
 
 ### Security Guides
 | Guide | Purpose | Audience |
@@ -116,6 +156,16 @@ docs/
 
 ### By Topic
 
+**AI Agents:**
+- `agents/OPTIMAL_AGENT_PROMPT.md`
+- `agents/OPTIMAL_AGENT_SYSTEM_PROMPT.txt`
+- `agents/AGENT_CHAT_FIX_SUMMARY.md`
+
+**Performance:**
+- `performance/` (performance optimization documentation)
+- `/tests/test_*_performance.py` (test scripts)
+- `/scripts/profile_agent_performance.py` (profiling)
+
 **Authentication & Authorization:**
 - `security/JWT_SECURITY_GUIDE.md`
 - `security/MFA_IMPLEMENTATION_GUIDE.md`
@@ -142,6 +192,12 @@ docs/
 - `development/systemadmin_setup_and_testing.md`
 
 ### By Role
+
+**AI/ML Engineers:**
+1. Start with `agents/OPTIMAL_AGENT_PROMPT.md`
+2. Review `agents/OPTIMAL_AGENT_SYSTEM_PROMPT.txt`
+3. Check `/tests/test_agents_conversational.py`
+4. Use `/scripts/update_agent_prompts.py` for updates
 
 **Developers:**
 1. Start with `../README.md` (backend root)
@@ -204,6 +260,8 @@ When making changes:
 ### Adding New Documentation
 
 1. **Choose the right directory:**
+   - AI agent features → `agents/`
+   - Performance optimization → `performance/`
    - Security features → `security/`
    - Deployment/infrastructure → `deployment/`
    - Development guides → `development/`
@@ -226,5 +284,5 @@ When making changes:
 
 ---
 
-**Last Updated**: December 2024  
+**Last Updated**: October 2025  
 **Maintained by**: Portfolio Suite Development Team

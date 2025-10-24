@@ -68,6 +68,13 @@ Welcome to the comprehensive documentation for the Portfolio Suite project. This
 ### 🏛️ [architecture/](./architecture/)
 **System architecture and design decisions**
 
+#### Agent Performance & Optimization
+- **[AGENT_PERFORMANCE_PHASE_2_3_COMPLETE.md](./architecture/AGENT_PERFORMANCE_PHASE_2_3_COMPLETE.md)** - 🌟 Phase 2 & 3 performance implementation guide
+- **[AGENT_PERFORMANCE_TESTING_GUIDE.md](./architecture/AGENT_PERFORMANCE_TESTING_GUIDE.md)** - Performance testing procedures
+- **[PHASE_2_3_IMPLEMENTATION_SUMMARY.md](./architecture/PHASE_2_3_IMPLEMENTATION_SUMMARY.md)** - Quick implementation summary
+- **[PHASE_2_3_VALIDATION_CHECKLIST.md](./architecture/PHASE_2_3_VALIDATION_CHECKLIST.md)** - Validation checklist and criteria
+
+#### Agent Architecture & Implementation
 - **[agent_admin_plan.md](./architecture/agent_admin_plan.md)** - Admin functionality planning
 - **[agent_architecture_improvements.md](./architecture/agent_architecture_improvements.md)** - Architecture enhancement proposals
 - **[agent_chat_transaction_fix.md](./architecture/agent_chat_transaction_fix.md)** - Chat transaction issue resolution
@@ -75,17 +82,23 @@ Welcome to the comprehensive documentation for the Portfolio Suite project. This
 - **[agent_portfolio_scoping.md](./architecture/agent_portfolio_scoping.md)** - Project scope definition
 - **[agent_transaction_fix_final.md](./architecture/agent_transaction_fix_final.md)** - Final transaction fix
 - **[agent_transaction_poison_fix.md](./architecture/agent_transaction_poison_fix.md)** - Poison message handling
+
+#### RAG & Admin Features
 - **[rag_admin_functionality.md](./architecture/rag_admin_functionality.md)** - RAG-based admin features
 - **[rag_ready_architecture_plan.md](./architecture/rag_ready_architecture_plan.md)** - RAG architecture planning
+
+#### Security Planning
 - **[security_improvements_plan.md](./architecture/security_improvements_plan.md)** - Original security roadmap
 
 **Topics Covered**:
 - AI assistant architecture
+- Performance optimization (caching, streaming, query complexity)
 - Database transaction patterns
 - Admin panel design
 - RAG (Retrieval-Augmented Generation) integration
 - WebSocket chat implementation
-- Performance optimization strategies
+- Redis caching strategies
+- OpenAI & Mistral integration
 
 ---
 
@@ -150,7 +163,7 @@ Implementation summaries (superseded by SECURITY_COMPLETE.md):
 - **Implementation Guides**: 5
 - **Test Reports**: 3
 - **Architecture Docs**: 10
-- **Last Updated**: December 2024
+- **Last Updated**: October 2025
 - **Status**: ✅ Current and maintained
 
 ---
@@ -174,6 +187,11 @@ Implementation summaries (superseded by SECURITY_COMPLETE.md):
 **Deployment**:
 - [SSL/TLS Setup Guide](./guides/SSL_TLS_SETUP_GUIDE.md)
 - [Secrets Management](./guides/SECRETS_MANAGEMENT.md)
+
+**Performance & Optimization**:
+- [Agent Performance - Phase 2 & 3 Complete](./architecture/AGENT_PERFORMANCE_PHASE_2_3_COMPLETE.md)
+- [Phase 2 & 3 Implementation Summary](./architecture/PHASE_2_3_IMPLEMENTATION_SUMMARY.md)
+- [Performance Testing Guide](./architecture/AGENT_PERFORMANCE_TESTING_GUIDE.md)
 
 **Security Operations**:
 - [Security Quick Reference](./security/SECURITY_QUICK_REFERENCE.md)
@@ -223,5 +241,5 @@ When a document is superseded:
 ---
 
 **Documentation maintained by the Portfolio Suite Team**  
-**Last Updated**: December 2024  
+**Last Updated**: October 2025  
 **Version**: 1.0.0
