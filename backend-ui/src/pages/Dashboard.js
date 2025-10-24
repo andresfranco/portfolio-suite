@@ -149,6 +149,13 @@ const Dashboard = () => {
       icon: <SettingsIcon />,
       link: "/settings",
       requiredPermission: "SYSTEM_ADMIN" // Only system admin can access system settings
+    },
+    {
+      title: "Security Dashboard",
+      description: "Monitor security events, suspicious activities, and system threats in real-time.",
+      icon: <SecurityIcon />,
+      link: "/security",
+      requiredPermission: "SYSTEM_ADMIN" // Only system admin can access security dashboard
     }
   ];
 

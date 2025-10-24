@@ -456,11 +456,7 @@ function ProjectImagesContent() {
         formData.append('image', editImage.file);
       }
       
-      const response = await api.put(`/api/projects/${projectId}/images/${editImage.id}`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+      const response = await api.put(`/api/projects/${projectId}/images/${editImage.id}`, formData);
       
       const updatedImage = response.data;
       
@@ -528,11 +524,7 @@ function ProjectImagesContent() {
         }));
         
         try {
-          const response = await api.post(`/api/projects/${projectId}/images`, formData, {
-            headers: {
-              'Content-Type': 'multipart/form-data'
-            }
-          });
+          const response = await api.post(`/api/projects/${projectId}/images`, formData);
           
           const newImage = response.data;
           

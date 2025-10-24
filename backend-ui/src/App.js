@@ -22,6 +22,7 @@ import RagAdmin from './components/rag/RagAdmin';
 import AgentAdmin from './components/agents/AgentAdmin';
 import AgentChat from './components/agents/AgentChat';
 import { AgentAdminProvider } from './contexts/AgentAdminContext';
+import SecurityDashboard from './components/security/SecurityDashboard';
 
 // Importing actual components for previously working modules
 import { RoleIndex } from './components/roles';
@@ -58,10 +59,10 @@ function AppContent() {
   useEffect(() => {
     // Check authentication status when the app loads
     const checkAuth = () => {
-      // Clear the token if it's invalid
+      // Clear authentication state if not valid
       if (!authService.isAuthenticated()) {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('csrf_token');
+        localStorage.removeItem('isAuthenticated');
       }
       setLoading(false);
     };
@@ -69,8 +70,10 @@ function AppContent() {
     checkAuth();
   }, []);
 
-  // Load idle timeout from system settings
+  // Load idle timeout from system settings (only when authenticated)
   useEffect(() => {
+    if (!isAuthenticated) return;
+    
     (async () => {
       try {
         const res = await systemSettingsApi.get('frontend.idle_timeout_minutes');
@@ -80,7 +83,7 @@ function AppContent() {
         // fallback stays 30m
       }
     })();
-  }, []);
+  }, [isAuthenticated]);
 
   // Inactivity logout handler
   const onIdle = useCallback(() => {
@@ -218,6 +221,7 @@ function AppContent() {
             <Route path="settings" element={<SystemSettings />} />
             <Route path="my-settings" element={<MySettings />} />
             <Route path="rag-admin" element={<RagAdmin />} />
+            <Route path="security" element={<SecurityDashboard />} />
             
             {/* 404 Not Found */}
             <Route path="*" element={<NotFound />} />

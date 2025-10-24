@@ -42,11 +42,26 @@ class Settings(BaseSettings):
     DB_SSL_MODE: str = "prefer"  # Options: disable, allow, prefer, require, verify-ca, verify-full
     
     # File storage settings
+    # Note: BASE_DIR is computed, STATIC_DIR and UPLOADS_DIR will be set in model_post_init
     BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent
-    STATIC_DIR: Path = BASE_DIR / "static"
-    UPLOADS_DIR: Path = STATIC_DIR / "uploads"
+    STATIC_DIR: Optional[Path] = None
+    UPLOADS_DIR: Optional[Path] = None
     MAX_UPLOAD_SIZE: int = 10485760  # 10MB in bytes
     ALLOWED_EXTENSIONS: str = "jpg,jpeg,png,gif,pdf,doc,docx"
+    
+    def model_post_init(self, __context: Any) -> None:
+        """
+        Initialize computed path fields after model validation.
+        This ensures STATIC_DIR and UPLOADS_DIR are always absolute paths
+        derived from BASE_DIR, regardless of any .env overrides.
+        """
+        # Always compute these from BASE_DIR to ensure absolute paths
+        self.STATIC_DIR = self.BASE_DIR / "static"
+        self.UPLOADS_DIR = self.STATIC_DIR / "uploads"
+        
+        # Ensure directories exist
+        self.STATIC_DIR.mkdir(parents=True, exist_ok=True)
+        self.UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
     
     # SMTP Settings
     SMTP_HOST: Optional[str] = os.getenv("SMTP_HOST")
@@ -110,13 +125,6 @@ class Settings(BaseSettings):
     AUTO_BLOCK_ENABLED: bool = os.getenv("AUTO_BLOCK_ENABLED", "True").lower() == "true"
     BLOCK_THRESHOLD_VIOLATIONS: int = int(os.getenv("BLOCK_THRESHOLD_VIOLATIONS", "10"))
     BLOCK_DURATION: int = int(os.getenv("BLOCK_DURATION", "3600"))  # 1 hour in seconds
-    
-    @field_validator("STATIC_DIR", "UPLOADS_DIR", mode="after")
-    def create_directories(cls, v: Path) -> Path:
-        """Ensure directories exist"""
-        if not v.exists():
-            v.mkdir(parents=True, exist_ok=True)
-        return v
     
     @field_validator("SECRET_KEY")
     def validate_secret_key(cls, v: str, info) -> str:

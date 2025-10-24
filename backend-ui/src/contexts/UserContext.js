@@ -103,10 +103,10 @@ export const UserProvider = ({ children }) => {
       logInfo('Fetching users with params:', requestParams);
       console.log('UserContext fetchUsers - Final API request params:', requestParams);
       
-      // Check for authentication token
-      const token = localStorage.getItem('accessToken');
-      if (!token) {
-        console.error('No authentication token found. Redirecting to login.');
+      // Check for authentication (with httpOnly cookies, check isAuthenticated flag)
+      const isAuth = localStorage.getItem('isAuthenticated') === 'true';
+      if (!isAuth) {
+        console.error('User not authenticated. Redirecting to login.');
         setTimeout(() => {
           window.location.href = '/login';
         }, 100);
@@ -184,8 +184,8 @@ export const UserProvider = ({ children }) => {
     } catch (err) {
       if (err.response?.status === 401 || err.message?.includes('authentication')) {
         // Handle authentication errors
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('csrf_token');
+        localStorage.removeItem('isAuthenticated');
         setTimeout(() => {
           window.location.href = '/login';
         }, 100);
