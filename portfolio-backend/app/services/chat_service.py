@@ -34,6 +34,61 @@ def _get_translation(key: str, language_code: str = "en") -> str:
     return TRANSLATIONS[lang_code].get(key, TRANSLATIONS["en"][key])
 
 
+def _is_conversational_query(user_message: str) -> bool:
+    """
+    Detect if a query is conversational/general and should reach the LLM even without RAG context.
+    
+    Conversational queries include:
+    - Greetings (hello, hi, hey)
+    - Confirmations (are you working, test, check)
+    - General questions about the assistant itself
+    - Meta questions (what can you do, how do you work)
+    
+    Returns True if the query should proceed to LLM without RAG context.
+    """
+    lower_msg = user_message.lower().strip()
+    
+    # Greetings and basic interactions
+    greeting_patterns = [
+        "hello", "hi ", "hey", "good morning", "good afternoon", "good evening",
+        "hola", "buenos días", "buenas tardes", "buenas noches",
+        "how are you", "what's up", "wassup",
+        "cómo estás", "qué tal", "como estas"
+    ]
+    
+    # Confirmation and test queries
+    confirmation_patterns = [
+        "are you working", "are you there", "can you help", "do you work",
+        "test", "testing", "check", "verify", "confirm",
+        "estás funcionando", "estas funcionando", "puedes ayudar",
+        "prueba", "verificar", "confirmar"
+    ]
+    
+    # Meta questions about the assistant
+    meta_patterns = [
+        "what can you do", "what do you do", "who are you", "what are you",
+        "how do you work", "what is your purpose", "help me", "what can i ask",
+        "qué puedes hacer", "que puedes hacer", "quién eres", "quien eres",
+        "cómo funcionas", "como funcionas", "ayúdame", "ayudame", "qué puedo preguntar"
+    ]
+    
+    # Check if the message matches any conversational pattern
+    all_patterns = greeting_patterns + confirmation_patterns + meta_patterns
+    
+    # Direct match for short messages
+    if len(lower_msg) < 50:  # Short messages are more likely conversational
+        for pattern in all_patterns:
+            if pattern in lower_msg:
+                return True
+    
+    # For slightly longer messages, check if they start with conversational patterns
+    for pattern in all_patterns:
+        if lower_msg.startswith(pattern):
+            return True
+    
+    return False
+
+
 def _get_agent_bundle(db: Session, agent_id: int, template_id: Optional[int] = None) -> Tuple[Agent, AgentCredential, AgentTemplate]:
     agent = db.query(Agent).filter(Agent.id == agent_id, Agent.is_active == True).first()
     if not agent:
@@ -173,10 +228,99 @@ def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id:
     # This ensures the agent can work effectively even when content exists primarily 
     # in one language but the user requests a response in another language.
 
+    # Detect conversational queries BEFORE RAG search to avoid unnecessary embedding/retrieval
+    lower_msg = (user_message or "").lower().strip()
+    conversational_indicators = [
+        "hello", "hi ", "hey", "good morning", "good afternoon", "good evening",
+        "hola", "buenos días", "buenas tardes", "buen día",
+        "how are you", "what's up", "cómo estás", "qué tal", "como estas",
+        "are you working", "are you there", "can you help", "test", "testing",
+        "what can you do", "who are you", "help me", "can you confirm"
+    ]
+    is_conversational = any(indicator in lower_msg for indicator in conversational_indicators)
+    
+    # For conversational queries, skip RAG search and use conversational prompt
+    if is_conversational and not portfolio_id and not portfolio_query:
+        # Build conversational-only prompt
+        from app.services.prompt_builder import CONVERSATIONAL_SYSTEM_PROMPT
+        messages = [
+            {"role": "system", "content": CONVERSATIONAL_SYSTEM_PROMPT}
+        ]
+        
+        # Load conversation history if available
+        conversation_history = []
+        if session_id:
+            try:
+                recent_msgs = db.query(AgentMessage)\
+                    .filter(AgentMessage.session_id == session_id)\
+                    .order_by(AgentMessage.id.desc())\
+                    .limit(6)\
+                    .all()
+                conversation_history = extract_conversational_history(list(reversed(recent_msgs)), max_turns=3)
+                messages.extend(conversation_history)
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+        
+        # Add user message
+        messages.append({"role": "user", "content": user_message})
+        
+        # Call LLM
+        chat_model = agent.chat_model or "gpt-4o-mini"
+        try:
+            system_prompt = messages[0]['content']
+            chat_messages = messages[1:]
+            result = provider.chat(model=chat_model, system_prompt=system_prompt, messages=chat_messages)
+            
+            # Save to database
+            sess_id = session_id
+            if not sess_id:
+                s = AgentSession(agent_id=agent.id)
+                db.add(s)
+                db.flush()
+                sess_id = s.id
+            db.add(AgentMessage(session_id=sess_id, role="user", content=user_message))
+            db.add(AgentMessage(session_id=sess_id, role="assistant", content=result.get("text") or "", citations=[], tokens=(result.get("usage") or {}).get("total_tokens"), latency_ms=result.get("latency_ms")))
+            db.commit()
+            
+            return {
+                "answer": result.get("text") or "",
+                "citations": [],
+                "token_usage": result.get("usage") or {},
+                "latency_ms": result.get("latency_ms") or 0,
+                "session_id": sess_id,
+            }
+        except Exception as e:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            # Fallback
+            fallback_text = "Hello! I'm your portfolio assistant. I can help you find information about projects, work experience, skills, and other portfolio content. What would you like to know?"
+            sess_id = session_id
+            if not sess_id:
+                s = AgentSession(agent_id=agent.id)
+                db.add(s)
+                db.flush()
+                sess_id = s.id
+            db.add(AgentMessage(session_id=sess_id, role="user", content=user_message))
+            db.add(AgentMessage(session_id=sess_id, role="assistant", content=fallback_text, citations=[], tokens=0, latency_ms=0))
+            db.commit()
+            return {
+                "answer": fallback_text,
+                "citations": [],
+                "token_usage": {},
+                "latency_ms": 0,
+                "session_id": sess_id,
+            }
+
     # Embed query and retrieve chunks
     qvec = embed_query(db, provider=provider, embedding_model=agent.embedding_model, query=user_message)
     # Resolve portfolio id from free-text if provided
     effective_portfolio_id = _resolve_portfolio_id(db, portfolio_id, portfolio_query)
+    
     # If the user asks about "project"/"projects" in any language, restrict retrieval primarily to projects
     lower_q = (user_message or "").lower()
     # Check for project keywords in multiple languages (English, Spanish, etc.)
@@ -299,32 +443,39 @@ def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id:
                         pass
 
         # If still no context, persist and return the canonical fallback
-        # Persist session messages even on no-context for traceability
-        sess_id = session_id
-        if not sess_id:
-            # Clear any prior failed state to avoid aborted transaction
-            try:
-                db.rollback()
-            except Exception:
-                pass
-            s = AgentSession(agent_id=agent.id)
-            db.add(s)
-            db.flush()
-            sess_id = s.id
-        m_user = AgentMessage(session_id=sess_id, role="user", content=user_message)
-        db.add(m_user)
-        # Use smart fallback from prompt_builder
-        fallback = build_fallback_prompt(user_message)
-        m_assist = AgentMessage(session_id=sess_id, role="assistant", content=fallback, citations=[], tokens=0, latency_ms=0)
-        db.add(m_assist)
-        db.commit()
-        return {
-            "answer": fallback,
-            "citations": [],
-            "token_usage": {},
-            "latency_ms": 0,
-            "session_id": sess_id,
-        }
+        # UNLESS it's a conversational query that should reach the LLM
+        if not _is_conversational_query(user_message):
+            # Persist session messages even on no-context for traceability
+            sess_id = session_id
+            if not sess_id:
+                # Clear any prior failed state to avoid aborted transaction
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                s = AgentSession(agent_id=agent.id)
+                db.add(s)
+                db.flush()
+                sess_id = s.id
+            m_user = AgentMessage(session_id=sess_id, role="user", content=user_message)
+            db.add(m_user)
+            # Use smart fallback from prompt_builder
+            fallback = build_fallback_prompt(user_message)
+            m_assist = AgentMessage(session_id=sess_id, role="assistant", content=fallback, citations=[], tokens=0, latency_ms=0)
+            db.add(m_assist)
+            db.commit()
+            return {
+                "answer": fallback,
+                "citations": [],
+                "token_usage": {},
+                "latency_ms": 0,
+                "session_id": sess_id,
+            }
+        
+        # Conversational query with no context: proceed to LLM with empty context
+        # The LLM will handle it as a general conversation
+        context = ""
+        citations = []
 
     # Enrich citations with metadata for user-friendly display
     # Use a savepoint (nested transaction) to isolate enrichment queries
@@ -382,7 +533,8 @@ def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id:
         citations=enriched_citations,
         template_style=template_style,
         conversation_history=conversation_history,
-        language_name=language_name
+        language_name=language_name,
+        custom_system_prompt=tpl.system_prompt if hasattr(tpl, 'system_prompt') and tpl.system_prompt else None
     )
 
     # Choose low-cost default OpenAI chat model per your guidance
