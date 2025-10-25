@@ -17,7 +17,7 @@ export const useContentEditor = (entityType) => {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
   
-  const { authToken, isEditMode, showNotification } = useEditMode();
+  const { authToken, isEditMode, showNotification, activeEditor, setActiveEditor } = useEditMode();
   const { refreshPortfolio } = usePortfolio();
   
   /**
@@ -29,10 +29,22 @@ export const useContentEditor = (entityType) => {
       return;
     }
     
+    // Check if another editor is already active
+    const editorId = `${entityType}-modal-${item.id}`;
+    if (activeEditor && activeEditor !== editorId) {
+      showNotification(
+        'Editor Active',
+        'Please save or cancel the current editor before opening another one.',
+        'warning'
+      );
+      return;
+    }
+    
     setEditingItem(item);
     setIsModalOpen(true);
+    setActiveEditor(editorId); // Lock this editor as active
     setError(null);
-  }, [isEditMode]);
+  }, [isEditMode, entityType, activeEditor, setActiveEditor, showNotification]);
   
   /**
    * Stop editing and close modal
@@ -40,8 +52,9 @@ export const useContentEditor = (entityType) => {
   const stopEditing = useCallback(() => {
     setEditingItem(null);
     setIsModalOpen(false);
+    setActiveEditor(null); // Clear active editor lock
     setError(null);
-  }, []);
+  }, [setActiveEditor]);
   
   /**
    * Update text content for an entity

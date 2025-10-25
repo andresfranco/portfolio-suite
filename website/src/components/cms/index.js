@@ -19,3 +19,4 @@ export { InlineTextEditor } from './InlineTextEditor';
 export { ImageUploader } from './ImageUploader';
 export { RichTextEditor } from './RichTextEditor';
 export { ContentEditorModal } from './ContentEditorModal';
+export { TranslationEditor } from './TranslationEditor';

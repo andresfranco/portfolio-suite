@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useEditMode } from '../../context/EditModeContext';
 import { usePortfolio } from '../../context/PortfolioContext';
 import { portfolioApi } from '../../services/portfolioApi';
@@ -33,8 +34,11 @@ export const InlineTextEditor = ({
   const [error, setError] = useState(null);
   const inputRef = useRef(null);
   
-  const { authToken, isEditMode, showNotification } = useEditMode();
+  const { authToken, isEditMode, showNotification, activeEditor, setActiveEditor } = useEditMode();
   const { refreshPortfolio } = usePortfolio();
+  
+  // Generate unique editor ID
+  const editorId = useRef(`${entityType}-${entityId}-${fieldName}`).current;
   
   // Update local value when prop changes
   useEffect(() => {
@@ -58,6 +62,7 @@ export const InlineTextEditor = ({
     // Don't save if value hasn't changed
     if (localValue === value) {
       setIsEditing(false);
+      setActiveEditor(null); // Clear active editor lock
       return;
     }
     
@@ -70,17 +75,27 @@ export const InlineTextEditor = ({
       );
       setLocalValue(value); // Reset to original
       setIsEditing(false);
+      setActiveEditor(null); // Clear active editor lock
       return;
     }
     
     setIsSaving(true);
     setError(null);
     
+    let saveSucceeded = false;
+    
     try {
       let response;
       
       // Call appropriate API based on entity type
       switch (entityType) {
+        case 'portfolio':
+          response = await portfolioApi.updatePortfolio(
+            entityId,
+            { [fieldName]: localValue },
+            authToken
+          );
+          break;
         case 'project':
           response = await portfolioApi.updateProjectText(
             entityId,
@@ -106,14 +121,25 @@ export const InlineTextEditor = ({
           throw new Error(`Unknown entity type: ${entityType}`);
       }
       
-      // Refresh portfolio data
-      await refreshPortfolio();
+      // If we got here, the save succeeded
+      saveSucceeded = true;
+      console.log('Save succeeded, response:', response);
+      
+      // Refresh portfolio data - catch and log errors but don't fail the save
+      try {
+        await refreshPortfolio();
+      } catch (refreshError) {
+        console.warn('Portfolio saved but refresh failed:', refreshError);
+        // Don't throw - the save was successful
+      }
+      
       setIsEditing(false);
+      setActiveEditor(null); // Clear active editor lock
       
       // Show success notification
       showNotification(
-        'Content Saved',
-        'Your changes have been saved successfully',
+        'Success',
+        'Changes saved successfully',
         'success'
       );
       
@@ -123,7 +149,32 @@ export const InlineTextEditor = ({
       }
     } catch (err) {
       console.error('Failed to save:', err);
-      const errorMessage = err.message || 'Failed to save changes';
+      console.error('Entity type:', entityType);
+      console.error('Entity ID:', entityId);
+      console.error('Field name:', fieldName);
+      console.error('Auth token present:', !!authToken);
+      console.error('Save succeeded before error:', saveSucceeded);
+      
+      // If save succeeded but something else failed, don't show error
+      if (saveSucceeded) {
+        console.warn('Save succeeded but post-save operation failed');
+        setIsEditing(false);
+        setActiveEditor(null);
+        showNotification(
+          'Success',
+          'Changes saved successfully',
+          'success'
+        );
+        return;
+      }
+      
+      let errorMessage = err.message || 'Failed to save changes';
+      
+      // Provide more helpful error messages
+      if (errorMessage === 'Failed to fetch') {
+        errorMessage = 'Cannot connect to server. Please check if the backend is running and try again.';
+      }
+      
       setError(errorMessage);
       
       // Show error notification
@@ -145,6 +196,7 @@ export const InlineTextEditor = ({
   const handleCancel = () => {
     setLocalValue(value || ''); // Reset to original value
     setIsEditing(false);
+    setActiveEditor(null); // Clear active editor lock
     setError(null);
   };
   
@@ -180,29 +232,50 @@ export const InlineTextEditor = ({
   
   // If in edit mode but not editing this field
   if (!isEditing) {
+    const isDisabled = activeEditor && activeEditor !== editorId;
+    
     return (
       <EditableTextWrapper 
-        onEdit={() => setIsEditing(true)}
+        onEdit={() => {
+          // Check if another editor is already active
+          if (activeEditor && activeEditor !== editorId) {
+            showNotification(
+              'Editor Active',
+              'Please save or cancel the current editor before opening another one.',
+              'warning'
+            );
+            return;
+          }
+          setIsEditing(true);
+          setActiveEditor(editorId); // Lock this editor as active
+        }}
         className={className}
+        disabled={isDisabled}
       >
         {value || <span className="text-gray-400 italic">{placeholder}</span>}
       </EditableTextWrapper>
     );
   }
   
-  // Editing mode - Show modal for better visibility
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+  // Editing mode - Show modal for better visibility using Portal
+  const modalContent = (
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4"
+      onClick={handleCancel}
+    >
+      <div 
+        className="bg-white rounded-lg shadow-2xl max-w-lg w-full max-h-[80vh] overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-white">
-          <h3 className="text-lg font-semibold text-gray-900">
+        <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-white">
+          <h3 className="text-base font-semibold text-gray-900">
             Edit {fieldName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
           </h3>
         </div>
         
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4">
           {multiline ? (
             <textarea
               ref={inputRef}
@@ -211,7 +284,7 @@ export const InlineTextEditor = ({
               onKeyDown={handleKeyDown}
               disabled={isSaving}
               className={`
-                w-full p-3 
+                w-full p-2 
                 border-2 
                 rounded-lg
                 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
@@ -223,7 +296,7 @@ export const InlineTextEditor = ({
               `}
               rows={12}
               placeholder={placeholder}
-              style={{ minHeight: '300px', fontSize: '15px', lineHeight: '1.6' }}
+              style={{ minHeight: '200px', fontSize: '14px', lineHeight: '1.6' }}
             />
           ) : (
             <input
@@ -234,7 +307,7 @@ export const InlineTextEditor = ({
               onKeyDown={handleKeyDown}
               disabled={isSaving}
               className={`
-                w-full p-3 
+                w-full p-2 
                 border-2 
                 rounded-lg
                 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
@@ -244,14 +317,14 @@ export const InlineTextEditor = ({
                 ${error ? 'border-red-500' : 'border-gray-300 focus:border-blue-500'}
               `}
               placeholder={placeholder}
-              style={{ fontSize: '15px' }}
+              style={{ fontSize: '14px' }}
             />
           )}
           
           {/* Error message */}
           {error && (
-            <div className="mt-3 p-3 bg-red-50 border border-red-300 rounded-lg text-red-700 text-sm flex items-start gap-2">
-              <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+            <div className="mt-2 p-2 bg-red-50 border border-red-300 rounded-lg text-red-700 text-sm flex items-start gap-2">
+              <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
               </svg>
               <span>{error}</span>
@@ -259,7 +332,7 @@ export const InlineTextEditor = ({
           )}
           
           {/* Helper text */}
-          <div className="mt-3 text-xs text-gray-600 flex items-center gap-1">
+          <div className="mt-2 text-xs text-gray-600 flex items-center gap-1">
             <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
             </svg>
@@ -274,12 +347,12 @@ export const InlineTextEditor = ({
         </div>
         
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end gap-3">
+        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex justify-end gap-2">
           <button 
             onClick={handleCancel}
             disabled={isSaving}
             className="
-              px-5 py-2.5
+              px-3 py-1.5 text-sm
               bg-gray-200 hover:bg-gray-300 
               text-gray-800 font-medium
               rounded-lg
@@ -294,7 +367,7 @@ export const InlineTextEditor = ({
             onClick={handleSave}
             disabled={isSaving}
             className={`
-              px-5 py-2.5
+              px-3 py-1.5 text-sm
               bg-green-600 hover:bg-green-700 
               text-white font-medium
               rounded-lg
@@ -320,6 +393,9 @@ export const InlineTextEditor = ({
       </div>
     </div>
   );
+  
+  // Render modal using Portal to document.body
+  return createPortal(modalContent, document.body);
 };
 
 export default InlineTextEditor;

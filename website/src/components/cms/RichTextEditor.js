@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useEditMode } from '../../context/EditModeContext';
 import { usePortfolio } from '../../context/PortfolioContext';
 import { portfolioApi } from '../../services/portfolioApi';
-import { EditableWrapper } from './EditableWrapper';
+import { EditableTextWrapper } from './EditableWrapper';
 
 /**
  * RichTextEditor Component
@@ -36,8 +37,11 @@ export const RichTextEditor = ({
   const [error, setError] = useState(null);
   const textareaRef = useRef(null);
   
-  const { authToken, isEditMode, showNotification } = useEditMode();
+  const { authToken, isEditMode, showNotification, activeEditor, setActiveEditor } = useEditMode();
   const { refreshPortfolio } = usePortfolio();
+  
+  // Generate unique editor ID
+  const editorId = useRef(`${entityType}-${entityId}-${fieldName}`).current;
   
   // Update local value when prop changes
   useEffect(() => {
@@ -58,6 +62,7 @@ export const RichTextEditor = ({
     // Don't save if value hasn't changed
     if (localValue === value) {
       setIsEditing(false);
+      setActiveEditor(null); // Clear active editor lock
       return;
     }
     
@@ -70,6 +75,7 @@ export const RichTextEditor = ({
       );
       setLocalValue(value); // Reset to original
       setIsEditing(false);
+      setActiveEditor(null); // Clear active editor lock
       return;
     }
     
@@ -106,9 +112,16 @@ export const RichTextEditor = ({
           throw new Error(`Unknown entity type: ${entityType}`);
       }
       
-      // Refresh portfolio data
-      await refreshPortfolio();
+      // Refresh portfolio data - catch and log errors but don't fail the save
+      try {
+        await refreshPortfolio();
+      } catch (refreshError) {
+        console.warn('Content saved but refresh failed:', refreshError);
+        // Don't throw - the save was successful
+      }
+      
       setIsEditing(false);
+      setActiveEditor(null); // Clear active editor lock
       
       // Show success notification
       showNotification(
@@ -143,6 +156,7 @@ export const RichTextEditor = ({
   const handleCancel = () => {
     setLocalValue(value || '');
     setIsEditing(false);
+    setActiveEditor(null); // Clear active editor lock
     setError(null);
   };
   
@@ -167,19 +181,41 @@ export const RichTextEditor = ({
   }
   
   // In edit mode: show editable wrapper that opens modal on click
+  const isDisabled = activeEditor && activeEditor !== editorId;
+  
   return (
     <>
-      <EditableWrapper 
-        onEdit={() => setIsEditing(true)}
-        label="Edit content"
+      <EditableTextWrapper 
+        onEdit={() => {
+          // Check if another editor is already active
+          if (activeEditor && activeEditor !== editorId) {
+            showNotification(
+              'Editor Active',
+              'Please save or cancel the current editor before opening another one.',
+              'warning'
+            );
+            return;
+          }
+          setIsEditing(true);
+          setActiveEditor(editorId); // Lock this editor as active
+        }}
+        label="Edit text"
+        className={className}
+        disabled={isDisabled}
       >
         {renderContent()}
-      </EditableWrapper>
+      </EditableTextWrapper>
       
-      {/* Modal - Large textarea editor (React 19 compatible) */}
-      {isEditing && (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      {/* Modal - Large textarea editor (React 19 compatible) - Rendered via Portal */}
+      {isEditing && createPortal(
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[55] p-4"
+      onClick={handleCancel}
+    >
+      <div 
+        className="bg-white rounded-lg shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-white">
           <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
@@ -234,21 +270,21 @@ export const RichTextEditor = ({
         </div>
         
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end gap-3">
+        <div className="px-6 py-3 border-t border-gray-200 bg-gray-50 flex justify-end gap-2">
           <button 
             onClick={handleCancel}
             disabled={isSaving}
             className="
-              px-6 py-3
+              px-4 py-2
               bg-gray-200 hover:bg-gray-300 
-              text-gray-800 font-medium
-              rounded-lg
+              text-gray-800 text-sm font-medium
+              rounded-md
               transition-colors
               disabled:opacity-50 disabled:cursor-not-allowed
-              flex items-center gap-2
+              flex items-center gap-1.5
             "
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
             Cancel
@@ -258,19 +294,19 @@ export const RichTextEditor = ({
             onClick={handleSave}
             disabled={isSaving}
             className={`
-              px-6 py-3
+              px-4 py-2
               bg-green-600 hover:bg-green-700 
-              text-white font-medium
-              rounded-lg
+              text-white text-sm font-medium
+              rounded-md
               transition-colors
               disabled:bg-gray-400 disabled:cursor-not-allowed
-              flex items-center gap-2
+              flex items-center gap-1.5
               shadow-sm
             `}
           >
             {isSaving ? (
               <>
-                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
@@ -278,16 +314,16 @@ export const RichTextEditor = ({
               </>
             ) : (
               <>
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                Save Changes
+                Save
               </>
             )}
           </button>
         </div>
       </div>
-    </div>
+    </div>, document.body
       )}
     </>
   );

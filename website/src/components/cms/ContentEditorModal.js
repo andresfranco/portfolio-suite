@@ -173,8 +173,13 @@ export const ContentEditorModal = ({
         );
       }
       
-      // Refresh portfolio data
-      await refreshPortfolio();
+      // Refresh portfolio data - catch and log errors but don't fail the save
+      try {
+        await refreshPortfolio();
+      } catch (refreshError) {
+        console.warn('Changes saved but refresh failed:', refreshError);
+        // Don't throw - the save was successful
+      }
       
       // Show success notification
       showNotification(
@@ -229,8 +234,14 @@ export const ContentEditorModal = ({
   }
   
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[55] p-4"
+      onClick={handleClose}
+    >
+      <div 
+        className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-white">
           <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
