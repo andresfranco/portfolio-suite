@@ -181,7 +181,6 @@ const Hero = () => {
                           <span className="text-white/80 text-sm">{translations[language].years_label}</span>
                         </div>
                         <p className="text-white font-medium">{experienceText.name}</p>
-                        <p className="text-white/60 text-sm">{experienceText.description}</p>
                       </div>
                       {/* Edit indicator in edit mode */}
                       {isEditMode && (

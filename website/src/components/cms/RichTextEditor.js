@@ -1,9 +1,26 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useContext } from 'react';
 import { createPortal } from 'react-dom';
 import { useEditMode } from '../../context/EditModeContext';
 import { usePortfolio } from '../../context/PortfolioContext';
 import { portfolioApi } from '../../services/portfolioApi';
 import { EditableTextWrapper } from './EditableWrapper';
+import { LanguageContext } from '../../context/LanguageContext';
+
+/**
+ * Language code to name mapping
+ */
+const LANGUAGE_NAMES = {
+  'en': 'English',
+  'es': 'Spanish',
+  'fr': 'French',
+  'de': 'German',
+  'pt': 'Portuguese',
+  'it': 'Italian',
+  'zh': 'Chinese',
+  'ja': 'Japanese',
+  'ko': 'Korean',
+  'ru': 'Russian',
+};
 
 /**
  * RichTextEditor Component
@@ -39,6 +56,10 @@ export const RichTextEditor = ({
   
   const { authToken, isEditMode, showNotification, activeEditor, setActiveEditor } = useEditMode();
   const { refreshPortfolio } = usePortfolio();
+  const { language: currentLanguage } = useContext(LanguageContext);
+  
+  // Get language display name
+  const languageName = LANGUAGE_NAMES[currentLanguage] || currentLanguage.toUpperCase();
   
   // Generate unique editor ID
   const editorId = useRef(`${entityType}-${entityId}-${fieldName}`).current;
@@ -224,6 +245,12 @@ export const RichTextEditor = ({
             </svg>
             {label || `Edit ${fieldName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}`}
           </h3>
+          <div className="mt-2 flex items-center gap-2 text-sm text-blue-700">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+            </svg>
+            <span className="font-medium">Editing in {languageName}</span>
+          </div>
         </div>
         
         {/* Content */}
