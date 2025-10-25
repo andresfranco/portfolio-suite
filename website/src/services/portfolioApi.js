@@ -451,6 +451,31 @@ export const portfolioApi = {
   },
 
   /**
+   * Update experience metadata (years)
+   * @param {number} experienceId - Experience ID
+   * @param {Object} metadata - Metadata to update (years)
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - Updated experience
+   */
+  updateExperienceMetadata: async (experienceId, metadata, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/experiences/${experienceId}`,
+        {
+          method: 'PUT',
+          headers: getHeaders(token),
+          credentials: 'include',
+          body: JSON.stringify(metadata),
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error(`Error updating experience ${experienceId} metadata:`, error);
+      throw error;
+    }
+  },
+
+  /**
    * Update translation text
    * @param {number} translationId - Translation ID
    * @param {Object} content - Translation content (identifier, text, language_id)

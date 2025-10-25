@@ -7,6 +7,22 @@ import { RichTextEditor } from './RichTextEditor';
 import { InlineTextEditor } from './InlineTextEditor';
 
 /**
+ * Language code to name mapping
+ */
+const LANGUAGE_NAMES = {
+  'en': 'English',
+  'es': 'Spanish',
+  'fr': 'French',
+  'de': 'German',
+  'pt': 'Portuguese',
+  'it': 'Italian',
+  'zh': 'Chinese',
+  'ja': 'Japanese',
+  'ko': 'Korean',
+  'ru': 'Russian',
+};
+
+/**
  * ContentEditorModal Component
  * Full-featured modal for editing projects or experiences
  * Handles all fields including metadata, text content, and validation
@@ -34,11 +50,15 @@ export const ContentEditorModal = ({
   const { refreshPortfolio } = usePortfolio();
   const { language: currentLanguage } = useContext(LanguageContext);
   
+  // Get language display name
+  const languageName = LANGUAGE_NAMES[currentLanguage] || currentLanguage.toUpperCase();
+  
   // Initialize form data when item changes
   useEffect(() => {
     if (item && isOpen) {
       setFormData({
         id: item.id,
+        years: item.years || '',
         repository_url: item.repository_url || '',
         website_url: item.website_url || '',
         company: item.company || '',
@@ -105,11 +125,8 @@ export const ContentEditorModal = ({
     }
     
     if (type === 'experience') {
-      if (!formData.company || !formData.company.trim()) {
-        return 'Company is required';
-      }
-      if (!formData.start_date) {
-        return 'Start date is required';
+      if (!formData.years || formData.years < 0 || formData.years > 50) {
+        return 'Years must be between 0 and 50';
       }
     }
     
@@ -161,16 +178,26 @@ export const ContentEditorModal = ({
         );
       }
       
-      // Update metadata (project only)
-      if (type === 'project' && formData.id) {
-        await portfolioApi.updateProjectMetadata(
-          formData.id,
-          {
-            repository_url: formData.repository_url,
-            website_url: formData.website_url,
-          },
-          authToken
-        );
+      // Update metadata
+      if (formData.id) {
+        if (type === 'project') {
+          await portfolioApi.updateProjectMetadata(
+            formData.id,
+            {
+              repository_url: formData.repository_url,
+              website_url: formData.website_url,
+            },
+            authToken
+          );
+        } else if (type === 'experience') {
+          await portfolioApi.updateExperienceMetadata(
+            formData.id,
+            {
+              years: parseInt(formData.years, 10),
+            },
+            authToken
+          );
+        }
       }
       
       // Refresh portfolio data - catch and log errors but don't fail the save
@@ -213,16 +240,9 @@ export const ContentEditorModal = ({
   };
   
   /**
-   * Handle close with unsaved changes warning
+   * Handle close
    */
   const handleClose = () => {
-    if (hasChanges) {
-      const confirmed = window.confirm(
-        'You have unsaved changes. Are you sure you want to close?'
-      );
-      if (!confirmed) return;
-    }
-    
     setHasChanges(false);
     setError(null);
     onClose();
@@ -271,14 +291,14 @@ export const ContentEditorModal = ({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
               </svg>
               <span className="text-sm font-medium text-blue-900">
-                Editing {currentLanguage.toUpperCase()} content
+                Editing in {languageName}
               </span>
             </div>
             
             {/* Name */}
             <div>
               <label className="block mb-2 font-semibold text-gray-900 text-sm uppercase tracking-wide">
-                Name *
+                {type === 'experience' ? 'Experience Name *' : 'Name *'}
               </label>
               <input
                 type="text"
@@ -286,44 +306,70 @@ export const ContentEditorModal = ({
                 onChange={(e) => handleTextChange('name', e.target.value)}
                 disabled={isSaving}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-gray-900 font-sans"
-                placeholder="Enter name..."
+                placeholder={type === 'experience' ? 'e.g., Full Stack Development' : 'Enter name...'}
                 style={{ fontSize: '15px' }}
               />
             </div>
             
-            {/* Short Description */}
-            <div>
-              <label className="block mb-2 font-semibold text-gray-900 text-sm uppercase tracking-wide">
-                Short Description
-              </label>
-              <textarea
-                value={textData.short_description || ''}
-                onChange={(e) => handleTextChange('short_description', e.target.value)}
-                disabled={isSaving}
-                rows={3}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y disabled:bg-gray-100 text-gray-900 font-sans"
-                placeholder="Brief summary..."
-                style={{ fontSize: '15px', lineHeight: '1.6' }}
-              />
-            </div>
+            {/* Experience-specific fields - show Years first */}
+            {type === 'experience' && (
+              <div>
+                <label className="block mb-2 font-semibold text-gray-900 text-sm uppercase tracking-wide">
+                  Years of Experience *
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="50"
+                  value={formData.years || ''}
+                  onChange={(e) => handleFieldChange('years', e.target.value)}
+                  disabled={isSaving}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-gray-900 font-sans"
+                  placeholder="Number of years..."
+                  style={{ fontSize: '15px' }}
+                />
+                <p className="mt-1 text-xs text-gray-600">This will display as "{formData.years || '0'}+ years"</p>
+              </div>
+            )}
             
-            {/* Description */}
-            <div>
-              <label className="block mb-2 font-semibold text-gray-900 text-sm uppercase tracking-wide">
-                Description
-              </label>
-              <textarea
-                value={textData.description || ''}
-                onChange={(e) => handleTextChange('description', e.target.value)}
-                disabled={isSaving}
-                rows={10}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y disabled:bg-gray-100 text-gray-900 font-sans"
-                placeholder="Detailed description..."
-                style={{ fontSize: '15px', lineHeight: '1.6', minHeight: '200px' }}
-              />
-            </div>
+            {/* Project-specific fields - Short Description and Description */}
+            {type === 'project' && (
+              <>
+                {/* Short Description */}
+                <div>
+                  <label className="block mb-2 font-semibold text-gray-900 text-sm uppercase tracking-wide">
+                    Short Description
+                  </label>
+                  <textarea
+                    value={textData.short_description || ''}
+                    onChange={(e) => handleTextChange('short_description', e.target.value)}
+                    disabled={isSaving}
+                    rows={3}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y disabled:bg-gray-100 text-gray-900 font-sans"
+                    placeholder="Brief summary..."
+                    style={{ fontSize: '15px', lineHeight: '1.6' }}
+                  />
+                </div>
+                
+                {/* Description */}
+                <div>
+                  <label className="block mb-2 font-semibold text-gray-900 text-sm uppercase tracking-wide">
+                    Description
+                  </label>
+                  <textarea
+                    value={textData.description || ''}
+                    onChange={(e) => handleTextChange('description', e.target.value)}
+                    disabled={isSaving}
+                    rows={10}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y disabled:bg-gray-100 text-gray-900 font-sans"
+                    placeholder="Detailed description..."
+                    style={{ fontSize: '15px', lineHeight: '1.6', minHeight: '200px' }}
+                  />
+                </div>
+              </>
+            )}
             
-            {/* Project-specific fields */}
+            {/* Project-specific fields - URLs */}
             {type === 'project' && (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -355,57 +401,6 @@ export const ContentEditorModal = ({
                       placeholder="https://example.com"
                       style={{ fontSize: '15px' }}
                     />
-                  </div>
-                </div>
-              </>
-            )}
-            
-            {/* Experience-specific fields */}
-            {type === 'experience' && (
-              <>
-                <div>
-                  <label className="block mb-2 font-semibold text-gray-900 text-sm uppercase tracking-wide">
-                    Company *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.company || ''}
-                    onChange={(e) => handleFieldChange('company', e.target.value)}
-                    disabled={isSaving}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-gray-900 font-sans"
-                    placeholder="Company name..."
-                    style={{ fontSize: '15px' }}
-                  />
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block mb-2 font-semibold text-gray-900 text-sm uppercase tracking-wide">
-                      Start Date *
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.start_date || ''}
-                      onChange={(e) => handleFieldChange('start_date', e.target.value)}
-                      disabled={isSaving}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-gray-900 font-sans"
-                      style={{ fontSize: '15px' }}
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block mb-2 font-semibold text-gray-900 text-sm uppercase tracking-wide">
-                      End Date
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.end_date || ''}
-                      onChange={(e) => handleFieldChange('end_date', e.target.value)}
-                      disabled={isSaving}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-gray-900 font-sans"
-                      style={{ fontSize: '15px' }}
-                    />
-                    <p className="mt-1 text-xs text-gray-600">Leave empty for current position</p>
                   </div>
                 </div>
               </>
