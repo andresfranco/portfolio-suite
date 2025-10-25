@@ -1,8 +1,8 @@
 import React, { useState, useContext } from 'react';
-import { portfolioData } from '../data/portfolio';
 import heroImage from '../assets/images/hero.jpg';
 import ChatModal from './ChatModal';
 import { LanguageContext } from '../context/LanguageContext';
+import { usePortfolio } from '../context/PortfolioContext';
 import { translations } from '../data/translations';
 import { useNavigate } from 'react-router-dom';
 import enResume from '../assets/files/en_resume.pdf';
@@ -10,9 +10,17 @@ import esResume from '../assets/files/es_resume.pdf';
 
 const Hero = () => {
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const { person, experiences } = portfolioData;
+  const { portfolio, loading, getExperiences, getExperienceText } = usePortfolio();
   const { language } = useContext(LanguageContext);
   const navigate = useNavigate();
+
+  // Get experiences from API
+  const experiences = getExperiences();
+  
+  // Placeholder person data (TODO: Add person/profile to backend API)
+  const person = {
+    name: portfolio?.name || "Loading...",
+  };
 
   const getIconComponent = (iconName) => {
     switch (iconName) {
@@ -48,6 +56,15 @@ const Hero = () => {
     return `${language}_resume.pdf`;
   };
 
+  // Show loading state
+  if (loading) {
+    return (
+      <section id="home" className="relative min-h-screen w-full flex items-center justify-center bg-gray-900">
+        <div className="text-white text-2xl">Loading...</div>
+      </section>
+    );
+  }
+
   return (
     <>
       <section id="home" className="relative min-h-screen w-full">
@@ -66,6 +83,8 @@ const Hero = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
                 {experiences.map((exp) => {
                   const Icon = getIconComponent(exp.icon);
+                  const experienceText = getExperienceText(exp);
+                  
                   return (
                     <div 
                       key={exp.id} 
@@ -77,12 +96,12 @@ const Hero = () => {
                       </div>
                       <div>
                         <div className="flex items-baseline gap-2">
-                          <span className="text-2xl font-bold text-white">{exp.years}+</span>
+                          <span className="text-2xl font-bold text-white">{exp.years_experience || exp.years}+</span>
                           {/* Use translated years label */}
                           <span className="text-white/80 text-sm">{translations[language].years_label}</span>
                         </div>
-                        <p className="text-white font-medium">{exp.area[language]}</p>
-                        <p className="text-white/60 text-sm">{exp.description[language]}</p>
+                        <p className="text-white font-medium">{experienceText.name}</p>
+                        <p className="text-white/60 text-sm">{experienceText.description}</p>
                       </div>
                     </div>
                   );
