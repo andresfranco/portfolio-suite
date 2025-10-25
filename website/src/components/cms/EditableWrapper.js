@@ -92,6 +92,7 @@ export const EditableTextWrapper = ({
   onEdit,
   className = '',
   label = 'Edit text',
+  disabled = false,
 }) => {
   const { isEditMode } = useEditMode();
 
@@ -100,7 +101,7 @@ export const EditableTextWrapper = ({
   }
 
   const handleClick = (e) => {
-    if (onEdit) {
+    if (!disabled && onEdit) {
       e.stopPropagation();
       onEdit();
     }
@@ -108,21 +109,22 @@ export const EditableTextWrapper = ({
 
   return (
     <span
-      className={`relative inline-block group cursor-pointer ${className}`}
+      className={`relative inline-block group ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} ${className}`}
       onClick={handleClick}
+      style={disabled ? { pointerEvents: 'none' } : {}}
     >
       {children}
       
       {/* Underline indicator */}
-      <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></span>
+      <span className={`absolute bottom-0 left-0 right-0 h-0.5 ${disabled ? 'bg-gray-400' : 'bg-blue-500'} opacity-0 group-hover:opacity-100 transition-opacity`}></span>
       
       {/* Edit icon */}
-      <span className="
+      <span className={`
         absolute -top-1 -right-6 
         opacity-0 group-hover:opacity-100 
         transition-opacity
-        text-blue-500
-      ">
+        ${disabled ? 'text-gray-400' : 'text-blue-500'}
+      `}>
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
         </svg>

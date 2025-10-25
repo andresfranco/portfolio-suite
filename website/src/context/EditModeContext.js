@@ -11,6 +11,7 @@ export const EditModeContext = createContext();
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 const TOKEN_KEY = 'cms_auth_token';
 const USER_KEY = 'cms_user';
+const EDIT_MODE_KEY = 'cms_edit_mode';
 
 /**
  * Edit Mode Provider Component
@@ -23,6 +24,7 @@ export const EditModeProvider = ({ children }) => {
   const [authToken, setAuthToken] = useState(null);
   const [isAuthenticating, setIsAuthenticating] = useState(true);
   const [error, setError] = useState(null);
+  const [activeEditor, setActiveEditor] = useState(null); // Track which editor is currently open
   const [notification, setNotification] = useState({
     isOpen: false,
     title: '',
@@ -92,6 +94,7 @@ export const EditModeProvider = ({ children }) => {
             setAuthToken(urlToken);
             setIsEditMode(true);
             localStorage.setItem(TOKEN_KEY, urlToken);
+            localStorage.setItem(EDIT_MODE_KEY, 'true');
             
             // Clean URL params after storing token
             const newUrl = window.location.pathname + window.location.hash;
@@ -116,6 +119,7 @@ export const EditModeProvider = ({ children }) => {
           // Check localStorage for existing session
           const storedToken = localStorage.getItem(TOKEN_KEY);
           const storedUser = localStorage.getItem(USER_KEY);
+          const storedEditMode = localStorage.getItem(EDIT_MODE_KEY);
 
           if (storedToken && storedUser) {
             const parsedUser = JSON.parse(storedUser);
@@ -126,12 +130,13 @@ export const EditModeProvider = ({ children }) => {
             if (isValid) {
               setAuthToken(storedToken);
               setUser(parsedUser);
-              // Keep edit mode disabled by default, even if token exists
-              setIsEditMode(false);
+              // Restore edit mode state from localStorage
+              setIsEditMode(storedEditMode === 'true');
             } else {
               // Clear invalid token
               localStorage.removeItem(TOKEN_KEY);
               localStorage.removeItem(USER_KEY);
+              localStorage.removeItem(EDIT_MODE_KEY);
             }
           }
         }
@@ -139,6 +144,7 @@ export const EditModeProvider = ({ children }) => {
         console.error('Error loading authentication:', err);
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(USER_KEY);
+        localStorage.removeItem(EDIT_MODE_KEY);
       } finally {
         setIsAuthenticating(false);
       }
@@ -208,6 +214,7 @@ export const EditModeProvider = ({ children }) => {
     setError(null);
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    localStorage.removeItem(EDIT_MODE_KEY);
     
     // Redirect back to normal view
     window.location.href = '/';
@@ -218,11 +225,13 @@ export const EditModeProvider = ({ children }) => {
    */
   const toggleEditMode = useCallback(() => {
     if (canEdit && authToken) {
-      setIsEditMode(prevMode => !prevMode);
+      const newEditMode = !isEditMode;
+      setIsEditMode(newEditMode);
+      localStorage.setItem(EDIT_MODE_KEY, newEditMode ? 'true' : 'false');
     } else {
       console.warn('User does not have edit permissions or is not authenticated');
     }
-  }, [canEdit, authToken]);
+  }, [canEdit, authToken, isEditMode]);
 
   /**
    * Enable edit mode
@@ -230,6 +239,7 @@ export const EditModeProvider = ({ children }) => {
   const enableEditMode = useCallback(() => {
     if (canEdit && authToken) {
       setIsEditMode(true);
+      localStorage.setItem(EDIT_MODE_KEY, 'true');
     }
   }, [canEdit, authToken]);
 
@@ -238,6 +248,7 @@ export const EditModeProvider = ({ children }) => {
    */
   const disableEditMode = useCallback(() => {
     setIsEditMode(false);
+    localStorage.setItem(EDIT_MODE_KEY, 'false');
   }, []);
 
   const value = {
@@ -249,6 +260,7 @@ export const EditModeProvider = ({ children }) => {
     isAuthenticating,
     error,
     isAuthenticated: !!authToken,
+    activeEditor, // Which editor is currently active
 
     // Actions
     exitEditMode,
@@ -257,6 +269,7 @@ export const EditModeProvider = ({ children }) => {
     disableEditMode,
     clearError: () => setError(null),
     showNotification,
+    setActiveEditor, // Lock/unlock editors
   };
 
   return (
