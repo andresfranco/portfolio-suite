@@ -1,6 +1,21 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { Box, IconButton, Tooltip, Chip, Stack, Typography, Avatar, Container } from '@mui/material';
-import { Edit as EditIcon, Delete as DeleteIcon, PhotoLibrary as PhotoLibraryIcon, AttachFile as AttachFileIcon, ArrowUpward, ArrowDownward, Dashboard as DashboardIcon, InfoOutlined } from '@mui/icons-material';
+import { 
+  Box, 
+  IconButton, 
+  Tooltip, 
+  Chip, 
+  Stack, 
+  Typography, 
+  Avatar, 
+  Container,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button
+} from '@mui/material';
+import { Edit as EditIcon, Delete as DeleteIcon, PhotoLibrary as PhotoLibraryIcon, AttachFile as AttachFileIcon, ArrowUpward, ArrowDownward, Dashboard as DashboardIcon, InfoOutlined, Language as LanguageIcon } from '@mui/icons-material';
 import PortfolioForm from './PortfolioForm';
 import PortfolioImageForm from './PortfolioImageForm';
 import PortfolioData from './PortfolioData';
@@ -42,6 +57,7 @@ function PortfolioIndexContent() {
   const [isPortfolioDataOpen, setIsPortfolioDataOpen] = useState(false);
   const [formMode, setFormMode] = useState(null);
   const [selectedPortfolio, setSelectedPortfolio] = useState(null);
+  const [errorDialog, setErrorDialog] = useState({ open: false, title: '', message: '' });
 
   // Define filter types with dynamic options - memoized to prevent recreation
   const FILTER_TYPES = useMemo(() => ({
@@ -271,7 +287,7 @@ function PortfolioIndexContent() {
   {
       field: 'actions',
       headerName: 'Actions',
-      width: 220,
+      width: 260,
       sortable: false,
       disableColumnMenu: true,
       renderCell: (params) => (
@@ -288,6 +304,20 @@ function PortfolioIndexContent() {
               <DashboardIcon fontSize="small" />
             </IconButton>
           </Tooltip>
+          <PermissionGate permission="EDIT_CONTENT">
+            <Tooltip title="Edit Portfolio Website">
+              <IconButton 
+                onClick={() => handleEditWebsiteClick(params.row)} 
+                size="small"
+                sx={{ 
+                  color: '#4caf50',
+                  '&:hover': { backgroundColor: 'rgba(76, 175, 80, 0.04)' }
+                }}
+              >
+                <LanguageIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </PermissionGate>
           <PermissionGate permission="EDIT_PORTFOLIO">
             <Tooltip title="Edit Portfolio">
               <IconButton 
@@ -379,6 +409,57 @@ function PortfolioIndexContent() {
   const handlePortfolioDataClick = (portfolio) => {
     setSelectedPortfolio(portfolio);
     setIsPortfolioDataOpen(true);
+  };
+
+  // Handle edit website button click - opens website in edit mode
+  const handleEditWebsiteClick = async (portfolio) => {
+    try {
+      // Call backend API to generate a JWT token from the cookie session
+      const response = await fetch(`${SERVER_URL}/api/auth/generate-website-token`, {
+        method: 'GET',
+        credentials: 'include', // Important: include cookies
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Failed to generate token' }));
+        setErrorDialog({
+          open: true,
+          title: 'Failed to generate website token',
+          message: errorData.detail || 'Failed to generate authentication token. Please make sure you are logged in and have the necessary permissions.'
+        });
+        return;
+      }
+
+      const data = await response.json();
+      const token = data.access_token;
+
+      if (!token) {
+        setErrorDialog({
+          open: true,
+          title: 'No token received',
+          message: 'The server did not return an authentication token. Please try again or contact support.'
+        });
+        return;
+      }
+
+      // Construct website URL with edit mode parameters
+      const websiteUrl = process.env.REACT_APP_WEBSITE_URL || 'http://localhost:3000';
+      const editUrl = `${websiteUrl}?edit=true&token=${encodeURIComponent(token)}&portfolio_id=${portfolio.id}`;
+
+      // Open in new tab
+      window.open(editUrl, '_blank');
+
+    } catch (error) {
+      console.error('Error generating website token:', error);
+      setErrorDialog({
+        open: true,
+        title: 'Error',
+        message: error.message || 'An unexpected error occurred. Please try again or contact support.'
+      });
+    }
   };
 
   // Handle form close
@@ -535,6 +616,32 @@ function PortfolioIndexContent() {
           portfolioName={selectedPortfolio?.name}
         />
       )}
+
+      {/* Error Dialog */}
+      <Dialog
+        open={errorDialog.open}
+        onClose={() => setErrorDialog({ open: false, title: '', message: '' })}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ color: 'error.main' }}>
+          {errorDialog.title}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {errorDialog.message}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => setErrorDialog({ open: false, title: '', message: '' })}
+            variant="contained"
+            color="primary"
+          >
+            OK
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

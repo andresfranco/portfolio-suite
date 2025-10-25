@@ -19,6 +19,7 @@ from app.core.audit_logger import audit_logger
 from app.core.account_security import account_security_manager
 from app.core.mfa import mfa_manager
 from app.core.secure_cookies import SecureCookieManager
+from app.api.deps import get_current_user
 from jose import jwt, JWTError
 
 # Set up logger
@@ -577,4 +578,121 @@ async def logout(
         return {
             "success": True,
             "message": "Successfully logged out"
-        } 
+        }
+
+
+@router.get("/generate-website-token")
+async def generate_website_token(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    Generate a JWT token for website edit mode from an authenticated cookie session.
+    This allows backend-ui users to open the website in edit mode.
+    
+    Returns:
+        dict: Contains access_token for use in website URL
+    """
+    try:
+        # Get access token from cookie
+        access_token = request.cookies.get("access_token")
+        
+        if not access_token:
+            logger.warning("No access token found in cookies")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Not authenticated. Please log in to the backend first."
+            )
+        
+        # Verify and decode the token to get user info
+        try:
+            payload = jwt.decode(
+                access_token,
+                settings.SECRET_KEY,
+                algorithms=[settings.ALGORITHM]
+            )
+            username = payload.get("sub")
+            
+            if not username:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid authentication token"
+                )
+            
+            # Get user from database with permissions
+            user = db.query(User).filter(User.username == username).first()
+            
+            if not user or not user.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="User not found or inactive"
+                )
+            
+            # Check if user has EDIT_CONTENT permission or is SYSTEM_ADMIN
+            has_permission = user.username in SYSTEM_ADMIN_USERS
+            
+            if not has_permission:
+                for role in user.roles:
+                    for permission in role.permissions:
+                        if permission.code in ['EDIT_CONTENT', 'MANAGE_CONTENT', 'SYSTEM_ADMIN']:
+                            has_permission = True
+                            break
+                    if has_permission:
+                        break
+            
+            if not has_permission:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You don't have permission to edit website content"
+                )
+            
+            # Generate a new JWT token for the website (longer expiration for editing session)
+            website_token = create_access_token(
+                data={"sub": user.username, "user_id": user.id},
+                expires_delta=timedelta(hours=2)  # 2 hour editing session
+            )
+            
+            logger.info(f"Generated website token for user: {username}")
+            
+            return {
+                "access_token": website_token,
+                "token_type": "bearer",
+                "expires_in": 7200  # 2 hours in seconds
+            }
+            
+        except JWTError as e:
+            logger.error(f"JWT decode error: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired authentication token"
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating website token: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate website token"
+        )
+
+
+@router.get("/verify")
+async def verify_token(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Verify that a JWT token is valid and return basic user info.
+    Used by the website to verify authentication tokens.
+    
+    Returns:
+        dict: User verification status and basic info
+    """
+    return {
+        "valid": True,
+        "user_id": current_user.id,
+        "username": current_user.username,
+        "email": current_user.email,
+        "is_active": current_user.is_active
+    }
+ 
