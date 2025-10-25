@@ -205,14 +205,14 @@ export const ImageUploader = ({
   
   return (
     <div 
-      className="relative"
+      className="absolute inset-0 w-full h-full"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
       <EditableImageWrapper 
         onEdit={handleClick}
-        className={className}
+        className="absolute inset-0 w-full h-full"
         label={uploading ? 'Uploading...' : 'Change image'}
       >
         <img 
