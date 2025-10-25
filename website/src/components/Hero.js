@@ -10,6 +10,7 @@ import enResume from '../assets/files/en_resume.pdf';
 import esResume from '../assets/files/es_resume.pdf';
 import { InlineTextEditor, ImageUploader, ContentEditorModal, RichTextEditor } from './cms';
 import { useContentEditor } from '../hooks/useContentEditor';
+import { useSectionLabel, SECTION_CODES } from '../hooks/useSectionLabel';
 
 const Hero = () => {
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -17,6 +18,9 @@ const Hero = () => {
   const { language } = useContext(LanguageContext);
   const { isEditMode } = useEditMode();
   const navigate = useNavigate();
+  
+  // Get editable section labels
+  const yearsLabel = useSectionLabel(SECTION_CODES.YEARS_LABEL, 'years_label');
   
   // Content editor hook for experiences
   const { 
@@ -31,16 +35,25 @@ const Hero = () => {
   
   // Get hero tagline section
   const sections = getSections();
-  const heroTaglineSection = sections.find(s => s.code === 'HERO_TAGLINE' || s.code === 'hero_tagline');
+  const heroTaglineSection = sections.find(s => {
+    const code = s.code?.trim();
+    return code === 'HERO_TAGLINE' || code === 'hero_tagline';
+  });
   const heroTaglineText = heroTaglineSection ? getSectionText(heroTaglineSection) : null;
   const heroTaglineValue = heroTaglineText?.text || translations[language].hero_tagline;
   
   // Get button label sections
-  const chatButtonSection = sections.find(s => s.code === 'CHAT_WITH_AI' || s.code === 'chat_with_ai');
+  const chatButtonSection = sections.find(s => {
+    const code = s.code?.trim();
+    return code === 'CHAT_WITH_AI' || code === 'chat_with_ai';
+  });
   const chatButtonText = chatButtonSection ? getSectionText(chatButtonSection) : null;
   const chatButtonValue = chatButtonText?.text || translations[language].chat_with_ai;
   
-  const downloadCvSection = sections.find(s => s.code === 'DOWNLOAD_CV' || s.code === 'download_cv');
+  const downloadCvSection = sections.find(s => {
+    const code = s.code?.trim();
+    return code === 'DOWNLOAD_CV' || code === 'download_cv';
+  });
   const downloadCvText = downloadCvSection ? getSectionText(downloadCvSection) : null;
   const downloadCvValue = downloadCvText?.text || translations[language].download_cv;
   
@@ -62,9 +75,12 @@ const Hero = () => {
     }
   };
 
-  const handleExperienceClick = (expId) => {
-    // In edit mode, open the editor modal instead of navigating
-    if (isEditMode) {
+  const handleExperienceClick = (expId, e) => {
+    // Allow Ctrl+Click or Cmd+Click to navigate even in edit mode
+    const isModifierClick = e?.ctrlKey || e?.metaKey;
+    
+    // In edit mode without modifier key, open the editor modal
+    if (isEditMode && !isModifierClick) {
       const exp = experiences.find(e => e.id === expId);
       if (exp) {
         startEditing(exp);
@@ -72,7 +88,7 @@ const Hero = () => {
       return;
     }
     
-    // Normal navigation in view mode
+    // Navigate to experience details (either normal mode or edit mode with modifier)
     const route = language === 'en' ? `/experience/${expId}` : `/${language}/experience/${expId}`;
     navigate(route);
   };
@@ -168,8 +184,9 @@ const Hero = () => {
                   return (
                     <div 
                       key={exp.id} 
-                      onClick={() => handleExperienceClick(exp.id)}
+                      onClick={(e) => handleExperienceClick(exp.id, e)}
                       className="flex items-center gap-4 bg-black/30 p-4 rounded-lg backdrop-blur-sm border border-white/10 transform hover:-translate-y-1 transition-all duration-300 hover:border-[#14C800]/30 group cursor-pointer"
+                      title={isEditMode ? "Click to edit • Ctrl/Cmd+Click to view details" : "View experience details"}
                     >
                       <div className="text-[#14C800] text-3xl group-hover:scale-110 transition-transform duration-300">
                         <Icon />
@@ -177,8 +194,10 @@ const Hero = () => {
                       <div className="flex-1">
                         <div className="flex items-baseline gap-2">
                           <span className="text-2xl font-bold text-white">{exp.years_experience || exp.years}+</span>
-                          {/* Use translated years label */}
-                          <span className="text-white/80 text-sm">{translations[language].years_label}</span>
+                          {/* Use editable years label */}
+                          <span className="text-white/80 text-sm">
+                            {yearsLabel.renderEditable('text-white/80 text-sm')}
+                          </span>
                         </div>
                         <p className="text-white font-medium">{experienceText.name}</p>
                       </div>

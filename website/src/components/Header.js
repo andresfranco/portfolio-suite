@@ -2,6 +2,8 @@ import React, { useState, useContext } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { LanguageContext } from '../context/LanguageContext';
 import { translations } from '../data/translations';
+import { useEditMode } from '../context/EditModeContext';
+import { useSectionLabel, SECTION_CODES } from '../hooks/useSectionLabel';
 import usFlag from '../assets/images/us.svg';
 import esFlag from '../assets/images/es.svg';
 
@@ -10,11 +12,17 @@ const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { language, setLanguage } = useContext(LanguageContext);
+  const { isEditMode } = useEditMode();
+  
+  // Get editable section labels
+  const homeLabel = useSectionLabel(SECTION_CODES.HOME, 'home');
+  const projectsLabel = useSectionLabel(SECTION_CODES.PROJECTS, 'projects');
+  const contactLabel = useSectionLabel(SECTION_CODES.CONTACT, 'contact');
   
   const menuItems = [
-    { name: translations[language].home, path: '/' },
-    { name: translations[language].projects, path: '/projects' },
-    { name: translations[language].contact, path: '/contact' }
+    { label: homeLabel, path: '/' },
+    { label: projectsLabel, path: '/projects' },
+    { label: contactLabel, path: '/contact' }
   ];
 
   const availableLanguages = [
@@ -45,7 +53,7 @@ const Header = () => {
                     transform hover:-translate-y-1
                     ${location.pathname === item.path ? 'bg-[#14C800] text-white' : ''}`}
                 >
-                  {item.name}
+                  {item.label.renderEditable('text-white/90')}
                 </button>
               </li>
             ))}
@@ -116,7 +124,7 @@ const Header = () => {
                       transform hover:-translate-y-1 inline-block
                       ${location.pathname === item.path ? 'bg-[#14C800] text-white' : ''}`}
                   >
-                    {item.name}
+                    {item.label.renderEditable('text-white')}
                   </button>
                 </li>
               ))}
