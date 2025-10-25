@@ -1,16 +1,19 @@
 import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LanguageContext } from '../context/LanguageContext';
+import { usePortfolio } from '../context/PortfolioContext';
 import { translations } from '../data/translations';
 import ProjectDetails from './ProjectDetails';
 
-const ProjectModal = ({ project, onClose, onViewDetails, language }) => {
+const ProjectModal = ({ project, onClose, onViewDetails, language, getProjectText }) => {
+  const projectText = getProjectText(project);
+  
   return (
     <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
       <div className="bg-gray-900 w-full max-w-4xl rounded-xl overflow-hidden max-h-[90vh]">
         <div className="border-b border-gray-800 p-4 flex justify-between items-center">
           <h3 className="text-white text-xl md:text-2xl font-bold">
-            {project.title[language]}
+            {projectText.name || 'Project'}
           </h3>
           <button 
             onClick={onClose}
@@ -21,13 +24,15 @@ const ProjectModal = ({ project, onClose, onViewDetails, language }) => {
           </button>
         </div>
         <div className="p-4 md:p-6 overflow-y-auto">
-          <img 
-            src={project.image} 
-            alt={project.title[language]}
-            className="w-full h-48 md:h-64 object-cover rounded-lg mb-4 md:mb-6"
-          />
+          {project.images && project.images.length > 0 && (
+            <img 
+              src={`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${project.images[0].image_path}`}
+              alt={projectText.name}
+              className="w-full h-48 md:h-64 object-cover rounded-lg mb-4 md:mb-6"
+            />
+          )}
           <p className="text-gray-300 text-base md:text-lg mb-6">
-            {project.description[language]}
+            {projectText.description || ''}
           </p>
           <button
             onClick={onViewDetails}
@@ -49,34 +54,10 @@ const Projects = () => {
   const [showModal, setShowModal] = useState(false);
   const navigate = useNavigate();
   const { language } = useContext(LanguageContext);
+  const { getProjects, getProjectText, loading } = usePortfolio();
 
-  const projects = [
-    {
-      id: 1,
-      title: { en: "E-commerce Platform", es: "Plataforma de Comercio Electrónico" },
-      image: require('../assets/images/project1.jpg'),
-      description: { en: "A comprehensive e-commerce platform with a user-friendly interface and secure payment gateway.", es: "Una plataforma de comercio electrónico integral con una interfaz fácil de usar y una pasarela de pago segura." },
-      brief: { en: "Next-generation e-commerce solution built with modern web technologies.", es: "Solución de comercio electrónico de próxima generación construida con tecnologías web modernas." },
-      date: "January 2024",
-      category: { en: "Web Development", es: "Desarrollo Web" },
-      liveUrl: "https://example.com",
-      repoUrl: "https://github.com/username/project"
-    },
-    {
-      id: 2,
-      title: { en: "Mobile Application", es: "Aplicación Móvil" },
-      image: require('../assets/images/project2.jpg'),
-      description: { en: "A mobile application designed to enhance user experience with intuitive navigation and seamless performance.", es: "Una aplicación móvil diseñada para mejorar la experiencia del usuario con una navegación intuitiva y un rendimiento fluido." },
-      link: "#"
-    },
-    {
-      id: 3,
-      title: { en: "Digital Marketing Campaign", es: "Campaña de Marketing Digital" },
-      image: require('../assets/images/project3.jpg'),
-      description: { en: "A digital marketing campaign that leverages social media and SEO strategies to boost brand visibility.", es: "Una campaña de marketing digital que aprovecha las estrategias de redes sociales y SEO para aumentar la visibilidad de la marca." },
-      link: "#"
-    }
-  ];
+  // Get projects from portfolio context
+  const projects = getProjects();
 
   const handleProjectClick = (project) => {
     setSelectedProject(project);
@@ -89,6 +70,15 @@ const Projects = () => {
     navigate(route);
   };
 
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex-grow flex items-center justify-center bg-gray-800 min-h-screen">
+        <div className="text-white text-2xl">Loading projects...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-grow">
       <main className="pt-20">
@@ -98,34 +88,41 @@ const Projects = () => {
               {translations[language].projects}
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-12">
-              {projects.map((project) => (
-                <div
-                  key={project.id}
-                  onClick={() => handleProjectClick(project)}
-                  className="relative group cursor-pointer rounded-xl overflow-hidden
-                    transition-all duration-300
-                    hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)]
-                    transform hover:-translate-y-1
-                    aspect-[4/3]"
-                >
-                  <img
-                    src={project.image}
-                    alt={project.title[language]}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-black/75 md:bg-black/40 
-                    md:opacity-0 md:group-hover:opacity-100
-                    md:group-hover:bg-black/85 transition-all duration-300 
-                    flex items-center justify-center">
-                    <h3 className="text-white text-xl md:text-2xl font-bold text-center px-4
-                      md:opacity-0 md:group-hover:opacity-100 transform 
+              {projects.map((project) => {
+                const projectText = getProjectText(project);
+                const projectImage = project.images && project.images.length > 0
+                  ? `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${project.images[0].image_path}`
+                  : require('../assets/images/project1.jpg'); // fallback image
+                
+                return (
+                  <div
+                    key={project.id}
+                    onClick={() => handleProjectClick(project)}
+                    className="relative group cursor-pointer rounded-xl overflow-hidden
                       transition-all duration-300
-                      md:translate-y-4 md:group-hover:translate-y-0">
-                      {project.title[language]}
-                    </h3>
+                      hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)]
+                      transform hover:-translate-y-1
+                      aspect-[4/3]"
+                  >
+                    <img
+                      src={projectImage}
+                      alt={projectText.name}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/75 md:bg-black/40 
+                      md:opacity-0 md:group-hover:opacity-100
+                      md:group-hover:bg-black/85 transition-all duration-300 
+                      flex items-center justify-center">
+                      <h3 className="text-white text-xl md:text-2xl font-bold text-center px-4
+                        md:opacity-0 md:group-hover:opacity-100 transform 
+                        transition-all duration-300
+                        md:translate-y-4 md:group-hover:translate-y-0">
+                        {projectText.name}
+                      </h3>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </section>
@@ -137,6 +134,7 @@ const Projects = () => {
           onClose={() => setShowModal(false)}
           onViewDetails={() => handleViewDetails(selectedProject.id)}
           language={language}
+          getProjectText={getProjectText}
         />
       )}
     </div>

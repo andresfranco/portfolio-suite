@@ -27,7 +27,9 @@ try:
         search,
         rag_admin,
         agents,
-        security_dashboard
+        security_dashboard,
+        website,
+        cms
     )
     logger.debug("Successfully imported all endpoint modules")
 except ImportError as e:
@@ -61,6 +63,13 @@ try:
     api_router.include_router(category_types.router, prefix="/category-types", tags=["Category Types"])
     api_router.include_router(skills.router, prefix="/skills", tags=["Skills"])
     api_router.include_router(skill_types.router, prefix="/skill-types", tags=["Skill Types"])
+    
+    # Public website API (no authentication required)
+    api_router.include_router(website.router, prefix="/website", tags=["Website"])
+    
+    # CMS API (authenticated, requires EDIT_CONTENT permission)
+    api_router.include_router(cms.router, prefix="/cms", tags=["CMS"])
+    
     # System settings (admin)
     api_router.include_router(system_settings.router, prefix="/settings", tags=["System Settings"])
     api_router.include_router(search.router, prefix="/search", tags=["Search"])

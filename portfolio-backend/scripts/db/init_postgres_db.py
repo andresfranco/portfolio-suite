@@ -178,6 +178,10 @@ STANDARD_PERMISSIONS = [
     {"name": "VIEW_EMAIL_TEMPLATES", "description": "Permission to view email templates"},
     {"name": "MODIFY_EMAIL_TEMPLATES", "description": "Permission to modify email templates"},
     
+    # Website CMS
+    {"name": "EDIT_CONTENT", "description": "Permission to edit website content via CMS"},
+    {"name": "PUBLISH_CONTENT", "description": "Permission to publish website content changes"},
+    
     # Import/Export Functionality
     {"name": "IMPORT_DATA", "description": "Permission to import data into the system"},
     {"name": "EXPORT_DATA", "description": "Permission to export data from the system"},
@@ -213,6 +217,7 @@ DEFAULT_ROLES = [
             "MANAGE_LANGUAGES", "VIEW_LANGUAGES", "CREATE_LANGUAGE", "MODIFY_LANGUAGE", "DELETE_LANGUAGE",
             "MANAGE_SECTIONS", "VIEW_SECTIONS", "CREATE_SECTION", "MODIFY_SECTION", "DELETE_SECTION",
             "MANAGE_TRANSLATIONS", "VIEW_TRANSLATIONS", "CREATE_TRANSLATION", "MODIFY_TRANSLATION", "DELETE_TRANSLATION",
+            "EDIT_CONTENT", "PUBLISH_CONTENT",
             "EXPORT_DATA"
         ]
     },
@@ -230,7 +235,8 @@ DEFAULT_ROLES = [
             "VIEW_EXPERIENCES", "MODIFY_EXPERIENCE",
             "VIEW_LANGUAGES", "MODIFY_LANGUAGE",
             "VIEW_SECTIONS", "MODIFY_SECTION",
-            "VIEW_TRANSLATIONS", "MODIFY_TRANSLATION"
+            "VIEW_TRANSLATIONS", "MODIFY_TRANSLATION",
+            "EDIT_CONTENT"
         ]
     },
     {
