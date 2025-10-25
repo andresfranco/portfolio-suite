@@ -10,16 +10,20 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
  * @returns {string|null} - CSRF token or null if not found
  */
 const getCsrfToken = () => {
-  const name = 'csrf_token=';
-  const decodedCookie = decodeURIComponent(document.cookie);
-  const cookieArray = decodedCookie.split(';');
+  const name = 'csrf_token';
+  const cookies = document.cookie.split(';');
   
-  for (let i = 0; i < cookieArray.length; i++) {
-    let cookie = cookieArray[i].trim();
-    if (cookie.indexOf(name) === 0) {
-      return cookie.substring(name.length, cookie.length);
+  for (let cookie of cookies) {
+    cookie = cookie.trim();
+    if (cookie.startsWith(name + '=')) {
+      const token = cookie.substring(name.length + 1);
+      console.log('[CSRF] Token found:', token ? '✓' : '✗');
+      return token;
     }
   }
+  
+  console.warn('[CSRF] Token not found in cookies. Available cookies:', 
+    cookies.map(c => c.split('=')[0].trim()));
   return null;
 };
 
@@ -312,6 +316,15 @@ export const portfolioApi = {
       formData.append('file', file);
 
       const headers = getHeaders(token, false); // Don't include Content-Type for FormData
+      
+      console.log('[Upload] Sending image upload request:', {
+        entityType,
+        entityId,
+        category,
+        headers: Object.keys(headers),
+        hasAuthToken: !!token,
+        hasCsrfToken: !!headers['X-CSRF-Token']
+      });
 
       const response = await fetch(
         `${API_BASE_URL}/api/cms/content/images?entity_type=${entityType}&entity_id=${entityId}&category=${category}`,

@@ -178,7 +178,7 @@ export const EditableImageWrapper = ({
 
   return (
     <div
-      className={`relative group cursor-pointer ${className}`}
+      className={`group cursor-pointer ${className}`}
       onClick={handleClick}
     >
       {children}
@@ -190,6 +190,7 @@ export const EditableImageWrapper = ({
         flex items-center justify-center
         transition-all duration-200
         rounded
+        pointer-events-none
       ">
         <div className="
           opacity-0 group-hover:opacity-100
@@ -212,6 +213,7 @@ export const EditableImageWrapper = ({
         opacity-0 group-hover:opacity-100
         transition-opacity duration-200
         rounded
+        pointer-events-none
       "></div>
     </div>
   );

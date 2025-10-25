@@ -18,6 +18,7 @@ const Header = () => {
   const homeLabel = useSectionLabel(SECTION_CODES.HOME, 'home');
   const projectsLabel = useSectionLabel(SECTION_CODES.PROJECTS, 'projects');
   const contactLabel = useSectionLabel(SECTION_CODES.CONTACT, 'contact');
+  const brandName = useSectionLabel(SECTION_CODES.BRAND_NAME, 'brand_name');
   
   const menuItems = [
     { label: homeLabel, path: '/' },
@@ -39,14 +40,36 @@ const Header = () => {
     <header className="fixed w-full z-[60] bg-black/70 backdrop-blur-sm">
       <nav className="container mx-auto px-6 py-4 relative">
         <div className="flex items-center justify-between">
-          <Link to="/" className="text-white text-2xl font-bold">AMFAPPS</Link>
+          <Link 
+            to="/" 
+            className="text-white text-2xl font-bold"
+            onClick={(e) => {
+              // In edit mode, prevent navigation unless Ctrl/Cmd+Click
+              if (isEditMode && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                e.stopPropagation();
+              }
+            }}
+            title={isEditMode ? "Click to edit • Ctrl/Cmd+Click to go home" : "Go to homepage"}
+          >
+            {brandName.renderEditable('text-white text-2xl font-bold')}
+          </Link>
           
           {/* Desktop Menu */}
           <ul className="hidden md:flex space-x-4">
             {menuItems.map((item) => (
               <li key={item.path}>
                 <button
-                  onClick={() => handleNavigation(item.path)}
+                  onClick={(e) => {
+                    // In edit mode, only navigate on Ctrl/Cmd+Click
+                    if (isEditMode && !e.ctrlKey && !e.metaKey) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      return;
+                    }
+                    handleNavigation(item.path);
+                  }}
+                  title={isEditMode ? `Click to edit • Ctrl/Cmd+Click to navigate to ${item.label.value}` : `Navigate to ${item.label.value}`}
                   className={`text-white/90 px-4 py-2 rounded-lg text-lg
                     transition-all duration-300 hover:bg-[#14C800] hover:text-white
                     hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)]
@@ -117,7 +140,16 @@ const Header = () => {
               {menuItems.map((item) => (
                 <li key={item.path} className="text-center">
                   <button
-                    onClick={() => handleNavigation(item.path)}
+                    onClick={(e) => {
+                      // In edit mode, only navigate on Ctrl/Cmd+Click
+                      if (isEditMode && !e.ctrlKey && !e.metaKey) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                      }
+                      handleNavigation(item.path);
+                    }}
+                    title={isEditMode ? `Click to edit • Ctrl/Cmd+Click to navigate to ${item.label.value}` : `Navigate to ${item.label.value}`}
                     className={`text-white px-8 py-3 rounded-lg text-2xl
                       transition-all duration-300 hover:bg-[#14C800] hover:text-white
                       hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)]
