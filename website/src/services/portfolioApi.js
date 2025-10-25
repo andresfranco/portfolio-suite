@@ -6,6 +6,50 @@
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 /**
+ * Get CSRF token from cookies
+ * @returns {string|null} - CSRF token or null if not found
+ */
+const getCsrfToken = () => {
+  const name = 'csrf_token=';
+  const decodedCookie = decodeURIComponent(document.cookie);
+  const cookieArray = decodedCookie.split(';');
+  
+  for (let i = 0; i < cookieArray.length; i++) {
+    let cookie = cookieArray[i].trim();
+    if (cookie.indexOf(name) === 0) {
+      return cookie.substring(name.length, cookie.length);
+    }
+  }
+  return null;
+};
+
+/**
+ * Get headers with authentication and CSRF token
+ * @param {string} token - Authentication token (optional)
+ * @param {boolean} includeContentType - Include Content-Type header (default: true)
+ * @returns {Object} - Headers object
+ */
+const getHeaders = (token = null, includeContentType = true) => {
+  const headers = {};
+  
+  if (includeContentType) {
+    headers['Content-Type'] = 'application/json';
+  }
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  // Add CSRF token for state-changing requests
+  const csrfToken = getCsrfToken();
+  if (csrfToken) {
+    headers['X-CSRF-Token'] = csrfToken;
+  }
+  
+  return headers;
+};
+
+/**
  * Handles API responses and errors
  * @param {Response} response - Fetch response object
  * @returns {Promise<any>} - Parsed JSON data
@@ -113,6 +157,7 @@ export const portfolioApi = {
           headers: {
             'Content-Type': 'application/json',
           },
+          credentials: 'include', // Include cookies
         }
       );
       return await handleResponse(response);
@@ -163,10 +208,8 @@ export const portfolioApi = {
         `${API_BASE_URL}/api/cms/content/project-text/${textId}`,
         {
           method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
+          headers: getHeaders(token),
+          credentials: 'include',
           body: JSON.stringify(content),
         }
       );
@@ -190,10 +233,8 @@ export const portfolioApi = {
         `${API_BASE_URL}/api/cms/content/experience-text/${textId}`,
         {
           method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
+          headers: getHeaders(token),
+          credentials: 'include',
           body: JSON.stringify(content),
         }
       );
@@ -217,10 +258,8 @@ export const portfolioApi = {
         `${API_BASE_URL}/api/cms/content/section-text/${textId}`,
         {
           method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
+          headers: getHeaders(token),
+          credentials: 'include',
           body: JSON.stringify(content),
         }
       );
@@ -245,13 +284,14 @@ export const portfolioApi = {
       const formData = new FormData();
       formData.append('file', file);
 
+      const headers = getHeaders(token, false); // Don't include Content-Type for FormData
+
       const response = await fetch(
         `${API_BASE_URL}/api/cms/content/images?entity_type=${entityType}&entity_id=${entityId}&category=${category}`,
         {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
+          headers: headers,
+          credentials: 'include',
           body: formData,
         }
       );
@@ -276,10 +316,8 @@ export const portfolioApi = {
         `${API_BASE_URL}/api/cms/content/order`,
         {
           method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
+          headers: getHeaders(token),
+          credentials: 'include',
           body: JSON.stringify({
             entity_type: entityType,
             entity_ids: entityIds,
@@ -311,13 +349,14 @@ export const portfolioApi = {
         queryParams.append('website_url', metadata.website_url);
       }
 
+      const headers = getHeaders(token, false); // No body, so no Content-Type needed
+
       const response = await fetch(
         `${API_BASE_URL}/api/cms/content/project/${projectId}?${queryParams.toString()}`,
         {
           method: 'PATCH',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
+          headers: headers,
+          credentials: 'include',
         }
       );
       return await handleResponse(response);

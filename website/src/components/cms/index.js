@@ -3,10 +3,19 @@
  * Central export point for all CMS-related components
  */
 
+// Edit Mode UI
 export { EditModeIndicator } from './EditModeIndicator';
+
+// Editable Wrappers
 export { 
   EditableWrapper,
   EditableTextWrapper,
   EditableImageWrapper,
   EditableSectionWrapper
 } from './EditableWrapper';
+
+// Content Editors
+export { InlineTextEditor } from './InlineTextEditor';
+export { ImageUploader } from './ImageUploader';
+export { RichTextEditor } from './RichTextEditor';
+export { ContentEditorModal } from './ContentEditorModal';
