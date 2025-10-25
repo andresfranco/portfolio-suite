@@ -5,6 +5,7 @@ import { useEditMode } from '../../context/EditModeContext';
  * Editable Wrapper Component
  * Wraps content that can be edited in edit mode
  * Shows visual indicators and handles click events for editing
+ * Supports Ctrl/Cmd+Click to follow links even in edit mode
  * 
  * @param {Object} props - Component props
  * @param {React.ReactNode} props.children - Content to wrap
@@ -28,8 +29,17 @@ export const EditableWrapper = ({
   }
 
   const handleClick = (e) => {
+    // Allow Ctrl/Cmd+Click to propagate (for following links)
+    const isModifierClick = e.ctrlKey || e.metaKey;
+    
+    if (isModifierClick) {
+      // Let the click propagate for link following
+      return;
+    }
+    
     if (!disabled && onEdit) {
       e.stopPropagation();
+      e.preventDefault();
       onEdit();
     }
   };
@@ -63,7 +73,7 @@ export const EditableWrapper = ({
             : 'bg-blue-500 text-white'
           }
         `}>
-          {disabled ? 'View only' : label}
+          {disabled ? 'View only' : `${label} • Ctrl+Click to follow link`}
         </span>
       </div>
 
@@ -86,6 +96,7 @@ export const EditableWrapper = ({
 /**
  * Editable Text Wrapper
  * Specialized wrapper for text content with optimized styling
+ * Supports Ctrl/Cmd+Click to follow links even in edit mode
  */
 export const EditableTextWrapper = ({
   children,
@@ -101,8 +112,17 @@ export const EditableTextWrapper = ({
   }
 
   const handleClick = (e) => {
+    // Allow Ctrl/Cmd+Click to propagate (for following links)
+    const isModifierClick = e.ctrlKey || e.metaKey;
+    
+    if (isModifierClick) {
+      // Let the click propagate for link following
+      return;
+    }
+    
     if (!disabled && onEdit) {
       e.stopPropagation();
+      e.preventDefault();
       onEdit();
     }
   };
