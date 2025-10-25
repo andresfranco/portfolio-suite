@@ -26,6 +26,80 @@ const handleResponse = async (response) => {
  */
 export const portfolioApi = {
   /**
+   * Authentication Methods
+   */
+
+  /**
+   * Login with email and password
+   * @param {string} email - User email
+   * @param {string} password - User password
+   * @returns {Promise<Object>} - Access token and user info
+   */
+  login: async (email, password) => {
+    try {
+      const formData = new URLSearchParams();
+      formData.append('username', email);
+      formData.append('password', password);
+
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData.toString(),
+      });
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error logging in:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Verify authentication token
+   * @param {string} token - Authentication token
+   * @returns {Promise<boolean>} - True if token is valid
+   */
+  verifyToken: async (token) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/verify`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      return response.ok;
+    } catch (error) {
+      console.error('Error verifying token:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Get current user information
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - User data with permissions
+   */
+  getCurrentUser: async (token) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error fetching current user:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Public API Methods
+   */
+
+  /**
    * Fetch the default portfolio with specified language
    * @param {string} languageCode - Language code (e.g., 'en', 'es')
    * @returns {Promise<Object>} - Portfolio data
