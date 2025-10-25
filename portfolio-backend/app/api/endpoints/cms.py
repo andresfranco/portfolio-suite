@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile
 from sqlalchemy.orm import Session
 from typing import Any, Optional, List
 from pydantic import BaseModel
+from pathlib import Path
 from app.api import deps
 from app.models import User
 from app.crud import project as project_crud
@@ -270,7 +271,13 @@ async def upload_content_image(
             )
         
         # Save the file using existing file utils
-        file_path = await file_utils.save_uploaded_file(file, f"{entity_type}s/{entity_id}")
+        # Construct directory path for the entity
+        from app.core.config import settings
+        upload_dir = Path(settings.UPLOADS_DIR) / f"{entity_type}s" / str(entity_id) / category
+        absolute_file_path = await file_utils.save_upload_file(file, directory=upload_dir)
+        
+        # Convert absolute path to URL-friendly relative path
+        file_path = file_utils.get_file_url(absolute_file_path)
         
         # Create image record based on entity type
         if entity_type == "portfolio":

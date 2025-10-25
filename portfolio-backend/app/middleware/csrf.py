@@ -68,7 +68,14 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         if any(request_path.startswith(exempt_path) for exempt_path in self.EXEMPT_PATHS):
             return await call_next(request)
         
-        # Verify CSRF token
+        # Skip CSRF validation if using Bearer token authentication (API clients)
+        # Cookie-based auth requires CSRF, but Bearer token auth doesn't need it
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            # This is API authentication via Bearer token, skip CSRF
+            return await call_next(request)
+        
+        # Verify CSRF token for cookie-based authentication
         if not SecureCookieManager.verify_csrf_token(request):
             logger.warning(
                 f"CSRF validation failed for {request.method} {request_path} "

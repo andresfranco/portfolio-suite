@@ -1,5 +1,5 @@
-import React, { useState, useContext } from 'react';
-import heroImage from '../assets/images/hero.jpg';
+import React, { useState, useContext, useMemo } from 'react';
+import defaultHeroImage from '../assets/images/hero.jpg';
 import ChatModal from './ChatModal';
 import { LanguageContext } from '../context/LanguageContext';
 import { usePortfolio } from '../context/PortfolioContext';
@@ -21,6 +21,31 @@ const Hero = () => {
   
   // Get editable section labels
   const yearsLabel = useSectionLabel(SECTION_CODES.YEARS_LABEL, 'years_label');
+  
+  // Get hero image from portfolio or use default
+  const heroImage = useMemo(() => {
+    if (!portfolio?.images || portfolio.images.length === 0) {
+      return defaultHeroImage;
+    }
+    
+    // Look for hero category image
+    const heroImg = portfolio.images.find(img => img.category === 'hero');
+    if (heroImg?.image_path) {
+      // If path starts with /uploads, construct full URL
+      // Otherwise it's a full URL or needs to be relative to API
+      if (heroImg.image_path.startsWith('/uploads/')) {
+        return `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}${heroImg.image_path}`;
+      } else if (heroImg.image_path.startsWith('http://') || heroImg.image_path.startsWith('https://')) {
+        return heroImg.image_path;
+      } else {
+        // Relative path - construct URL
+        return `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/uploads/${heroImg.image_path}`;
+      }
+    }
+    
+    // Fallback to default
+    return defaultHeroImage;
+  }, [portfolio?.images]);
   
   // Content editor hook for experiences
   const { 
@@ -214,11 +239,20 @@ const Hero = () => {
                 })}
               </div>
 
-              <div className="flex gap-4 flex-wrap">
+              <div className="flex gap-3 flex-col sm:flex-row">
                 {/* Chat with AI button - editable label in edit mode */}
                 <button
-                  onClick={() => setIsChatOpen(true)}
-                  className="bg-[#14C800] text-white text-xl px-8 py-4 rounded-lg transition-all duration-300 hover:bg-[#14C800]/90 hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] transform hover:-translate-y-1"
+                  onClick={(e) => {
+                    // In edit mode, only allow Ctrl/Cmd+Click to trigger the action
+                    if (isEditMode && !e.ctrlKey && !e.metaKey) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      return;
+                    }
+                    setIsChatOpen(true);
+                  }}
+                  title={isEditMode ? "Click to edit • Ctrl/Cmd+Click to open chat" : "Open chat"}
+                  className="bg-[#14C800] text-white text-base sm:text-lg px-6 py-3 sm:px-8 sm:py-4 rounded-lg transition-all duration-300 hover:bg-[#14C800]/90 hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] transform hover:-translate-y-1 whitespace-nowrap text-center"
                 >
                   {isEditMode && !chatButtonText?.id ? (
                     <span className="text-sm italic opacity-75" title="Create 'chat_with_ai' section to edit">
@@ -230,7 +264,7 @@ const Hero = () => {
                       entityType="section"
                       entityId={chatButtonText.id}
                       fieldName="text"
-                      className="text-xl text-white"
+                      className="text-base sm:text-lg text-white"
                       placeholder="Chat button text..."
                     />
                   ) : (
@@ -242,7 +276,15 @@ const Hero = () => {
                 <a
                   href={getResumeFile()}
                   download={getResumeFileName()}
-                  className="bg-[#14C800] text-white text-xl px-8 py-4 rounded-lg transition-all duration-300 hover:bg-[#14C800]/90 hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] transform hover:-translate-y-1 inline-flex items-center"
+                  onClick={(e) => {
+                    // In edit mode, prevent download unless Ctrl/Cmd+Click
+                    if (isEditMode && !e.ctrlKey && !e.metaKey) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }
+                  }}
+                  title={isEditMode ? "Click to edit • Ctrl/Cmd+Click to download" : "Download CV"}
+                  className="bg-[#14C800] text-white text-base sm:text-lg px-6 py-3 sm:px-8 sm:py-4 rounded-lg transition-all duration-300 hover:bg-[#14C800]/90 hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] transform hover:-translate-y-1 inline-flex items-center justify-center whitespace-nowrap"
                 >
                   {isEditMode && !downloadCvText?.id ? (
                     <span className="text-sm italic opacity-75" title="Create 'download_cv' section to edit">
@@ -254,7 +296,7 @@ const Hero = () => {
                       entityType="section"
                       entityId={downloadCvText.id}
                       fieldName="text"
-                      className="text-xl text-white"
+                      className="text-base sm:text-lg text-white"
                       placeholder="Download CV button text..."
                     />
                   ) : (
