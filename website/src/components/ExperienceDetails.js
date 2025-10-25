@@ -2,9 +2,11 @@ import React, { useContext } from 'react';
 import { FaCalendar, FaArrowLeft, FaArrowRight, FaCode, FaDatabase, FaCloud } from 'react-icons/fa6';
 import { translations } from '../data/translations';
 import { LanguageContext } from '../context/LanguageContext';
+import { usePortfolio } from '../context/PortfolioContext';
 
 const ExperienceDetails = ({ experience, onBackClick, onPreviousClick, onNextClick }) => {
   const { language } = useContext(LanguageContext);
+  const { getExperienceText } = usePortfolio();
 
   // Early validation of required props
   if (!experience || !language) {
@@ -14,6 +16,9 @@ const ExperienceDetails = ({ experience, onBackClick, onPreviousClick, onNextCli
       </div>
     );
   }
+
+  // Get experience text in current language
+  const experienceText = getExperienceText(experience);
 
   // Get icon component based on icon name
   const getIconComponent = (iconName) => {
@@ -80,10 +85,10 @@ const ExperienceDetails = ({ experience, onBackClick, onPreviousClick, onNextCli
               </div>
               <div>
                 <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
-                  {experience.area[language]}
+                  {experienceText.name}
                 </h1>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-[#14C800]">{experience.years}+</span>
+                  <span className="text-2xl font-bold text-[#14C800]">{experience.years_experience || experience.years}+</span>
                   <span className="text-white/80">{translations[language].years_experience}</span>
                 </div>
               </div>
@@ -98,7 +103,7 @@ const ExperienceDetails = ({ experience, onBackClick, onPreviousClick, onNextCli
                   {translations[language].experience_overview}
                 </h2>
                 <p className="text-gray-300 text-lg leading-relaxed">
-                  {experience.description[language]}
+                  {experienceText.description}
                 </p>
               </div>
 
@@ -109,18 +114,25 @@ const ExperienceDetails = ({ experience, onBackClick, onPreviousClick, onNextCli
                     {translations[language].skills_technologies}
                   </h2>
                   <div className="flex flex-wrap gap-3">
-                    {experience.skills.map((skill, index) => (
-                      <span
-                        key={index}
-                        className="px-4 py-2 bg-gray-900 text-white rounded-full border 
-                          border-[#14C800]/30 transition-all duration-300 
-                          hover:bg-[#14C800] hover:border-transparent 
-                          hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] 
-                          transform hover:-translate-y-1"
-                      >
-                        {skill.name[language]}
-                      </span>
-                    ))}
+                    {experience.skills.map((skill, index) => {
+                      // Get skill name - handle both old and new API structure
+                      const skillName = skill.skill_texts && skill.skill_texts.length > 0
+                        ? skill.skill_texts[0].name
+                        : skill.name?.[language] || skill.name || 'Skill';
+                      
+                      return (
+                        <span
+                          key={skill.id || index}
+                          className="px-4 py-2 bg-gray-900 text-white rounded-full border 
+                            border-[#14C800]/30 transition-all duration-300 
+                            hover:bg-[#14C800] hover:border-transparent 
+                            hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] 
+                            transform hover:-translate-y-1"
+                        >
+                          {skillName}
+                        </span>
+                      );
+                    })}
                   </div>
                 </div>
               )}

@@ -2,9 +2,11 @@ import React, { useContext } from 'react';
 import { FaGithub, FaGlobe, FaCalendar, FaFolder, FaArrowLeft, FaArrowRight } from 'react-icons/fa6';
 import { translations } from '../data/translations';
 import { LanguageContext } from '../context/LanguageContext';
+import { usePortfolio } from '../context/PortfolioContext';
 
 const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) => {
   const { language } = useContext(LanguageContext);
+  const { getProjectText } = usePortfolio();
 
   // Early validation of required props
   if (!project || !language) {
@@ -15,12 +17,20 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
     );
   }
 
+  // Get project text in current language
+  const projectText = getProjectText(project);
+  
   // Safe access to nested properties
-  const title = project?.title?.[language];
-  const description = project?.description?.[language];
-  const brief = project?.brief?.[language];
-  const category = project?.category?.[language];
-  const date = project?.date?.[language];
+  const title = projectText.name;
+  const description = projectText.description;
+  const brief = projectText.brief || projectText.description; // Use description as fallback
+  const category = project.category || '';
+  const date = project.created_at ? new Date(project.created_at).toLocaleDateString() : '';
+  
+  // Get project image
+  const projectImage = project.images && project.images.length > 0
+    ? `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${project.images[0].image_path}`
+    : require('../assets/images/project1.jpg'); // fallback image
 
   // Validate required data
   if (!title || !description) {
@@ -90,7 +100,7 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
           <div className="lg:col-span-2 space-y-6 md:space-y-8 order-2 lg:order-1"> {/* Reduced spacing on mobile */}
             <div className="rounded-xl overflow-hidden bg-gray-800 shadow-lg">
               <img 
-                src={project.image}  // Use the imported image directly
+                src={projectImage}
                 alt={title} 
                 className="w-full h-auto" 
               />
@@ -108,14 +118,21 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
                 {translations[language].skills_technologies}
               </h2>
               <div className="flex flex-wrap gap-3">
-                {project.skills?.map((skill, index) => (
-                  <span
-                    key={index}
-                    className="px-4 py-2 bg-gray-800 text-white rounded-full border border-[#14C800]/30 transition-all duration-300 hover:bg-[#14C800] hover:border-transparent hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] transform hover:-translate-y-1"
-                  >
-                    {skill.name[language]}
-                  </span>
-                ))}
+                {project.skills?.map((skill, index) => {
+                  // Get skill name - handle both old and new API structure
+                  const skillName = skill.skill_texts && skill.skill_texts.length > 0
+                    ? skill.skill_texts[0].name
+                    : skill.name?.[language] || skill.name || 'Skill';
+                  
+                  return (
+                    <span
+                      key={skill.id || index}
+                      className="px-4 py-2 bg-gray-800 text-white rounded-full border border-[#14C800]/30 transition-all duration-300 hover:bg-[#14C800] hover:border-transparent hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] transform hover:-translate-y-1"
+                    >
+                      {skillName}
+                    </span>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -142,14 +159,14 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
                   </div>
                 </div>
                 <div className="pt-6 space-y-4">
-                  {project.liveUrl && (
-                    <a href={project.liveUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 w-full bg-[#14C800] text-white px-4 py-2 rounded-lg transition-all duration-300 hover:bg-[#14C800]/90 hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] transform hover:-translate-y-1">
+                  {project.website_url && (
+                    <a href={project.website_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 w-full bg-[#14C800] text-white px-4 py-2 rounded-lg transition-all duration-300 hover:bg-[#14C800]/90 hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] transform hover:-translate-y-1">
                       <FaGlobe />
                       <span>{translations[language].view_live_site}</span>
                     </a>
                   )}
-                  {project.repoUrl && (
-                    <a href={project.repoUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 w-full bg-gray-700 text-white px-4 py-2 rounded-lg transition-all duration-300 hover:bg-gray-600 transform hover:-translate-y-1">
+                  {project.repository_url && (
+                    <a href={project.repository_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 w-full bg-gray-700 text-white px-4 py-2 rounded-lg transition-all duration-300 hover:bg-gray-600 transform hover:-translate-y-1">
                       <FaGithub />
                       <span>{translations[language].view_repository}</span>
                     </a>

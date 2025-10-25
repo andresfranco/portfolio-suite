@@ -47,6 +47,7 @@ class PortfolioAttachmentOut(PortfolioAttachmentBase):
 class PortfolioBase(BaseModel):
     name: str
     description: Optional[str] = None
+    is_default: Optional[bool] = False
 
     @field_validator('name')
     @classmethod
@@ -68,6 +69,7 @@ class PortfolioCreate(PortfolioBase):
 class PortfolioUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    is_default: Optional[bool] = None
     categories: Optional[List[int]] = None
     experiences: Optional[List[int]] = None
     projects: Optional[List[int]] = None
@@ -86,6 +88,7 @@ class PortfolioUpdate(BaseModel):
 
 class PortfolioOut(PortfolioBase):
     id: int
+    is_default: bool = False
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     categories: List[Dict[str, Any]] = []
