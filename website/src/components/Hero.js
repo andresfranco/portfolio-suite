@@ -3,16 +3,28 @@ import heroImage from '../assets/images/hero.jpg';
 import ChatModal from './ChatModal';
 import { LanguageContext } from '../context/LanguageContext';
 import { usePortfolio } from '../context/PortfolioContext';
+import { useEditMode } from '../context/EditModeContext';
 import { translations } from '../data/translations';
 import { useNavigate } from 'react-router-dom';
 import enResume from '../assets/files/en_resume.pdf';
 import esResume from '../assets/files/es_resume.pdf';
+import { RichTextEditor, ImageUploader, ContentEditorModal } from './cms';
+import { useContentEditor } from '../hooks/useContentEditor';
 
 const Hero = () => {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const { portfolio, loading, getExperiences, getExperienceText } = usePortfolio();
   const { language } = useContext(LanguageContext);
+  const { isEditMode } = useEditMode();
   const navigate = useNavigate();
+  
+  // Content editor hook for experiences
+  const { 
+    editingItem, 
+    isModalOpen, 
+    startEditing, 
+    stopEditing 
+  } = useContentEditor('experience');
 
   // Get experiences from API
   const experiences = getExperiences();
@@ -36,6 +48,16 @@ const Hero = () => {
   };
 
   const handleExperienceClick = (expId) => {
+    // In edit mode, open the editor modal instead of navigating
+    if (isEditMode) {
+      const exp = experiences.find(e => e.id === expId);
+      if (exp) {
+        startEditing(exp);
+      }
+      return;
+    }
+    
+    // Normal navigation in view mode
     const route = language === 'en' ? `/experience/${expId}` : `/${language}/experience/${expId}`;
     navigate(route);
   };
@@ -74,10 +96,23 @@ const Hero = () => {
               <h1 className="text-5xl md:text-7xl font-extrabold text-white mb-6 drop-shadow-lg">
                 {person.name}
               </h1>
-              {/* Use translated hero tagline */}
-              <p className="text-xl md:text-3xl text-white/90 mb-8 max-w-2xl">
-                {translations[language].hero_tagline}
-              </p>
+              {/* Use translated hero tagline - editable in edit mode */}
+              <div className="text-xl md:text-3xl text-white/90 mb-8 max-w-2xl">
+                {isEditMode ? (
+                  <RichTextEditor
+                    value={translations[language].hero_tagline}
+                    entityType="section"
+                    entityId={portfolio?.id || 1}
+                    fieldName="hero_tagline"
+                    label="Hero Tagline"
+                    placeholder="Enter hero tagline..."
+                  />
+                ) : (
+                  <p className="text-xl md:text-3xl text-white/90">
+                    {translations[language].hero_tagline}
+                  </p>
+                )}
+              </div>
 
               {/* Experience Section */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
@@ -94,7 +129,7 @@ const Hero = () => {
                       <div className="text-[#14C800] text-3xl group-hover:scale-110 transition-transform duration-300">
                         <Icon />
                       </div>
-                      <div>
+                      <div className="flex-1">
                         <div className="flex items-baseline gap-2">
                           <span className="text-2xl font-bold text-white">{exp.years_experience || exp.years}+</span>
                           {/* Use translated years label */}
@@ -103,6 +138,14 @@ const Hero = () => {
                         <p className="text-white font-medium">{experienceText.name}</p>
                         <p className="text-white/60 text-sm">{experienceText.description}</p>
                       </div>
+                      {/* Edit indicator in edit mode */}
+                      {isEditMode && (
+                        <div className="text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -126,16 +169,39 @@ const Hero = () => {
             </div>
           </div>
 
-          {/* Right Image */}
+          {/* Right Image - with ImageUploader in edit mode */}
           <div className="flex-1 relative">
-            <div
-              className="absolute inset-0 w-full h-full bg-cover bg-center bg-no-repeat"
-              style={{ backgroundImage: `url(${heroImage})` }}
-            />
-            <div className="absolute inset-0 bg-black/30" />
+            {isEditMode && portfolio?.id ? (
+              <ImageUploader
+                currentImage={heroImage}
+                entityType="portfolio"
+                entityId={portfolio.id}
+                category="hero"
+                alt="Hero background"
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+            ) : (
+              <>
+                <div
+                  className="absolute inset-0 w-full h-full bg-cover bg-center bg-no-repeat"
+                  style={{ backgroundImage: `url(${heroImage})` }}
+                />
+                <div className="absolute inset-0 bg-black/30" />
+              </>
+            )}
           </div>
         </div>
       </section>
+
+      {/* Content Editor Modal */}
+      {isEditMode && editingItem && (
+        <ContentEditorModal
+          type="experience"
+          item={editingItem}
+          isOpen={isModalOpen}
+          onClose={stopEditing}
+        />
+      )}
 
       <ChatModal isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
     </>
