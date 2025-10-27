@@ -110,6 +110,12 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
   const [uploadFile, setUploadFile] = useState(null);
   const [imageCategory, setImageCategory] = useState('gallery');
   const [uploadLoading, setUploadLoading] = useState(false);
+  
+  // Attachment category states
+  const [attachmentCategory, setAttachmentCategory] = useState('');
+  const [attachmentCategories, setAttachmentCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [setAsDefaultResume, setSetAsDefaultResume] = useState(false);
 
   // Section modal states
   const [sectionModalOpen, setSectionModalOpen] = useState(false);
@@ -199,13 +205,41 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
     }
   }, []);
 
+  // Fetch attachment categories (PDOC and RESU types)
+  const fetchAttachmentCategories = useCallback(async () => {
+    setCategoriesLoading(true);
+    try {
+      const response = await fetch(`${SERVER_URL}/api/categories/?page_size=100`, {
+        credentials: 'include',
+        mode: 'cors'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch categories');
+      }
+      const data = await response.json();
+      
+      // Filter for PDOC and RESU type categories
+      const docResumeCategories = (data.items || data || []).filter(cat => 
+        cat.type_code === 'PDOC' || cat.type_code === 'RESU'
+      );
+      
+      setAttachmentCategories(docResumeCategories);
+    } catch (error) {
+      console.error('Error fetching attachment categories:', error);
+      setAttachmentCategories([]);
+    } finally {
+      setCategoriesLoading(false);
+    }
+  }, []);
+
   // Initialize data on open
   useEffect(() => {
     if (open && portfolioId) {
       fetchPortfolioData();
       fetchAvailableOptions();
+      fetchAttachmentCategories();
     }
-  }, [open, portfolioId, fetchPortfolioData, fetchAvailableOptions]);
+  }, [open, portfolioId, fetchPortfolioData, fetchAvailableOptions, fetchAttachmentCategories]);
 
   // Handle tab change
   const handleTabChange = (event, newValue) => {
@@ -415,17 +449,44 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
 
     try {
       setUploadLoading(true);
-      await projectsApi.uploadPortfolioAttachment(portfolioId, uploadFile);
+      await projectsApi.uploadPortfolioAttachment(
+        portfolioId, 
+        uploadFile,
+        attachmentCategory || null,
+        setAsDefaultResume
+      );
       await fetchPortfolioData();
       enqueueSnackbar('Attachment uploaded successfully', { variant: 'success' });
       setAttachmentUploadOpen(false);
       setUploadFile(null);
+      setAttachmentCategory('');
+      setSetAsDefaultResume(false);
     } catch (err) {
       const errorMessage = err.response?.data?.detail || 'Failed to upload attachment';
       enqueueSnackbar(`Error: ${errorMessage}`, { variant: 'error' });
     } finally {
       setUploadLoading(false);
     }
+  };
+  
+  // Helper to get category display name
+  const getCategoryDisplayName = (category) => {
+    if (!category) return '';
+    
+    // Try to get English name from texts array
+    if (category.texts && Array.isArray(category.texts)) {
+      const englishText = category.texts.find(t => t.language?.code === 'en' || t.language_id === 1);
+      if (englishText?.name) return englishText.name;
+    }
+    
+    // Try category_texts array (alternative structure)
+    if (category.category_texts && Array.isArray(category.category_texts)) {
+      const englishText = category.category_texts.find(t => t.language?.code === 'en' || t.language_id === 1);
+      if (englishText?.name) return englishText.name;
+    }
+    
+    // Fallback to name or code
+    return category.name || category.code || `Category ${category.id}`;
   };
 
   const handleAttachmentDelete = (attachment) => {
@@ -2001,6 +2062,53 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
           <Typography variant="caption" color="text.secondary">
             Supported formats: PDF, Word, Excel, CSV, Text, JSON, XML, ZIP (max 10MB)
           </Typography>
+          
+          {/* Category Selection */}
+          <FormControl fullWidth>
+            <InputLabel id="attachment-category-label">Category (Optional)</InputLabel>
+            <Select
+              labelId="attachment-category-label"
+              id="attachment-category-select"
+              value={attachmentCategory}
+              label="Category (Optional)"
+              onChange={(e) => setAttachmentCategory(e.target.value)}
+              disabled={uploadLoading || categoriesLoading}
+            >
+              <MenuItem value="">
+                <em>None</em>
+              </MenuItem>
+              {categoriesLoading ? (
+                <MenuItem disabled>
+                  <CircularProgress size={20} sx={{ mr: 1 }} />
+                  <em>Loading categories...</em>
+                </MenuItem>
+              ) : attachmentCategories.length === 0 ? (
+                <MenuItem disabled>
+                  <em>No categories available</em>
+                </MenuItem>
+              ) : (
+                attachmentCategories.map((category) => (
+                  <MenuItem key={category.id} value={category.id}>
+                    {getCategoryDisplayName(category)}
+                  </MenuItem>
+                ))
+              )}
+            </Select>
+          </FormControl>
+          
+          {/* Set as Default checkbox - only show for RESU categories */}
+          {attachmentCategory && attachmentCategories.find(c => c.id === parseInt(attachmentCategory))?.type_code === 'RESU' && (
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={setAsDefaultResume}
+                  onChange={(e) => setSetAsDefaultResume(e.target.checked)}
+                  disabled={uploadLoading}
+                />
+              }
+              label="Set as default resume (for website download button)"
+            />
+          )}
         </Box>
       </DialogContent>
       <DialogActions>

@@ -197,10 +197,24 @@ const projectsApi = {
 
   // Portfolio attachment methods
   getPortfolioAttachments: (portfolioId) => api.get(`/api/portfolios/${portfolioId}/attachments`),
-  uploadPortfolioAttachment: (portfolioId, file) => {
+  uploadPortfolioAttachment: (portfolioId, file, categoryId = null, isDefault = false) => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post(`/api/portfolios/${portfolioId}/attachments`, formData);
+    
+    // Build URL with query parameters
+    let url = `/api/portfolios/${portfolioId}/attachments`;
+    const params = new URLSearchParams();
+    if (categoryId) {
+      params.append('category_id', categoryId);
+    }
+    if (isDefault) {
+      params.append('is_default', 'true');
+    }
+    if (params.toString()) {
+      url += `?${params.toString()}`;
+    }
+    
+    return api.post(url, formData);
   },
   deletePortfolioAttachment: (portfolioId, attachmentId) => api.delete(`/api/portfolios/${portfolioId}/attachments/${attachmentId}`),
 };
