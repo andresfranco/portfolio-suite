@@ -822,12 +822,20 @@ def get_default_resume(
     *,
     db: Session = Depends(deps.get_db),
     portfolio_id: int,
+    language_id: Optional[int] = Query(None, description="Language ID to filter resume by language"),
+    category_id: Optional[int] = Query(None, description="Category ID (e.g., Technical Resume)"),
 ) -> Any:
     """
     Get the default resume attachment for a portfolio (public endpoint for website).
+    Optionally filter by language_id and category_id.
+    Priority:
+    1. Default resume with matching language and category
+    2. Default resume with matching language (any RESU category)
+    3. Default resume with matching category (any language)
+    4. Any default resume
     Returns 404 if no default resume is found.
     """
-    logger.debug(f"Getting default resume for portfolio {portfolio_id}")
+    logger.debug(f"Getting default resume for portfolio {portfolio_id}, language_id={language_id}, category_id={category_id}")
     try:
         portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
         if not portfolio:
@@ -837,11 +845,58 @@ def get_default_resume(
                 detail="Portfolio not found"
             )
         
-        # Get the default resume attachment
-        default_resume = db.query(PortfolioAttachment).filter(
+        # Build query for default resume
+        query = db.query(PortfolioAttachment).filter(
             PortfolioAttachment.portfolio_id == portfolio_id,
             PortfolioAttachment.is_default == True
-        ).first()
+        )
+        
+        # Try to find with both language and category match
+        if language_id and category_id:
+            default_resume = query.filter(
+                PortfolioAttachment.language_id == language_id,
+                PortfolioAttachment.category_id == category_id
+            ).first()
+            if default_resume:
+                logger.debug(f"Found default resume with language {language_id} and category {category_id}")
+            else:
+                # Try language match only
+                default_resume = query.filter(
+                    PortfolioAttachment.language_id == language_id
+                ).first()
+                if default_resume:
+                    logger.debug(f"Found default resume with language {language_id} (any category)")
+                else:
+                    # Try category match only
+                    default_resume = query.filter(
+                        PortfolioAttachment.category_id == category_id
+                    ).first()
+                    if default_resume:
+                        logger.debug(f"Found default resume with category {category_id} (any language)")
+        elif language_id:
+            # Language specified, no category
+            default_resume = query.filter(
+                PortfolioAttachment.language_id == language_id
+            ).first()
+            if default_resume:
+                logger.debug(f"Found default resume with language {language_id}")
+        elif category_id:
+            # Category specified, no language
+            default_resume = query.filter(
+                PortfolioAttachment.category_id == category_id
+            ).first()
+            if default_resume:
+                logger.debug(f"Found default resume with category {category_id}")
+        else:
+            # No filters, get any default resume
+            default_resume = query.first()
+        
+        # Fallback: if still not found, get any default resume
+        if not default_resume:
+            default_resume = db.query(PortfolioAttachment).filter(
+                PortfolioAttachment.portfolio_id == portfolio_id,
+                PortfolioAttachment.is_default == True
+            ).first()
         
         if not default_resume:
             logger.warning(f"No default resume found for portfolio {portfolio_id}")
@@ -874,6 +929,7 @@ async def upload_portfolio_attachment(
     file: UploadFile = File(...),
     category_id: Optional[int] = Query(None, description="Category ID (for PORTFOLIO_DOCUMENT or RESUME)"),
     is_default: bool = Query(False, description="Mark as default resume (only for RESUME category)"),
+    language_id: Optional[int] = Query(None, description="Language ID for the attachment"),
     current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
@@ -882,8 +938,9 @@ async def upload_portfolio_attachment(
     
     Use category_id to associate attachment with PORTFOLIO_DOCUMENT or RESUME category.
     Set is_default=true to mark a resume as the default one (only one default resume per portfolio).
+    Use language_id to associate the attachment with a specific language.
     """
-    logger.info(f"Uploading attachment for portfolio {portfolio_id}: {file.filename}, category_id={category_id}, is_default={is_default}")
+    logger.info(f"Uploading attachment for portfolio {portfolio_id}: {file.filename}, category_id={category_id}, is_default={is_default}, language_id={language_id}")
     try:
         portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
         if not portfolio:
@@ -892,6 +949,15 @@ async def upload_portfolio_attachment(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Portfolio not found"
             )
+        
+        # Validate language if provided
+        if language_id:
+            language = db.query(models.Language).filter(models.Language.id == language_id).first()
+            if not language:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Language with ID {language_id} not found"
+                )
         
         # Validate category if provided
         if category_id:
@@ -978,7 +1044,8 @@ async def upload_portfolio_attachment(
             file_path=url_path,
             file_name=file.filename or filename,  # Keep original filename for display
             category_id=category_id,
-            is_default=is_default
+            is_default=is_default,
+            language_id=language_id
         )
         
         # Add portfolio attachment to database

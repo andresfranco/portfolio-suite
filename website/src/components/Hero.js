@@ -1,4 +1,4 @@
-import React, { useState, useContext, useMemo } from 'react';
+import React, { useState, useContext, useMemo, useEffect } from 'react';
 import defaultHeroImage from '../assets/images/hero.jpg';
 import ChatModal from './ChatModal';
 import { LanguageContext } from '../context/LanguageContext';
@@ -6,14 +6,14 @@ import { usePortfolio } from '../context/PortfolioContext';
 import { useEditMode } from '../context/EditModeContext';
 import { translations } from '../data/translations';
 import { useNavigate } from 'react-router-dom';
-import enResume from '../assets/files/en_resume.pdf';
-import esResume from '../assets/files/es_resume.pdf';
 import { InlineTextEditor, ImageUploader, ContentEditorModal, RichTextEditor } from './cms';
 import { useContentEditor } from '../hooks/useContentEditor';
 import { useSectionLabel, SECTION_CODES } from '../hooks/useSectionLabel';
 
 const Hero = () => {
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [resumeUrl, setResumeUrl] = useState(null);
+  const [resumeFileName, setResumeFileName] = useState(null);
   const { portfolio, loading, getExperiences, getExperienceText, getSections, getSectionText } = usePortfolio();
   const { language } = useContext(LanguageContext);
   const { isEditMode } = useEditMode();
@@ -21,6 +21,53 @@ const Hero = () => {
   
   // Get editable section labels
   const yearsLabel = useSectionLabel(SECTION_CODES.YEARS_LABEL, 'years_label');
+  
+  // Language ID mapping
+  const languageIdMap = {
+    'en': 1,
+    'es': 2
+  };
+  
+  // Technical Resume category ID
+  const TECHNICAL_RESUME_CATEGORY_ID = 63;
+  
+  // Fetch default resume based on language and category
+  useEffect(() => {
+    const fetchDefaultResume = async () => {
+      if (!portfolio?.id) return;
+      
+      const languageId = languageIdMap[language] || 1; // Default to English
+      
+      try {
+        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+        const response = await fetch(
+          `${apiUrl}/api/portfolios/${portfolio.id}/attachments/default-resume?language_id=${languageId}&category_id=${TECHNICAL_RESUME_CATEGORY_ID}`,
+          {
+            credentials: 'include',
+            mode: 'cors'
+          }
+        );
+        
+        if (response.ok) {
+          const resumeData = await response.json();
+          if (resumeData.file_url) {
+            setResumeUrl(`${apiUrl}${resumeData.file_url}`);
+            setResumeFileName(resumeData.file_name || `${language}_resume.pdf`);
+          }
+        } else {
+          console.warn('No default resume found for language:', language);
+          setResumeUrl(null);
+          setResumeFileName(null);
+        }
+      } catch (error) {
+        console.error('Error fetching default resume:', error);
+        setResumeUrl(null);
+        setResumeFileName(null);
+      }
+    };
+    
+    fetchDefaultResume();
+  }, [portfolio?.id, language]);
   
   // Get hero image from portfolio or use default
   const heroImage = useMemo(() => {
@@ -130,18 +177,13 @@ const Hero = () => {
 
   // Function to get the correct resume file based on language
   const getResumeFile = () => {
-    switch (language) {
-      case 'es':
-        return esResume;
-      case 'en':
-      default:
-        return enResume;
-    }
+    // Return the dynamically fetched resume URL, or null if not available
+    return resumeUrl;
   };
 
   // Function to get the correct filename for download
   const getResumeFileName = () => {
-    return `${language}_resume.pdf`;
+    return resumeFileName || `${language}_resume.pdf`;
   };
 
   // Show loading state
@@ -283,36 +325,46 @@ const Hero = () => {
                 </button>
                 
                 {/* Download CV button - editable label in edit mode */}
-                <a
-                  href={getResumeFile()}
-                  download={getResumeFileName()}
-                  onClick={(e) => {
-                    // In edit mode, prevent download unless Ctrl/Cmd+Click
-                    if (isEditMode && !e.ctrlKey && !e.metaKey) {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }
-                  }}
-                  title={isEditMode ? "Click to edit • Ctrl/Cmd+Click to download" : "Download CV"}
-                  className="bg-[#14C800] text-white text-base sm:text-lg px-6 py-3 sm:px-8 sm:py-4 rounded-lg transition-all duration-300 hover:bg-[#14C800]/90 hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] transform hover:-translate-y-1 inline-flex items-center justify-center whitespace-nowrap"
-                >
-                  {isEditMode && !downloadCvText?.id ? (
-                    <span className="text-sm italic opacity-75" title="Create 'download_cv' section to edit">
-                      {downloadCvValue} ⚠️
-                    </span>
-                  ) : isEditMode && downloadCvText?.id ? (
-                    <InlineTextEditor
-                      value={downloadCvValue}
-                      entityType="section"
-                      entityId={downloadCvText.id}
-                      fieldName="text"
-                      className="text-base sm:text-lg text-white"
-                      placeholder="Download CV button text..."
-                    />
-                  ) : (
-                    downloadCvValue
-                  )}
-                </a>
+                {resumeUrl ? (
+                  <a
+                    href={getResumeFile()}
+                    download={getResumeFileName()}
+                    onClick={(e) => {
+                      // In edit mode, prevent download unless Ctrl/Cmd+Click
+                      if (isEditMode && !e.ctrlKey && !e.metaKey) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }
+                    }}
+                    title={isEditMode ? "Click to edit • Ctrl/Cmd+Click to download" : "Download CV"}
+                    className="bg-[#14C800] text-white text-base sm:text-lg px-6 py-3 sm:px-8 sm:py-4 rounded-lg transition-all duration-300 hover:bg-[#14C800]/90 hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] transform hover:-translate-y-1 inline-flex items-center justify-center whitespace-nowrap"
+                  >
+                    {isEditMode && !downloadCvText?.id ? (
+                      <span className="text-sm italic opacity-75" title="Create 'download_cv' section to edit">
+                        {downloadCvValue} ⚠️
+                      </span>
+                    ) : isEditMode && downloadCvText?.id ? (
+                      <InlineTextEditor
+                        value={downloadCvValue}
+                        entityType="section"
+                        entityId={downloadCvText.id}
+                        fieldName="text"
+                        className="text-base sm:text-lg text-white"
+                        placeholder="Download CV button text..."
+                      />
+                    ) : (
+                      downloadCvValue
+                    )}
+                  </a>
+                ) : (
+                  <button
+                    disabled
+                    title="No resume available for this language"
+                    className="bg-gray-500 text-white text-base sm:text-lg px-6 py-3 sm:px-8 sm:py-4 rounded-lg opacity-50 cursor-not-allowed inline-flex items-center justify-center whitespace-nowrap"
+                  >
+                    {downloadCvValue} (Not Available)
+                  </button>
+                )}
               </div>
             </div>
           </div>
