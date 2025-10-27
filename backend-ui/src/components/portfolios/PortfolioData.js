@@ -116,6 +116,11 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
   const [attachmentCategories, setAttachmentCategories] = useState([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [setAsDefaultResume, setSetAsDefaultResume] = useState(false);
+  
+  // Attachment language state
+  const [attachmentLanguage, setAttachmentLanguage] = useState('');
+  const [availableLanguages, setAvailableLanguages] = useState([]);
+  const [languagesLoading, setLanguagesLoading] = useState(false);
 
   // Section modal states
   const [sectionModalOpen, setSectionModalOpen] = useState(false);
@@ -232,14 +237,36 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
     }
   }, []);
 
+  // Fetch available languages
+  const fetchLanguages = useCallback(async () => {
+    setLanguagesLoading(true);
+    try {
+      const response = await fetch(`${SERVER_URL}/api/languages/?page_size=100`, {
+        credentials: 'include',
+        mode: 'cors'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch languages');
+      }
+      const data = await response.json();
+      setAvailableLanguages(data.items || data || []);
+    } catch (error) {
+      console.error('Error fetching languages:', error);
+      setAvailableLanguages([]);
+    } finally {
+      setLanguagesLoading(false);
+    }
+  }, []);
+
   // Initialize data on open
   useEffect(() => {
     if (open && portfolioId) {
       fetchPortfolioData();
       fetchAvailableOptions();
       fetchAttachmentCategories();
+      fetchLanguages();
     }
-  }, [open, portfolioId, fetchPortfolioData, fetchAvailableOptions, fetchAttachmentCategories]);
+  }, [open, portfolioId, fetchPortfolioData, fetchAvailableOptions, fetchAttachmentCategories, fetchLanguages]);
 
   // Handle tab change
   const handleTabChange = (event, newValue) => {
@@ -453,7 +480,8 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
         portfolioId, 
         uploadFile,
         attachmentCategory || null,
-        setAsDefaultResume
+        setAsDefaultResume,
+        attachmentLanguage || null
       );
       await fetchPortfolioData();
       enqueueSnackbar('Attachment uploaded successfully', { variant: 'success' });
@@ -461,6 +489,7 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
       setUploadFile(null);
       setAttachmentCategory('');
       setSetAsDefaultResume(false);
+      setAttachmentLanguage('');
     } catch (err) {
       const errorMessage = err.response?.data?.detail || 'Failed to upload attachment';
       enqueueSnackbar(`Error: ${errorMessage}`, { variant: 'error' });
@@ -2062,6 +2091,56 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
           <Typography variant="caption" color="text.secondary">
             Supported formats: PDF, Word, Excel, CSV, Text, JSON, XML, ZIP (max 10MB)
           </Typography>
+          
+          {/* Language Selection */}
+          <FormControl fullWidth>
+            <InputLabel id="attachment-language-label">Language (Optional)</InputLabel>
+            <Select
+              labelId="attachment-language-label"
+              id="attachment-language-select"
+              value={attachmentLanguage}
+              label="Language (Optional)"
+              onChange={(e) => setAttachmentLanguage(e.target.value)}
+              disabled={uploadLoading || languagesLoading}
+            >
+              <MenuItem value="">
+                <em>None</em>
+              </MenuItem>
+              {languagesLoading ? (
+                <MenuItem disabled>
+                  <CircularProgress size={20} sx={{ mr: 1 }} />
+                  <em>Loading languages...</em>
+                </MenuItem>
+              ) : availableLanguages.length === 0 ? (
+                <MenuItem disabled>
+                  <em>No languages available</em>
+                </MenuItem>
+              ) : (
+                availableLanguages.map((language) => (
+                  <MenuItem key={language.id} value={language.id}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      {language.image && (
+                        <Box
+                          component="img"
+                          src={`${SERVER_URL}/uploads/${language.image.replace(/^.*language_images\//, "language_images/")}`}
+                          alt={language.name}
+                          sx={{
+                            width: 24,
+                            height: 16,
+                            border: '1px solid #eee',
+                            borderRadius: 0.5,
+                            objectFit: 'cover'
+                          }}
+                          onError={(e) => { e.target.style.display = 'none'; }}
+                        />
+                      )}
+                      <Typography>{language.name}</Typography>
+                    </Box>
+                  </MenuItem>
+                ))
+              )}
+            </Select>
+          </FormControl>
           
           {/* Category Selection */}
           <FormControl fullWidth>
