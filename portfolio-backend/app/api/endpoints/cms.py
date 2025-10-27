@@ -279,30 +279,80 @@ async def upload_content_image(
         # Convert absolute path to URL-friendly relative path
         file_path = file_utils.get_file_url(absolute_file_path)
         
-        # Create image record based on entity type
+        # Handle image record based on entity type
         if entity_type == "portfolio":
             from app.models.portfolio import PortfolioImage
-            image = PortfolioImage(
-                portfolio_id=entity_id,
-                image_path=file_path,
-                file_name=file.filename,
-                category=category,
-                created_by=current_user.id,
-                updated_by=current_user.id
-            )
-            db.add(image)
+            
+            # Check if image already exists for this portfolio + category
+            existing_image = db.query(PortfolioImage).filter(
+                PortfolioImage.portfolio_id == entity_id,
+                PortfolioImage.category == category
+            ).first()
+            
+            if existing_image:
+                # Delete old file if it exists
+                old_file_path = existing_image.image_path
+                if old_file_path:
+                    # Convert URL path back to absolute path for deletion
+                    if old_file_path.startswith('/uploads/'):
+                        old_abs_path = str(Path(settings.UPLOADS_DIR).parent / old_file_path.lstrip('/'))
+                        file_utils.delete_file(old_abs_path)
+                
+                # Update existing record
+                existing_image.image_path = file_path
+                existing_image.file_name = file.filename
+                existing_image.updated_by = current_user.id
+                image = existing_image
+                logger.info(f"Updated existing {category} image for portfolio {entity_id}")
+            else:
+                # Create new record
+                image = PortfolioImage(
+                    portfolio_id=entity_id,
+                    image_path=file_path,
+                    file_name=file.filename,
+                    category=category,
+                    created_by=current_user.id,
+                    updated_by=current_user.id
+                )
+                db.add(image)
+                logger.info(f"Created new {category} image for portfolio {entity_id}")
             
         elif entity_type == "project":
             from app.models.project import ProjectImage
-            image = ProjectImage(
-                project_id=entity_id,
-                image_path=file_path,
-                file_name=file.filename,
-                category=category,
-                created_by=current_user.id,
-                updated_by=current_user.id
-            )
-            db.add(image)
+            
+            # Check if image already exists for this project + category
+            existing_image = db.query(ProjectImage).filter(
+                ProjectImage.project_id == entity_id,
+                ProjectImage.category == category
+            ).first()
+            
+            if existing_image:
+                # Delete old file if it exists
+                old_file_path = existing_image.image_path
+                if old_file_path:
+                    # Convert URL path back to absolute path for deletion
+                    if old_file_path.startswith('/uploads/'):
+                        old_abs_path = str(Path(settings.UPLOADS_DIR).parent / old_file_path.lstrip('/'))
+                        file_utils.delete_file(old_abs_path)
+                
+                # Update existing record
+                existing_image.image_path = file_path
+                existing_image.file_name = file.filename
+                existing_image.updated_by = current_user.id
+                image = existing_image
+                logger.info(f"Updated existing {category} image for project {entity_id}")
+            else:
+                # Create new record
+                image = ProjectImage(
+                    project_id=entity_id,
+                    image_path=file_path,
+                    file_name=file.filename,
+                    category=category,
+                    created_by=current_user.id,
+                    updated_by=current_user.id
+                )
+                db.add(image)
+                logger.info(f"Created new {category} image for project {entity_id}")
             
         elif entity_type == "experience":
             # Note: Experience images might not exist in schema yet
