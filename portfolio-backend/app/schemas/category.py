@@ -54,7 +54,7 @@ class CategoryTextBase(BaseModel):
     """Base schema for category text data"""
     language_id: int = Field(..., ge=1, description="ID of the language for this text")
     name: str = Field(..., min_length=1, max_length=100, description="Name of the category in this language")
-    description: str = Field(..., description="Description of the category in this language")
+    description: Optional[str] = Field(None, description="Description of the category in this language")
 
     @field_validator('name')
     @classmethod

@@ -27,6 +27,8 @@ class PortfolioImageOut(PortfolioImageBase):
 class PortfolioAttachmentBase(BaseModel):
     file_path: str
     file_name: str
+    category_id: Optional[int] = None
+    is_default: bool = False
 
 class PortfolioAttachmentCreate(PortfolioAttachmentBase):
     pass
@@ -34,6 +36,8 @@ class PortfolioAttachmentCreate(PortfolioAttachmentBase):
 class PortfolioAttachmentUpdate(BaseModel):
     file_path: Optional[str] = None
     file_name: Optional[str] = None
+    category_id: Optional[int] = None
+    is_default: Optional[bool] = None
 
 class PortfolioAttachmentOut(PortfolioAttachmentBase):
     id: int

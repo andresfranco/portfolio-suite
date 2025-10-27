@@ -18,7 +18,7 @@ from app.schemas.portfolio import (
     PortfolioAttachmentCreate,
     Filter
 )
-from app.models.portfolio import Portfolio as PortfolioModel
+from app.models.portfolio import Portfolio as PortfolioModel, PortfolioImage, PortfolioAttachment
 from app.api import deps
 from app.core.config import settings
 from app.core.logging import setup_logger
@@ -42,6 +42,9 @@ def get_file_url(file_path: str) -> str:
         # Strip 'static/uploads/' prefix and serve from '/uploads/'
         relative_path = file_path[len('static/uploads/'):]
         return f"/uploads/{relative_path}"
+    elif file_path.startswith('/uploads/'):
+        # Already has /uploads/ prefix, return as-is
+        return file_path
     elif file_path.startswith('uploads/'):
         # Already has uploads prefix, just add leading slash
         return f"/{file_path}"
@@ -529,8 +532,10 @@ async def upload_portfolio_image(
 ) -> Any:
     """
     Upload an image for a portfolio.
+    For 'main' category, replaces existing image if one exists.
+    For other categories, creates new image entries.
     """
-    logger.info(f"Uploading image for portfolio {portfolio_id}")
+    logger.info(f"Uploading {category} image for portfolio {portfolio_id}")
     try:
         portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
         if not portfolio:
@@ -547,20 +552,21 @@ async def upload_portfolio_image(
                 detail="File must be an image"
             )
         
-        # Create upload directory with structure: portfolios/{portfolio_id}/images/
-        upload_dir = os.path.join(settings.UPLOADS_DIR, "portfolios", str(portfolio_id), "images")
+        # For 'main' category, check if image already exists and replace it
+        existing_image = None
+        if category == "main":
+            existing_image = db.query(PortfolioImage).filter(
+                PortfolioImage.portfolio_id == portfolio_id,
+                PortfolioImage.category == category
+            ).first()
+        
+        # Create upload directory with structure: portfolios/{portfolio_id}/{category}/
+        upload_dir = os.path.join(settings.UPLOADS_DIR, "portfolios", str(portfolio_id), category)
         os.makedirs(upload_dir, exist_ok=True)
         
-        # Use original filename, but handle duplicates
-        original_filename = file.filename or "untitled"
-        filename = original_filename
-        counter = 1
-        
-        # Check for duplicates and add counter if needed
-        while os.path.exists(os.path.join(upload_dir, filename)):
-            name, ext = os.path.splitext(original_filename)
-            filename = f"{name}_{counter}{ext}"
-            counter += 1
+        # Use UUID-based filename to avoid conflicts
+        file_extension = os.path.splitext(file.filename or "image.png")[1]
+        filename = f"{uuid.uuid4()}{file_extension}"
         
         file_path = os.path.join(upload_dir, filename)
         
@@ -569,26 +575,52 @@ async def upload_portfolio_image(
         with open(file_path, "wb") as f:
             f.write(contents)
         
-        # Create relative path for database
-        relative_path = os.path.relpath(file_path, settings.BASE_DIR)
+        # Create URL-friendly path (relative to static/uploads)
+        url_path = f"/uploads/portfolios/{portfolio_id}/{category}/{filename}"
         
-        # Create portfolio image in database
-        portfolio_image = portfolio_crud.add_portfolio_image(
-            db, 
-            portfolio_id=portfolio_id, 
-            image=PortfolioImageCreate(
-                image_path=relative_path,
-                file_name=filename,
-                category=category
+        # Update existing or create new image record
+        if existing_image:
+            # Delete old file if it exists
+            if existing_image.image_path:
+                old_file_path = existing_image.image_path
+                # Convert URL path to absolute path
+                if old_file_path.startswith('/uploads/'):
+                    old_abs_path = os.path.join(settings.BASE_DIR, 'static', old_file_path.lstrip('/'))
+                elif old_file_path.startswith('static/'):
+                    old_abs_path = os.path.join(settings.BASE_DIR, old_file_path)
+                else:
+                    old_abs_path = os.path.join(settings.BASE_DIR, old_file_path)
+                
+                if os.path.exists(old_abs_path):
+                    os.remove(old_abs_path)
+                    logger.info(f"Deleted old file: {old_abs_path}")
+            
+            # Update existing record
+            existing_image.image_path = url_path
+            existing_image.file_name = filename
+            db.commit()
+            db.refresh(existing_image)
+            portfolio_image = existing_image
+            logger.info(f"Updated existing {category} image for portfolio {portfolio_id}")
+            stage_event(db, {"op":"update","source_table":"portfolio_images","source_id":str(portfolio_image.id),"changed_fields":["file_name","image_path"]})
+        else:
+            # Create new portfolio image in database
+            portfolio_image = portfolio_crud.add_portfolio_image(
+                db, 
+                portfolio_id=portfolio_id, 
+                image=PortfolioImageCreate(
+                    image_path=url_path,
+                    file_name=filename,
+                    category=category
+                )
             )
-        )
+            logger.info(f"Created new {category} image for portfolio {portfolio_id}")
+            stage_event(db, {"op":"insert","source_table":"portfolio_images","source_id":str(portfolio_image.id),"changed_fields":["file_name","image_path","category"]})
         
         # Add image URL for frontend
         if portfolio_image.image_path:
             portfolio_image.image_url = get_file_url(portfolio_image.image_path)
         
-        logger.info(f"Image uploaded successfully for portfolio {portfolio_id}")
-        stage_event(db, {"op":"insert","source_table":"portfolio_images","source_id":str(portfolio_image.id),"changed_fields":["file_name","image_path","category"]})
         return portfolio_image
     except HTTPException:
         raise
@@ -785,20 +817,17 @@ def read_portfolio_attachments(
             detail=f"Error getting portfolio attachments: {str(e)}"
         )
 
-@router.post("/{portfolio_id}/attachments", response_model=PortfolioAttachmentOut, status_code=status.HTTP_201_CREATED)
-@require_permission("UPLOAD_PORTFOLIO_ATTACHMENTS")
-async def upload_portfolio_attachment(
+@router.get("/{portfolio_id}/attachments/default-resume", response_model=PortfolioAttachmentOut)
+def get_default_resume(
     *,
     db: Session = Depends(deps.get_db),
     portfolio_id: int,
-    file: UploadFile = File(...),
-    current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
-    Upload an attachment for a portfolio.
-    Supported file types: PDF, Word docs, Excel, CSV, text files, JSON, XML, ZIP
+    Get the default resume attachment for a portfolio (public endpoint for website).
+    Returns 404 if no default resume is found.
     """
-    logger.info(f"Uploading attachment for portfolio {portfolio_id}: {file.filename}")
+    logger.debug(f"Getting default resume for portfolio {portfolio_id}")
     try:
         portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
         if not portfolio:
@@ -807,6 +836,91 @@ async def upload_portfolio_attachment(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Portfolio not found"
             )
+        
+        # Get the default resume attachment
+        default_resume = db.query(PortfolioAttachment).filter(
+            PortfolioAttachment.portfolio_id == portfolio_id,
+            PortfolioAttachment.is_default == True
+        ).first()
+        
+        if not default_resume:
+            logger.warning(f"No default resume found for portfolio {portfolio_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No default resume found for this portfolio"
+            )
+        
+        # Add file URL for frontend
+        if default_resume.file_path:
+            default_resume.file_url = get_file_url(default_resume.file_path)
+        
+        logger.debug(f"Found default resume {default_resume.id} for portfolio {portfolio_id}")
+        return default_resume
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting default resume: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error getting default resume: {str(e)}"
+        )
+
+@router.post("/{portfolio_id}/attachments", response_model=PortfolioAttachmentOut, status_code=status.HTTP_201_CREATED)
+@require_permission("UPLOAD_PORTFOLIO_ATTACHMENTS")
+async def upload_portfolio_attachment(
+    *,
+    db: Session = Depends(deps.get_db),
+    portfolio_id: int,
+    file: UploadFile = File(...),
+    category_id: Optional[int] = Query(None, description="Category ID (for PORTFOLIO_DOCUMENT or RESUME)"),
+    is_default: bool = Query(False, description="Mark as default resume (only for RESUME category)"),
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Upload an attachment for a portfolio.
+    Supported file types: PDF, Word docs, Excel, CSV, text files, JSON, XML, ZIP
+    
+    Use category_id to associate attachment with PORTFOLIO_DOCUMENT or RESUME category.
+    Set is_default=true to mark a resume as the default one (only one default resume per portfolio).
+    """
+    logger.info(f"Uploading attachment for portfolio {portfolio_id}: {file.filename}, category_id={category_id}, is_default={is_default}")
+    try:
+        portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
+        if not portfolio:
+            logger.warning(f"Portfolio with ID {portfolio_id} not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Portfolio not found"
+            )
+        
+        # Validate category if provided
+        if category_id:
+            category = db.query(models.Category).filter(models.Category.id == category_id).first()
+            if not category:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Category with ID {category_id} not found"
+                )
+            
+            # Verify category is of type PDOC or RESU
+            if category.type_code not in ["PDOC", "RESU"]:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Category must be of type PDOC (Portfolio Document) or RESU (Resume). Got type: {category.type_code}"
+                )
+            
+            # If marking as default and category is RESU, unset any existing default resume
+            if is_default and category.type_code == "RESU":
+                existing_defaults = db.query(PortfolioAttachment).filter(
+                    PortfolioAttachment.portfolio_id == portfolio_id,
+                    PortfolioAttachment.is_default == True
+                ).all()
+                
+                for existing in existing_defaults:
+                    existing.is_default = False
+                    logger.info(f"Unmarked attachment {existing.id} as default resume")
+                
+                db.commit()
         
         # Validate file type
         allowed_types = [
@@ -846,16 +960,9 @@ async def upload_portfolio_attachment(
         upload_dir = Path(settings.UPLOADS_DIR) / "portfolios" / str(portfolio_id) / "attachments"
         upload_dir.mkdir(parents=True, exist_ok=True)
         
-        # Use original filename, but handle duplicates
-        original_filename = file.filename or "untitled"
-        filename = original_filename
-        counter = 1
-        
-        # Check for duplicates and add counter if needed
-        while (upload_dir / filename).exists():
-            name, ext = os.path.splitext(original_filename)
-            filename = f"{name}_{counter}{ext}"
-            counter += 1
+        # Use UUID-based filename to avoid conflicts
+        file_extension = os.path.splitext(file.filename or "document.pdf")[1]
+        filename = f"{uuid.uuid4()}{file_extension}"
         
         file_path = upload_dir / filename
         
@@ -863,13 +970,15 @@ async def upload_portfolio_attachment(
         with open(file_path, "wb") as buffer:
             buffer.write(await file.read())
         
-        # Create relative path for database storage
-        relative_path = str(file_path.relative_to(Path(settings.BASE_DIR)))
+        # Create URL-friendly path (relative to static/uploads)
+        url_path = f"/uploads/portfolios/{portfolio_id}/attachments/{filename}"
         
         # Create attachment in database
         attachment_data = PortfolioAttachmentCreate(
-            file_path=relative_path,
-            file_name=filename  # Keep actual filename used (may have counter)
+            file_path=url_path,
+            file_name=file.filename or filename,  # Keep original filename for display
+            category_id=category_id,
+            is_default=is_default
         )
         
         # Add portfolio attachment to database
@@ -882,8 +991,8 @@ async def upload_portfolio_attachment(
         # Add file URL for frontend
         portfolio_attachment.file_url = get_file_url(portfolio_attachment.file_path)
         
-        logger.info(f"Attachment uploaded successfully for portfolio {portfolio_id}")
-        stage_event(db, {"op":"insert","source_table":"portfolio_attachments","source_id":str(portfolio_attachment.id),"changed_fields":["file_name","file_path"]})
+        logger.info(f"Attachment uploaded successfully for portfolio {portfolio_id}, ID={portfolio_attachment.id}")
+        stage_event(db, {"op":"insert","source_table":"portfolio_attachments","source_id":str(portfolio_attachment.id),"changed_fields":["file_name","file_path","category_id","is_default"]})
         return portfolio_attachment
     except HTTPException:
         raise

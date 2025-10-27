@@ -28,8 +28,18 @@ const Hero = () => {
       return defaultHeroImage;
     }
     
-    // Look for hero category image
-    const heroImg = portfolio.images.find(img => img.category === 'hero');
+    // Look for hero category images and get the most recent one
+    // Filter all main images (hero background) and sort by ID (descending) to get the latest
+    const heroImages = portfolio.images.filter(img => img.category === 'main');
+    
+    if (heroImages.length === 0) {
+      return defaultHeroImage;
+    }
+    
+    // Sort by ID descending to get the most recent upload
+    heroImages.sort((a, b) => b.id - a.id);
+    const heroImg = heroImages[0];
+    
     if (heroImg?.image_path) {
       // If path starts with /uploads, construct full URL
       // Otherwise it's a full URL or needs to be relative to API
@@ -314,7 +324,7 @@ const Hero = () => {
                 currentImage={heroImage}
                 entityType="portfolio"
                 entityId={portfolio.id}
-                category="hero"
+                category="main"
                 alt="Hero background"
                 className="absolute inset-0 w-full h-full object-cover"
               />
