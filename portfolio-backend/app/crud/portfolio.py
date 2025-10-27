@@ -351,7 +351,7 @@ def get_portfolio_attachment(db: Session, attachment_id: int) -> Optional[Portfo
 @db_transaction
 def add_portfolio_attachment(db: Session, portfolio_id: int, attachment: PortfolioAttachmentCreate) -> Optional[PortfolioAttachment]:
     """Add attachment to portfolio"""
-    logger.debug(f"Adding attachment to portfolio with ID {portfolio_id}")
+    logger.debug(f"Adding attachment to portfolio with ID {portfolio_id}: category_id={attachment.category_id}, is_default={attachment.is_default}, language_id={attachment.language_id}")
     
     try:
         db_portfolio = get_portfolio(db, portfolio_id)
@@ -363,12 +363,15 @@ def add_portfolio_attachment(db: Session, portfolio_id: int, attachment: Portfol
         db_portfolio_attachment = PortfolioAttachment(
             portfolio_id=portfolio_id,
             file_path=attachment.file_path,
-            file_name=attachment.file_name
+            file_name=attachment.file_name,
+            category_id=attachment.category_id,
+            is_default=attachment.is_default,
+            language_id=attachment.language_id
         )
         db.add(db_portfolio_attachment)
         db.flush()
         
-        logger.info(f"Attachment added to portfolio {portfolio_id} with ID {db_portfolio_attachment.id}")
+        logger.info(f"Attachment added to portfolio {portfolio_id} with ID {db_portfolio_attachment.id}, category_id={attachment.category_id}, is_default={attachment.is_default}, language_id={attachment.language_id}")
         return db_portfolio_attachment
     except Exception as e:
         logger.error(f"Error adding attachment to portfolio {portfolio_id}: {str(e)}", exc_info=True)

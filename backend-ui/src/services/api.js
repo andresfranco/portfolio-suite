@@ -197,7 +197,7 @@ const projectsApi = {
 
   // Portfolio attachment methods
   getPortfolioAttachments: (portfolioId) => api.get(`/api/portfolios/${portfolioId}/attachments`),
-  uploadPortfolioAttachment: (portfolioId, file, categoryId = null, isDefault = false) => {
+  uploadPortfolioAttachment: (portfolioId, file, categoryId = null, isDefault = false, languageId = null) => {
     const formData = new FormData();
     formData.append('file', file);
     
@@ -209,6 +209,9 @@ const projectsApi = {
     }
     if (isDefault) {
       params.append('is_default', 'true');
+    }
+    if (languageId) {
+      params.append('language_id', languageId);
     }
     if (params.toString()) {
       url += `?${params.toString()}`;

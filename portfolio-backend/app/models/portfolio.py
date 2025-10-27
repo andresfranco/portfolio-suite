@@ -83,6 +83,7 @@ class PortfolioAttachment(Base):
     file_name = Column(String, nullable=False)
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)  # Link to category (PDOC, RESU, etc)
     is_default = Column(Boolean, default=False, nullable=False)  # For marking default resume
+    language_id = Column(Integer, ForeignKey("languages.id"), nullable=True)  # Link to language
     
     # Timestamp and user tracking fields
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -93,3 +94,4 @@ class PortfolioAttachment(Base):
     # Relationships
     portfolio = relationship("Portfolio", back_populates="attachments")
     category = relationship("Category")
+    language = relationship("Language")

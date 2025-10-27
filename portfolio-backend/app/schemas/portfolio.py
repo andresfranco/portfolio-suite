@@ -29,6 +29,7 @@ class PortfolioAttachmentBase(BaseModel):
     file_name: str
     category_id: Optional[int] = None
     is_default: bool = False
+    language_id: Optional[int] = None
 
 class PortfolioAttachmentCreate(PortfolioAttachmentBase):
     pass
@@ -38,6 +39,7 @@ class PortfolioAttachmentUpdate(BaseModel):
     file_name: Optional[str] = None
     category_id: Optional[int] = None
     is_default: Optional[bool] = None
+    language_id: Optional[int] = None
 
 class PortfolioAttachmentOut(PortfolioAttachmentBase):
     id: int
