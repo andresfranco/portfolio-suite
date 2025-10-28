@@ -90,6 +90,16 @@ def read_categories(
     logger.info(f"Fetching categories with page={page}, page_size={page_size}, filters={filters}, code={code}, name={name}, type_code={type_code}, sort={sort_field} {sort_order}")
     
     try:
+        # Ensure PROA categories exist if filtering by PROA type
+        if type_code == 'PROA':
+            from app.crud import category as category_crud
+            category_crud.ensure_project_attachment_category_exists(db)
+        
+        # Ensure PROI categories exist if filtering by PROI type
+        if type_code == 'PROI':
+            from app.crud import category as category_crud
+            category_crud.ensure_project_image_category_exists(db)
+        
         parsed_filters = None
         
         # Handle individual query parameters first
