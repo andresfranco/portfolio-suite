@@ -49,6 +49,10 @@ def get_file_url(file_path: str) -> str:
     elif file_path.startswith('uploads/'):
         # Already has uploads prefix, just add leading slash
         return f"/{file_path}"
+    elif file_path.startswith('/projects/') or file_path.startswith('/portfolios/'):
+        # Path starts with /projects/ or /portfolios/ - prepend /uploads
+        # This handles legacy/incorrect paths like /projects/project_1/...
+        return f"/uploads{file_path}"
     else:
         # Fallback: assume it's a relative path under uploads
         return f"/uploads/{file_path}"
@@ -164,7 +168,9 @@ def process_portfolios_for_response(
                         "website_url": project.website_url,
                         "project_texts": [],
                         "categories": [],
-                        "skills": []
+                        "skills": [],
+                        "images": [],
+                        "attachments": []
                     }
                     
                     # Include project texts if they exist
@@ -190,6 +196,62 @@ def process_portfolios_for_response(
                                 }
                             
                             proj_dict["project_texts"].append(text_dict)
+                    
+                    # Include project images if they exist
+                    if include_images and hasattr(project, 'images') and project.images:
+                        for image in project.images:
+                            img_dict = {
+                                "id": image.id,
+                                "project_id": image.project_id,
+                                "category": image.category,
+                                "image_path": image.image_path,
+                                "file_name": image.file_name if hasattr(image, 'file_name') else None,
+                                "language_id": image.language_id if hasattr(image, 'language_id') else None,
+                                "image_url": get_file_url(image.image_path) if image.image_path else None,
+                                "created_at": image.created_at if hasattr(image, 'created_at') else None,
+                                "updated_at": image.updated_at if hasattr(image, 'updated_at') else None
+                            }
+                            
+                            # Include language if it exists
+                            if hasattr(image, 'language') and image.language:
+                                language = image.language
+                                img_dict["language"] = {
+                                    "id": language.id,
+                                    "code": language.code,
+                                    "name": language.name
+                                }
+                            else:
+                                img_dict["language"] = None
+                            
+                            proj_dict["images"].append(img_dict)
+                    
+                    # Include project attachments if they exist
+                    if include_attachments and hasattr(project, 'attachments') and project.attachments:
+                        for attachment in project.attachments:
+                            att_dict = {
+                                "id": attachment.id,
+                                "project_id": attachment.project_id,
+                                "file_name": attachment.file_name,
+                                "file_path": attachment.file_path,
+                                "file_url": get_file_url(attachment.file_path) if attachment.file_path else None,
+                                "category_id": attachment.category_id if hasattr(attachment, 'category_id') else None,
+                                "language_id": attachment.language_id if hasattr(attachment, 'language_id') else None,
+                                "created_at": attachment.created_at if hasattr(attachment, 'created_at') else None,
+                                "updated_at": attachment.updated_at if hasattr(attachment, 'updated_at') else None
+                            }
+                            
+                            # Include language if it exists
+                            if hasattr(attachment, 'language') and attachment.language:
+                                language = attachment.language
+                                att_dict["language"] = {
+                                    "id": language.id,
+                                    "code": language.code,
+                                    "name": language.name
+                                }
+                            else:
+                                att_dict["language"] = None
+                            
+                            proj_dict["attachments"].append(att_dict)
                     
                     portfolio_dict["projects"].append(proj_dict)
             
@@ -613,23 +675,33 @@ async def upload_portfolio_image(
                 detail="File must be an image"
             )
         
-        # For 'main' category, check if image already exists for this language and replace it
-        # This allows multiple main images, one per language
+        # Define categories that should only have one image (optionally per language)
+        # main, thumbnail, and background should be unique
+        # gallery allows multiple images
+        UNIQUE_CATEGORIES = ['main', 'thumbnail', 'background']
+        
+        # For unique categories, check if image already exists and replace it
         existing_image = None
-        if category == "main" and language_id:
-            # Look for existing main image with the same language
-            existing_image = db.query(PortfolioImage).filter(
-                PortfolioImage.portfolio_id == portfolio_id,
-                PortfolioImage.category == category,
-                PortfolioImage.language_id == language_id
-            ).first()
-        elif category == "main" and not language_id:
-            # Look for existing main image with no language
-            existing_image = db.query(PortfolioImage).filter(
-                PortfolioImage.portfolio_id == portfolio_id,
-                PortfolioImage.category == category,
-                PortfolioImage.language_id.is_(None)
-            ).first()
+        if category in UNIQUE_CATEGORIES:
+            if language_id:
+                # Look for existing image with the same language
+                existing_image = db.query(PortfolioImage).filter(
+                    PortfolioImage.portfolio_id == portfolio_id,
+                    PortfolioImage.category == category,
+                    PortfolioImage.language_id == language_id
+                ).first()
+            else:
+                # Look for existing image with no language
+                existing_image = db.query(PortfolioImage).filter(
+                    PortfolioImage.portfolio_id == portfolio_id,
+                    PortfolioImage.category == category,
+                    PortfolioImage.language_id.is_(None)
+                ).first()
+            
+            if existing_image:
+                logger.info(f"Found existing {category} image (ID: {existing_image.id}) - will replace it")
+        else:
+            logger.info(f"Category '{category}' allows multiple images - no uniqueness check")
         
         # Create upload directory with structure: portfolios/{portfolio_id}/{category}/
         upload_dir = os.path.join(settings.UPLOADS_DIR, "portfolios", str(portfolio_id), category)
