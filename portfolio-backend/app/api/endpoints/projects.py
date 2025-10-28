@@ -17,7 +17,7 @@ from app.api import deps
 from app.core.config import settings
 from app.core.logging import setup_logger
 from app.core.security_decorators import require_permission
-from app.utils.file_utils import save_upload_file, save_project_image, PROJECT_IMAGES_DIR, get_file_url, delete_file
+from app.utils.file_utils import save_upload_file, save_project_image, PROJECT_IMAGES_DIR, get_file_url, get_relative_path, delete_file
 from app.crud import category as category_crud
 from app.crud import image as image_crud
 from app.core.security import create_temp_token, verify_temp_token
@@ -757,6 +757,47 @@ async def upload_project_image(
         
         logger.info(f"Using category code: {category_code}")
         
+        # Check if an image with the same category and language already exists for this project
+        # Only enforce uniqueness for specific categories (logo, thumbnail)
+        # Gallery and other categories can have multiple images
+        UNIQUE_CATEGORIES = ['PROI-LOGO', 'PROI-THUMBNAIL']
+        
+        if category_code in UNIQUE_CATEGORIES:
+            existing_images = crud.project.get_project_images_by_category_and_language(
+                db=db,
+                project_id=project_id,
+                category=category_code,
+                language_id=language_id
+            )
+            
+            if existing_images:
+                logger.info(f"Found {len(existing_images)} existing image(s) with category '{category_code}' and language_id '{language_id}' for project {project_id}")
+                logger.info(f"Enforcing uniqueness for category '{category_code}' - deleting existing images")
+                
+                # Delete existing images to maintain one image per category per language
+                for existing_image in existing_images:
+                    logger.info(f"Deleting existing image ID {existing_image.id} to maintain uniqueness")
+                    
+                    # Delete the file from filesystem
+                    try:
+                        if existing_image.image_path:
+                            # Get absolute path for deletion
+                            from app.core.config import settings
+                            absolute_path = settings.UPLOADS_DIR / existing_image.image_path
+                            if delete_file(str(absolute_path)):
+                                logger.info(f"Deleted file: {absolute_path}")
+                            else:
+                                logger.warning(f"Could not delete file: {absolute_path}")
+                    except Exception as e:
+                        logger.warning(f"Error deleting old image file: {e}")
+                    
+                    # Delete the database record
+                    crud.project.delete_project_image(db, project_image_id=existing_image.id)
+                
+                logger.info(f"Successfully deleted {len(existing_images)} existing image(s)")
+        else:
+            logger.info(f"Category '{category_code}' allows multiple images - skipping uniqueness check")
+        
         # Process and save the file
         original_filename = file.filename
         logger.info(f"Saving file: {original_filename}")
@@ -771,18 +812,17 @@ async def upload_project_image(
         
         logger.info(f"File saved successfully at: {file_path}")
         
-        # Get the file URL
-        file_url = get_file_url(file_path)
+        # Convert absolute path to relative path for database storage
+        relative_path = get_relative_path(file_path)
+        
+        # Get the file URL for response
+        file_url = get_file_url(relative_path)
+        logger.info(f"Relative path for DB: {relative_path}")
         logger.info(f"Generated file URL: {file_url}")
-            
-        # Calculate relative path for database storage (use the full path returned by save_project_image)
-        image_path = file_path  # save_project_image already returns full path
         
-        logger.debug(f"Image path for database: {image_path}")
-        
-        # Create image record in database using the correct field names
+        # Create image record in database using the relative path
         image_in = schemas.project.ProjectImageCreate(
-            image_path=str(file_path),  # Store the full path
+            image_path=relative_path,  # Store the relative path from uploads dir
             category=category_code,    # Match the DB column name (category, not category_code)
             language_id=language_id,   # Associate with language if provided
         )
@@ -791,7 +831,7 @@ async def upload_project_image(
         image = crud.project.create_project_image(
             db=db, 
             project_id=project_id, 
-            image_path=str(file_path),
+            image_path=relative_path,  # Store relative path
             category=category_code,
             language_id=language_id,
             created_by=current_user.id

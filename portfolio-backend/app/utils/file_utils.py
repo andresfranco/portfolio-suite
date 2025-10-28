@@ -210,6 +210,72 @@ def get_file_url(file_path: str) -> str:
     logger.debug(f"Final URL (default case): {final_url}")
     return final_url
 
+def get_relative_path(file_path: str) -> str:
+    """
+    Convert an absolute file path to a relative path from the uploads directory.
+    This is used for storing paths in the database.
+    
+    Args:
+        file_path: Absolute or relative file path
+        
+    Returns:
+        Relative path from uploads directory (e.g., "projects/project_1/PROI-LOGO/image.png")
+    """
+    if not file_path:
+        logger.warning("Empty file path passed to get_relative_path")
+        return ""
+    
+    logger.debug(f"Converting to relative path: {file_path}")
+    
+    # Replace backslashes with forward slashes
+    file_path = str(file_path).replace("\\", "/")
+    
+    # If it's already relative and starts with uploads/, remove that prefix
+    if file_path.startswith("uploads/"):
+        relative_path = file_path[8:]  # Remove "uploads/" prefix
+        logger.debug(f"Removed uploads/ prefix: {relative_path}")
+        return relative_path
+    
+    # If it starts with /uploads/, remove that prefix
+    if file_path.startswith("/uploads/"):
+        relative_path = file_path[9:]  # Remove "/uploads/" prefix
+        logger.debug(f"Removed /uploads/ prefix: {relative_path}")
+        return relative_path
+    
+    # If it's an absolute path, extract the part after uploads directory
+    if os.path.isabs(file_path):
+        try:
+            uploads_path_str = str(UPLOAD_DIR.absolute())
+            logger.debug(f"Uploads directory: {uploads_path_str}")
+            
+            if uploads_path_str in file_path:
+                # Extract the part after uploads directory
+                relative_part = file_path.split(uploads_path_str, 1)[1]
+                # Remove leading slash if present
+                if relative_part.startswith("/"):
+                    relative_part = relative_part[1:]
+                    
+                logger.debug(f"Extracted relative path: {relative_part}")
+                return relative_part
+            else:
+                logger.warning(f"Absolute path doesn't contain uploads directory: {file_path}")
+                # Fallback: just use filename
+                return os.path.basename(file_path)
+                
+        except Exception as e:
+            logger.error(f"Error processing absolute path: {e}")
+            return os.path.basename(file_path)
+    
+    # If it contains "uploads/", extract everything after it
+    if "uploads/" in file_path:
+        relative_part = file_path.split("uploads/", 1)[1]
+        logger.debug(f"Extracted from path containing uploads/: {relative_part}")
+        return relative_part
+    
+    # Otherwise, treat it as already relative
+    logger.debug(f"Treating as already relative: {file_path}")
+    return file_path
+
 # Specific function for project images
 async def save_project_image(
     upload_file: UploadFile, 

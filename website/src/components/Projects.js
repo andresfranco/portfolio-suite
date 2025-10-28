@@ -5,7 +5,7 @@ import { usePortfolio } from '../context/PortfolioContext';
 import { useEditMode } from '../context/EditModeContext';
 import { useSectionLabel } from '../hooks/useSectionLabel';
 import { translations } from '../data/translations';
-import { InlineTextEditor } from './cms';
+import { InlineTextEditor, ProjectImageSelector } from './cms';
 import ProjectDetails from './ProjectDetails';
 
 const ProjectModal = ({ project, onClose, onViewDetails, language, getProjectText }) => {
@@ -88,6 +88,7 @@ const Projects = () => {
   const navigate = useNavigate();
   const { language } = useContext(LanguageContext);
   const { getProjects, getProjectText, loading } = usePortfolio();
+  const { isEditMode } = useEditMode();
 
   // Get editable section labels
   const projectsTitle = useSectionLabel('SECTION_PROJECTS', 'projects');
@@ -96,7 +97,11 @@ const Projects = () => {
   // Get projects from portfolio context
   const projects = getProjects();
 
-  const handleProjectClick = (project) => {
+  const handleProjectClick = (project, isCtrlClick = false) => {
+    // Allow Ctrl/Cmd+click to open modal even in edit mode
+    // Otherwise, don't open project modal in edit mode
+    if (isEditMode && !isCtrlClick) return;
+    
     setSelectedProject(project);
     setShowModal(true);
   };
@@ -136,18 +141,31 @@ const Projects = () => {
                 return (
                   <div
                     key={project.id}
-                    onClick={() => handleProjectClick(project)}
+                    onClick={(e) => {
+                      // Don't open modal if event was already handled (defaultPrevented)
+                      if (e.defaultPrevented) return;
+                      
+                      // Check if Ctrl/Cmd key is pressed
+                      const isCtrlClick = e.ctrlKey || e.metaKey;
+                      
+                      // Call handler with Ctrl/Cmd flag
+                      handleProjectClick(project, isCtrlClick);
+                    }}
                     className="relative group cursor-pointer rounded-xl overflow-hidden
                       transition-all duration-300
                       hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)]
                       transform hover:-translate-y-1
                       aspect-[4/3]"
                   >
-                    <img
-                      src={projectImage}
+                    {/* Project Thumbnail with Edit Capability */}
+                    <ProjectImageSelector
+                      project={project}
+                      category="thumbnail"
+                      currentImagePath={projectImage}
                       alt={projectText.name}
                       className="w-full h-full object-cover"
                     />
+                    
                     <div className="absolute inset-0 bg-black/75 md:bg-black/40 
                       md:opacity-0 md:group-hover:opacity-100
                       md:group-hover:bg-black/85 transition-all duration-300 

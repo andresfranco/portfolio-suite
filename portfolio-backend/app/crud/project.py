@@ -494,6 +494,38 @@ def get_project_images(db: Session, project_id: int):
     """
     return db.query(ProjectImage).filter(ProjectImage.project_id == project_id).all()
 
+def get_project_images_by_category_and_language(
+    db: Session, 
+    project_id: int, 
+    category: str, 
+    language_id: int = None
+):
+    """
+    Get project images filtered by category and optionally by language.
+    This is useful for enforcing uniqueness constraints (one image per category per language).
+    
+    Args:
+        db: Database session
+        project_id: Project ID
+        category: Image category code (e.g., 'PROI-LOGO', 'PROI-THUMBNAIL')
+        language_id: Optional language ID. If None, will match images with NULL language_id
+    
+    Returns:
+        List of ProjectImage objects matching the criteria
+    """
+    query = db.query(ProjectImage).filter(
+        ProjectImage.project_id == project_id,
+        ProjectImage.category == category
+    )
+    
+    # Handle language_id filter
+    if language_id is not None:
+        query = query.filter(ProjectImage.language_id == language_id)
+    else:
+        query = query.filter(ProjectImage.language_id.is_(None))
+    
+    return query.all()
+
 def create_project_image(db: Session, project_id: int, image_path: str, category: str = "gallery", language_id: int = None, created_by: int = None):
     """
     Create a new project image
