@@ -333,7 +333,7 @@ export const ProjectImageSelector = ({
     <>
       {/* Image with edit overlay */}
       <div 
-        className="relative group"
+        className="relative group w-full h-full"
         onClick={(e) => {
           // Only stop propagation if clicking on the image itself, not the button
           // The button will handle its own stopPropagation

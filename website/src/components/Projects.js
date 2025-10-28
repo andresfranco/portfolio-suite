@@ -44,13 +44,20 @@ const ProjectModal = ({ project, onClose, onViewDetails, language, getProjectTex
           </button>
         </div>
         <div className="p-4 md:p-6 overflow-y-auto">
-          {project.images && project.images.length > 0 && (
-            <img 
-              src={`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${project.images[0].image_path}`}
-              alt={projectText.name}
-              className="w-full h-48 md:h-64 object-cover rounded-lg mb-4 md:mb-6"
-            />
-          )}
+          {project.images && project.images.length > 0 && (() => {
+            const thumbnailImage = project.images.find(img => img.category === 'PROI-THUMBNAIL') || project.images[0];
+            const imageUrl = thumbnailImage.image_url 
+              ? `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}${thumbnailImage.image_url}`
+              : `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/uploads/${thumbnailImage.image_path}`;
+            
+            return (
+              <img 
+                src={imageUrl}
+                alt={projectText.name}
+                className="w-full h-48 md:h-64 object-contain bg-gray-800 rounded-lg mb-4 md:mb-6"
+              />
+            );
+          })()}
           <div className="text-gray-300 text-base md:text-lg mb-6">
             {/* Editable project description in edit mode */}
             {isEditMode && projectText.id ? (
@@ -131,7 +138,7 @@ const Projects = () => {
             <h2 className="text-4xl font-bold mb-8 text-white">
               {projectsTitle.renderEditable('text-4xl font-bold mb-8 text-white')}
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-12">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-12 max-w-5xl mx-auto">
               {projects.map((project) => {
                 const projectText = getProjectText(project);
                 const projectImage = project.images && project.images.length > 0
@@ -155,7 +162,7 @@ const Projects = () => {
                       transition-all duration-300
                       hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)]
                       transform hover:-translate-y-1
-                      aspect-[4/3]"
+                      aspect-[16/10]"
                   >
                     {/* Project Thumbnail with Edit Capability */}
                     <ProjectImageSelector
