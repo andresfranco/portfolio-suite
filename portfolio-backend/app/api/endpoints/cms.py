@@ -237,6 +237,7 @@ async def upload_content_image(
     entity_type: str = Query(..., description="Entity type: portfolio, project, experience"),
     entity_id: int = Query(..., description="Entity ID"),
     category: str = Query("main", description="Image category: main, thumbnail, gallery, background"),
+    language_id: Optional[int] = Query(None, description="Language ID for the image"),
     current_user: User = Depends(deps.get_current_user),
     db: Session = Depends(deps.get_db),
 ) -> Any:
@@ -249,11 +250,12 @@ async def upload_content_image(
         entity_type: Type of entity (portfolio, project, experience)
         entity_id: ID of the entity
         category: Image category (main, thumbnail, gallery, background)
+        language_id: Optional language ID for language-specific images
     
     Returns:
         Uploaded image details
     """
-    logger.info(f"User {current_user.username} uploading {category} image for {entity_type} {entity_id}")
+    logger.info(f"User {current_user.username} uploading {category} image for {entity_type} {entity_id} with language_id={language_id}")
     
     try:
         # Validate entity type
@@ -283,11 +285,22 @@ async def upload_content_image(
         if entity_type == "portfolio":
             from app.models.portfolio import PortfolioImage
             
-            # Check if image already exists for this portfolio + category
-            existing_image = db.query(PortfolioImage).filter(
-                PortfolioImage.portfolio_id == entity_id,
-                PortfolioImage.category == category
-            ).first()
+            # Check if image already exists for this portfolio + category + language
+            # For language-specific images (main/hero), check category AND language_id
+            # This allows multiple main images, one per language
+            if language_id is not None:
+                existing_image = db.query(PortfolioImage).filter(
+                    PortfolioImage.portfolio_id == entity_id,
+                    PortfolioImage.category == category,
+                    PortfolioImage.language_id == language_id
+                ).first()
+            else:
+                # For images without language, only check category
+                existing_image = db.query(PortfolioImage).filter(
+                    PortfolioImage.portfolio_id == entity_id,
+                    PortfolioImage.category == category,
+                    PortfolioImage.language_id.is_(None)
+                ).first()
             
             if existing_image:
                 # Delete old file if it exists
@@ -302,8 +315,10 @@ async def upload_content_image(
                 existing_image.image_path = file_path
                 existing_image.file_name = file.filename
                 existing_image.updated_by = current_user.id
+                if language_id is not None:
+                    existing_image.language_id = language_id
                 image = existing_image
-                logger.info(f"Updated existing {category} image for portfolio {entity_id}")
+                logger.info(f"Updated existing {category} image for portfolio {entity_id} with language_id={language_id}")
             else:
                 # Create new record
                 image = PortfolioImage(
@@ -311,6 +326,7 @@ async def upload_content_image(
                     image_path=file_path,
                     file_name=file.filename,
                     category=category,
+                    language_id=language_id,
                     created_by=current_user.id,
                     updated_by=current_user.id
                 )

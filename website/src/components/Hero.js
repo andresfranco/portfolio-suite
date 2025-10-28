@@ -75,17 +75,24 @@ const Hero = () => {
       return defaultHeroImage;
     }
     
-    // Look for hero category images and get the most recent one
-    // Filter all main images (hero background) and sort by ID (descending) to get the latest
-    const heroImages = portfolio.images.filter(img => img.category === 'main');
+    const languageId = languageIdMap[language] || 1; // Default to English
+    
+    // Look for main category images filtered by current language
+    const heroImages = portfolio.images.filter(img => 
+      img.category === 'main' && 
+      img.language_id === languageId
+    );
     
     if (heroImages.length === 0) {
+      console.warn(`No main image found for language ${language} (ID: ${languageId}), using default`);
       return defaultHeroImage;
     }
     
-    // Sort by ID descending to get the most recent upload
+    // Sort by ID descending to get the most recent upload for this language
     heroImages.sort((a, b) => b.id - a.id);
     const heroImg = heroImages[0];
+    
+    console.log(`Using hero image for language ${language}:`, heroImg);
     
     if (heroImg?.image_path) {
       // If path starts with /uploads, construct full URL
@@ -102,7 +109,7 @@ const Hero = () => {
     
     // Fallback to default
     return defaultHeroImage;
-  }, [portfolio?.images]);
+  }, [portfolio?.images, language]);
   
   // Content editor hook for experiences
   const { 

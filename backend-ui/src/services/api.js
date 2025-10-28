@@ -186,11 +186,25 @@ const projectsApi = {
   
   // Portfolio image methods
   getPortfolioImages: (portfolioId) => api.get(`/api/portfolios/${portfolioId}/images`),
-  uploadPortfolioImage: (portfolioId, file, category) => {
+  uploadPortfolioImage: (portfolioId, file, category, languageId = null) => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('category', category);
-    return api.post(`/api/portfolios/${portfolioId}/images?category=${category}`, formData);
+    
+    // Build URL with query parameters
+    let url = `/api/portfolios/${portfolioId}/images`;
+    const params = new URLSearchParams();
+    params.append('category', category);
+    if (languageId) {
+      console.log('Adding language_id to params:', languageId, 'Type:', typeof languageId);
+      params.append('language_id', languageId);
+    } else {
+      console.log('No language_id provided, languageId is:', languageId);
+    }
+    url += `?${params.toString()}`;
+    console.log('Final upload URL:', url);
+    
+    return api.post(url, formData);
   },
   deletePortfolioImage: (portfolioId, imageId) => api.delete(`/api/portfolios/${portfolioId}/images/${imageId}`),
   renamePortfolioImage: (portfolioId, imageId, updateData) => api.put(`/api/portfolios/${portfolioId}/images/${imageId}`, updateData),

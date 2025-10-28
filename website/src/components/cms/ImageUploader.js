@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useContext } from 'react';
 import { useEditMode } from '../../context/EditModeContext';
 import { usePortfolio } from '../../context/PortfolioContext';
+import { LanguageContext } from '../../context/LanguageContext';
 import { portfolioApi } from '../../services/portfolioApi';
 import { EditableImageWrapper } from './EditableWrapper';
 
@@ -35,6 +36,7 @@ export const ImageUploader = ({
   
   const { authToken, isEditMode, showNotification } = useEditMode();
   const { refreshPortfolio } = usePortfolio();
+  const { language } = useContext(LanguageContext);
   
   /**
    * Validate file before upload
@@ -96,7 +98,8 @@ export const ImageUploader = ({
         entityType,
         entityId,
         category,
-        authToken
+        authToken,
+        language  // Pass current language
       );
       
       clearInterval(progressInterval);
