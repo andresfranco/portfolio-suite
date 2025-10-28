@@ -65,6 +65,7 @@ class ProjectImage(Base):
     project_id = Column(Integer, ForeignKey("projects.id"))
     image_path = Column(String)
     category = Column(String)  # e.g., "diagram", "main", "gallery"
+    language_id = Column(Integer, ForeignKey("languages.id"), nullable=True)  # Link to language
     
     # Timestamp and user tracking fields
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -74,6 +75,7 @@ class ProjectImage(Base):
     
     # Relationships
     project = relationship("Project", back_populates="images")
+    language = relationship("Language")
 
 
 class ProjectAttachment(Base):
@@ -82,6 +84,8 @@ class ProjectAttachment(Base):
     project_id = Column(Integer, ForeignKey("projects.id"))
     file_path = Column(String)
     file_name = Column(String)
+    category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)  # Link to category (PDOC, RESU, etc)
+    language_id = Column(Integer, ForeignKey("languages.id"), nullable=True)  # Link to language
     
     # Timestamp and user tracking fields
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -91,3 +95,5 @@ class ProjectAttachment(Base):
     
     # Relationships
     project = relationship("Project", back_populates="attachments")
+    category = relationship("Category")
+    language = relationship("Language")

@@ -28,6 +28,7 @@ class ProjectTextOut(ProjectTextBase):
 class ProjectImageBase(BaseModel):
     image_path: str
     category: str  # e.g., "diagram", "main", "gallery"
+    language_id: Optional[int] = None  # Link to language
 
 class ProjectImageCreate(ProjectImageBase):
     pass
@@ -35,14 +36,18 @@ class ProjectImageCreate(ProjectImageBase):
 class ProjectImageUpdate(BaseModel):
     image_path: Optional[str] = None
     category: Optional[str] = None
+    language_id: Optional[int] = None
 
 class ProjectImageOut(BaseModel):
     id: int
     image_path: str  
     category: str
+    language_id: Optional[int] = None
     image_url: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    created_by: Optional[int] = None
+    updated_by: Optional[int] = None
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -53,8 +58,11 @@ class ProjectImageOut(BaseModel):
             id=model.id,
             image_path=model.image_path,
             category=model.category,
+            language_id=model.language_id,
             created_at=model.created_at,
-            updated_at=model.updated_at
+            updated_at=model.updated_at,
+            created_by=model.created_by,
+            updated_by=model.updated_by
         )
         if include_url:
             from app.utils.file_utils import get_file_url
@@ -64,6 +72,8 @@ class ProjectImageOut(BaseModel):
 class ProjectAttachmentBase(BaseModel):
     file_path: str
     file_name: str
+    category_id: Optional[int] = None  # Link to category (PDOC, RESU, etc)
+    language_id: Optional[int] = None  # Link to language
 
 class ProjectAttachmentCreate(ProjectAttachmentBase):
     pass
@@ -71,12 +81,16 @@ class ProjectAttachmentCreate(ProjectAttachmentBase):
 class ProjectAttachmentUpdate(BaseModel):
     file_path: Optional[str] = None
     file_name: Optional[str] = None
+    category_id: Optional[int] = None
+    language_id: Optional[int] = None
 
 class ProjectAttachmentOut(ProjectAttachmentBase):
     id: int
     file_url: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    created_by: Optional[int] = None
+    updated_by: Optional[int] = None
     
     model_config = ConfigDict(from_attributes=True)
 

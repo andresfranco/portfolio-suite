@@ -30,6 +30,10 @@ import {
   Checkbox,
   Toolbar,
   FormControlLabel,
+  FormControl,
+  Select,
+  InputLabel,
+  MenuItem,
   alpha,
   Pagination,
   Stack,
@@ -166,6 +170,12 @@ function ProjectAttachmentsContent() {
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
 
+  // Languages and categories for file metadata
+  const [languages, setLanguages] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loadingLanguages, setLoadingLanguages] = useState(false);
+  const [loadingCategories, setLoadingCategories] = useState(false);
+
   // Debug logging
   useEffect(() => {
     console.log('[PROJECT ATTACHMENTS DEBUG] Authentication Status:');
@@ -254,6 +264,38 @@ function ProjectAttachmentsContent() {
     fetchData();
   }, [projectId]);
 
+  // Fetch languages and categories for file metadata
+  useEffect(() => {
+    const fetchLanguagesAndCategories = async () => {
+      try {
+        // Fetch languages
+        setLoadingLanguages(true);
+        const languagesResponse = await api.get('/api/languages');
+        setLanguages(languagesResponse.data);
+        setLoadingLanguages(false);
+
+        // Fetch project attachment categories (type_code='PROA')
+        setLoadingCategories(true);
+        const categoriesResponse = await api.get('/api/categories', {
+          params: { 
+            type_code: 'PROA',
+            page: 1,
+            page_size: 100  // Get all project attachment categories
+          }
+        });
+        // Categories endpoint returns paginated response
+        setCategories(categoriesResponse.data.items || []);
+        setLoadingCategories(false);
+      } catch (error) {
+        console.error('Error fetching languages or categories:', error);
+        setLoadingLanguages(false);
+        setLoadingCategories(false);
+      }
+    };
+
+    fetchLanguagesAndCategories();
+  }, []);
+
   const fetchAttachments = async (currentPage = page, filters = appliedFilters) => {
     try {
       console.log(`ProjectAttachments - Fetching attachments for project ${projectId}`);
@@ -327,7 +369,9 @@ function ProjectAttachmentsContent() {
         name: file.name,
         size: file.size,
         type: file.type,
-        nameEdited: false
+        nameEdited: false,
+        language_id: '',
+        category_id: ''
       });
     });
 
@@ -375,6 +419,18 @@ function ProjectAttachmentsContent() {
     });
   };
 
+  // Handle language/category change for file metadata
+  const handleFileMetadataChange = (index, field, value) => {
+    setSelectedFiles(prev => {
+      const newFiles = [...prev];
+      newFiles[index] = {
+        ...newFiles[index],
+        [field]: value
+      };
+      return newFiles;
+    });
+  };
+
   // Handle upload files
   const handleUploadFiles = async () => {
     if (selectedFiles.length === 0) {
@@ -400,6 +456,14 @@ function ProjectAttachmentsContent() {
           formData.append('file', newFile);
         } else {
           formData.append('file', fileObj.file);
+        }
+
+        // Add language_id and category_id if selected
+        if (fileObj.language_id) {
+          formData.append('language_id', fileObj.language_id);
+        }
+        if (fileObj.category_id) {
+          formData.append('category_id', fileObj.category_id);
         }
 
         console.log(`ProjectAttachments - Uploading file: ${fileObj.name}`);
@@ -1234,27 +1298,30 @@ function ProjectAttachmentsContent() {
           
           <List>
             {selectedFiles.map((fileObj, index) => (
-              <ListItem key={fileObj.id} divider>
-                <Grid container spacing={2} alignItems="center">
-                  <Grid item xs={1}>
-                    {getFileIcon(fileObj.name, fileObj.type)}
-                  </Grid>
-                  
-                  <Grid item xs={7}>
-                    <TextField
-                      fullWidth
-                      value={fileObj.name}
-                      onChange={(e) => handleFilenameChange(index, e.target.value)}
-                      disabled={uploadLoading}
-                      size="small"
-                      variant="outlined"
-                    />
-                    <Typography variant="caption" color="text.secondary">
+              <ListItem key={fileObj.id} divider sx={{ display: 'block', py: 2 }}>
+                <Grid container spacing={2}>
+                  {/* File icon and name */}
+                  <Grid item xs={12} sm={8}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      {getFileIcon(fileObj.name, fileObj.type)}
+                      <TextField
+                        fullWidth
+                        value={fileObj.name}
+                        onChange={(e) => handleFilenameChange(index, e.target.value)}
+                        disabled={uploadLoading}
+                        size="small"
+                        variant="outlined"
+                        label="Filename"
+                        sx={{ ml: 1 }}
+                      />
+                    </Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ ml: 5 }}>
                       {formatFileSize(fileObj.size)}
                     </Typography>
                   </Grid>
                   
-                  <Grid item xs={4}>
+                  {/* Upload progress/status */}
+                  <Grid item xs={12} sm={4}>
                     {uploadProgress[fileObj.id] !== undefined && (
                       <Box>
                         {uploadProgress[fileObj.id] === -1 ? (
@@ -1288,6 +1355,64 @@ function ProjectAttachmentsContent() {
                         )}
                       </Box>
                     )}
+                  </Grid>
+
+                  {/* Category selector */}
+                  <Grid item xs={12} sm={6}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel id={`file-category-label-${index}`}>Category (Optional)</InputLabel>
+                      <Select
+                        labelId={`file-category-label-${index}`}
+                        value={fileObj.category_id}
+                        onChange={(e) => handleFileMetadataChange(index, 'category_id', e.target.value)}
+                        label="Category (Optional)"
+                        disabled={uploadLoading || loadingCategories}
+                      >
+                        <MenuItem value="">
+                          <em>None (Default)</em>
+                        </MenuItem>
+                        {loadingCategories ? (
+                          <MenuItem disabled>
+                            <CircularProgress size={16} sx={{ mr: 1 }} /> Loading...
+                          </MenuItem>
+                        ) : (
+                          categories.map((category) => (
+                            <MenuItem key={category.id} value={category.id}>
+                              {category.name}
+                            </MenuItem>
+                          ))
+                        )}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+
+                  {/* Language selector */}
+                  <Grid item xs={12} sm={6}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel id={`file-language-label-${index}`}>Language (Optional)</InputLabel>
+                      <Select
+                        labelId={`file-language-label-${index}`}
+                        value={fileObj.language_id}
+                        onChange={(e) => handleFileMetadataChange(index, 'language_id', e.target.value)}
+                        label="Language (Optional)"
+                        disabled={uploadLoading || loadingLanguages}
+                      >
+                        <MenuItem value="">
+                          <em>None (Default)</em>
+                        </MenuItem>
+                        {loadingLanguages ? (
+                          <MenuItem disabled>
+                            <CircularProgress size={16} sx={{ mr: 1 }} /> Loading...
+                          </MenuItem>
+                        ) : (
+                          languages.map((language) => (
+                            <MenuItem key={language.id} value={language.id}>
+                              {language.name}
+                            </MenuItem>
+                          ))
+                        )}
+                      </Select>
+                    </FormControl>
                   </Grid>
                 </Grid>
               </ListItem>
