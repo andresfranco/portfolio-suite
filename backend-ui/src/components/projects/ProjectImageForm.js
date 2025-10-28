@@ -204,6 +204,44 @@ function ProjectImageForm({ open, onClose, project }) {
     setApiError('');
     
     try {
+      // Define categories that should only have one image per language
+      const UNIQUE_CATEGORIES = ['PROI-LOGO', 'PROI-THUMBNAIL'];
+      const categoryCode = newImage.category;
+      const languageId = newImage.language_id;
+      
+      // For unique categories, check if an image already exists and delete it
+      if (UNIQUE_CATEGORIES.includes(categoryCode)) {
+        const existingImage = images.find(img => 
+          img.category === categoryCode && 
+          (languageId ? img.language_id === parseInt(languageId) : !img.language_id)
+        );
+        
+        if (existingImage) {
+          console.log(`Deleting existing ${categoryCode} image (ID: ${existingImage.id}) before uploading new one`);
+          
+          try {
+            const deleteResponse = await fetch(
+              `${SERVER_URL}/api/projects/${project.id}/images/${existingImage.id}`,
+              {
+                method: 'DELETE',
+                credentials: 'include'
+              }
+            );
+            
+            if (!deleteResponse.ok) {
+              console.warn('Failed to delete old image, backend will handle it');
+            } else {
+              console.log('Successfully deleted old image');
+              // Update local state immediately
+              setImages(images.filter(img => img.id !== existingImage.id));
+            }
+          } catch (deleteErr) {
+            console.warn('Error deleting old image, backend will handle it:', deleteErr);
+          }
+        }
+      }
+      
+      // Proceed with upload
       const formData = new FormData();
       formData.append('file', newImage.file);
       formData.append('category_code', newImage.category);

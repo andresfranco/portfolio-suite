@@ -5,7 +5,7 @@ import { LanguageContext } from '../context/LanguageContext';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useEditMode } from '../context/EditModeContext';
 import { useSectionLabel } from '../hooks/useSectionLabel';
-import { InlineTextEditor } from './cms';
+import { InlineTextEditor, ProjectImageSelector } from './cms';
 
 const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) => {
   const { language } = useContext(LanguageContext);
@@ -139,11 +139,14 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
         {/* Project Content Grid - Reordered for mobile */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-12 mb-20"> {/* Reduced gap on mobile */}
           <div className="lg:col-span-2 space-y-6 md:space-y-8 order-2 lg:order-1"> {/* Reduced spacing on mobile */}
-            <div className="rounded-xl overflow-hidden bg-gray-800 shadow-lg">
-              <img 
-                src={projectImage}
-                alt={title} 
-                className="w-full h-auto" 
+            <div className="rounded-xl overflow-hidden bg-gray-800 shadow-lg relative">
+              {/* Project Logo/Main Image with Edit Capability */}
+              <ProjectImageSelector
+                project={project}
+                category="logo"
+                currentImagePath={projectImage}
+                alt={title}
+                className="w-full h-auto"
               />
             </div>
             <div className="prose prose-lg prose-invert max-w-none">
