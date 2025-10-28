@@ -28,17 +28,19 @@ const LANGUAGE_NAMES = {
  * Handles all fields including metadata, text content, and validation
  * 
  * @param {string} type - Content type ('project' or 'experience')
- * @param {Object} item - Item data to edit
+ * @param {Object} item - Item data to edit (null for create mode)
  * @param {boolean} isOpen - Modal open state
  * @param {Function} onClose - Close callback
  * @param {Function} onSave - Save callback (optional, auto-saves to backend)
+ * @param {string} mode - Modal mode ('edit' or 'create')
  */
 export const ContentEditorModal = ({ 
   type, 
   item, 
   isOpen,
   onClose, 
-  onSave 
+  onSave,
+  mode = 'edit'
 }) => {
   const [formData, setFormData] = useState({});
   const [textData, setTextData] = useState({});
@@ -47,42 +49,76 @@ export const ContentEditorModal = ({
   const [hasChanges, setHasChanges] = useState(false);
   
   const { authToken, showNotification } = useEditMode();
-  const { refreshPortfolio } = usePortfolio();
+  const { refreshPortfolio, portfolio } = usePortfolio();
   const { language: currentLanguage } = useContext(LanguageContext);
   
   // Get language display name
   const languageName = LANGUAGE_NAMES[currentLanguage] || currentLanguage.toUpperCase();
   
-  // Initialize form data when item changes
+  // Language ID mapping
+  const languageIdMap = {
+    'en': 1,
+    'es': 2
+  };
+  
+  const currentLanguageId = languageIdMap[currentLanguage] || 1;
+  
+  // Initialize form data when item changes or when in create mode
   useEffect(() => {
-    if (item && isOpen) {
-      setFormData({
-        id: item.id,
-        years: item.years || '',
-        repository_url: item.repository_url || '',
-        website_url: item.website_url || '',
-        company: item.company || '',
-        start_date: item.start_date || '',
-        end_date: item.end_date || '',
-      });
-      
-      // Find text data for current language
-      const textFieldName = type === 'project' ? 'project_texts' : 'experience_texts';
-      const texts = item[textFieldName]?.find(
-        t => t.language?.code === currentLanguage
-      ) || {};
-      
-      setTextData({
-        id: texts.id,
-        name: texts.name || '',
-        description: texts.description || '',
-        short_description: texts.short_description || '',
-      });
-      
-      setHasChanges(false);
-      setError(null);
+    if (isOpen) {
+      if (mode === 'create') {
+        // Initialize empty form for create mode
+        setFormData({
+          code: '',
+          years: type === 'experience' ? 0 : undefined,
+          icon: 'code',
+          repository_url: '',
+          website_url: '',
+          company: '',
+          start_date: '',
+          end_date: '',
+        });
+        
+        setTextData({
+          name: '',
+          description: '',
+          short_description: '',
+        });
+        
+        setHasChanges(false);
+        setError(null);
+      } else if (item) {
+        // Initialize with existing item data for edit mode
+        setFormData({
+          id: item.id,
+          code: item.code || '',
+          years: item.years || item.years_experience || '',
+          icon: item.icon || 'code',
+          repository_url: item.repository_url || '',
+          website_url: item.website_url || '',
+          company: item.company || '',
+          start_date: item.start_date || '',
+          end_date: item.end_date || '',
+        });
+        
+        // Find text data for current language
+        const textFieldName = type === 'project' ? 'project_texts' : 'experience_texts';
+        const texts = item[textFieldName]?.find(
+          t => t.language?.code === currentLanguage
+        ) || {};
+        
+        setTextData({
+          id: texts.id,
+          name: texts.name || '',
+          description: texts.description || '',
+          short_description: texts.short_description || '',
+        });
+        
+        setHasChanges(false);
+        setError(null);
+      }
     }
-  }, [item, isOpen, type, currentLanguage]);
+  }, [item, isOpen, type, currentLanguage, mode]);
   
   /**
    * Handle form field changes
@@ -114,6 +150,15 @@ export const ContentEditorModal = ({
       return 'Name is required';
     }
     
+    if (type === 'experience') {
+      if (mode === 'create' && (!formData.code || !formData.code.trim())) {
+        return 'Code is required';
+      }
+      if (formData.years === '' || formData.years < 0 || formData.years > 50) {
+        return 'Years must be between 0 and 50';
+      }
+    }
+    
     if (type === 'project') {
       // Validate URLs if provided
       if (formData.repository_url && !isValidUrl(formData.repository_url)) {
@@ -121,12 +166,6 @@ export const ContentEditorModal = ({
       }
       if (formData.website_url && !isValidUrl(formData.website_url)) {
         return 'Invalid website URL';
-      }
-    }
-    
-    if (type === 'experience') {
-      if (!formData.years || formData.years < 0 || formData.years > 50) {
-        return 'Years must be between 0 and 50';
       }
     }
     
@@ -161,43 +200,88 @@ export const ContentEditorModal = ({
     setError(null);
     
     try {
-      // Update text content
-      if (textData.id) {
-        const updateMethod = type === 'project' 
-          ? portfolioApi.updateProjectText 
-          : portfolioApi.updateExperienceText;
-        
-        await updateMethod(
-          textData.id,
-          {
-            name: textData.name,
-            description: textData.description,
-            short_description: textData.short_description,
-          },
-          authToken
-        );
-      }
-      
-      // Update metadata
-      if (formData.id) {
-        if (type === 'project') {
-          await portfolioApi.updateProjectMetadata(
-            formData.id,
-            {
-              repository_url: formData.repository_url,
-              website_url: formData.website_url,
-            },
-            authToken
+      if (mode === 'create') {
+        // Create new experience
+        if (type === 'experience') {
+          const experienceData = {
+            code: formData.code,
+            years: parseInt(formData.years, 10),
+            icon: formData.icon,
+            experience_texts: [
+              {
+                language_id: currentLanguageId,
+                name: textData.name,
+                description: textData.description || '',
+              }
+            ]
+          };
+          
+          const createdExperience = await portfolioApi.createExperience(experienceData, authToken);
+          
+          // Add the experience to the current portfolio if available
+          if (portfolio?.id && createdExperience?.id) {
+            try {
+              await portfolioApi.addExperienceToPortfolio(portfolio.id, createdExperience.id, authToken);
+            } catch (addError) {
+              console.warn('Experience created but failed to add to portfolio:', addError);
+              // Don't fail the whole operation
+            }
+          }
+          
+          showNotification(
+            'Experience Created',
+            `${textData.name} has been created successfully`,
+            'success'
           );
-        } else if (type === 'experience') {
-          await portfolioApi.updateExperienceMetadata(
-            formData.id,
+        } else {
+          throw new Error('Create mode not yet implemented for projects');
+        }
+      } else {
+        // Update existing item
+        // Update text content
+        if (textData.id) {
+          const updateMethod = type === 'project' 
+            ? portfolioApi.updateProjectText 
+            : portfolioApi.updateExperienceText;
+          
+          await updateMethod(
+            textData.id,
             {
-              years: parseInt(formData.years, 10),
+              name: textData.name,
+              description: textData.description,
+              short_description: textData.short_description,
             },
             authToken
           );
         }
+        
+        // Update metadata
+        if (formData.id) {
+          if (type === 'project') {
+            await portfolioApi.updateProjectMetadata(
+              formData.id,
+              {
+                repository_url: formData.repository_url,
+                website_url: formData.website_url,
+              },
+              authToken
+            );
+          } else if (type === 'experience') {
+            await portfolioApi.updateExperienceMetadata(
+              formData.id,
+              {
+                years: parseInt(formData.years, 10),
+              },
+              authToken
+            );
+          }
+        }
+        
+        showNotification(
+          'Changes Saved',
+          `${type === 'project' ? 'Project' : 'Experience'} updated successfully`,
+          'success'
+        );
       }
       
       // Refresh portfolio data - catch and log errors but don't fail the save
@@ -207,13 +291,6 @@ export const ContentEditorModal = ({
         console.warn('Changes saved but refresh failed:', refreshError);
         // Don't throw - the save was successful
       }
-      
-      // Show success notification
-      showNotification(
-        'Changes Saved',
-        `${type === 'project' ? 'Project' : 'Experience'} updated successfully`,
-        'success'
-      );
       
       // Call save callback if provided
       if (onSave) {
@@ -249,7 +326,7 @@ export const ContentEditorModal = ({
   };
   
   // Don't render if not open
-  if (!isOpen || !item) {
+  if (!isOpen) {
     return null;
   }
   
@@ -266,9 +343,13 @@ export const ContentEditorModal = ({
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-white">
           <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
             <svg className="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              {mode === 'create' ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              )}
             </svg>
-            Edit {type === 'project' ? 'Project' : 'Experience'}
+            {mode === 'create' ? 'Create' : 'Edit'} {type === 'project' ? 'Project' : 'Experience'}
           </h2>
           
           <button
@@ -291,9 +372,49 @@ export const ContentEditorModal = ({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
               </svg>
               <span className="text-sm font-medium text-blue-900">
-                Editing in {languageName}
+                {mode === 'create' ? 'Creating in' : 'Editing in'} {languageName}
               </span>
             </div>
+            
+            {/* Code field - only for experiences in create mode */}
+            {type === 'experience' && mode === 'create' && (
+              <div>
+                <label className="block mb-2 font-semibold text-gray-900 text-sm uppercase tracking-wide">
+                  Code *
+                </label>
+                <input
+                  type="text"
+                  value={formData.code || ''}
+                  onChange={(e) => handleFieldChange('code', e.target.value)}
+                  disabled={isSaving}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-gray-900 font-sans"
+                  placeholder="e.g., fullstack_dev"
+                  style={{ fontSize: '15px' }}
+                />
+                <p className="mt-1 text-xs text-gray-600">Unique identifier for this experience</p>
+              </div>
+            )}
+            
+            {/* Icon field - only for experiences in create mode */}
+            {type === 'experience' && mode === 'create' && (
+              <div>
+                <label className="block mb-2 font-semibold text-gray-900 text-sm uppercase tracking-wide">
+                  Icon
+                </label>
+                <select
+                  value={formData.icon || 'code'}
+                  onChange={(e) => handleFieldChange('icon', e.target.value)}
+                  disabled={isSaving}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-gray-900 font-sans"
+                  style={{ fontSize: '15px' }}
+                >
+                  <option value="code">Code (Development)</option>
+                  <option value="database">Database</option>
+                  <option value="cloud">Cloud</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-600">Icon to display for this experience</p>
+              </div>
+            )}
             
             {/* Name */}
             <div>

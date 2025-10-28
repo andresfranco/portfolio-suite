@@ -6,17 +6,18 @@ import { usePortfolio } from '../context/PortfolioContext';
 import { useEditMode } from '../context/EditModeContext';
 import { translations } from '../data/translations';
 import { useNavigate } from 'react-router-dom';
-import { InlineTextEditor, ImageUploader, ContentEditorModal, RichTextEditor } from './cms';
+import { InlineTextEditor, ImageUploader, ContentEditorModal, RichTextEditor, ExperienceSelector } from './cms';
 import { useContentEditor } from '../hooks/useContentEditor';
 import { useSectionLabel, SECTION_CODES } from '../hooks/useSectionLabel';
+import { portfolioApi } from '../services/portfolioApi';
 
 const Hero = () => {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [resumeUrl, setResumeUrl] = useState(null);
   const [resumeFileName, setResumeFileName] = useState(null);
-  const { portfolio, loading, getExperiences, getExperienceText, getSections, getSectionText } = usePortfolio();
+  const { portfolio, loading, getExperiences, getExperienceText, getSections, getSectionText, refreshPortfolio } = usePortfolio();
   const { language } = useContext(LanguageContext);
-  const { isEditMode } = useEditMode();
+  const { isEditMode, authToken, showNotification } = useEditMode();
   const navigate = useNavigate();
   
   // Get editable section labels
@@ -118,6 +119,12 @@ const Hero = () => {
     startEditing, 
     stopEditing 
   } = useContentEditor('experience');
+  
+  // State for create modal
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isExperienceSelectorOpen, setIsExperienceSelectorOpen] = useState(false);
+  const [experienceToDelete, setExperienceToDelete] = useState(null);
+  const [showAddMenu, setShowAddMenu] = useState(false);
 
   // Get experiences from API
   const experiences = getExperiences();
@@ -180,6 +187,108 @@ const Hero = () => {
     // Navigate to experience details (either normal mode or edit mode with modifier)
     const route = language === 'en' ? `/experience/${expId}` : `/${language}/experience/${expId}`;
     navigate(route);
+  };
+  
+  /**
+   * Handle adding new experience
+   */
+  const handleAddExperience = () => {
+    setShowAddMenu(!showAddMenu);
+  };
+  
+  /**
+   * Handle creating a new experience
+   */
+  const handleCreateNewExperience = () => {
+    setShowAddMenu(false);
+    setIsCreateModalOpen(true);
+  };
+  
+  /**
+   * Handle adding an existing experience
+   */
+  const handleAddExistingExperience = () => {
+    setShowAddMenu(false);
+    setIsExperienceSelectorOpen(true);
+  };
+  
+  /**
+   * Handle selecting an existing experience from the selector
+   */
+  const handleSelectExperience = async (experience) => {
+    if (!portfolio?.id || !authToken) return;
+    
+    try {
+      // Add the experience to the portfolio
+      await portfolioApi.addExperienceToPortfolio(portfolio.id, experience.id, authToken);
+      
+      // Refresh portfolio data
+      await refreshPortfolio();
+      
+      // Show success notification
+      const text = getExperienceText(experience);
+      showNotification(
+        'Experience Added',
+        `${text.name} has been added to the portfolio`,
+        'success'
+      );
+    } catch (error) {
+      console.error('Failed to add experience:', error);
+      showNotification(
+        'Add Failed',
+        error.message || 'Failed to add experience to portfolio',
+        'error'
+      );
+    }
+  };
+  
+  /**
+   * Handle deleting an experience
+   */
+  const handleDeleteExperience = async (expId, e) => {
+    e.stopPropagation(); // Prevent click-through to the card
+    
+    const exp = experiences.find(e => e.id === expId);
+    if (!exp) return;
+    
+    setExperienceToDelete(exp);
+  };
+  
+  /**
+   * Confirm delete experience
+   */
+  const confirmDeleteExperience = async () => {
+    if (!experienceToDelete || !authToken) return;
+    
+    try {
+      // Remove from portfolio first
+      if (portfolio?.id) {
+        await portfolioApi.removeExperienceFromPortfolio(portfolio.id, experienceToDelete.id, authToken);
+      }
+      
+      // Optionally delete the experience itself
+      // Uncomment if you want to actually delete the experience entity:
+      // await portfolioApi.deleteExperience(experienceToDelete.id, authToken);
+      
+      // Refresh portfolio data
+      await refreshPortfolio();
+      
+      // Show success notification
+      showNotification(
+        'Experience Removed',
+        `${getExperienceText(experienceToDelete).name} has been removed from the portfolio`,
+        'success'
+      );
+      
+      setExperienceToDelete(null);
+    } catch (error) {
+      console.error('Failed to delete experience:', error);
+      showNotification(
+        'Delete Failed',
+        error.message || 'Failed to remove experience',
+        'error'
+      );
+    }
   };
 
   // Function to get the correct resume file based on language
@@ -269,7 +378,7 @@ const Hero = () => {
                     <div 
                       key={exp.id} 
                       onClick={(e) => handleExperienceClick(exp.id, e)}
-                      className="flex items-center gap-4 bg-black/30 p-4 rounded-lg backdrop-blur-sm border border-white/10 transform hover:-translate-y-1 transition-all duration-300 hover:border-[#14C800]/30 group cursor-pointer"
+                      className="relative flex items-center gap-4 bg-black/30 p-4 rounded-lg backdrop-blur-sm border border-white/10 transform hover:-translate-y-1 transition-all duration-300 hover:border-[#14C800]/30 group cursor-pointer"
                       title={isEditMode ? "Click to edit • Ctrl/Cmd+Click to view details" : "View experience details"}
                     >
                       <div className="text-[#14C800] text-3xl group-hover:scale-110 transition-transform duration-300">
@@ -285,6 +394,22 @@ const Hero = () => {
                         </div>
                         <p className="text-white font-medium">{experienceText.name}</p>
                       </div>
+                      
+                      {/* Edit mode controls */}
+                      {isEditMode && (
+                        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => handleDeleteExperience(exp.id, e)}
+                            className="p-1.5 bg-red-500/80 hover:bg-red-600 rounded text-white transition-colors"
+                            title="Remove experience"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      )}
+                      
                       {/* Edit indicator in edit mode */}
                       {isEditMode && (
                         <div className="text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -296,6 +421,62 @@ const Hero = () => {
                     </div>
                   );
                 })}
+                
+                {/* Add new experience button in edit mode */}
+                {isEditMode && (
+                  <div className="relative">
+                    <button
+                      onClick={handleAddExperience}
+                      className="flex items-center justify-center gap-3 bg-black/30 p-4 rounded-lg backdrop-blur-sm border-2 border-dashed border-white/20 hover:border-[#14C800]/50 transition-all duration-300 text-white/70 hover:text-[#14C800] min-h-[100px] w-full"
+                      title="Add experience"
+                    >
+                      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      <span className="font-medium">Add Experience</span>
+                    </button>
+                    
+                    {/* Dropdown menu */}
+                    {showAddMenu && (
+                      <div 
+                        className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden z-10"
+                        onMouseLeave={() => setShowAddMenu(false)}
+                      >
+                        <button
+                          onClick={handleCreateNewExperience}
+                          className="w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors flex items-center gap-3 group"
+                        >
+                          <div className="w-10 h-10 rounded-lg bg-blue-100 group-hover:bg-blue-600 flex items-center justify-center transition-colors">
+                            <svg className="w-5 h-5 text-blue-600 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-semibold text-gray-900">Create New</div>
+                            <div className="text-sm text-gray-600">Create a brand new experience</div>
+                          </div>
+                        </button>
+                        
+                        <div className="border-t border-gray-200"></div>
+                        
+                        <button
+                          onClick={handleAddExistingExperience}
+                          className="w-full px-4 py-3 text-left hover:bg-green-50 transition-colors flex items-center gap-3 group"
+                        >
+                          <div className="w-10 h-10 rounded-lg bg-green-100 group-hover:bg-green-600 flex items-center justify-center transition-colors">
+                            <svg className="w-5 h-5 text-green-600 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-semibold text-gray-900">Add Existing</div>
+                            <div className="text-sm text-gray-600">Add from existing experiences</div>
+                          </div>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-3 flex-col sm:flex-row">
@@ -407,7 +588,72 @@ const Hero = () => {
           item={editingItem}
           isOpen={isModalOpen}
           onClose={stopEditing}
+          mode="edit"
         />
+      )}
+      
+      {/* Create Experience Modal */}
+      {isEditMode && isCreateModalOpen && (
+        <ContentEditorModal
+          type="experience"
+          item={null}
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          mode="create"
+        />
+      )}
+      
+      {/* Experience Selector Modal */}
+      {isEditMode && isExperienceSelectorOpen && (
+        <ExperienceSelector
+          isOpen={isExperienceSelectorOpen}
+          onClose={() => setIsExperienceSelectorOpen(false)}
+          onSelect={handleSelectExperience}
+        />
+      )}
+      
+      {/* Delete Confirmation Dialog */}
+      {isEditMode && experienceToDelete && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4"
+          onClick={() => setExperienceToDelete(null)}
+        >
+          <div 
+            className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Remove Experience
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  Are you sure you want to remove <strong>{getExperienceText(experienceToDelete).name}</strong> from your portfolio? 
+                  This will not delete the experience permanently, only remove it from this portfolio.
+                </p>
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setExperienceToDelete(null)}
+                    className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmDeleteExperience}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       <ChatModal isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
