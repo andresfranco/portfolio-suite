@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from typing import Any, List, Optional, Dict
 import os
 import uuid
@@ -19,6 +19,7 @@ from app.schemas.portfolio import (
     Filter
 )
 from app.models.portfolio import Portfolio as PortfolioModel, PortfolioImage, PortfolioAttachment
+from app.models.category import Category
 from app.api import deps
 from app.core.config import settings
 from app.core.logging import setup_logger
@@ -250,9 +251,48 @@ def process_portfolios_for_response(
                         "file_name": attachment.file_name,
                         "file_path": attachment.file_path,
                         "file_url": get_file_url(attachment.file_path) if attachment.file_path else None,
+                        "category_id": attachment.category_id if hasattr(attachment, 'category_id') else None,
+                        "language_id": attachment.language_id if hasattr(attachment, 'language_id') else None,
+                        "is_default": attachment.is_default if hasattr(attachment, 'is_default') else False,
                         "created_at": attachment.created_at,
                         "updated_at": attachment.updated_at if hasattr(attachment, 'updated_at') else None
                     }
+                    
+                    # Include category if it exists
+                    if hasattr(attachment, 'category') and attachment.category:
+                        category = attachment.category
+                        cat_dict = {
+                            "id": category.id,
+                            "code": category.code,
+                            "type_code": category.type_code if hasattr(category, 'type_code') else None,
+                            "category_texts": []
+                        }
+                        
+                        # Include category texts
+                        if hasattr(category, 'category_texts') and category.category_texts:
+                            for text in category.category_texts:
+                                cat_dict["category_texts"].append({
+                                    "language_id": text.language_id,
+                                    "name": text.name,
+                                    "description": text.description if hasattr(text, 'description') else None
+                                })
+                        
+                        att_dict["category"] = cat_dict
+                    else:
+                        att_dict["category"] = None
+                    
+                    # Include language if it exists
+                    if hasattr(attachment, 'language') and attachment.language:
+                        language = attachment.language
+                        att_dict["language"] = {
+                            "id": language.id,
+                            "code": language.code,
+                            "name": language.name,
+                            "image": language.image if hasattr(language, 'image') else None
+                        }
+                    else:
+                        att_dict["language"] = None
+                    
                     portfolio_dict["attachments"].append(att_dict)
                 
             processed_portfolios.append(portfolio_dict)
@@ -1068,6 +1108,86 @@ async def upload_portfolio_attachment(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error uploading attachment: {str(e)}"
+        )
+
+@router.put("/{portfolio_id}/attachments/{attachment_id}", response_model=PortfolioAttachmentOut)
+@require_permission("MANAGE_PORTFOLIO_ATTACHMENTS")
+def update_portfolio_attachment(
+    *,
+    db: Session = Depends(deps.get_db),
+    portfolio_id: int,
+    attachment_id: int,
+    category_id: Optional[int] = None,
+    language_id: Optional[int] = None,
+    is_default: Optional[bool] = None,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Update a portfolio attachment's category, language, and is_default flag.
+    """
+    logger.info(f"Updating attachment {attachment_id} for portfolio {portfolio_id}")
+    try:
+        portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
+        if not portfolio:
+            logger.warning(f"Portfolio with ID {portfolio_id} not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Portfolio not found"
+            )
+        
+        # Verify attachment belongs to the portfolio
+        attachment = db.query(PortfolioAttachment).filter(
+            PortfolioAttachment.id == attachment_id,
+            PortfolioAttachment.portfolio_id == portfolio_id
+        ).first()
+        
+        if not attachment:
+            logger.warning(f"Attachment {attachment_id} not found in portfolio {portfolio_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Attachment not found in this portfolio"
+            )
+        
+        updated_attachment = portfolio_crud.update_portfolio_attachment(
+            db,
+            attachment_id=attachment_id,
+            category_id=category_id,
+            language_id=language_id,
+            is_default=is_default
+        )
+        
+        if not updated_attachment:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update attachment"
+            )
+        
+        logger.info(f"Attachment {attachment_id} updated successfully")
+        stage_event(db, {"op":"update","source_table":"portfolio_attachments","source_id":str(attachment_id),"changed_fields":["category_id", "language_id", "is_default"]})
+        
+        # Reload with relationships - need to query again with eager loading
+        updated_attachment = db.query(PortfolioAttachment).options(
+            selectinload(PortfolioAttachment.category).selectinload(Category.category_texts),
+            selectinload(PortfolioAttachment.language)
+        ).filter(PortfolioAttachment.id == attachment_id).first()
+        
+        if not updated_attachment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Attachment not found after update"
+            )
+        
+        # Add file URL for frontend
+        updated_attachment.file_url = get_file_url(updated_attachment.file_path)
+        
+        return updated_attachment
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating portfolio attachment: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating portfolio attachment: {str(e)}"
         )
 
 @router.delete("/{portfolio_id}/attachments/{attachment_id}", response_model=PortfolioAttachmentOut)
