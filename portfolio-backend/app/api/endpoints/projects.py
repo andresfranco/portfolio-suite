@@ -998,8 +998,12 @@ def read_project_attachments(
             "id": attachment.id,
             "file_path": attachment.file_path,
             "file_name": attachment.file_name,
+            "category_id": attachment.category_id,
+            "language_id": attachment.language_id,
             "created_at": attachment.created_at,
             "updated_at": attachment.updated_at,
+            "created_by": attachment.created_by,
+            "updated_by": attachment.updated_by
         }
         if attachment.file_path:
             attachment_dict["file_url"] = get_file_url(attachment.file_path)
@@ -1034,6 +1038,9 @@ async def upload_project_attachment(
     logger.info(f"Uploading attachment for project {project_id}: {file.filename}, category_id: {category_id}, language_id: {language_id}")
     
     try:
+        # Ensure PROA categories exist
+        category_crud.ensure_project_attachment_category_exists(db)
+        
         # Check if project exists
         project = crud.project.get_project(db, project_id=project_id)
         if not project:
