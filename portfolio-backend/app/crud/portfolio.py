@@ -27,7 +27,9 @@ def get_portfolio(db: Session, portfolio_id: int) -> Optional[Portfolio]:
             selectinload(Portfolio.sections).selectinload(Section.section_texts).selectinload(SectionText.language),
             # Use joinedload for one-to-many relationships
             joinedload(Portfolio.images),
-            joinedload(Portfolio.attachments)
+            # Load attachments with their category and language relationships
+            selectinload(Portfolio.attachments).selectinload(PortfolioAttachment.category).selectinload(Category.category_texts).selectinload(CategoryText.language),
+            selectinload(Portfolio.attachments).selectinload(PortfolioAttachment.language)
         ).filter(Portfolio.id == portfolio_id).first()
         
         if portfolio:
@@ -63,6 +65,22 @@ def get_portfolio(db: Session, portfolio_id: int) -> Optional[Portfolio]:
             
             _ = len(portfolio.images)
             _ = len(portfolio.attachments)
+            logger.debug(f"Found {len(portfolio.attachments)} attachments")
+            for attachment in portfolio.attachments:
+                logger.debug(f"Attachment {attachment.id}: category_id={attachment.category_id}, language_id={attachment.language_id}")
+                if hasattr(attachment, 'category') and attachment.category:
+                    logger.debug(f"  Category loaded: {attachment.category.id}, code={attachment.category.code}")
+                    _ = attachment.category.id
+                    if hasattr(attachment.category, 'category_texts'):
+                        logger.debug(f"  Category has {len(attachment.category.category_texts)} texts")
+                        _ = len(attachment.category.category_texts)
+                else:
+                    logger.debug(f"  Category NOT loaded (category_id={attachment.category_id})")
+                if hasattr(attachment, 'language') and attachment.language:
+                    logger.debug(f"  Language loaded: {attachment.language.id}, name={attachment.language.name}")
+                    _ = attachment.language.id
+                else:
+                    logger.debug(f"  Language NOT loaded (language_id={attachment.language_id})")
             
             logger.debug(f"Portfolio found: {portfolio.name} with {len(portfolio.categories or [])} categories, {len(portfolio.experiences or [])} experiences, {len(portfolio.projects or [])} projects, {len(portfolio.sections or [])} sections")
         else:
@@ -375,6 +393,52 @@ def add_portfolio_attachment(db: Session, portfolio_id: int, attachment: Portfol
         return db_portfolio_attachment
     except Exception as e:
         logger.error(f"Error adding attachment to portfolio {portfolio_id}: {str(e)}", exc_info=True)
+        raise
+
+@db_transaction
+def update_portfolio_attachment(db: Session, attachment_id: int, category_id: Optional[int] = None, language_id: Optional[int] = None, is_default: Optional[bool] = None) -> Optional[PortfolioAttachment]:
+    """Update portfolio attachment category, language, and is_default flag"""
+    logger.debug(f"Updating attachment {attachment_id}: category_id={category_id}, language_id={language_id}, is_default={is_default}")
+    
+    try:
+        db_attachment = db.query(PortfolioAttachment).filter(PortfolioAttachment.id == attachment_id).first()
+        
+        if not db_attachment:
+            logger.warning(f"Portfolio attachment with ID {attachment_id} not found for update")
+            return None
+        
+        # Update fields only if provided (not None)
+        if category_id is not None:
+            # Validate category exists if provided (and not 0)
+            if category_id > 0:
+                category = db.query(Category).filter(Category.id == category_id).first()
+                if not category:
+                    logger.error(f"Category with ID {category_id} not found - aborting update")
+                    raise ValueError(f"Category with ID {category_id} not found")
+            db_attachment.category_id = category_id if category_id > 0 else None
+            logger.debug(f"Updated category_id to {db_attachment.category_id}")
+            
+        if language_id is not None:
+            # Validate language exists if provided (and not 0)
+            if language_id > 0:
+                language = db.query(Language).filter(Language.id == language_id).first()
+                if not language:
+                    logger.error(f"Language with ID {language_id} not found - aborting update")
+                    raise ValueError(f"Language with ID {language_id} not found")
+            db_attachment.language_id = language_id if language_id > 0 else None
+            logger.debug(f"Updated language_id to {db_attachment.language_id}")
+            
+        if is_default is not None:
+            db_attachment.is_default = is_default
+            logger.debug(f"Updated is_default to {db_attachment.is_default}")
+        
+        db.flush()
+        db.refresh(db_attachment)
+        
+        logger.info(f"Attachment {attachment_id} updated successfully: category_id={db_attachment.category_id}, language_id={db_attachment.language_id}, is_default={db_attachment.is_default}")
+        return db_attachment
+    except Exception as e:
+        logger.error(f"Error updating attachment {attachment_id}: {str(e)}", exc_info=True)
         raise
 
 @db_transaction
