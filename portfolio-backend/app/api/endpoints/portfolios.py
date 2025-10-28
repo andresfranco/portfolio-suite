@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, selectinload, joinedload
 from typing import Any, List, Optional, Dict
 import os
 import uuid
@@ -236,10 +236,24 @@ def process_portfolios_for_response(
                         "category": image.category,
                         "image_path": image.image_path,
                         "file_name": image.file_name,
+                        "language_id": image.language_id if hasattr(image, 'language_id') else None,
                         "image_url": get_file_url(image.image_path) if image.image_path else None,
                         "created_at": image.created_at,
                         "updated_at": image.updated_at if hasattr(image, 'updated_at') else None
                     }
+                    
+                    # Include language if it exists
+                    if hasattr(image, 'language') and image.language:
+                        language = image.language
+                        img_dict["language"] = {
+                            "id": language.id,
+                            "code": language.code,
+                            "name": language.name,
+                            "image": language.image if hasattr(language, 'image') else None
+                        }
+                    else:
+                        img_dict["language"] = None
+                    
                     portfolio_dict["images"].append(img_dict)
             
             # Process attachments (permission-aware)
@@ -567,6 +581,7 @@ async def upload_portfolio_image(
     db: Session = Depends(deps.get_db),
     portfolio_id: int,
     category: str = Query(..., description="Image category"),
+    language_id: Optional[int] = Query(None, description="Language ID"),
     file: UploadFile = File(...),
     current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
@@ -575,7 +590,13 @@ async def upload_portfolio_image(
     For 'main' category, replaces existing image if one exists.
     For other categories, creates new image entries.
     """
-    logger.info(f"Uploading {category} image for portfolio {portfolio_id}")
+    logger.info(f"=== UPLOAD IMAGE DEBUG ===")
+    logger.info(f"Portfolio ID: {portfolio_id}")
+    logger.info(f"Category: {category} (type: {type(category)})")
+    logger.info(f"Language ID: {language_id} (type: {type(language_id)})")
+    logger.info(f"File: {file.filename}")
+    logger.info(f"========================")
+    
     try:
         portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
         if not portfolio:
@@ -592,23 +613,34 @@ async def upload_portfolio_image(
                 detail="File must be an image"
             )
         
-        # For 'main' category, check if image already exists and replace it
+        # For 'main' category, check if image already exists for this language and replace it
+        # This allows multiple main images, one per language
         existing_image = None
-        if category == "main":
+        if category == "main" and language_id:
+            # Look for existing main image with the same language
             existing_image = db.query(PortfolioImage).filter(
                 PortfolioImage.portfolio_id == portfolio_id,
-                PortfolioImage.category == category
+                PortfolioImage.category == category,
+                PortfolioImage.language_id == language_id
+            ).first()
+        elif category == "main" and not language_id:
+            # Look for existing main image with no language
+            existing_image = db.query(PortfolioImage).filter(
+                PortfolioImage.portfolio_id == portfolio_id,
+                PortfolioImage.category == category,
+                PortfolioImage.language_id.is_(None)
             ).first()
         
         # Create upload directory with structure: portfolios/{portfolio_id}/{category}/
         upload_dir = os.path.join(settings.UPLOADS_DIR, "portfolios", str(portfolio_id), category)
         os.makedirs(upload_dir, exist_ok=True)
         
-        # Use UUID-based filename to avoid conflicts
-        file_extension = os.path.splitext(file.filename or "image.png")[1]
-        filename = f"{uuid.uuid4()}{file_extension}"
+        # Use UUID-based physical filename to avoid conflicts, but keep original filename in database
+        original_filename = file.filename or "image.png"
+        file_extension = os.path.splitext(original_filename)[1]
+        physical_filename = f"{uuid.uuid4()}{file_extension}"
         
-        file_path = os.path.join(upload_dir, filename)
+        file_path = os.path.join(upload_dir, physical_filename)
         
         # Save the file
         contents = await file.read()
@@ -616,7 +648,7 @@ async def upload_portfolio_image(
             f.write(contents)
         
         # Create URL-friendly path (relative to static/uploads)
-        url_path = f"/uploads/portfolios/{portfolio_id}/{category}/{filename}"
+        url_path = f"/uploads/portfolios/{portfolio_id}/{category}/{physical_filename}"
         
         # Update existing or create new image record
         if existing_image:
@@ -637,25 +669,29 @@ async def upload_portfolio_image(
             
             # Update existing record
             existing_image.image_path = url_path
-            existing_image.file_name = filename
+            existing_image.file_name = original_filename
+            if language_id is not None:
+                existing_image.language_id = language_id
             db.commit()
             db.refresh(existing_image)
             portfolio_image = existing_image
             logger.info(f"Updated existing {category} image for portfolio {portfolio_id}")
-            stage_event(db, {"op":"update","source_table":"portfolio_images","source_id":str(portfolio_image.id),"changed_fields":["file_name","image_path"]})
+            stage_event(db, {"op":"update","source_table":"portfolio_images","source_id":str(portfolio_image.id),"changed_fields":["file_name","image_path","language_id"]})
         else:
             # Create new portfolio image in database
+            logger.info(f"Creating new image with language_id={language_id}, category={category}, file_name={original_filename}")
             portfolio_image = portfolio_crud.add_portfolio_image(
                 db, 
                 portfolio_id=portfolio_id, 
                 image=PortfolioImageCreate(
                     image_path=url_path,
-                    file_name=filename,
-                    category=category
+                    file_name=original_filename,
+                    category=category,
+                    language_id=language_id
                 )
             )
-            logger.info(f"Created new {category} image for portfolio {portfolio_id}")
-            stage_event(db, {"op":"insert","source_table":"portfolio_images","source_id":str(portfolio_image.id),"changed_fields":["file_name","image_path","category"]})
+            logger.info(f"Created new {category} image for portfolio {portfolio_id} with ID {portfolio_image.id}, language_id={portfolio_image.language_id}")
+            stage_event(db, {"op":"insert","source_table":"portfolio_images","source_id":str(portfolio_image.id),"changed_fields":["file_name","image_path","category","language_id"]})
         
         # Add image URL for frontend
         if portfolio_image.image_path:
@@ -736,7 +772,13 @@ async def rename_portfolio_image(
     """
     Rename a portfolio image or update its category.
     """
-    logger.info(f"Updating image {image_id} from portfolio {portfolio_id}")
+    logger.info(f"=== UPDATE IMAGE DEBUG ===")
+    logger.info(f"Portfolio ID: {portfolio_id}")
+    logger.info(f"Image ID: {image_id}")
+    logger.info(f"Update data: {image_update.model_dump(exclude_unset=True)}")
+    logger.info(f"Language ID in update: {image_update.language_id}")
+    logger.info(f"========================")
+    
     try:
         portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
         if not portfolio:

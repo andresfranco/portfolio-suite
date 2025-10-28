@@ -10,6 +10,7 @@ class PortfolioImageBase(BaseModel):
     image_path: str
     file_name: str
     category: Optional[str] = None
+    language_id: Optional[int] = None
 
 class PortfolioImageCreate(PortfolioImageBase):
     pass
@@ -18,6 +19,17 @@ class PortfolioImageUpdate(BaseModel):
     image_path: Optional[str] = None
     file_name: Optional[str] = None
     category: Optional[str] = None
+    language_id: Optional[int] = None
+
+# Nested language schema for image response (reuse from attachments)
+class ImageLanguageNested(BaseModel):
+    """Simplified language for image response"""
+    id: int
+    code: str
+    name: str
+    image: Optional[str] = None
+    
+    model_config = ConfigDict(from_attributes=True)
 
 class PortfolioImageOut(PortfolioImageBase):
     id: int
@@ -25,6 +37,7 @@ class PortfolioImageOut(PortfolioImageBase):
     image_url: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    language: Optional[ImageLanguageNested] = None
     
     model_config = ConfigDict(from_attributes=True)
 

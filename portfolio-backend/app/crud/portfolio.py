@@ -26,7 +26,7 @@ def get_portfolio(db: Session, portfolio_id: int) -> Optional[Portfolio]:
             selectinload(Portfolio.projects).selectinload(Project.project_texts).selectinload(ProjectText.language),
             selectinload(Portfolio.sections).selectinload(Section.section_texts).selectinload(SectionText.language),
             # Use joinedload for one-to-many relationships
-            joinedload(Portfolio.images),
+            joinedload(Portfolio.images).joinedload(PortfolioImage.language),
             # Load attachments with their category and language relationships
             selectinload(Portfolio.attachments).selectinload(PortfolioAttachment.category).selectinload(Category.category_texts).selectinload(CategoryText.language),
             selectinload(Portfolio.attachments).selectinload(PortfolioAttachment.language)
@@ -64,6 +64,10 @@ def get_portfolio(db: Session, portfolio_id: int) -> Optional[Portfolio]:
                         _ = text.language.id if text.language else None
             
             _ = len(portfolio.images)
+            for image in portfolio.images:
+                if hasattr(image, 'language') and image.language:
+                    _ = image.language.id
+            
             _ = len(portfolio.attachments)
             logger.debug(f"Found {len(portfolio.attachments)} attachments")
             for attachment in portfolio.attachments:
@@ -186,6 +190,7 @@ def delete_portfolio(db: Session, portfolio_id: int) -> Optional[Portfolio]:
 def add_portfolio_image(db: Session, portfolio_id: int, image: PortfolioImageCreate) -> Optional[PortfolioImage]:
     """Add image to portfolio"""
     logger.debug(f"Adding image to portfolio with ID {portfolio_id}")
+    logger.debug(f"Image data: {image.model_dump()}")
     
     try:
         db_portfolio = get_portfolio(db, portfolio_id)
@@ -198,12 +203,13 @@ def add_portfolio_image(db: Session, portfolio_id: int, image: PortfolioImageCre
             portfolio_id=portfolio_id,
             image_path=image.image_path,
             file_name=image.file_name,
-            category=image.category
+            category=image.category,
+            language_id=image.language_id
         )
         db.add(db_portfolio_image)
         db.flush()
         
-        logger.info(f"Image added to portfolio {portfolio_id} with ID {db_portfolio_image.id}")
+        logger.info(f"Image added to portfolio {portfolio_id} with ID {db_portfolio_image.id}, language_id={db_portfolio_image.language_id}")
         return db_portfolio_image
     except Exception as e:
         logger.error(f"Error adding image to portfolio {portfolio_id}: {str(e)}", exc_info=True)
@@ -257,6 +263,7 @@ def get_portfolio_image(db: Session, image_id: int) -> Optional[PortfolioImage]:
 def update_portfolio_image(db: Session, image_id: int, image_update: PortfolioImageUpdate) -> Optional[PortfolioImage]:
     """Update portfolio image (e.g., rename)"""
     logger.debug(f"Updating portfolio image with ID {image_id}")
+    logger.debug(f"Update data: {image_update.model_dump(exclude_unset=True)}")
     
     try:
         db_image = db.query(PortfolioImage).filter(PortfolioImage.id == image_id).first()
@@ -265,16 +272,17 @@ def update_portfolio_image(db: Session, image_id: int, image_update: PortfolioIm
             logger.warning(f"Portfolio image with ID {image_id} not found for update")
             return None
         
-        # Update fields if provided
-        if image_update.file_name is not None:
-            db_image.file_name = image_update.file_name
-        if image_update.category is not None:
-            db_image.category = image_update.category
-        if image_update.image_path is not None:
-            db_image.image_path = image_update.image_path
+        # Use model_dump to get only the fields that were explicitly set
+        update_data = image_update.model_dump(exclude_unset=True)
+        
+        # Update fields that were provided
+        for field, value in update_data.items():
+            if hasattr(db_image, field):
+                setattr(db_image, field, value)
+                logger.debug(f"Updated {field} to {value}")
         
         db.flush()
-        logger.info(f"Portfolio image {image_id} updated successfully")
+        logger.info(f"Portfolio image {image_id} updated successfully with fields: {list(update_data.keys())}")
         return db_image
     except Exception as e:
         logger.error(f"Error updating portfolio image {image_id}: {str(e)}", exc_info=True)
@@ -439,6 +447,42 @@ def update_portfolio_attachment(db: Session, attachment_id: int, category_id: Op
         return db_attachment
     except Exception as e:
         logger.error(f"Error updating attachment {attachment_id}: {str(e)}", exc_info=True)
+        raise
+
+@db_transaction
+def update_portfolio_image_metadata(db: Session, image_id: int, category: Optional[str] = None, language_id: Optional[int] = None) -> Optional[PortfolioImage]:
+    """Update portfolio image category and language"""
+    logger.debug(f"Updating image {image_id}: category={category}, language_id={language_id}")
+    
+    try:
+        db_image = db.query(PortfolioImage).filter(PortfolioImage.id == image_id).first()
+        
+        if not db_image:
+            logger.warning(f"Portfolio image with ID {image_id} not found for update")
+            return None
+        
+        # Update fields only if provided (not None)
+        if category is not None:
+            db_image.category = category if category else None
+            logger.debug(f"Updated category to {db_image.category}")
+            
+        if language_id is not None:
+            # Validate language exists if provided (and not 0)
+            if language_id > 0:
+                language = db.query(Language).filter(Language.id == language_id).first()
+                if not language:
+                    logger.error(f"Language with ID {language_id} not found - aborting update")
+                    raise ValueError(f"Language with ID {language_id} not found")
+            db_image.language_id = language_id if language_id > 0 else None
+            logger.debug(f"Updated language_id to {db_image.language_id}")
+        
+        db.flush()
+        db.refresh(db_image)
+        
+        logger.info(f"Image {image_id} updated successfully: category={db_image.category}, language_id={db_image.language_id}")
+        return db_image
+    except Exception as e:
+        logger.error(f"Error updating image {image_id}: {str(e)}", exc_info=True)
         raise
 
 @db_transaction
