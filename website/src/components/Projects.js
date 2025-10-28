@@ -2,23 +2,43 @@ import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LanguageContext } from '../context/LanguageContext';
 import { usePortfolio } from '../context/PortfolioContext';
+import { useEditMode } from '../context/EditModeContext';
+import { useSectionLabel } from '../hooks/useSectionLabel';
 import { translations } from '../data/translations';
+import { InlineTextEditor } from './cms';
 import ProjectDetails from './ProjectDetails';
 
 const ProjectModal = ({ project, onClose, onViewDetails, language, getProjectText }) => {
   const projectText = getProjectText(project);
+  const { isEditMode } = useEditMode();
+  
+  // Get editable labels
+  const closeLabel = useSectionLabel('BTN_CLOSE', 'close');
+  const viewDetailsLabel = useSectionLabel('BTN_VIEW_FULL_DETAILS', 'view_full_details');
   
   return (
     <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
       <div className="bg-gray-900 w-full max-w-4xl rounded-xl overflow-hidden max-h-[90vh]">
         <div className="border-b border-gray-800 p-4 flex justify-between items-center">
           <h3 className="text-white text-xl md:text-2xl font-bold">
-            {projectText.name || 'Project'}
+            {/* Editable project name in edit mode */}
+            {isEditMode && projectText.id ? (
+              <InlineTextEditor
+                value={projectText.name || 'Project'}
+                entityType="project"
+                entityId={projectText.id}
+                fieldName="name"
+                className="text-white text-xl md:text-2xl font-bold"
+                placeholder="Enter project name..."
+              />
+            ) : (
+              projectText.name || 'Project'
+            )}
           </h3>
           <button 
             onClick={onClose}
             className="text-gray-400 hover:text-white transition-colors p-2"
-            aria-label={translations[language].close}
+            aria-label={closeLabel.value}
           >
             ✕
           </button>
@@ -31,9 +51,22 @@ const ProjectModal = ({ project, onClose, onViewDetails, language, getProjectTex
               className="w-full h-48 md:h-64 object-cover rounded-lg mb-4 md:mb-6"
             />
           )}
-          <p className="text-gray-300 text-base md:text-lg mb-6">
-            {projectText.description || ''}
-          </p>
+          <div className="text-gray-300 text-base md:text-lg mb-6">
+            {/* Editable project description in edit mode */}
+            {isEditMode && projectText.id ? (
+              <InlineTextEditor
+                value={projectText.description || ''}
+                entityType="project"
+                entityId={projectText.id}
+                fieldName="description"
+                className="text-gray-300 text-base md:text-lg"
+                placeholder="Enter project description..."
+                multiline={true}
+              />
+            ) : (
+              <p>{projectText.description || ''}</p>
+            )}
+          </div>
           <button
             onClick={onViewDetails}
             className="inline-block bg-[#14C800] text-white px-6 py-3 rounded-lg
@@ -41,7 +74,7 @@ const ProjectModal = ({ project, onClose, onViewDetails, language, getProjectTex
               hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)]
               transform hover:-translate-y-1 text-base md:text-lg"
           >
-            {translations[language].view_full_details}
+            {viewDetailsLabel.renderEditable('inline-block bg-[#14C800] text-white px-6 py-3 rounded-lg')}
           </button>
         </div>
       </div>
@@ -55,6 +88,10 @@ const Projects = () => {
   const navigate = useNavigate();
   const { language } = useContext(LanguageContext);
   const { getProjects, getProjectText, loading } = usePortfolio();
+
+  // Get editable section labels
+  const projectsTitle = useSectionLabel('SECTION_PROJECTS', 'projects');
+  const loadingText = useSectionLabel('MSG_LOADING_PROJECTS', 'loading_projects');
 
   // Get projects from portfolio context
   const projects = getProjects();
@@ -74,7 +111,9 @@ const Projects = () => {
   if (loading) {
     return (
       <div className="flex-grow flex items-center justify-center bg-gray-800 min-h-screen">
-        <div className="text-white text-2xl">Loading projects...</div>
+        <div className="text-white text-2xl">
+          {loadingText.renderEditable('text-white text-2xl')}
+        </div>
       </div>
     );
   }
@@ -85,7 +124,7 @@ const Projects = () => {
         <section className="py-20 bg-gray-800">
           <div className="container mx-auto px-4 text-center">
             <h2 className="text-4xl font-bold mb-8 text-white">
-              {translations[language].projects}
+              {projectsTitle.renderEditable('text-4xl font-bold mb-8 text-white')}
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-12">
               {projects.map((project) => {
