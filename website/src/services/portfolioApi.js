@@ -171,6 +171,31 @@ export const portfolioApi = {
   },
 
   /**
+   * Get all experiences with pagination
+   * @param {number} page - Page number (default 1)
+   * @param {number} pageSize - Page size (default 100)
+   * @param {string} token - Authentication token (optional for public access)
+   * @returns {Promise<Object>} - Paginated experiences list
+   */
+  getAllExperiences: async (page = 1, pageSize = 100, token = null) => {
+    try {
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+      const response = await fetch(
+        `${API_BASE_URL}/api/experiences/?page=${page}&page_size=${pageSize}`,
+        {
+          method: 'GET',
+          headers: headers,
+          credentials: 'include',
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error fetching experiences:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Public API Methods
    */
 
@@ -499,6 +524,101 @@ export const portfolioApi = {
       return await handleResponse(response);
     } catch (error) {
       console.error(`Error updating experience ${experienceId} metadata:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Create a new experience
+   * @param {Object} experienceData - Experience data (code, years, icon, experience_texts)
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - Created experience
+   */
+  createExperience: async (experienceData, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/experiences/`,
+        {
+          method: 'POST',
+          headers: getHeaders(token),
+          credentials: 'include',
+          body: JSON.stringify(experienceData),
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error creating experience:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Delete an experience
+   * @param {number} experienceId - Experience ID
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - Deleted experience
+   */
+  deleteExperience: async (experienceId, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/experiences/${experienceId}`,
+        {
+          method: 'DELETE',
+          headers: getHeaders(token),
+          credentials: 'include',
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error(`Error deleting experience ${experienceId}:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Add experience to portfolio
+   * @param {number} portfolioId - Portfolio ID
+   * @param {number} experienceId - Experience ID
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - Updated portfolio
+   */
+  addExperienceToPortfolio: async (portfolioId, experienceId, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/portfolios/${portfolioId}/experiences/${experienceId}`,
+        {
+          method: 'POST',
+          headers: getHeaders(token, false), // No body, so no Content-Type needed
+          credentials: 'include',
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error adding experience to portfolio:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Remove experience from portfolio
+   * @param {number} portfolioId - Portfolio ID
+   * @param {number} experienceId - Experience ID
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - Updated portfolio
+   */
+  removeExperienceFromPortfolio: async (portfolioId, experienceId, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/portfolios/${portfolioId}/experiences/${experienceId}`,
+        {
+          method: 'DELETE',
+          headers: getHeaders(token),
+          credentials: 'include',
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error removing experience from portfolio:', error);
       throw error;
     }
   },
