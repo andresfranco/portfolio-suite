@@ -1,6 +1,10 @@
-from pydantic import BaseModel, ConfigDict, field_validator
-from typing import List, Optional, Dict, Any, Union, Literal
+from pydantic import BaseModel, ConfigDict, field_validator, computed_field, model_serializer
+from typing import List, Optional, Dict, Any, Union, Literal, TYPE_CHECKING
 from datetime import datetime
+
+if TYPE_CHECKING:
+    from app.schemas.category import CategoryOut
+    from app.schemas.language import LanguageOut
 
 class PortfolioImageBase(BaseModel):
     image_path: str
@@ -41,12 +45,41 @@ class PortfolioAttachmentUpdate(BaseModel):
     is_default: Optional[bool] = None
     language_id: Optional[int] = None
 
+# Minimal nested schemas for attachment response
+class CategoryTextSimple(BaseModel):
+    """Simplified category text"""
+    language_id: int
+    name: str
+    description: Optional[str] = None
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class AttachmentCategoryNested(BaseModel):
+    """Simplified category for attachment response"""
+    id: int
+    code: str
+    type_code: Optional[str] = None
+    category_texts: List[CategoryTextSimple] = []
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class AttachmentLanguageNested(BaseModel):
+    """Simplified language for attachment response"""
+    id: int
+    code: str
+    name: str
+    image: Optional[str] = None
+    
+    model_config = ConfigDict(from_attributes=True)
+
 class PortfolioAttachmentOut(PortfolioAttachmentBase):
     id: int
     portfolio_id: int
     file_url: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    category: Optional[AttachmentCategoryNested] = None
+    language: Optional[AttachmentLanguageNested] = None
     
     model_config = ConfigDict(from_attributes=True)
 

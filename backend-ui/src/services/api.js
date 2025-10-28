@@ -219,6 +219,23 @@ const projectsApi = {
     
     return api.post(url, formData);
   },
+  updatePortfolioAttachment: (portfolioId, attachmentId, categoryId = null, isDefault = null, languageId = null) => {
+    const params = new URLSearchParams();
+    // Only add params if they have actual values (not null, undefined, or empty string)
+    if (categoryId !== null && categoryId !== undefined && categoryId !== '') {
+      params.append('category_id', categoryId);
+    }
+    if (isDefault !== null && isDefault !== undefined) {
+      params.append('is_default', isDefault);
+    }
+    if (languageId !== null && languageId !== undefined && languageId !== '') {
+      params.append('language_id', languageId);
+    }
+    const url = `/api/portfolios/${portfolioId}/attachments/${attachmentId}${params.toString() ? `?${params.toString()}` : ''}`;
+    console.log('PUT request URL:', url);
+    console.log('PUT request params:', { categoryId, isDefault, languageId });
+    return api.put(url);
+  },
   deletePortfolioAttachment: (portfolioId, attachmentId) => api.delete(`/api/portfolios/${portfolioId}/attachments/${attachmentId}`),
 };
 

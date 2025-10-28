@@ -152,6 +152,14 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
   const [deleteType, setDeleteType] = useState(null); // 'image' or 'attachment'
   const [deleting, setDeleting] = useState(false);
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState(null);
+  
+  // Edit attachment states
+  const [editAttachmentOpen, setEditAttachmentOpen] = useState(false);
+  const [selectedAttachment, setSelectedAttachment] = useState(null);
+  const [editAttachmentCategory, setEditAttachmentCategory] = useState('');
+  const [editAttachmentLanguage, setEditAttachmentLanguage] = useState('');
+  const [editSetAsDefault, setEditSetAsDefault] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
 
   // Fetch portfolio data
   const fetchPortfolioData = useCallback(async () => {
@@ -164,6 +172,14 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
       // Fetch portfolio details with all related data
       const response = await api.get(`/api/portfolios/${portfolioId}`);
       const portfolio = response.data;
+      
+      // Debug: log attachments to see their structure
+      console.log('Portfolio attachments:', portfolio.attachments);
+      if (portfolio.attachments && portfolio.attachments.length > 0) {
+        console.log('First attachment:', portfolio.attachments[0]);
+        console.log('First attachment category:', portfolio.attachments[0].category);
+        console.log('First attachment language:', portfolio.attachments[0].language);
+      }
       
       setPortfolioData(portfolio);
       setCategories(portfolio.categories || []);
@@ -581,6 +597,54 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
       }
     } finally {
       setDownloadingAttachmentId(null);
+    }
+  };
+
+  // Edit attachment handlers
+  const handleEditAttachment = (attachment) => {
+    setSelectedAttachment(attachment);
+    setEditAttachmentCategory(attachment.category_id || '');
+    setEditAttachmentLanguage(attachment.language_id || '');
+    setEditSetAsDefault(attachment.is_default || false);
+    setEditAttachmentOpen(true);
+  };
+
+  const handleAttachmentUpdate = async () => {
+    if (!selectedAttachment) return;
+    
+    try {
+      setEditLoading(true);
+      
+      // Debug: log what we're sending
+      console.log('Updating attachment:', {
+        portfolioId,
+        attachmentId: selectedAttachment.id,
+        categoryId: editAttachmentCategory || null,
+        isDefault: editSetAsDefault,
+        languageId: editAttachmentLanguage || null
+      });
+      
+      await projectsApi.updatePortfolioAttachment(
+        portfolioId,
+        selectedAttachment.id,
+        editAttachmentCategory || null,
+        editSetAsDefault,
+        editAttachmentLanguage || null
+      );
+      
+      enqueueSnackbar('Attachment updated successfully', { variant: 'success' });
+      setEditAttachmentOpen(false);
+      setSelectedAttachment(null);
+      setEditAttachmentCategory('');
+      setEditAttachmentLanguage('');
+      setEditSetAsDefault(false);
+      await fetchPortfolioData();
+    } catch (err) {
+      console.error('Update attachment error:', err);
+      console.error('Error response:', err.response?.data);
+      enqueueSnackbar(err.response?.data?.detail || 'Failed to update attachment', { variant: 'error' });
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -1961,10 +2025,56 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
                               <Typography variant="body2" fontWeight={500}>
                                 {attachment.file_name}
                               </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                ID: {attachment.id}
-                              </Typography>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
+                                <Typography variant="caption" color="text.secondary">
+                                  ID: {attachment.id}
+                                </Typography>
+                                {attachment.language && (
+                                  <Chip
+                                    size="small"
+                                    icon={attachment.language.image ? (
+                                      <Box
+                                        component="img"
+                                        src={`${SERVER_URL}/uploads/${attachment.language.image.replace(/^.*language_images\//, "language_images/")}`}
+                                        alt={attachment.language.name}
+                                        sx={{ width: 16, height: 12, objectFit: 'cover' }}
+                                      />
+                                    ) : <LanguageIcon />}
+                                    label={attachment.language.name}
+                                    sx={{ height: 20 }}
+                                  />
+                                )}
+                                {attachment.category && (
+                                  <Chip
+                                    size="small"
+                                    icon={<CategoryIcon />}
+                                    label={getCategoryDisplayName(attachment.category)}
+                                    color="primary"
+                                    variant="outlined"
+                                    sx={{ height: 20 }}
+                                  />
+                                )}
+                                {attachment.is_default && (
+                                  <Chip
+                                    size="small"
+                                    label="Default"
+                                    color="success"
+                                    sx={{ height: 20 }}
+                                  />
+                                )}
+                              </Box>
                             </Box>
+                            <PermissionGate permissions={["MANAGE_PORTFOLIO_ATTACHMENTS", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}>
+                              <Tooltip title="Edit">
+                                <IconButton
+                                  size="small"
+                                  color="primary"
+                                  onClick={() => handleEditAttachment(attachment)}
+                                >
+                                  <EditIcon />
+                                </IconButton>
+                              </Tooltip>
+                            </PermissionGate>
                             <Button
                               size="small"
                               startIcon={downloadingAttachmentId === attachment.id ? <CircularProgress size={16} /> : <DownloadIcon />}
@@ -2199,6 +2309,128 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
           startIcon={uploadLoading ? <CircularProgress size={16} /> : <CloudUploadIcon />}
         >
           {uploadLoading ? 'Uploading...' : 'Upload'}
+        </Button>
+      </DialogActions>
+  </Dialog>
+  </PermissionGate>
+
+    {/* Edit Attachment Dialog */}
+  <PermissionGate permissions={["MANAGE_PORTFOLIO_ATTACHMENTS", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}>
+  <Dialog open={editAttachmentOpen} onClose={() => setEditAttachmentOpen(false)} maxWidth="sm" fullWidth>
+      <DialogTitle>Edit Attachment</DialogTitle>
+      <DialogContent>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+          <Typography variant="body2" color="text.secondary">
+            <strong>File:</strong> {selectedAttachment?.file_name}
+          </Typography>
+          
+          {/* Language Selection */}
+          <FormControl fullWidth>
+            <InputLabel id="edit-attachment-language-label">Language (Optional)</InputLabel>
+            <Select
+              labelId="edit-attachment-language-label"
+              id="edit-attachment-language-select"
+              value={editAttachmentLanguage}
+              label="Language (Optional)"
+              onChange={(e) => setEditAttachmentLanguage(e.target.value)}
+              disabled={editLoading || languagesLoading}
+            >
+              <MenuItem value="">
+                <em>None</em>
+              </MenuItem>
+              {languagesLoading ? (
+                <MenuItem disabled>
+                  <CircularProgress size={20} sx={{ mr: 1 }} />
+                  <em>Loading languages...</em>
+                </MenuItem>
+              ) : availableLanguages.length === 0 ? (
+                <MenuItem disabled>
+                  <em>No languages available</em>
+                </MenuItem>
+              ) : (
+                availableLanguages.map((language) => (
+                  <MenuItem key={language.id} value={language.id}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      {language.image && (
+                        <Box
+                          component="img"
+                          src={`${SERVER_URL}/uploads/${language.image.replace(/^.*language_images\//, "language_images/")}`}
+                          alt={language.name}
+                          sx={{
+                            width: 24,
+                            height: 16,
+                            border: '1px solid #eee',
+                            borderRadius: 0.5,
+                            objectFit: 'cover'
+                          }}
+                          onError={(e) => { e.target.style.display = 'none'; }}
+                        />
+                      )}
+                      <Typography>{language.name}</Typography>
+                    </Box>
+                  </MenuItem>
+                ))
+              )}
+            </Select>
+          </FormControl>
+          
+          {/* Category Selection */}
+          <FormControl fullWidth>
+            <InputLabel id="edit-attachment-category-label">Category (Optional)</InputLabel>
+            <Select
+              labelId="edit-attachment-category-label"
+              id="edit-attachment-category-select"
+              value={editAttachmentCategory}
+              label="Category (Optional)"
+              onChange={(e) => setEditAttachmentCategory(e.target.value)}
+              disabled={editLoading || categoriesLoading}
+            >
+              <MenuItem value="">
+                <em>None</em>
+              </MenuItem>
+              {categoriesLoading ? (
+                <MenuItem disabled>
+                  <CircularProgress size={20} sx={{ mr: 1 }} />
+                  <em>Loading categories...</em>
+                </MenuItem>
+              ) : attachmentCategories.length === 0 ? (
+                <MenuItem disabled>
+                  <em>No categories available</em>
+                </MenuItem>
+              ) : (
+                attachmentCategories.map((category) => (
+                  <MenuItem key={category.id} value={category.id}>
+                    {getCategoryDisplayName(category)}
+                  </MenuItem>
+                ))
+              )}
+            </Select>
+          </FormControl>
+          
+          {/* Set as Default checkbox - only show for RESU categories */}
+          {editAttachmentCategory && attachmentCategories.find(c => c.id === parseInt(editAttachmentCategory))?.type_code === 'RESU' && (
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={editSetAsDefault}
+                  onChange={(e) => setEditSetAsDefault(e.target.checked)}
+                  disabled={editLoading}
+                />
+              }
+              label="Set as default resume (for website download button)"
+            />
+          )}
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setEditAttachmentOpen(false)}>Cancel</Button>
+        <Button
+          onClick={handleAttachmentUpdate}
+          variant="contained"
+          disabled={editLoading}
+          startIcon={editLoading ? <CircularProgress size={16} /> : <EditIcon />}
+        >
+          {editLoading ? 'Updating...' : 'Update'}
         </Button>
       </DialogActions>
   </Dialog>
