@@ -270,8 +270,14 @@ function ProjectAttachmentsContent() {
       try {
         // Fetch languages
         setLoadingLanguages(true);
-        const languagesResponse = await api.get('/api/languages');
-        setLanguages(languagesResponse.data);
+        const languagesResponse = await api.get('/api/languages', {
+          params: { 
+            page: 1,
+            page_size: 100  // Get all languages
+          }
+        });
+        // Languages endpoint returns paginated response
+        setLanguages(languagesResponse.data.items || []);
         setLoadingLanguages(false);
 
         // Fetch project attachment categories (type_code='PROA')
@@ -283,8 +289,14 @@ function ProjectAttachmentsContent() {
             page_size: 100  // Get all project attachment categories
           }
         });
-        // Categories endpoint returns paginated response
-        setCategories(categoriesResponse.data.items || []);
+        // Categories endpoint returns paginated response with category_texts
+        // Transform to extract name from category_texts
+        const rawCategories = categoriesResponse.data.items || [];
+        const transformedCategories = rawCategories.map(cat => ({
+          ...cat,
+          name: cat.category_texts?.[0]?.name || cat.code // Use first text's name or fallback to code
+        }));
+        setCategories(transformedCategories);
         setLoadingCategories(false);
       } catch (error) {
         console.error('Error fetching languages or categories:', error);
@@ -1219,6 +1231,18 @@ function ProjectAttachmentsContent() {
                   <Typography variant="body2" color="text.secondary">
                     Uploaded: {attachment.created_at ? new Date(attachment.created_at).toLocaleDateString() : 'Unknown'}
                   </Typography>
+                  
+                  {attachment.language_id && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      Language: {languages.find(l => l.id === attachment.language_id)?.name || 'Unknown'}
+                    </Typography>
+                  )}
+                  
+                  {attachment.category_id && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      Category: {categories.find(c => c.id === attachment.category_id)?.name || 'Unknown'}
+                    </Typography>
+                  )}
                 </CardContent>
                 
                 <CardActions sx={{ pt: 0, justifyContent: 'space-between' }}>
