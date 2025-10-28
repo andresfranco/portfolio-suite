@@ -56,7 +56,8 @@ import {
   CloudUpload as CloudUploadIcon,
   Download as DownloadIcon,
   Visibility as VisibilityIcon,
-  Language as LanguageIcon
+  Language as LanguageIcon,
+  DriveFileRenameOutline as DriveFileRenameOutlineIcon
 } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
 import { api, projectsApi, experiencesApi, sectionsApi } from '../../services/api';
@@ -109,6 +110,7 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
   const [attachmentUploadOpen, setAttachmentUploadOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState(null);
   const [imageCategory, setImageCategory] = useState('gallery');
+  const [imageLanguage, setImageLanguage] = useState('');
   const [uploadLoading, setUploadLoading] = useState(false);
   
   // Attachment category states
@@ -160,6 +162,13 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
   const [editAttachmentLanguage, setEditAttachmentLanguage] = useState('');
   const [editSetAsDefault, setEditSetAsDefault] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
+
+  // Edit image states
+  const [editImageOpen, setEditImageOpen] = useState(false);
+  const [selectedImageForEdit, setSelectedImageForEdit] = useState(null);
+  const [editImageFileName, setEditImageFileName] = useState('');
+  const [editImageCategory, setEditImageCategory] = useState('');
+  const [editImageLanguage, setEditImageLanguage] = useState('');
 
   // Fetch portfolio data
   const fetchPortfolioData = useCallback(async () => {
@@ -389,12 +398,23 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
 
     try {
       setUploadLoading(true);
-      await projectsApi.uploadPortfolioImage(portfolioId, uploadFile, imageCategory);
+      console.log('Uploading image with:', { 
+        portfolioId, 
+        fileName: uploadFile.name, 
+        category: imageCategory, 
+        languageId: imageLanguage,
+        languageIdType: typeof imageLanguage
+      });
+      // Ensure languageId is a number or null
+      const languageIdToSend = imageLanguage ? parseInt(imageLanguage, 10) : null;
+      console.log('Parsed languageId:', languageIdToSend, 'Type:', typeof languageIdToSend);
+      await projectsApi.uploadPortfolioImage(portfolioId, uploadFile, imageCategory, languageIdToSend);
       await fetchPortfolioData();
       enqueueSnackbar('Image uploaded successfully', { variant: 'success' });
       setImageUploadOpen(false);
       setUploadFile(null);
       setImageCategory('gallery');
+      setImageLanguage('');
     } catch (err) {
       const errorMessage = err.response?.data?.detail || 'Failed to upload image';
       enqueueSnackbar(`Error: ${errorMessage}`, { variant: 'error' });
@@ -643,6 +663,62 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
       console.error('Update attachment error:', err);
       console.error('Error response:', err.response?.data);
       enqueueSnackbar(err.response?.data?.detail || 'Failed to update attachment', { variant: 'error' });
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  // Edit image handlers
+  const handleEditImage = (image) => {
+    setSelectedImageForEdit(image);
+    setEditImageFileName(image.file_name || '');
+    setEditImageCategory(image.category || '');
+    setEditImageLanguage(image.language_id || image.language?.id || '');
+    setEditImageOpen(true);
+  };
+
+  const handleImageUpdate = async () => {
+    if (!selectedImageForEdit) return;
+    
+    if (!editImageFileName.trim()) {
+      enqueueSnackbar('Please enter a valid filename', { variant: 'error' });
+      return;
+    }
+    
+    try {
+      setEditLoading(true);
+      
+      // Debug: log what we're sending
+      console.log('Updating image:', {
+        portfolioId,
+        imageId: selectedImageForEdit.id,
+        fileName: editImageFileName.trim(),
+        category: editImageCategory || null,
+        languageId: editImageLanguage || null
+      });
+      
+      // Single API call with all updates
+      await projectsApi.renamePortfolioImage(portfolioId, selectedImageForEdit.id, {
+        file_name: editImageFileName.trim(),
+        category: editImageCategory || null,
+        language_id: editImageLanguage || null
+      });
+      
+      enqueueSnackbar('Image updated successfully', { variant: 'success' });
+      setEditImageOpen(false);
+      setSelectedImageForEdit(null);
+      setEditImageFileName('');
+      setEditImageCategory('');
+      setEditImageLanguage('');
+      await fetchPortfolioData();
+    } catch (err) {
+      console.error('Update image error:', err);
+      console.error('Error response:', err.response?.data);
+      console.error('Error detail:', JSON.stringify(err.response?.data?.detail, null, 2));
+      const errorMsg = Array.isArray(err.response?.data?.detail) 
+        ? err.response.data.detail.map(e => e.msg || e).join(', ')
+        : err.response?.data?.detail || 'Failed to update image';
+      enqueueSnackbar(errorMsg, { variant: 'error' });
     } finally {
       setEditLoading(false);
     }
@@ -1921,6 +1997,21 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
                                 {image.file_name || 'Unnamed file'}
                               </Typography>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                                {image.language && (
+                                  <Chip
+                                    size="small"
+                                    icon={image.language.image ? (
+                                      <Box
+                                        component="img"
+                                        src={`${SERVER_URL}/uploads/${image.language.image.replace(/^.*language_images\//, "language_images/")}`}
+                                        alt={image.language.name}
+                                        sx={{ width: 16, height: 12, objectFit: 'cover' }}
+                                      />
+                                    ) : <LanguageIcon />}
+                                    label={image.language.name}
+                                    sx={{ height: 20 }}
+                                  />
+                                )}
                                 <Chip 
                                   label={image.category || 'Uncategorized'} 
                                   size="small" 
@@ -1951,11 +2042,11 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
                               </Typography>
                               <Box>
                                 <PermissionGate permissions={["EDIT_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}>
-                                  <Tooltip title="Rename image">
+                                  <Tooltip title="Edit image">
                                     <IconButton
                                       size="small"
                                       color="primary"
-                                      onClick={() => handleImageRename(image)}
+                                      onClick={() => handleEditImage(image)}
                                       sx={{ mr: 0.5 }}
                                     >
                                       <EditIcon fontSize="small" />
@@ -2155,6 +2246,59 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
               <MenuItem value="thumbnail">Thumbnail</MenuItem>
               <MenuItem value="gallery">Gallery</MenuItem>
               <MenuItem value="background">Background</MenuItem>
+            </Select>
+          </FormControl>
+          
+          {/* Language Selection */}
+          <FormControl fullWidth>
+            <InputLabel id="image-language-label">Language (Optional)</InputLabel>
+            <Select
+              labelId="image-language-label"
+              id="image-language-select"
+              value={imageLanguage}
+              label="Language (Optional)"
+              onChange={(e) => {
+                console.log('Language selected:', e.target.value, 'Type:', typeof e.target.value);
+                setImageLanguage(e.target.value);
+              }}
+              disabled={uploadLoading || languagesLoading}
+            >
+              <MenuItem value="">
+                <em>None</em>
+              </MenuItem>
+              {languagesLoading ? (
+                <MenuItem disabled>
+                  <CircularProgress size={20} sx={{ mr: 1 }} />
+                  <em>Loading languages...</em>
+                </MenuItem>
+              ) : availableLanguages.length === 0 ? (
+                <MenuItem disabled>
+                  <em>No languages available</em>
+                </MenuItem>
+              ) : (
+                availableLanguages.map((language) => (
+                  <MenuItem key={language.id} value={language.id}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      {language.image && (
+                        <Box
+                          component="img"
+                          src={`${SERVER_URL}/uploads/${language.image.replace(/^.*language_images\//, "language_images/")}`}
+                          alt={language.name}
+                          sx={{
+                            width: 24,
+                            height: 16,
+                            border: '1px solid #eee',
+                            borderRadius: 0.5,
+                            objectFit: 'cover'
+                          }}
+                          onError={(e) => { e.target.style.display = 'none'; }}
+                        />
+                      )}
+                      <Typography>{language.name}</Typography>
+                    </Box>
+                  </MenuItem>
+                ))
+              )}
             </Select>
           </FormControl>
         </Box>
@@ -2426,6 +2570,109 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
         <Button onClick={() => setEditAttachmentOpen(false)}>Cancel</Button>
         <Button
           onClick={handleAttachmentUpdate}
+          variant="contained"
+          disabled={editLoading}
+          startIcon={editLoading ? <CircularProgress size={16} /> : <EditIcon />}
+        >
+          {editLoading ? 'Updating...' : 'Update'}
+        </Button>
+      </DialogActions>
+  </Dialog>
+  </PermissionGate>
+
+    {/* Edit Image Dialog */}
+  <PermissionGate permissions={["EDIT_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}>
+  <Dialog open={editImageOpen} onClose={() => setEditImageOpen(false)} maxWidth="sm" fullWidth>
+      <DialogTitle>Edit Image</DialogTitle>
+      <DialogContent>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+          {/* Filename Field */}
+          <TextField
+            label="File Name"
+            value={editImageFileName}
+            onChange={(e) => setEditImageFileName(e.target.value)}
+            fullWidth
+            required
+            disabled={editLoading}
+            helperText="Enter the new filename for this image"
+          />
+          
+          {/* Language Selection */}
+          <FormControl fullWidth>
+            <InputLabel id="edit-image-language-label">Language (Optional)</InputLabel>
+            <Select
+              labelId="edit-image-language-label"
+              id="edit-image-language-select"
+              value={editImageLanguage}
+              label="Language (Optional)"
+              onChange={(e) => setEditImageLanguage(e.target.value)}
+              disabled={editLoading || languagesLoading}
+            >
+              <MenuItem value="">
+                <em>None</em>
+              </MenuItem>
+              {languagesLoading ? (
+                <MenuItem disabled>
+                  <CircularProgress size={20} sx={{ mr: 1 }} />
+                  <em>Loading languages...</em>
+                </MenuItem>
+              ) : availableLanguages.length === 0 ? (
+                <MenuItem disabled>
+                  <em>No languages available</em>
+                </MenuItem>
+              ) : (
+                availableLanguages.map((language) => (
+                  <MenuItem key={language.id} value={language.id}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      {language.image && (
+                        <Box
+                          component="img"
+                          src={`${SERVER_URL}/uploads/${language.image.replace(/^.*language_images\//, "language_images/")}`}
+                          alt={language.name}
+                          sx={{
+                            width: 24,
+                            height: 16,
+                            border: '1px solid #eee',
+                            borderRadius: 0.5,
+                            objectFit: 'cover'
+                          }}
+                          onError={(e) => { e.target.style.display = 'none'; }}
+                        />
+                      )}
+                      <Typography>{language.name}</Typography>
+                    </Box>
+                  </MenuItem>
+                ))
+              )}
+            </Select>
+          </FormControl>
+          
+          {/* Category Selection */}
+          <FormControl fullWidth>
+            <InputLabel id="edit-image-category-label">Category</InputLabel>
+            <Select
+              labelId="edit-image-category-label"
+              id="edit-image-category-select"
+              value={editImageCategory}
+              label="Category"
+              onChange={(e) => setEditImageCategory(e.target.value)}
+              disabled={editLoading}
+            >
+              <MenuItem value="">
+                <em>Uncategorized</em>
+              </MenuItem>
+              <MenuItem value="main">Main</MenuItem>
+              <MenuItem value="thumbnail">Thumbnail</MenuItem>
+              <MenuItem value="gallery">Gallery</MenuItem>
+              <MenuItem value="background">Background</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setEditImageOpen(false)}>Cancel</Button>
+        <Button
+          onClick={handleImageUpdate}
           variant="contained"
           disabled={editLoading}
           startIcon={editLoading ? <CircularProgress size={16} /> : <EditIcon />}

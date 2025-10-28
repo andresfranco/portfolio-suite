@@ -308,26 +308,41 @@ export const portfolioApi = {
    * @param {number} entityId - Entity ID
    * @param {string} category - Image category ('main', 'thumbnail', 'gallery', 'background')
    * @param {string} token - Authentication token
+   * @param {string} languageCode - Language code ('en', 'es') - optional
    * @returns {Promise<Object>} - Uploaded image details
    */
-  uploadImage: async (file, entityType, entityId, category, token) => {
+  uploadImage: async (file, entityType, entityId, category, token, languageCode = null) => {
     try {
       const formData = new FormData();
       formData.append('file', file);
 
       const headers = getHeaders(token, false); // Don't include Content-Type for FormData
       
+      // Build query string with language_id if provided
+      const queryParams = new URLSearchParams({
+        entity_type: entityType,
+        entity_id: entityId,
+        category: category
+      });
+      
+      if (languageCode) {
+        const languageId = getLanguageId(languageCode);
+        queryParams.append('language_id', languageId);
+        console.log('[Upload] Adding language_id:', languageId, 'for language:', languageCode);
+      }
+      
       console.log('[Upload] Sending image upload request:', {
         entityType,
         entityId,
         category,
+        languageCode,
         headers: Object.keys(headers),
         hasAuthToken: !!token,
         hasCsrfToken: !!headers['X-CSRF-Token']
       });
 
       const response = await fetch(
-        `${API_BASE_URL}/api/cms/content/images?entity_type=${entityType}&entity_id=${entityId}&category=${category}`,
+        `${API_BASE_URL}/api/cms/content/images?${queryParams.toString()}`,
         {
           method: 'POST',
           headers: headers,

@@ -64,6 +64,7 @@ class PortfolioImage(Base):
     image_path = Column(String, nullable=False)
     file_name = Column(String, nullable=False)  # Original filename
     category = Column(String)  # e.g., 'main', 'thumbnail', 'gallery', 'background'
+    language_id = Column(Integer, ForeignKey("languages.id"), nullable=True)  # Link to language
     
     # Timestamp and user tracking fields
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -73,6 +74,7 @@ class PortfolioImage(Base):
     
     # Relationships
     portfolio = relationship("Portfolio", back_populates="images")
+    language = relationship("Language")
 
 
 class PortfolioAttachment(Base):
