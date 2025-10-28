@@ -31,11 +31,13 @@ import SERVER_URL from '../common/BackendServerData';
 function ProjectImageForm({ open, onClose, project }) {
   const [images, setImages] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [languages, setLanguages] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [defaultLanguage, setDefaultLanguage] = useState(null);
   const [newImage, setNewImage] = useState({
     file: null,
     category: '',
+    language_id: '',  // Changed from null to empty string to match MenuItem value
     description: ''
   });
   const [apiError, setApiError] = useState('');
@@ -60,10 +62,11 @@ function ProjectImageForm({ open, onClose, project }) {
         }
         
         const languagesData = await languagesResponse.json();
-        const languages = languagesData.items || [];
-        const defaultLang = languages.find(lang => lang.is_default || lang.isDefault) || 
-                         (languages.length > 0 ? languages[0] : null);
+        const languagesList = languagesData.items || [];
+        const defaultLang = languagesList.find(lang => lang.is_default || lang.isDefault) || 
+                         (languagesList.length > 0 ? languagesList[0] : null);
         setDefaultLanguage(defaultLang);
+        setLanguages(languagesList);  // Store all languages
         
         // Fetch PROI categories using the same endpoint as ProjectImages
         const categoriesResponse = await fetch(`${SERVER_URL}/api/categories/by-code-pattern/PROI`, {
@@ -204,6 +207,9 @@ function ProjectImageForm({ open, onClose, project }) {
       const formData = new FormData();
       formData.append('file', newImage.file);
       formData.append('category_code', newImage.category);
+      if (newImage.language_id) {
+        formData.append('language_id', newImage.language_id.toString());
+      }
       if (newImage.description) {
         formData.append('description', newImage.description);
       }
@@ -235,6 +241,7 @@ function ProjectImageForm({ open, onClose, project }) {
       setNewImage({
         file: null,
         category: categories.length > 0 ? categories[0].code : '',
+        language_id: '',  // Changed from null to empty string
         description: ''
       });
       setUploadPreview(null);
@@ -398,6 +405,29 @@ function ProjectImageForm({ open, onClose, project }) {
                       No project image categories found. Please create categories with type_code 'PROI'.
                     </Typography>
                   )}
+                </FormControl>
+                
+                <FormControl fullWidth>
+                  <InputLabel id="image-language-label">Language (Optional)</InputLabel>
+                  <Select
+                    labelId="image-language-label"
+                    name="language_id"
+                    value={newImage.language_id || ''}
+                    onChange={handleInputChange}
+                    label="Language (Optional)"
+                  >
+                    <MenuItem value="">
+                      <em>None (Default)</em>
+                    </MenuItem>
+                    {languages.map((language) => (
+                      <MenuItem key={language.id} value={language.id}>
+                        {language.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                    Select a language if this image is language-specific
+                  </Typography>
                 </FormControl>
                 
                 <TextField

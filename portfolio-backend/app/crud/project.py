@@ -207,7 +207,7 @@ def delete_project_image(db: Session, image_id: int):
     logger.debug(f"Project image with ID {image_id} successfully deleted")
     return db_image
 
-def add_project_attachment(db: Session, project_id: int, attachment: ProjectAttachmentCreate):
+def add_project_attachment(db: Session, project_id: int, attachment: ProjectAttachmentCreate, created_by: int = None):
     logger.debug(f"Adding attachment to project with ID {project_id}")
     db_project = get_project(db, project_id)
     
@@ -217,7 +217,11 @@ def add_project_attachment(db: Session, project_id: int, attachment: ProjectAtta
     db_project_attachment = ProjectAttachment(
         project_id=project_id,
         file_path=attachment.file_path,
-        file_name=attachment.file_name
+        file_name=attachment.file_name,
+        category_id=attachment.category_id,
+        language_id=attachment.language_id,
+        created_by=created_by,
+        updated_by=created_by
     )
     db.add(db_project_attachment)
     db.commit()  # Commit the transaction to save to database
@@ -490,21 +494,24 @@ def get_project_images(db: Session, project_id: int):
     """
     return db.query(ProjectImage).filter(ProjectImage.project_id == project_id).all()
 
-def create_project_image(db: Session, project_id: int, image_path: str, category: str = "gallery"):
+def create_project_image(db: Session, project_id: int, image_path: str, category: str = "gallery", language_id: int = None, created_by: int = None):
     """
     Create a new project image
     """
     db_project_image = ProjectImage(
         project_id=project_id,
         image_path=image_path,
-        category=category
+        category=category,
+        language_id=language_id,
+        created_by=created_by,
+        updated_by=created_by  # Same user for initial creation
     )
     db.add(db_project_image)
     db.commit()
     db.refresh(db_project_image)
     return db_project_image
 
-def update_project_image(db: Session, project_image_id: int, image_path: str = None, category: str = None):
+def update_project_image(db: Session, project_image_id: int, image_path: str = None, category: str = None, language_id: int = None, updated_by: int = None):
     """
     Update a project image
     """
@@ -517,6 +524,12 @@ def update_project_image(db: Session, project_image_id: int, image_path: str = N
     
     if category:
         db_project_image.category = category
+    
+    if language_id is not None:
+        db_project_image.language_id = language_id
+    
+    if updated_by:
+        db_project_image.updated_by = updated_by
     
     db.commit()
     db.refresh(db_project_image)

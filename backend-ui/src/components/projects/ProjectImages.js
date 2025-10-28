@@ -81,6 +81,7 @@ function ProjectImagesContent() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [languages, setLanguages] = useState([]);
   const [defaultLanguage, setDefaultLanguage] = useState(null);
 
   // Debug logging
@@ -165,10 +166,11 @@ function ProjectImagesContent() {
         const languagesResponse = await api.get('/api/languages/?page=1&page_size=100');
         
         const languagesData = languagesResponse.data;
-        const languages = languagesData.items || [];
-        const defaultLang = languages.find(lang => lang.is_default || lang.isDefault) || 
-                         (languages.length > 0 ? languages[0] : null);
+        const languagesList = languagesData.items || [];
+        const defaultLang = languagesList.find(lang => lang.is_default || lang.isDefault) || 
+                         (languagesList.length > 0 ? languagesList[0] : null);
         setDefaultLanguage(defaultLang);
+        setLanguages(languagesList);  // Store all languages for the dropdown
         
         // Fetch project details
         console.log('[PROJECT IMAGES DEBUG] Fetching project details for ID:', projectId);
@@ -329,7 +331,8 @@ function ProjectImagesContent() {
         name: file.name,
         size: file.size,
         preview: previewUrl,
-        nameEdited: false
+        nameEdited: false,
+        language_id: ''  // Add language_id field for each file
       });
     });
     
@@ -371,12 +374,25 @@ function ProjectImagesContent() {
     });
   };
 
+  // Handle language change for a specific file
+  const handleFileLanguageChange = (index, languageId) => {
+    setSelectedFiles(prev => {
+      const newFiles = [...prev];
+      newFiles[index] = {
+        ...newFiles[index],
+        language_id: languageId
+      };
+      return newFiles;
+    });
+  };
+
   // Handle edit image click
   const handleEditClick = (image) => {
     setSelectedImage(image);
     setEditImage({
       id: image.id,
       category: image.category_code || image.category,
+      language_id: image.language_id !== null && image.language_id !== undefined ? image.language_id : '',
       file: null,
       previewUrl: null
     });
@@ -426,6 +442,14 @@ function ProjectImagesContent() {
     }));
   };
 
+  // Handle edit language change
+  const handleEditLanguageChange = (e) => {
+    setEditImage(prev => ({
+      ...prev,
+      language_id: e.target.value
+    }));
+  };
+
   // Update image
   const updateImage = async () => {
     if (!editImage.id) return;
@@ -433,10 +457,11 @@ function ProjectImagesContent() {
     // Check if anything has changed
     const originalImage = selectedImage;
     const categoryChanged = editImage.category !== (originalImage.category_code || originalImage.category);
+    const languageChanged = editImage.language_id !== (originalImage.language_id || '');
     const fileChanged = editImage.file !== null;
     
-    if (!categoryChanged && !fileChanged) {
-      setEditError('No changes detected. Please modify the category or select a new image.');
+    if (!categoryChanged && !fileChanged && !languageChanged) {
+      setEditError('No changes detected. Please modify the category, language, or select a new image.');
       return;
     }
     
@@ -449,6 +474,14 @@ function ProjectImagesContent() {
       // Add category if changed
       if (categoryChanged) {
         formData.append('category', editImage.category);
+      }
+      
+      // Add language_id if changed (send empty string as null)
+      if (languageChanged) {
+        const languageValue = editImage.language_id === '' ? null : editImage.language_id;
+        if (languageValue !== null) {
+          formData.append('language_id', languageValue);
+        }
       }
       
       // Add file if changed
@@ -473,6 +506,7 @@ function ProjectImagesContent() {
       setEditImage({
         id: null,
         category: '',
+        language_id: '',
         file: null,
         previewUrl: null
       });
@@ -513,6 +547,11 @@ function ProjectImagesContent() {
         const formData = new FormData();
         formData.append('file', file);  // Use 'file' as the field name expected by the backend
         formData.append('category_code', selectedCategory);  // Use 'category_code' as expected by the backend
+        
+        // Add language_id if selected for this file
+        if (fileObj.language_id) {
+          formData.append('language_id', fileObj.language_id);
+        }
         
         // Update progress
         setUploadProgress(prev => ({
@@ -1345,6 +1384,45 @@ function ProjectImagesContent() {
                 </Select>
               </FormControl>
             </Grid>
+            
+            {/* Language Selection */}
+            <Grid item xs={12}>
+              <FormControl 
+                fullWidth 
+                variant="outlined"
+                sx={{ mt: 2 }}
+              >
+                <InputLabel id="edit-language-select-label">
+                  Language (Optional)
+                </InputLabel>
+                <Select
+                  labelId="edit-language-select-label"
+                  id="edit-language-select"
+                  value={editImage.language_id === null || editImage.language_id === undefined ? '' : editImage.language_id}
+                  onChange={handleEditLanguageChange}
+                  label="Language (Optional)"
+                  disabled={editLoading}
+                >
+                  <MenuItem value="">
+                    <em>None</em>
+                  </MenuItem>
+                  {languages.length === 0 ? (
+                    <MenuItem disabled value="">
+                      <em>No languages available</em>
+                    </MenuItem>
+                  ) : (
+                    languages.map((language) => (
+                      <MenuItem 
+                        key={language.id} 
+                        value={language.id}
+                      >
+                        {language.name}
+                      </MenuItem>
+                    ))
+                  )}
+                </Select>
+              </FormControl>
+            </Grid>
           </Grid>
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid #f0f0f0' }}>
@@ -1832,6 +1910,28 @@ function ProjectImagesContent() {
                               <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>
                                 {uploadProgress[index].message}
                               </Typography>
+                            )}
+                            
+                            {/* Language selector for each file */}
+                            {!uploadLoading && !uploadProgress[index] && (
+                              <FormControl size="small" fullWidth sx={{ mt: 1 }}>
+                                <InputLabel id={`file-language-label-${index}`}>Language</InputLabel>
+                                <Select
+                                  labelId={`file-language-label-${index}`}
+                                  value={fileObj.language_id || ''}
+                                  onChange={(e) => handleFileLanguageChange(index, e.target.value)}
+                                  label="Language"
+                                >
+                                  <MenuItem value="">
+                                    <em>None (Default)</em>
+                                  </MenuItem>
+                                  {languages.map((language) => (
+                                    <MenuItem key={language.id} value={language.id}>
+                                      {language.name}
+                                    </MenuItem>
+                                  ))}
+                                </Select>
+                              </FormControl>
                             )}
                           </Box>
                         </Box>

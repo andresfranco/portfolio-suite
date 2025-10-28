@@ -673,8 +673,11 @@ def read_project_images(
                 "id": image.id,
                 "image_path": image.image_path,
                 "category": image.category,
+                "language_id": image.language_id,
                 "created_at": image.created_at,
-                "updated_at": image.updated_at
+                "updated_at": image.updated_at,
+                "created_by": image.created_by,
+                "updated_by": image.updated_by
             }
             
             # Add URL using the file utils function
@@ -702,14 +705,16 @@ async def upload_project_image(
     project_id: int,
     file: UploadFile = File(...),  # Image file
     category_code: str = Form(...),  # Category code 
+    language_id: Optional[int] = Form(None),  # Optional language ID
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user),
 ):
     """
     Upload an image for a project. 
     Requires category_code as form data.
+    Optionally accepts language_id to associate the image with a language.
     """
-    logger.info(f"Uploading image for project {project_id} with category {category_code}")
+    logger.info(f"Uploading image for project {project_id} with category {category_code}, language_id: {language_id}")
     logger.info(f"File: {file.filename}, content_type: {file.content_type}")
     
     try:
@@ -779,6 +784,7 @@ async def upload_project_image(
         image_in = schemas.project.ProjectImageCreate(
             image_path=str(file_path),  # Store the full path
             category=category_code,    # Match the DB column name (category, not category_code)
+            language_id=language_id,   # Associate with language if provided
         )
         
         logger.info(f"Creating DB record with: {image_in}")
@@ -786,7 +792,9 @@ async def upload_project_image(
             db=db, 
             project_id=project_id, 
             image_path=str(file_path),
-            category=category_code
+            category=category_code,
+            language_id=language_id,
+            created_by=current_user.id
         )
         
         # Add URL to the image response
@@ -815,6 +823,7 @@ async def update_project_image(
     project_id: int,
     image_id: int,
     category: Optional[str] = Form(None),
+    language_id: Optional[int] = Form(None),
     image: Optional[UploadFile] = File(None),
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user),
@@ -822,7 +831,7 @@ async def update_project_image(
     """
     Update a project image. Max file size: 2MB
     """
-    logger.debug(f"Updating image {image_id} for project {project_id}")
+    logger.debug(f"Updating image {image_id} for project {project_id}, language_id: {language_id}")
     
     # Check if project exists
     project = crud.project.get_project(db, project_id=project_id)
@@ -891,7 +900,9 @@ async def update_project_image(
         db, 
         project_image_id=image_id, 
         image_path=image_path, 
-        category=category
+        category=category,
+        language_id=language_id,
+        updated_by=current_user.id
     )
     
     # Add URL for the frontend
@@ -1011,13 +1022,16 @@ async def upload_project_attachment(
     db: Session = Depends(deps.get_db),
     project_id: int,
     file: UploadFile = File(...),
+    category_id: Optional[int] = Form(None),  # Optional category ID
+    language_id: Optional[int] = Form(None),  # Optional language ID
     current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Upload an attachment for a project.
     Supported file types: PDF, Word docs, Excel, CSV, text files
+    Optionally accepts category_id and language_id to categorize and associate the attachment.
     """
-    logger.info(f"Uploading attachment for project {project_id}: {file.filename}")
+    logger.info(f"Uploading attachment for project {project_id}: {file.filename}, category_id: {category_id}, language_id: {language_id}")
     
     try:
         # Check if project exists
@@ -1084,14 +1098,17 @@ async def upload_project_attachment(
         # Create attachment in database
         attachment_data = schemas.ProjectAttachmentCreate(
             file_path=relative_path,
-            file_name=file.filename  # Keep original filename for display
+            file_name=file.filename,  # Keep original filename for display
+            category_id=category_id,  # Associate with category if provided
+            language_id=language_id   # Associate with language if provided
         )
         
         # Add project attachment to database
         project_attachment = crud.project.add_project_attachment(
             db, 
             project_id=project_id, 
-            attachment=attachment_data
+            attachment=attachment_data,
+            created_by=current_user.id
         )
         
         # Add file URL for frontend

@@ -685,6 +685,107 @@ export const portfolioApi = {
       throw error;
     }
   },
+
+  /**
+   * Project-specific operations
+   */
+
+  /**
+   * Upload an image for a specific project
+   * @param {number} projectId - Project ID
+   * @param {File} file - Image file to upload
+   * @param {string} category - Image category (e.g., 'screenshots', 'diagrams')
+   * @param {string} token - Authentication token
+   * @param {string} languageCode - Language code ('en', 'es') - optional
+   * @returns {Promise<Object>} - Uploaded image details
+   */
+  uploadProjectImage: async (projectId, file, category, token, languageCode = null) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('category', category);
+
+      if (languageCode) {
+        const languageId = getLanguageId(languageCode);
+        formData.append('language_id', languageId);
+        console.log('[Upload Project Image] Adding language_id:', languageId, 'for language:', languageCode);
+      }
+
+      const headers = getHeaders(token, false); // Don't include Content-Type for FormData
+      
+      console.log('[Upload Project Image] Sending request:', {
+        projectId,
+        category,
+        languageCode,
+        hasAuthToken: !!token,
+        hasCsrfToken: !!headers['X-CSRF-Token']
+      });
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/projects/${projectId}/images`,
+        {
+          method: 'POST',
+          headers: headers,
+          credentials: 'include',
+          body: formData,
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error uploading project image:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Upload an attachment for a specific project
+   * @param {number} projectId - Project ID
+   * @param {File} file - Attachment file to upload
+   * @param {number} categoryId - Category ID (optional)
+   * @param {string} token - Authentication token
+   * @param {string} languageCode - Language code ('en', 'es') - optional
+   * @returns {Promise<Object>} - Uploaded attachment details
+   */
+  uploadProjectAttachment: async (projectId, file, categoryId, token, languageCode = null) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      if (categoryId) {
+        formData.append('category_id', categoryId);
+      }
+
+      if (languageCode) {
+        const languageId = getLanguageId(languageCode);
+        formData.append('language_id', languageId);
+        console.log('[Upload Project Attachment] Adding language_id:', languageId, 'for language:', languageCode);
+      }
+
+      const headers = getHeaders(token, false); // Don't include Content-Type for FormData
+      
+      console.log('[Upload Project Attachment] Sending request:', {
+        projectId,
+        categoryId,
+        languageCode,
+        hasAuthToken: !!token,
+        hasCsrfToken: !!headers['X-CSRF-Token']
+      });
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/projects/${projectId}/attachments`,
+        {
+          method: 'POST',
+          headers: headers,
+          credentials: 'include',
+          body: formData,
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error uploading project attachment:', error);
+      throw error;
+    }
+  },
 };
 
 export default portfolioApi;
