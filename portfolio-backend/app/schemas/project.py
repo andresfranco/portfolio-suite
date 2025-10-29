@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 from typing import List, Optional, Dict, Any, Union, Literal
-from datetime import datetime
+from datetime import datetime, date
 from app.core.logging import setup_logger
 
 # Set up logger
@@ -97,6 +97,7 @@ class ProjectAttachmentOut(ProjectAttachmentBase):
 class ProjectBase(BaseModel):
     repository_url: Optional[str] = None
     website_url: Optional[str] = None
+    project_date: Optional[date] = None
 
 class ProjectCreate(ProjectBase):
     project_texts: List[ProjectTextCreate]
@@ -106,6 +107,7 @@ class ProjectCreate(ProjectBase):
 class ProjectUpdate(BaseModel):
     repository_url: Optional[str] = None
     website_url: Optional[str] = None
+    project_date: Optional[date] = None
     project_texts: Optional[List[ProjectTextCreate]] = None
     categories: Optional[List[int]] = None
     skills: Optional[List[int]] = None

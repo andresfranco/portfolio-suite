@@ -37,12 +37,16 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
 
   // Get project text in current language
   const projectText = getProjectText(project);
-  
+
   // Safe access to nested properties
   const title = projectText.name;
   const description = projectText.description;
   const brief = projectText.brief || projectText.description; // Use description as fallback
-  const date = project.created_at ? new Date(project.created_at).toLocaleDateString() : '';
+  const date = project.project_date
+    ? new Date(project.project_date).toLocaleDateString()
+    : project.created_at
+    ? new Date(project.created_at).toLocaleDateString()
+    : '';
   
   // Get project image
   const projectImage = project.images && project.images.length > 0
