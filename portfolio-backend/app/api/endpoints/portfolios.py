@@ -253,6 +253,72 @@ def process_portfolios_for_response(
                             
                             proj_dict["attachments"].append(att_dict)
                     
+                    # Include project categories if they exist
+                    if hasattr(project, 'categories') and project.categories:
+                        for category in project.categories:
+                            cat_dict = {
+                                "id": category.id,
+                                "code": category.code,
+                                "type_code": category.type_code,
+                                "category_texts": []
+                            }
+                            
+                            # Include category texts if they exist
+                            if hasattr(category, 'category_texts') and category.category_texts:
+                                for text in category.category_texts:
+                                    text_dict = {
+                                        "id": text.id,
+                                        "language_id": text.language_id,
+                                        "name": text.name,
+                                        "description": text.description if hasattr(text, 'description') else None
+                                    }
+                                    
+                                    # Include language if it exists
+                                    if hasattr(text, "language") and text.language is not None:
+                                        language = text.language
+                                        text_dict["language"] = {
+                                            "id": language.id,
+                                            "code": language.code,
+                                            "name": language.name
+                                        }
+                                    
+                                    cat_dict["category_texts"].append(text_dict)
+                            
+                            proj_dict["categories"].append(cat_dict)
+                    
+                    # Include project skills if they exist
+                    if hasattr(project, 'skills') and project.skills:
+                        for skill in project.skills:
+                            skill_dict = {
+                                "id": skill.id,
+                                "type": skill.type if hasattr(skill, 'type') else None,
+                                "type_code": skill.type_code if hasattr(skill, 'type_code') else None,
+                                "skill_texts": []
+                            }
+                            
+                            # Include skill texts if they exist
+                            if hasattr(skill, 'skill_texts') and skill.skill_texts:
+                                for text in skill.skill_texts:
+                                    text_dict = {
+                                        "id": text.id,
+                                        "language_id": text.language_id,
+                                        "name": text.name,
+                                        "description": text.description if hasattr(text, 'description') else None
+                                    }
+                                    
+                                    # Include language if it exists
+                                    if hasattr(text, "language") and text.language is not None:
+                                        language = text.language
+                                        text_dict["language"] = {
+                                            "id": language.id,
+                                            "code": language.code,
+                                            "name": language.name
+                                        }
+                                    
+                                    skill_dict["skill_texts"].append(text_dict)
+                            
+                            proj_dict["skills"].append(skill_dict)
+                    
                     portfolio_dict["projects"].append(proj_dict)
             
             # Process sections

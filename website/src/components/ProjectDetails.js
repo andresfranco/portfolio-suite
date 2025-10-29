@@ -42,13 +42,92 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
   const title = projectText.name;
   const description = projectText.description;
   const brief = projectText.brief || projectText.description; // Use description as fallback
-  const category = project.category || '';
   const date = project.created_at ? new Date(project.created_at).toLocaleDateString() : '';
   
   // Get project image
   const projectImage = project.images && project.images.length > 0
     ? `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${project.images[0].image_path}`
     : require('../assets/images/project1.jpg'); // fallback image
+  
+  // Helper function to get category name from category_texts
+  const getCategoryName = (category) => {
+    if (!category) return '';
+    
+    console.log('Processing category:', category);
+    
+    // Try to get name from category_texts array
+    if (category.category_texts && category.category_texts.length > 0) {
+      console.log('Category has category_texts:', category.category_texts);
+      // Try to find text for current language
+      const categoryText = category.category_texts.find(text => {
+        // Match language by code if available
+        return text.language_code === language || text.language_id === (language === 'en' ? 1 : 2);
+      });
+      if (categoryText && categoryText.name) {
+        console.log('Found category name from category_texts:', categoryText.name);
+        return categoryText.name;
+      }
+      // Fallback to first available text
+      if (category.category_texts[0].name) {
+        console.log('Using first category_text name:', category.category_texts[0].name);
+        return category.category_texts[0].name;
+      }
+    }
+    
+    // Try direct name property
+    if (category.name) {
+      console.log('Using direct category name:', category.name);
+      return category.name;
+    }
+    
+    // Fallback to code or empty string
+    const fallback = category.code || '';
+    console.log('Using category code as fallback:', fallback);
+    return fallback;
+  };
+  
+  // Helper function to get skill name from skill_texts
+  const getSkillName = (skill) => {
+    if (!skill) return '';
+    
+    // Log skill data for debugging
+    console.log('Processing skill:', skill);
+    
+    // Try to get name from skill_texts array
+    if (skill.skill_texts && skill.skill_texts.length > 0) {
+      console.log('Skill has skill_texts:', skill.skill_texts);
+      // Try to find text for current language
+      const skillText = skill.skill_texts.find(text => {
+        // Match language by code if available
+        return text.language_code === language || text.language_id === (language === 'en' ? 1 : 2);
+      });
+      if (skillText && skillText.name) {
+        console.log('Found skill name from skill_texts:', skillText.name);
+        return skillText.name;
+      }
+      // Fallback to first available text
+      if (skill.skill_texts[0].name) {
+        console.log('Using first skill_text name:', skill.skill_texts[0].name);
+        return skill.skill_texts[0].name;
+      }
+    }
+    
+    // Try direct name property (from old API structure)
+    if (skill.name) {
+      console.log('Using direct skill name:', skill.name);
+      return skill.name;
+    }
+    
+    // Fallback to type or empty string
+    const fallback = skill.type || '';
+    console.log('Using skill type as fallback:', fallback);
+    return fallback;
+  };
+
+  // Log project data for debugging
+  console.log('Project data:', project);
+  console.log('Project skills:', project.skills);
+  console.log('Project categories:', project.categories);
 
   // Validate required data
   if (!title || !description) {
@@ -98,47 +177,31 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
       </div>
 
       {/* Main Content - Adjusted spacing for better header visibility */}
-      <article className="max-w-7xl mx-auto px-4">
-        {/* Project Header - Increased top margin for better spacing */}
-        <header className="pt-32 pb-6 md:pb-12 max-w-4xl mx-auto">
-          <div className="mt-24 mb-8 md:mb-12"> {/* Changed from mt-16 to mt-24 for more spacing */}
-            <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 md:mb-6">
-              {isEditMode && projectText.id ? (
-                <InlineTextEditor
-                  value={title}
-                  entityType="project"
-                  entityId={projectText.id}
-                  fieldName="name"
-                  className="text-4xl md:text-5xl font-bold text-white mb-4 md:mb-6"
-                  placeholder="Enter project name..."
-                />
-              ) : (
-                title
-              )}
-            </h1>
-            {brief && (
-              <div className="text-xl text-gray-300 leading-relaxed">
-                {isEditMode && projectText.id ? (
-                  <InlineTextEditor
-                    value={brief}
-                    entityType="project"
-                    entityId={projectText.id}
-                    fieldName="description"
-                    className="text-xl text-gray-300 leading-relaxed"
-                    placeholder="Enter project brief..."
-                    multiline={true}
-                  />
-                ) : (
-                  <p>{brief}</p>
-                )}
-              </div>
-            )}
-          </div>
-        </header>
+      <article className="max-w-7xl mx-auto px-4 pt-40 md:pt-48">
 
         {/* Project Content Grid - Reordered for mobile */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-12 mb-20"> {/* Reduced gap on mobile */}
           <div className="lg:col-span-2 space-y-6 md:space-y-8 order-2 lg:order-1"> {/* Reduced spacing on mobile */}
+            
+            {/* 1. Project Name/Title - First */}
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">
+                {isEditMode && projectText.id ? (
+                  <InlineTextEditor
+                    value={title}
+                    entityType="project"
+                    entityId={projectText.id}
+                    fieldName="name"
+                    className="text-3xl md:text-4xl font-bold text-white"
+                    placeholder="Enter project name..."
+                  />
+                ) : (
+                  title
+                )}
+              </h1>
+            </div>
+            
+            {/* 2. Project Image/Logo - Second */}
             <div className="rounded-xl overflow-hidden bg-gray-800 shadow-lg relative">
               {/* Project Logo/Main Image with Edit Capability */}
               <ProjectImageSelector
@@ -149,18 +212,17 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
                 className="w-full h-auto"
               />
             </div>
+            
+            {/* 3. Project Description - Third */}
             <div className="prose prose-lg prose-invert max-w-none">
-              <h2 className="text-2xl font-bold text-white mb-4">
-                {projectOverviewLabel.renderEditable('text-2xl font-bold text-white mb-4')}
-              </h2>
-              <div className="text-gray-300">
+              <div className="text-gray-300 text-lg leading-relaxed">
                 {isEditMode && projectText.id ? (
                   <InlineTextEditor
                     value={description}
                     entityType="project"
                     entityId={projectText.id}
                     fieldName="description"
-                    className="text-gray-300"
+                    className="text-gray-300 text-lg leading-relaxed"
                     placeholder="Enter project description..."
                     multiline={true}
                   />
@@ -171,28 +233,29 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
             </div>
 
             {/* Skills Section - Added extra bottom margin */}
-            <div className="mt-8 mb-12">
-              <h2 className="text-2xl font-bold text-white mb-6">
-                {skillsTechLabel.renderEditable('text-2xl font-bold text-white mb-6')}
-              </h2>
-              <div className="flex flex-wrap gap-3">
-                {project.skills?.map((skill, index) => {
-                  // Get skill name - handle both old and new API structure
-                  const skillName = skill.skill_texts && skill.skill_texts.length > 0
-                    ? skill.skill_texts[0].name
-                    : skill.name?.[language] || skill.name || 'Skill';
-                  
-                  return (
-                    <span
-                      key={skill.id || index}
-                      className="px-4 py-2 bg-gray-800 text-white rounded-full border border-[#14C800]/30 transition-all duration-300 hover:bg-[#14C800] hover:border-transparent hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] transform hover:-translate-y-1"
-                    >
-                      {skillName}
-                    </span>
-                  );
-                })}
+            {project.skills && project.skills.length > 0 && (
+              <div className="mt-8 mb-12">
+                <h2 className="text-2xl font-bold text-white mb-6">
+                  {skillsTechLabel.renderEditable('text-2xl font-bold text-white mb-6')}
+                </h2>
+                <div className="flex flex-wrap gap-3">
+                  {project.skills.map((skill, index) => {
+                    const skillName = getSkillName(skill);
+                    
+                    if (!skillName) return null;
+                    
+                    return (
+                      <span
+                        key={skill.id || index}
+                        className="px-4 py-2 bg-gray-800 text-white rounded-full border border-[#14C800]/30 transition-all duration-300 hover:bg-[#14C800] hover:border-transparent hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] transform hover:-translate-y-1"
+                      >
+                        {skillName}
+                      </span>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Project Info Sidebar - Moved to top on mobile */}
@@ -209,13 +272,25 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
                     <dd className="text-white">{date}</dd>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <FaFolder className="text-[#14C800] text-xl" />
-                  <div>
-                    <dt className="text-gray-400 text-sm">{categoryLabel.renderEditable('text-gray-400 text-sm')}</dt>
-                    <dd className="text-white">{category}</dd>
+                {project.categories && project.categories.length > 0 && (
+                  <div className="flex items-center gap-3">
+                    <FaFolder className="text-[#14C800] text-xl" />
+                    <div>
+                      <dt className="text-gray-400 text-sm">{categoryLabel.renderEditable('text-gray-400 text-sm')}</dt>
+                      <dd className="text-white">
+                        {project.categories.map((cat, index) => {
+                          const categoryName = getCategoryName(cat);
+                          return (
+                            <span key={cat.id || index}>
+                              {categoryName}
+                              {index < project.categories.length - 1 ? ', ' : ''}
+                            </span>
+                          );
+                        })}
+                      </dd>
+                    </div>
                   </div>
-                </div>
+                )}
                 <div className="pt-6 space-y-4">
                   {project.website_url && (
                     <a href={project.website_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 w-full bg-[#14C800] text-white px-4 py-2 rounded-lg transition-all duration-300 hover:bg-[#14C800]/90 hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] transform hover:-translate-y-1">

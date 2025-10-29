@@ -22,3 +22,11 @@ export { RichTextEditor } from './RichTextEditor';
 export { ContentEditorModal } from './ContentEditorModal';
 export { TranslationEditor } from './TranslationEditor';
 export { ExperienceSelector } from './ExperienceSelector';
+
+// Project Management
+export { 
+  ProjectManagement,
+  ProjectFormDialog,
+  ProjectActionButtons,
+  ProjectDeleteDialog
+} from './ProjectManagement';

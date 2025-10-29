@@ -5,7 +5,14 @@ import { usePortfolio } from '../context/PortfolioContext';
 import { useEditMode } from '../context/EditModeContext';
 import { useSectionLabel } from '../hooks/useSectionLabel';
 import { translations } from '../data/translations';
-import { InlineTextEditor, ProjectImageSelector } from './cms';
+import { 
+  InlineTextEditor, 
+  ProjectImageSelector,
+  ProjectManagement,
+  ProjectActionButtons,
+  ProjectFormDialog,
+  ProjectDeleteDialog
+} from './cms';
 import ProjectDetails from './ProjectDetails';
 
 const ProjectModal = ({ project, onClose, onViewDetails, language, getProjectText }) => {
@@ -94,8 +101,14 @@ const Projects = () => {
   const [showModal, setShowModal] = useState(false);
   const navigate = useNavigate();
   const { language } = useContext(LanguageContext);
-  const { getProjects, getProjectText, loading } = usePortfolio();
-  const { isEditMode } = useEditMode();
+  const { getProjects, getProjectText, loading, refreshPortfolio } = usePortfolio();
+  const { isEditMode, authToken, showNotification } = useEditMode();
+
+  // Edit mode states
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [projectToEdit, setProjectToEdit] = useState(null);
+  const [projectToDelete, setProjectToDelete] = useState(null);
 
   // Get editable section labels
   const projectsTitle = useSectionLabel('SECTION_PROJECTS', 'projects');
@@ -119,6 +132,31 @@ const Projects = () => {
     navigate(route);
   };
 
+  // Edit mode handlers
+  const handleEditProject = (project) => {
+    setProjectToEdit(project);
+    setShowEditDialog(true);
+  };
+
+  const handleDeleteProject = (project) => {
+    setProjectToDelete(project);
+    setShowDeleteDialog(true);
+  };
+
+  const handleEditSuccess = () => {
+    setShowEditDialog(false);
+    setProjectToEdit(null);
+    refreshPortfolio();
+    showNotification('Success', 'Project updated successfully', 'success');
+  };
+
+  const handleDeleteSuccess = () => {
+    setShowDeleteDialog(false);
+    setProjectToDelete(null);
+    refreshPortfolio();
+    showNotification('Success', 'Project deleted successfully', 'success');
+  };
+
   // Show loading state
   if (loading) {
     return (
@@ -138,6 +176,10 @@ const Projects = () => {
             <h2 className="text-4xl font-bold mb-8 text-white">
               {projectsTitle.renderEditable('text-4xl font-bold mb-8 text-white')}
             </h2>
+
+            {/* Project Management Controls (visible in edit mode) */}
+            <ProjectManagement />
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-12 max-w-5xl mx-auto">
               {projects.map((project) => {
                 const projectText = getProjectText(project);
@@ -164,6 +206,13 @@ const Projects = () => {
                       transform hover:-translate-y-1
                       aspect-[16/10]"
                   >
+                    {/* Edit/Delete Action Buttons (visible in edit mode) */}
+                    <ProjectActionButtons
+                      project={project}
+                      onEdit={handleEditProject}
+                      onDelete={handleDeleteProject}
+                    />
+
                     {/* Project Thumbnail with Edit Capability */}
                     <ProjectImageSelector
                       project={project}
@@ -199,6 +248,34 @@ const Projects = () => {
           onViewDetails={() => handleViewDetails(selectedProject.id)}
           language={language}
           getProjectText={getProjectText}
+        />
+      )}
+
+      {/* Edit Project Dialog */}
+      {showEditDialog && projectToEdit && (
+        <ProjectFormDialog
+          mode="edit"
+          project={projectToEdit}
+          onClose={() => {
+            setShowEditDialog(false);
+            setProjectToEdit(null);
+          }}
+          onSuccess={handleEditSuccess}
+          authToken={authToken}
+          language={language}
+        />
+      )}
+
+      {/* Delete Project Dialog */}
+      {showDeleteDialog && projectToDelete && (
+        <ProjectDeleteDialog
+          project={projectToDelete}
+          onClose={() => {
+            setShowDeleteDialog(false);
+            setProjectToDelete(null);
+          }}
+          onSuccess={handleDeleteSuccess}
+          authToken={authToken}
         />
       )}
     </div>
