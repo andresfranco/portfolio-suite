@@ -24,6 +24,9 @@ import {
   Divider,
   InputAdornment
 } from '@mui/material';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
@@ -40,6 +43,7 @@ function ProjectForm({ open, onClose, project, mode = 'create' }) {
     id: '',
     repository_url: '',
     website_url: '',
+    project_date: null,
     project_texts: [],
     categories: [],
     skills: []
@@ -282,6 +286,7 @@ function ProjectForm({ open, onClose, project, mode = 'create' }) {
           id: project.id || '',
           repository_url: project.repository_url || '',
           website_url: project.website_url || '',
+          project_date: project.project_date ? new Date(project.project_date) : null,
           project_texts: project.project_texts || [],
           categories: project.categories || [],
           skills: project.skills || []
@@ -293,6 +298,7 @@ function ProjectForm({ open, onClose, project, mode = 'create' }) {
         id: '',
         repository_url: '',
         website_url: '',
+        project_date: null,
         project_texts: [],
         categories: [],
         skills: []
@@ -345,6 +351,7 @@ function ProjectForm({ open, onClose, project, mode = 'create' }) {
       const requestData = {
         repository_url: formData.repository_url,
         website_url: formData.website_url,
+        project_date: formData.project_date ? formData.project_date.toISOString().split('T')[0] : null,
         categories: selectedCategories,
         project_texts: selectedLanguages.map(lang => ({
           language_id: lang.id,
@@ -383,9 +390,20 @@ function ProjectForm({ open, onClose, project, mode = 'create' }) {
       ...prev,
       [name]: value
     }));
-    
+
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: null }));
+    }
+  };
+
+  const handleDateChange = (newDate) => {
+    setFormData(prev => ({
+      ...prev,
+      project_date: newDate
+    }));
+
+    if (errors.project_date) {
+      setErrors(prev => ({ ...prev, project_date: null }));
     }
   };
 
@@ -548,9 +566,9 @@ function ProjectForm({ open, onClose, project, mode = 'create' }) {
             
             {/* Website URL */}
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-              <Typography 
-                variant="body2" 
-                sx={{ 
+              <Typography
+                variant="body2"
+                sx={{
                   color: '#505050',
                   fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
                   fontSize: '13px'
@@ -559,7 +577,23 @@ function ProjectForm({ open, onClose, project, mode = 'create' }) {
                 <strong>Website URL:</strong> {formData.website_url || 'None'}
               </Typography>
             </Box>
-            
+
+            {/* Project Date */}
+            {formData.project_date && (
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: '#505050',
+                    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+                    fontSize: '13px'
+                  }}
+                >
+                  <strong>Project Date:</strong> {new Date(formData.project_date).toLocaleDateString()}
+                </Typography>
+              </Box>
+            )}
+
             {/* Categories */}
             {selectedCategories.length > 0 && (
               <Box sx={{ mb: 1 }}>
@@ -694,7 +728,25 @@ function ProjectForm({ open, onClose, project, mode = 'create' }) {
               size="small"
             />
           </Grid>
-          
+
+          <Grid item xs={12}>
+            <LocalizationProvider dateAdapter={AdapterDateFns}>
+              <DatePicker
+                label="Project Date"
+                value={formData.project_date}
+                onChange={handleDateChange}
+                disabled={isSubmitting || mode === 'delete'}
+                slotProps={{
+                  textField: {
+                    fullWidth: true,
+                    size: "small",
+                    helperText: "Optional: Date associated with this project"
+                  }
+                }}
+              />
+            </LocalizationProvider>
+          </Grid>
+
           {/* Categories Section */}
           <Grid item xs={12}>
             <FormControl fullWidth size="small">

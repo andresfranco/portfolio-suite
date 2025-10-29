@@ -34,12 +34,13 @@ def get_project(db: Session, project_id: int) -> Optional[Project]:
 
 def create_project(db: Session, project: ProjectCreate):
     logger.debug(f"Starting project creation with {len(project.project_texts)} texts")
-    
+
     try:
         # Create the project
         db_project = Project(
             repository_url=project.repository_url,
-            website_url=project.website_url
+            website_url=project.website_url,
+            project_date=project.project_date
         )
         db.add(db_project)
         db.flush()  # Flush to get the project ID
@@ -113,10 +114,13 @@ def update_project(db: Session, project_id: int, project: ProjectUpdate):
     # Update fields if provided
     if project.repository_url is not None:
         db_project.repository_url = project.repository_url
-    
+
     if project.website_url is not None:
         db_project.website_url = project.website_url
-    
+
+    if project.project_date is not None:
+        db_project.project_date = project.project_date
+
     # Update categories if provided
     if project.categories is not None:
         categories = db.query(Category).filter(Category.id.in_(project.categories)).all()
