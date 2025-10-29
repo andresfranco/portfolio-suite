@@ -113,6 +113,7 @@ def read_projects(
                     "id": project.id,
                     "repository_url": project.repository_url or "",
                     "website_url": project.website_url or "",
+                    "project_date": project.project_date.isoformat() if project.project_date else None,
                     "project_texts": [],
                     "images": [],
                     "attachments": [],
@@ -157,6 +158,7 @@ def process_projects_for_response(projects: List[models.project.Project]) -> Lis
                 "id": project.id,
                 "repository_url": project.repository_url or "",
                 "website_url": project.website_url or "",
+                "project_date": project.project_date.isoformat() if project.project_date else None,
                 "project_texts": [
                     {
                         "id": text.id,
@@ -196,6 +198,7 @@ def process_projects_for_response(projects: List[models.project.Project]) -> Lis
                 "id": project.id if hasattr(project, 'id') else None,
                 "repository_url": project.repository_url if hasattr(project, 'repository_url') else "",
                 "website_url": project.website_url if hasattr(project, 'website_url') else "",
+                "project_date": project.project_date.isoformat() if hasattr(project, 'project_date') and project.project_date else None,
                 "project_texts": [],
                 "categories": [],
                 "skills": []
@@ -346,14 +349,15 @@ def create_project(
             "op": "insert",
             "source_table": "projects",
             "source_id": str(project.id),
-            "changed_fields": ["repository_url", "website_url"]
+            "changed_fields": ["repository_url", "website_url", "project_date"]
         })
-        
+
         # Convert to dictionary for proper serialization
         project_dict = {
             "id": project.id,
             "repository_url": project.repository_url or "",
             "website_url": project.website_url or "",
+            "project_date": project.project_date.isoformat() if project.project_date else None,
             "project_texts": [
                 {
                     "id": text.id,
@@ -383,7 +387,7 @@ def create_project(
                 for skill in (project.skills or [])
             ]
         }
-        
+
         return project_dict
     except Exception as e:
         logger.error(f"Error creating project: {e}")
@@ -415,12 +419,13 @@ def read_project(
                 status_code=404,
                 detail="Project not found",
             )
-        
+
         # Convert to dictionary for proper serialization
         project_dict = {
             "id": project.id,
             "repository_url": project.repository_url or "",
             "website_url": project.website_url or "",
+            "project_date": project.project_date.isoformat() if project.project_date else None,
             "project_texts": [
                 {
                     "id": text.id,
@@ -450,7 +455,7 @@ def read_project(
                 for skill in (project.skills or [])
             ]
         }
-        
+
         return project_dict
     except HTTPException:
         raise
@@ -514,6 +519,7 @@ def update_project(
             "id": updated_project.id,
             "repository_url": updated_project.repository_url or "",
             "website_url": updated_project.website_url or "",
+            "project_date": updated_project.project_date.isoformat() if updated_project.project_date else None,
             "project_texts": [
                 {
                     "id": text.id,
