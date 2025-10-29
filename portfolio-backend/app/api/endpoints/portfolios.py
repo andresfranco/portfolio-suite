@@ -166,6 +166,8 @@ def process_portfolios_for_response(
                         "id": project.id,
                         "repository_url": project.repository_url,
                         "website_url": project.website_url,
+                        "project_date": project.project_date.isoformat() if hasattr(project, 'project_date') and project.project_date else None,
+                        "created_at": project.created_at if hasattr(project, 'created_at') else None,
                         "project_texts": [],
                         "categories": [],
                         "skills": [],
