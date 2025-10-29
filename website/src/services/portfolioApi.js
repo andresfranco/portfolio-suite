@@ -691,6 +691,147 @@ export const portfolioApi = {
    */
 
   /**
+   * Create a new project
+   * @param {Object} projectData - Project data (repository_url, website_url, project_texts, categories, skills)
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - Created project
+   */
+  createProject: async (projectData, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/projects/`,
+        {
+          method: 'POST',
+          headers: getHeaders(token),
+          credentials: 'include',
+          body: JSON.stringify(projectData),
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error creating project:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Update an existing project
+   * @param {number} projectId - Project ID
+   * @param {Object} projectData - Project data to update (repository_url, website_url, project_texts, categories, skills)
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - Updated project
+   */
+  updateProject: async (projectId, projectData, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/projects/${projectId}`,
+        {
+          method: 'PUT',
+          headers: getHeaders(token),
+          credentials: 'include',
+          body: JSON.stringify(projectData),
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error(`Error updating project ${projectId}:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Delete a project
+   * @param {number} projectId - Project ID
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - Deleted project
+   */
+  deleteProject: async (projectId, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/projects/${projectId}`,
+        {
+          method: 'DELETE',
+          headers: getHeaders(token),
+          credentials: 'include',
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error(`Error deleting project ${projectId}:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get all languages
+   * @param {string} token - Authentication token (optional for public access)
+   * @returns {Promise<Object>} - Languages list
+   */
+  getLanguages: async (token = null) => {
+    try {
+      const headers = token ? getHeaders(token) : { 'Content-Type': 'application/json' };
+      const response = await fetch(
+        `${API_BASE_URL}/api/languages/?page=1&page_size=100`,
+        {
+          method: 'GET',
+          headers: headers,
+          credentials: 'include',
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error fetching languages:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get all categories
+   * @param {string} token - Authentication token (optional for public access)
+   * @returns {Promise<Object>} - Categories list
+   */
+  getCategories: async (token = null) => {
+    try {
+      const headers = token ? getHeaders(token) : { 'Content-Type': 'application/json' };
+      const response = await fetch(
+        `${API_BASE_URL}/api/categories/?page=1&page_size=100`,
+        {
+          method: 'GET',
+          headers: headers,
+          credentials: 'include',
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get all skills
+   * @param {string} token - Authentication token (optional for public access)
+   * @returns {Promise<Object>} - Skills list
+   */
+  getSkills: async (token = null) => {
+    try {
+      const headers = token ? getHeaders(token) : { 'Content-Type': 'application/json' };
+      const response = await fetch(
+        `${API_BASE_URL}/api/skills/?page=1&page_size=100`,
+        {
+          method: 'GET',
+          headers: headers,
+          credentials: 'include',
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error fetching skills:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Upload an image for a specific project
    * @param {number} projectId - Project ID
    * @param {File} file - Image file to upload
