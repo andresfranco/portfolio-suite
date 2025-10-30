@@ -308,30 +308,32 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
                 )}
               </div>
               <dl className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <FaCalendar className="text-[#14C800] text-xl" />
-                  <div>
-                    <dt className="text-gray-400 text-sm">{dateLabel.renderEditable('text-gray-400 text-sm')}</dt>
-                    <dd className="text-white">{date}</dd>
+                <div className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 items-start">
+                  <div className="inline-flex items-center justify-center w-8 h-8 border border-[#14C800] rounded-md text-[#14C800]">
+                    <FaCalendar className="w-3.5 h-3.5" />
                   </div>
+                  <dt className="text-gray-400 text-sm leading-tight mt-1">{dateLabel.renderEditable('text-gray-400 text-sm')}</dt>
+                  <span />
+                  <dd className="text-white text-sm sm:text-base leading-tight">{date}</dd>
                 </div>
                 {project.categories && project.categories.length > 0 && (
-                  <div className="flex items-center gap-3">
-                    <FaFolder className="text-[#14C800] text-xl" />
-                    <div>
-                      <dt className="text-gray-400 text-sm">{categoryLabel.renderEditable('text-gray-400 text-sm')}</dt>
-                      <dd className="text-white">
-                        {project.categories.map((cat, index) => {
-                          const categoryName = getCategoryName(cat);
-                          return (
-                            <span key={cat.id || index}>
-                              {categoryName}
-                              {index < project.categories.length - 1 ? ', ' : ''}
-                            </span>
-                          );
-                        })}
-                      </dd>
+                  <div className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 items-start">
+                    <div className="inline-flex items-center justify-center w-8 h-8 border border-[#14C800] rounded-md text-[#14C800]">
+                      <FaFolder className="w-3.5 h-3.5" />
                     </div>
+                    <dt className="text-gray-400 text-sm leading-tight mt-1">{categoryLabel.renderEditable('text-gray-400 text-sm')}</dt>
+                    <span />
+                    <dd className="text-white text-sm sm:text-base leading-tight">
+                      {project.categories.map((cat, index) => {
+                        const categoryName = getCategoryName(cat);
+                        return (
+                          <span key={cat.id || index}>
+                            {categoryName}
+                            {index < project.categories.length - 1 ? ', ' : ''}
+                          </span>
+                        );
+                      })}
+                    </dd>
                   </div>
                 )}
                 <div className="pt-6 space-y-4">
