@@ -1,5 +1,5 @@
-import React, { useState, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useContext, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { LanguageContext } from '../context/LanguageContext';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useEditMode } from '../context/EditModeContext';
@@ -100,7 +100,8 @@ const Projects = () => {
   const [selectedProject, setSelectedProject] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const navigate = useNavigate();
-  const { language } = useContext(LanguageContext);
+  const { lang } = useParams();
+  const { language, setLanguage } = useContext(LanguageContext);
   const { getProjects, getProjectText, loading, refreshPortfolio } = usePortfolio();
   const { isEditMode, authToken, showNotification } = useEditMode();
 
@@ -117,6 +118,20 @@ const Projects = () => {
   // Get projects from portfolio context
   const projects = getProjects();
 
+  // Sync language from URL prefix when present
+  useEffect(() => {
+    if (!lang) {
+      return;
+    }
+
+    const supportedLanguages = ['en', 'es'];
+    const normalizedLang = supportedLanguages.includes(lang) ? lang : 'en';
+
+    if (normalizedLang !== language) {
+      setLanguage(normalizedLang);
+    }
+  }, [lang, language, setLanguage]);
+
   const handleProjectClick = (project, isCtrlClick = false) => {
     // Allow Ctrl/Cmd+click to open modal even in edit mode
     // Otherwise, don't open project modal in edit mode
@@ -128,8 +143,7 @@ const Projects = () => {
 
   const handleViewDetails = (projectId) => {
     setShowModal(false);
-    const route = language === 'en' ? `/projects/${projectId}` : `/${language}/projects/${projectId}`;
-    navigate(route);
+    navigate(`/projects/${projectId}`);
   };
 
   // Edit mode handlers
