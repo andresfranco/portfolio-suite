@@ -24,9 +24,10 @@ export { TranslationEditor } from './TranslationEditor';
 export { ExperienceSelector } from './ExperienceSelector';
 
 // Project Management
-export { 
+export {
   ProjectManagement,
   ProjectFormDialog,
   ProjectActionButtons,
   ProjectDeleteDialog
 } from './ProjectManagement';
+export { ProjectMetadataEditor } from './ProjectMetadataEditor';

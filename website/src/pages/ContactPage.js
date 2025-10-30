@@ -1,12 +1,27 @@
-import React, { useState, useContext } from 'react'; // Import useContext
+import React, { useState, useContext, useEffect } from 'react'; // Import useContext
 import { FaGithub, FaLinkedin, FaXTwitter } from 'react-icons/fa6'; // Removed FaEnvelope as it's handled by the Contact component
+import { useParams } from 'react-router-dom';
 import { LanguageContext } from '../context/LanguageContext'; // Import LanguageContext
 import { useSectionLabel } from '../hooks/useSectionLabel';
 import { translations } from '../data/translations'; // Import translations
 
 const ContactPage = () => {
-  const { language } = useContext(LanguageContext); // Get language from context
+  const { lang } = useParams();
+  const { language, setLanguage } = useContext(LanguageContext); // Get language from context
   const t = translations[language]; // Get translations for the current language
+
+  useEffect(() => {
+    if (!lang) {
+      return;
+    }
+
+    const supportedLanguages = ['en', 'es'];
+    const normalizedLang = supportedLanguages.includes(lang) ? lang : 'en';
+
+    if (normalizedLang !== language) {
+      setLanguage(normalizedLang);
+    }
+  }, [lang, language, setLanguage]);
 
   // Get editable section labels
   const getInTouchLabel = useSectionLabel('SECTION_GET_IN_TOUCH', 'get_in_touch');

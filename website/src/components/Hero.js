@@ -185,8 +185,7 @@ const Hero = () => {
     }
     
     // Navigate to experience details (either normal mode or edit mode with modifier)
-    const route = language === 'en' ? `/experience/${expId}` : `/${language}/experience/${expId}`;
-    navigate(route);
+    navigate(`/experience/${expId}`);
   };
   
   /**
@@ -369,7 +368,7 @@ const Hero = () => {
               </div>
 
               {/* Experience Section */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 mb-12">
                 {experiences.map((exp) => {
                   const Icon = getIconComponent(exp.icon);
                   const experienceText = getExperienceText(exp);
@@ -378,21 +377,23 @@ const Hero = () => {
                     <div 
                       key={exp.id} 
                       onClick={(e) => handleExperienceClick(exp.id, e)}
-                      className="relative flex items-center gap-4 bg-black/30 p-4 rounded-lg backdrop-blur-sm border border-white/10 transform hover:-translate-y-1 transition-all duration-300 hover:border-[#14C800]/30 group cursor-pointer"
+                      className="relative flex flex-col items-center text-center bg-black/40 p-6 rounded-2xl min-h-[220px] backdrop-blur-sm border border-white/10 transform hover:-translate-y-1 transition-all duration-300 hover:border-[#14C800]/30 group cursor-pointer"
                       title={isEditMode ? "Click to edit • Ctrl/Cmd+Click to view details" : "View experience details"}
                     >
-                      <div className="text-[#14C800] text-3xl group-hover:scale-110 transition-transform duration-300">
+                      <div className="flex items-center justify-center w-16 h-16 rounded-full bg-[#14C800]/10 text-[#14C800] text-3xl mb-4 group-hover:scale-105 group-hover:bg-[#14C800]/20 transition-all duration-300">
                         <Icon />
                       </div>
-                      <div className="flex-1">
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-2xl font-bold text-white">{exp.years_experience || exp.years}+</span>
+                      <div className="flex-1 flex flex-col items-center justify-center">
+                        <div className="flex items-baseline gap-2 justify-center">
+                          <span className="text-4xl font-bold text-white">{exp.years_experience || exp.years}+</span>
                           {/* Use editable years label */}
-                          <span className="text-white/80 text-sm">
-                            {yearsLabel.renderEditable('text-white/80 text-sm')}
+                          <span className="text-white/60 text-xs uppercase tracking-wide">
+                            {yearsLabel.renderEditable('text-white/60 text-xs uppercase tracking-wide')}
                           </span>
                         </div>
-                        <p className="text-white font-medium">{experienceText.name}</p>
+                        <p className="mt-3 text-white font-semibold leading-relaxed">
+                          {experienceText.name}
+                        </p>
                       </div>
                       
                       {/* Edit mode controls */}
@@ -427,7 +428,7 @@ const Hero = () => {
                   <div className="relative">
                     <button
                       onClick={handleAddExperience}
-                      className="flex items-center justify-center gap-3 bg-black/30 p-4 rounded-lg backdrop-blur-sm border-2 border-dashed border-white/20 hover:border-[#14C800]/50 transition-all duration-300 text-white/70 hover:text-[#14C800] min-h-[100px] w-full"
+                      className="flex flex-col items-center justify-center gap-3 bg-black/30 p-6 rounded-2xl min-h-[220px] backdrop-blur-sm border-2 border-dashed border-white/20 hover:border-[#14C800]/50 transition-all duration-300 text-white/70 hover:text-[#14C800] w-full text-center"
                       title="Add experience"
                     >
                       <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
