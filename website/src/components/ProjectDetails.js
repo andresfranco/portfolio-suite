@@ -1,16 +1,24 @@
-import React, { useContext } from 'react';
-import { FaGithub, FaGlobe, FaCalendar, FaFolder, FaArrowLeft, FaArrowRight } from 'react-icons/fa6';
+import React, { useContext, useState } from 'react';
+import { FaGithub, FaGlobe, FaCalendar, FaFolder, FaArrowLeft, FaArrowRight, FaPencil } from 'react-icons/fa6';
 import { translations } from '../data/translations';
 import { LanguageContext } from '../context/LanguageContext';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useEditMode } from '../context/EditModeContext';
 import { useSectionLabel } from '../hooks/useSectionLabel';
-import { InlineTextEditor, ProjectImageSelector } from './cms';
+import { InlineTextEditor, ProjectImageSelector, ProjectMetadataEditor } from './cms';
 
 const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) => {
   const { language } = useContext(LanguageContext);
-  const { getProjectText } = usePortfolio();
+  const { getProjectText, refreshPortfolio } = usePortfolio();
   const { isEditMode } = useEditMode();
+  const [isMetadataEditorOpen, setIsMetadataEditorOpen] = useState(false);
+
+  /**
+   * Handle metadata update - refresh portfolio data
+   */
+  const handleMetadataUpdate = async () => {
+    await refreshPortfolio();
+  };
 
   // Get editable section labels
   const backToProjectsLabel = useSectionLabel('BTN_BACK_TO_PROJECTS', 'back_to_projects');
@@ -42,10 +50,30 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
   const title = projectText.name;
   const description = projectText.description;
   const brief = projectText.brief || projectText.description; // Use description as fallback
+
+  // Format date without timezone conversion to avoid off-by-one day issues
+  const formatDateWithoutTimezone = (dateStr) => {
+    if (!dateStr) return '';
+
+    // Extract date part if it contains time component
+    let datePart = dateStr;
+    if (dateStr.includes('T')) {
+      datePart = dateStr.split('T')[0];
+    }
+
+    // Parse date parts directly (YYYY-MM-DD format)
+    const [year, month, day] = datePart.split('-').map(Number);
+
+    // Create date in local timezone (months are 0-indexed in JavaScript)
+    const date = new Date(year, month - 1, day);
+
+    return date.toLocaleDateString();
+  };
+
   const date = project.project_date
-    ? new Date(project.project_date).toLocaleDateString()
+    ? formatDateWithoutTimezone(project.project_date)
     : project.created_at
-    ? new Date(project.created_at).toLocaleDateString()
+    ? formatDateWithoutTimezone(project.created_at)
     : '';
   
   // Get project image
@@ -265,9 +293,20 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
           {/* Project Info Sidebar - Moved to top on mobile */}
           <aside className="lg:col-span-1 order-1 lg:order-2">
             <div className="bg-gray-800 rounded-xl p-6 lg:sticky lg:top-24">
-              <h3 className="text-xl font-semibold text-white mb-6">
-                {projectDetailsLabel.renderEditable('text-xl font-semibold text-white mb-6')}
-              </h3>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-white">
+                  {projectDetailsLabel.renderEditable('text-xl font-semibold text-white')}
+                </h3>
+                {isEditMode && (
+                  <button
+                    onClick={() => setIsMetadataEditorOpen(true)}
+                    className="text-white/70 hover:text-[#14C800] transition-colors p-2 rounded-lg hover:bg-gray-700"
+                    title="Edit project metadata"
+                  >
+                    <FaPencil size={18} />
+                  </button>
+                )}
+              </div>
               <dl className="space-y-4">
                 <div className="flex items-center gap-3">
                   <FaCalendar className="text-[#14C800] text-xl" />
@@ -314,6 +353,14 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
           </aside>
         </div>
       </article>
+
+      {/* Project Metadata Editor Modal */}
+      <ProjectMetadataEditor
+        isOpen={isMetadataEditorOpen}
+        onClose={() => setIsMetadataEditorOpen(false)}
+        project={project}
+        onUpdate={handleMetadataUpdate}
+      />
     </div>
   );
 };

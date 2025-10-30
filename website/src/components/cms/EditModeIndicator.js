@@ -75,7 +75,7 @@ export const EditModeIndicator = () => {
     <>
       {/* Minimized version - just a small tab */}
       {isMinimized ? (
-        <div className="fixed top-4 right-4 z-[70]">
+        <div className="fixed top-24 right-4 z-[70] md:top-28">
           <button
             onClick={() => setIsMinimized(false)}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 rounded-lg shadow-lg p-3 border-2 border-blue-700 transition-all"
