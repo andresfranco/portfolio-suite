@@ -66,9 +66,14 @@ const ContactPage = () => {
   };
 
   return (
-    <main className="pt-20">
-      <section className="py-20 bg-gray-900">
-        <div className="container mx-auto px-4 max-w-4xl">
+    <main className="pt-20 bg-[#03060a] min-h-screen">
+      <section className="relative py-20 bg-[#03060a] border-t border-white/5">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/30 to-transparent" />
+          <div className="absolute -right-24 top-1/2 w-72 h-72 bg-[#14C800]/10 blur-3xl" />
+          <div className="absolute -left-16 top-1/3 w-64 h-64 bg-blue-500/10 blur-3xl" />
+        </div>
+        <div className="relative mx-auto px-6 md:px-12 max-w-4xl">
           {/* Use translation for the title */}
           <h2 className="text-4xl font-bold text-white text-center mb-8">
             {getInTouchLabel.renderEditable('text-4xl font-bold text-white text-center mb-8')}
@@ -93,8 +98,7 @@ const ContactPage = () => {
                   required
                   value={formData.name}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 rounded-lg bg-gray-800 text-white border border-gray-700
-                    focus:outline-none focus:border-[#14C800] transition-colors"
+                  className="w-full px-4 py-3 rounded-none bg-white/10 text-white border border-white/10 focus:outline-none focus:border-[#14C800] transition-colors"
                 />
               </div>
               <div>
@@ -109,8 +113,7 @@ const ContactPage = () => {
                   required
                   value={formData.email}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 rounded-lg bg-gray-800 text-white border border-gray-700
-                    focus:outline-none focus:border-[#14C800] transition-colors"
+                  className="w-full px-4 py-3 rounded-none bg-white/10 text-white border border-white/10 focus:outline-none focus:border-[#14C800] transition-colors"
                 />
               </div>
             </div>
@@ -126,8 +129,7 @@ const ContactPage = () => {
                 required
                 value={formData.subject}
                 onChange={handleChange}
-                className="w-full px-4 py-3 rounded-lg bg-gray-800 text-white border border-gray-700
-                  focus:outline-none focus:border-[#14C800] transition-colors"
+                className="w-full px-4 py-3 rounded-none bg-white/10 text-white border border-white/10 focus:outline-none focus:border-[#14C800] transition-colors"
               />
             </div>
             <div>
@@ -142,17 +144,13 @@ const ContactPage = () => {
                 rows="6"
                 value={formData.message}
                 onChange={handleChange}
-                className="w-full px-4 py-3 rounded-lg bg-gray-800 text-white border border-gray-700
-                  focus:outline-none focus:border-[#14C800] transition-colors resize-none"
+                className="w-full px-4 py-3 rounded-none bg-white/10 text-white border border-white/10 focus:outline-none focus:border-[#14C800] transition-colors resize-none"
               ></textarea>
             </div>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="bg-[#14C800] text-white px-8 py-3 rounded-lg
-                transition-all duration-300 hover:bg-[#14C800]/90
-                hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)]
-                transform hover:-translate-y-1 disabled:opacity-50"
+              className="btn-flat btn-flat-lg disabled:cursor-not-allowed"
             >
               {/* Use translation for the button text */}
               {isSubmitting ? sendingLabel.renderEditable() : sendButtonLabel.renderEditable()}
@@ -160,12 +158,12 @@ const ContactPage = () => {
           </form>
 
           {/* Social Links */}
-          <div className="border-t border-gray-800 pt-12">
+          <div className="border-t border-white/10 pt-12">
             {/* Use translation for the title */}
             <h3 className="text-2xl font-bold text-white text-center mb-8">
               {connectLabel.renderEditable('text-2xl font-bold text-white text-center mb-8')}
             </h3>
-            <div className="flex justify-center items-center gap-8">
+            <div className="flex justify-center items-center gap-8 flex-wrap">
               {socialLinks.map((social, index) => {
                 const Icon = social.icon;
                 // Get translated label for aria-label
@@ -176,10 +174,7 @@ const ContactPage = () => {
                     href={social.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-white/90 p-4 rounded-lg text-3xl
-                      transition-all duration-300 hover:bg-[#14C800] hover:text-white
-                      hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)]
-                      transform hover:-translate-y-1"
+                    className="btn-flat btn-flat-icon"
                     aria-label={label} // Use translated label
                   >
                     <Icon />

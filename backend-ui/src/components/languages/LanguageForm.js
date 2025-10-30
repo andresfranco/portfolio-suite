@@ -25,7 +25,8 @@ function LanguageForm({ open, onClose, language, mode = 'create' }) {
   const [formData, setFormData] = useState({
     name: '',
     code: '',
-    is_default: false
+    is_default: false,
+    enabled: true
   });
   const [errors, setErrors] = useState({});
   const [apiError, setApiError] = useState('');
@@ -43,7 +44,8 @@ function LanguageForm({ open, onClose, language, mode = 'create' }) {
           id: language.id,
           name: language.name || '',
           code: language.code || '',
-          is_default: language.is_default || false
+          is_default: language.is_default || false,
+          enabled: language.enabled !== undefined ? language.enabled : true
         });
         
         // Set image preview if available
@@ -65,7 +67,8 @@ function LanguageForm({ open, onClose, language, mode = 'create' }) {
       setFormData({
         name: '',
         code: '',
-        is_default: false
+        is_default: false,
+        enabled: true
       });
       setImageFile(null);
       setImagePreview('');
@@ -110,7 +113,8 @@ function LanguageForm({ open, onClose, language, mode = 'create' }) {
       console.log('Language form values being sent:', {
         name: formData.name,
         code: formData.code,
-        is_default: formData.is_default
+        is_default: formData.is_default,
+        enabled: formData.enabled
       });
       
       let result;
@@ -122,7 +126,8 @@ function LanguageForm({ open, onClose, language, mode = 'create' }) {
         const languageData = {
           name: formData.name,
           code: formData.code,
-          is_default: formData.is_default
+          is_default: formData.is_default,
+          enabled: formData.enabled
         };
         
         // Add image if it exists
@@ -137,7 +142,8 @@ function LanguageForm({ open, onClose, language, mode = 'create' }) {
         const languageData = {
           name: formData.name,
           code: formData.code,
-          is_default: formData.is_default
+          is_default: formData.is_default,
+          enabled: formData.enabled
         };
         
         // Add image if it exists
@@ -171,10 +177,16 @@ function LanguageForm({ open, onClose, language, mode = 'create' }) {
 
   const handleChange = (e) => {
     const { name, value, checked, type } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
+    const newValue = type === 'checkbox' ? checked : value;
+    console.log(`Field ${name} changed to:`, newValue);
+    setFormData(prev => {
+      const updated = {
+        ...prev,
+        [name]: newValue
+      };
+      console.log('Updated formData:', updated);
+      return updated;
+    });
     if (errors[name]) {
       setErrors(prev => ({
         ...prev,
@@ -405,15 +417,28 @@ function LanguageForm({ open, onClose, language, mode = 'create' }) {
                   </Box>
                   
                   <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Typography 
-                      variant="body2" 
-                      sx={{ 
+                    <Typography
+                      variant="body2"
+                      sx={{
                         color: '#505050',
                         fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
                         fontSize: '13px'
                       }}
                     >
                       <strong>Default Language:</strong> {formData.is_default ? 'Yes' : 'No'}
+                    </Typography>
+                  </Box>
+
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: '#505050',
+                        fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+                        fontSize: '13px'
+                      }}
+                    >
+                      <strong>Enabled:</strong> {formData.enabled ? 'Yes' : 'No'}
                     </Typography>
                   </Box>
                 </Box>
@@ -587,8 +612,8 @@ function LanguageForm({ open, onClose, language, mode = 'create' }) {
                     />
                   }
                   label={
-                    <Typography 
-                      sx={{ 
+                    <Typography
+                      sx={{
                         fontSize: '13px',
                         fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
                         color: '#505050',
@@ -598,7 +623,35 @@ function LanguageForm({ open, onClose, language, mode = 'create' }) {
                     </Typography>
                   }
                 />
-                
+
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={Boolean(formData.enabled)}
+                      onChange={handleChange}
+                      name="enabled"
+                      disabled={isSubmitting}
+                      sx={{
+                        color: '#1976d2',
+                        '&.Mui-checked': {
+                          color: '#1976d2',
+                        },
+                      }}
+                    />
+                  }
+                  label={
+                    <Typography
+                      sx={{
+                        fontSize: '13px',
+                        fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+                        color: '#505050',
+                      }}
+                    >
+                      Enabled
+                    </Typography>
+                  }
+                />
+
                 {/* Image Upload Section */}
                 <Box sx={{ mt: 1 }}>
                   <Typography 

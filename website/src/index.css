@@ -3,3 +3,68 @@
 @tailwind utilities;
 
 /* Custom styles can be added here */
+
+html, body {
+  background-color: #03060a;
+  color: #ffffff;
+}
+
+.btn-flat {
+  @apply inline-flex items-center justify-center px-5 py-2 text-sm sm:text-base bg-white/5 text-white/80 border border-[#14C800]/50 rounded-none transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#14C800]/60;
+}
+
+.btn-flat:hover {
+  @apply bg-white/10 text-white border-[#14C800];
+}
+
+.btn-flat:active {
+  @apply bg-white/20 text-white border-[#14C800]/90;
+}
+
+.btn-flat:disabled {
+  @apply opacity-50 cursor-not-allowed bg-white/5 text-white/50 border-[#14C800]/30;
+}
+
+.btn-flat-active {
+  @apply bg-white/20 text-white border-[#14C800];
+}
+
+.btn-flat-lg {
+  @apply px-6 sm:px-8 py-3 text-base sm:text-lg;
+}
+
+.btn-flat-sm {
+  @apply px-3 py-1.5 text-sm;
+}
+
+.btn-flat-icon {
+  @apply p-3 sm:p-4 text-2xl;
+}
+
+.chip {
+  @apply inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#14C800] bg-white/5 text-white/80 text-sm font-medium backdrop-blur-sm;
+}
+
+.chip-sm {
+  @apply px-2.5 py-1 text-xs;
+}
+
+.chip-lg {
+  @apply px-4 py-2 text-base;
+}
+
+.select-flat {
+  @apply bg-white/5 text-white/80 border border-[#14C800]/50 rounded-none pl-4 pr-12 py-2 appearance-none leading-tight focus:outline-none focus:ring-2 focus:ring-[#14C800]/60;
+}
+
+.select-flat:hover {
+  @apply bg-white/10 text-white;
+}
+
+.select-flat:active {
+  @apply bg-white/15 text-white;
+}
+
+.select-flat option {
+  @apply bg-[#03060a] text-white;
+}
