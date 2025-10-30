@@ -178,7 +178,7 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
           <div className="flex justify-between items-center">
             <button
               onClick={onBackClick}
-              className="flex items-center gap-2 text-white/90 px-4 py-2 rounded-lg transition-all duration-300 hover:bg-[#14C800] hover:text-white hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] transform hover:-translate-y-1"
+              className="btn-flat btn-flat-sm flex items-center gap-2"
             >
               <FaArrowLeft />
               <span>{backToProjectsLabel.renderEditable()}</span>
@@ -188,7 +188,7 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
               {onPreviousClick && (
                 <button
                   onClick={onPreviousClick}
-                  className="flex items-center gap-2 text-white/90 px-4 py-2 rounded-lg transition-all duration-300 hover:bg-[#14C800] hover:text-white hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] transform hover:-translate-y-1"
+                  className="btn-flat btn-flat-sm flex items-center gap-2"
                 >
                   <FaArrowLeft />
                   <span>{previousLabel.renderEditable()}</span>
@@ -197,7 +197,7 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
               {onNextClick && (
                 <button
                   onClick={onNextClick}
-                  className="flex items-center gap-2 text-white/90 px-4 py-2 rounded-lg transition-all duration-300 hover:bg-[#14C800] hover:text-white hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] transform hover:-translate-y-1"
+                  className="btn-flat btn-flat-sm flex items-center gap-2"
                 >
                   <span>{nextLabel.renderEditable()}</span>
                   <FaArrowRight />
@@ -279,7 +279,7 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
                     return (
                       <span
                         key={skill.id || index}
-                        className="px-4 py-2 bg-gray-800 text-white rounded-full border border-[#14C800]/30 transition-all duration-300 hover:bg-[#14C800] hover:border-transparent hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] transform hover:-translate-y-1"
+                        className="chip chip-lg"
                       >
                         {skillName}
                       </span>
@@ -300,7 +300,7 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
                 {isEditMode && (
                   <button
                     onClick={() => setIsMetadataEditorOpen(true)}
-                    className="text-white/70 hover:text-[#14C800] transition-colors p-2 rounded-lg hover:bg-gray-700"
+                    className="btn-flat btn-flat-sm text-white/70 hover:text-white"
                     title="Edit project metadata"
                   >
                     <FaPencil size={18} />
@@ -336,13 +336,13 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
                 )}
                 <div className="pt-6 space-y-4">
                   {project.website_url && (
-                    <a href={project.website_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 w-full bg-[#14C800] text-white px-4 py-2 rounded-lg transition-all duration-300 hover:bg-[#14C800]/90 hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] transform hover:-translate-y-1">
+                    <a href={project.website_url} target="_blank" rel="noopener noreferrer" className="btn-flat btn-flat-sm flex items-center gap-2 w-full justify-center sm:justify-start">
                       <FaGlobe />
                       <span>{viewLiveSiteLabel.renderEditable()}</span>
                     </a>
                   )}
                   {project.repository_url && (
-                    <a href={project.repository_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 w-full bg-gray-700 text-white px-4 py-2 rounded-lg transition-all duration-300 hover:bg-gray-600 transform hover:-translate-y-1">
+                    <a href={project.repository_url} target="_blank" rel="noopener noreferrer" className="btn-flat btn-flat-sm flex items-center gap-2 w-full justify-center sm:justify-start">
                       <FaGithub />
                       <span>{viewRepoLabel.renderEditable()}</span>
                     </a>

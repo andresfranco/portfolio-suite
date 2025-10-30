@@ -312,96 +312,132 @@ const Hero = () => {
 
   return (
     <>
-      <section id="home" className="relative min-h-screen w-full">
-        <div className="relative z-10 flex flex-col-reverse md:flex-row min-h-screen">
-          <div className="flex-1 flex items-center justify-center px-4 py-12 md:py-0 bg-black/80 md:bg-black/50">
-            <div className="text-left max-w-xl">
-              {/* Editable person name in edit mode */}
-              <h1 className="text-5xl md:text-7xl font-extrabold text-white mb-6 drop-shadow-lg">
-                {isEditMode && portfolio?.id ? (
-                  <InlineTextEditor
-                    value={person.name}
-                    entityType="portfolio"
-                    entityId={portfolio.id}
-                    fieldName="name"
-                    className="text-5xl md:text-7xl font-extrabold text-white drop-shadow-lg"
-                    placeholder="Enter name..."
+      <section
+        id="home"
+        className="relative overflow-hidden bg-[#050b13] min-h-[70vh] md:min-h-[65vh] pt-28 md:pt-36 pb-20"
+      >
+        <div
+          className={`absolute inset-y-0 right-0 w-full lg:w-1/2 overflow-hidden transition-opacity duration-300 ${isEditMode ? "" : "pointer-events-none"}`}
+        >
+          <div className="absolute inset-0">
+            {isEditMode && portfolio?.id ? (
+              <ImageUploader
+                currentImage={heroImage}
+                entityType="portfolio"
+                entityId={portfolio.id}
+                category="main"
+                alt="Hero visual"
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+            ) : (
+              <img
+                src={heroImage}
+                alt="Hero visual"
+                className="absolute inset-0 w-full h-full object-cover opacity-80"
+              />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-l from-[#03060a]/20 via-[#03060a]/45 to-transparent mix-blend-soft-light" />
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/20 to-black/45" />
+            <div className="absolute top-[-10%] right-[-5%] w-[70%] h-[60%] bg-[#03060a]/55 blur-3xl" />
+            <div className="absolute bottom-[-15%] right-[-10%] w-[85%] h-[70%] bg-[#03060a]/55 blur-[120px]" />
+            <div className="absolute top-[-10%] left-[-20%] w-[50%] h-[55%] bg-[#03060a]/65 blur-[110px]" />
+            <div className="absolute bottom-[-15%] left-[-15%] w-[60%] h-[65%] bg-[#03060a]/55 blur-[120px]" />
+          </div>
+        </div>
+
+        <div className="absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-black/60 to-transparent pointer-events-none" />
+        <div className="absolute -left-24 top-1/3 w-72 h-72 rounded-full bg-[#14C800]/10 blur-3xl pointer-events-none" />
+        <div className="absolute -right-28 top-1/2 w-80 h-80 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 w-full px-6 md:px-12 lg:px-[7vw] py-16">
+          <div className="flex flex-col gap-8 max-w-[720px] items-start">
+            {/* Editable person name in edit mode */}
+            <h1 className="text-4xl md:text-6xl font-extrabold text-white drop-shadow-lg">
+              {isEditMode && portfolio?.id ? (
+                <InlineTextEditor
+                  value={person.name}
+                  entityType="portfolio"
+                  entityId={portfolio.id}
+                  fieldName="name"
+                  className="text-4xl md:text-6xl font-extrabold text-white drop-shadow-lg"
+                  placeholder="Enter name..."
+                />
+              ) : (
+                person.name
+              )}
+            </h1>
+
+            {/* Use hero tagline - editable in edit mode */}
+            <div className="text-lg md:text-2xl text-white/90 max-w-2xl">
+              {isEditMode ? (
+                heroTaglineText?.id ? (
+                  <RichTextEditor
+                    value={heroTaglineValue}
+                    entityType="section"
+                    entityId={heroTaglineText.id}
+                    fieldName="text"
+                    label="Hero Tagline"
+                    placeholder="Enter hero tagline..."
+                    className="text-lg md:text-2xl text-white/90"
                   />
                 ) : (
-                  person.name
-                )}
-              </h1>
-              
-              {/* Use hero tagline - editable in edit mode */}
-              <div className="text-xl md:text-3xl text-white/90 mb-8 max-w-2xl">
-                {isEditMode ? (
-                  heroTaglineText?.id ? (
-                    <RichTextEditor
-                      value={heroTaglineValue}
-                      entityType="section"
-                      entityId={heroTaglineText.id}
-                      fieldName="text"
-                      label="Hero Tagline"
-                      placeholder="Enter hero tagline..."
-                      className="text-xl md:text-3xl text-white/90"
-                    />
-                  ) : (
-                    <div className="bg-yellow-900/50 border-2 border-yellow-500 rounded p-4 text-white">
-                      <p className="text-sm mb-2 flex items-center gap-2">
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                        </svg>
-                        <span className="font-semibold">Hero Tagline Section Not Found</span>
-                      </p>
-                      <p className="text-sm mb-3">{heroTaglineValue}</p>
-                      <p className="text-xs text-yellow-200">
-                        Create a section with code '<strong>HERO_TAGLINE</strong>' or '<strong>hero_tagline</strong>' in the database to make this editable.
-                        Currently showing fallback text from translations.
-                      </p>
-                    </div>
-                  )
-                ) : (
-                  <p className="text-xl md:text-3xl text-white/90">
-                    {heroTaglineValue}
-                  </p>
-                )}
-              </div>
+                  <div className="bg-yellow-900/50 border-2 border-yellow-500 p-4 text-white">
+                    <p className="text-sm mb-2 flex items-center gap-2">
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-semibold">Hero Tagline Section Not Found</span>
+                    </p>
+                    <p className="text-sm mb-3">{heroTaglineValue}</p>
+                    <p className="text-xs text-yellow-200">
+                      Create a section with code '<strong>HERO_TAGLINE</strong>' or '<strong>hero_tagline</strong>' in the database to make this editable.
+                      Currently showing fallback text from translations.
+                    </p>
+                  </div>
+                )
+              ) : (
+                <p className="text-lg md:text-2xl text-white/90">
+                  {heroTaglineValue}
+                </p>
+              )}
+            </div>
 
+            <div className="flex flex-col gap-6 w-full items-start">
               {/* Experience Section */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 mb-12">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full max-w-[720px] justify-items-stretch">
                 {experiences.map((exp) => {
                   const Icon = getIconComponent(exp.icon);
                   const experienceText = getExperienceText(exp);
-                  
+
                   return (
-                    <div 
-                      key={exp.id} 
+                    <div
+                      key={exp.id}
                       onClick={(e) => handleExperienceClick(exp.id, e)}
-                      className="relative flex flex-col items-center text-center bg-black/40 p-6 rounded-2xl min-h-[220px] backdrop-blur-sm border border-white/10 transform hover:-translate-y-1 transition-all duration-300 hover:border-[#14C800]/30 group cursor-pointer"
+                      className="relative flex flex-col gap-3 items-start bg-white/10 p-5 min-h-[180px] backdrop-blur-sm shadow-[0_15px_35px_rgba(5,10,30,0.4)] transform hover:-translate-y-1 transition-all duration-300 hover:bg-white/20 group cursor-pointer"
                       title={isEditMode ? "Click to edit • Ctrl/Cmd+Click to view details" : "View experience details"}
                     >
-                      <div className="flex items-center justify-center w-16 h-16 rounded-full bg-[#14C800]/10 text-[#14C800] text-3xl mb-4 group-hover:scale-105 group-hover:bg-[#14C800]/20 transition-all duration-300">
+                      <div className="flex items-center justify-center w-14 h-14 bg-[#14C800]/10 text-[#14C800] text-2xl group-hover:scale-105 group-hover:bg-[#14C800]/25 transition-all duration-300 self-start">
                         <Icon />
                       </div>
-                      <div className="flex-1 flex flex-col items-center justify-center">
-                        <div className="flex items-baseline gap-2 justify-center">
-                          <span className="text-4xl font-bold text-white">{exp.years_experience || exp.years}+</span>
+                      <div className="flex-1 flex flex-col items-start justify-center">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-3xl font-bold text-white">{exp.years_experience || exp.years}+</span>
                           {/* Use editable years label */}
                           <span className="text-white/60 text-xs uppercase tracking-wide">
                             {yearsLabel.renderEditable('text-white/60 text-xs uppercase tracking-wide')}
                           </span>
                         </div>
-                        <p className="mt-3 text-white font-semibold leading-relaxed">
+                        <p className="mt-1 text-white font-semibold leading-relaxed">
                           {experienceText.name}
                         </p>
                       </div>
-                      
+
                       {/* Edit mode controls */}
                       {isEditMode && (
                         <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={(e) => handleDeleteExperience(exp.id, e)}
-                            className="p-1.5 bg-red-500/80 hover:bg-red-600 rounded text-white transition-colors"
+                            className="p-1.5 bg-red-500/80 hover:bg-red-600 text-white transition-colors"
                             title="Remove experience"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -410,7 +446,7 @@ const Hero = () => {
                           </button>
                         </div>
                       )}
-                      
+
                       {/* Edit indicator in edit mode */}
                       {isEditMode && (
                         <div className="text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -422,13 +458,13 @@ const Hero = () => {
                     </div>
                   );
                 })}
-                
+
                 {/* Add new experience button in edit mode */}
                 {isEditMode && (
                   <div className="relative">
                     <button
                       onClick={handleAddExperience}
-                      className="flex flex-col items-center justify-center gap-3 bg-black/30 p-6 rounded-2xl min-h-[220px] backdrop-blur-sm border-2 border-dashed border-white/20 hover:border-[#14C800]/50 transition-all duration-300 text-white/70 hover:text-[#14C800] w-full text-center"
+                      className="flex flex-col items-start justify-center gap-3 bg-white/10 hover:bg-white/20 p-5 min-h-[180px] backdrop-blur-sm transition-all duration-300 text-white/70 hover:text-[#14C800] w-full text-left"
                       title="Add experience"
                     >
                       <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -436,18 +472,18 @@ const Hero = () => {
                       </svg>
                       <span className="font-medium">Add Experience</span>
                     </button>
-                    
+
                     {/* Dropdown menu */}
                     {showAddMenu && (
-                      <div 
-                        className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden z-10"
+                      <div
+                        className="absolute top-full left-0 right-0 mt-2 bg-white shadow-xl border border-gray-200 overflow-hidden z-10"
                         onMouseLeave={() => setShowAddMenu(false)}
                       >
                         <button
                           onClick={handleCreateNewExperience}
                           className="w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors flex items-center gap-3 group"
                         >
-                          <div className="w-10 h-10 rounded-lg bg-blue-100 group-hover:bg-blue-600 flex items-center justify-center transition-colors">
+                          <div className="w-10 h-10 bg-blue-100 group-hover:bg-blue-600 flex items-center justify-center transition-colors">
                             <svg className="w-5 h-5 text-blue-600 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                             </svg>
@@ -457,14 +493,14 @@ const Hero = () => {
                             <div className="text-sm text-gray-600">Create a brand new experience</div>
                           </div>
                         </button>
-                        
+
                         <div className="border-t border-gray-200"></div>
-                        
+
                         <button
                           onClick={handleAddExistingExperience}
                           className="w-full px-4 py-3 text-left hover:bg-green-50 transition-colors flex items-center gap-3 group"
                         >
-                          <div className="w-10 h-10 rounded-lg bg-green-100 group-hover:bg-green-600 flex items-center justify-center transition-colors">
+                          <div className="w-10 h-10 bg-green-100 group-hover:bg-green-600 flex items-center justify-center transition-colors">
                             <svg className="w-5 h-5 text-green-600 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                             </svg>
@@ -480,7 +516,7 @@ const Hero = () => {
                 )}
               </div>
 
-              <div className="flex gap-3 flex-col sm:flex-row">
+              <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-start sm:items-center w-full">
                 {/* Chat with AI button - editable label in edit mode */}
                 <button
                   onClick={(e) => {
@@ -493,7 +529,7 @@ const Hero = () => {
                     setIsChatOpen(true);
                   }}
                   title={isEditMode ? "Click to edit • Ctrl/Cmd+Click to open chat" : "Open chat"}
-                  className="bg-[#14C800] text-white text-base sm:text-lg px-6 py-3 sm:px-8 sm:py-4 rounded-lg transition-all duration-300 hover:bg-[#14C800]/90 hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] transform hover:-translate-y-1 whitespace-nowrap text-center"
+                  className="btn-flat btn-flat-lg whitespace-nowrap"
                 >
                   {isEditMode && !chatButtonText?.id ? (
                     <span className="text-sm italic opacity-75" title="Create 'chat_with_ai' section to edit">
@@ -512,22 +548,22 @@ const Hero = () => {
                     chatButtonValue
                   )}
                 </button>
-                
+
                 {/* Download CV button - editable label in edit mode */}
-                {resumeUrl ? (
-                  <a
-                    href={getResumeFile()}
-                    download={getResumeFileName()}
-                    onClick={(e) => {
+                  {resumeUrl ? (
+                    <a
+                      href={getResumeFile()}
+                      download={getResumeFileName()}
+                      onClick={(e) => {
                       // In edit mode, prevent download unless Ctrl/Cmd+Click
                       if (isEditMode && !e.ctrlKey && !e.metaKey) {
                         e.preventDefault();
                         e.stopPropagation();
                       }
-                    }}
-                    title={isEditMode ? "Click to edit • Ctrl/Cmd+Click to download" : "Download CV"}
-                    className="bg-[#14C800] text-white text-base sm:text-lg px-6 py-3 sm:px-8 sm:py-4 rounded-lg transition-all duration-300 hover:bg-[#14C800]/90 hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] transform hover:-translate-y-1 inline-flex items-center justify-center whitespace-nowrap"
-                  >
+                      }}
+                      title={isEditMode ? "Click to edit • Ctrl/Cmd+Click to download" : "Download CV"}
+                      className="btn-flat btn-flat-lg inline-flex items-center justify-center whitespace-nowrap"
+                    >
                     {isEditMode && !downloadCvText?.id ? (
                       <span className="text-sm italic opacity-75" title="Create 'download_cv' section to edit">
                         {downloadCvValue} ⚠️
@@ -545,43 +581,20 @@ const Hero = () => {
                       downloadCvValue
                     )}
                   </a>
-                ) : (
-                  <button
-                    disabled
-                    title="No resume available for this language"
-                    className="bg-gray-500 text-white text-base sm:text-lg px-6 py-3 sm:px-8 sm:py-4 rounded-lg opacity-50 cursor-not-allowed inline-flex items-center justify-center whitespace-nowrap"
-                  >
+                  ) : (
+                    <button
+                      disabled
+                      title="No resume available for this language"
+                      className="btn-flat btn-flat-lg inline-flex items-center justify-center whitespace-nowrap"
+                    >
                     {downloadCvValue} (Not Available)
                   </button>
                 )}
               </div>
             </div>
           </div>
-
-          {/* Right Image - with ImageUploader in edit mode */}
-          <div className="flex-1 relative">
-            {isEditMode && portfolio?.id ? (
-              <ImageUploader
-                currentImage={heroImage}
-                entityType="portfolio"
-                entityId={portfolio.id}
-                category="main"
-                alt="Hero background"
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-            ) : (
-              <>
-                <div
-                  className="absolute inset-0 w-full h-full bg-cover bg-center bg-no-repeat"
-                  style={{ backgroundImage: `url(${heroImage})` }}
-                />
-                <div className="absolute inset-0 bg-black/30" />
-              </>
-            )}
-          </div>
         </div>
       </section>
-
       {/* Content Editor Modal */}
       {isEditMode && editingItem && (
         <ContentEditorModal
@@ -640,13 +653,13 @@ const Hero = () => {
                 <div className="flex justify-end gap-3">
                   <button
                     onClick={() => setExperienceToDelete(null)}
-                    className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium rounded-lg transition-colors"
+                    className="btn-flat btn-flat-sm text-gray-700 hover:text-gray-900"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={confirmDeleteExperience}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors"
+                    className="btn-flat btn-flat-sm text-red-300 hover:text-red-100"
                   >
                     Remove
                   </button>

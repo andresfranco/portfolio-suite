@@ -16,12 +16,10 @@ const Footer = () => {
   const footerText = footerLabel.value.replace('{year}', currentYear);
 
   return (
-    <footer className="bg-gray-800 text-white text-center py-8">
+    <footer className="bg-[#03060a] border-t border-white/10 text-white/70 text-center py-10 px-6">
       {isEditMode ? (
-        // In edit mode, show the editable version with {year} placeholder
-        <p>{footerLabel.renderEditable('text-white')}</p>
+        <p>{footerLabel.renderEditable('text-white/80')}</p>
       ) : (
-        // In normal mode, show the text with year replaced
         <p>{footerText}</p>
       )}
     </footer>
