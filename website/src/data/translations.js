@@ -4,6 +4,8 @@ export const translations = {
     projects: "Projects",
     contact: "Contact",
     brand_name: "AMFAPPS",
+    language_switcher: "Language",
+    language_names: { en: "English", es: "Español" },
     chat_with_ai: "Chat with my AI assistant",
     download_cv: "Download my CV",
     get_in_touch: "Get in Touch",
@@ -48,6 +50,8 @@ export const translations = {
   },
   es: {
     home: "Inicio",
+    language_switcher: "Idioma",
+    language_names: { en: "Inglés", es: "Español" },
     projects: "Proyectos",
     contact: "Contacto",
     brand_name: "AMFAPPS",

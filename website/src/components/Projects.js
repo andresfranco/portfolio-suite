@@ -44,7 +44,7 @@ const ProjectModal = ({ project, onClose, onViewDetails, language, getProjectTex
           </h3>
           <button 
             onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors p-2"
+            className="btn-flat btn-flat-sm text-white/70 hover:text-white"
             aria-label={closeLabel.value}
           >
             ✕
@@ -83,12 +83,9 @@ const ProjectModal = ({ project, onClose, onViewDetails, language, getProjectTex
           </div>
           <button
             onClick={onViewDetails}
-            className="inline-block bg-[#14C800] text-white px-6 py-3 rounded-lg
-              transition-all duration-300 hover:bg-[#14C800]/90 
-              hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)]
-              transform hover:-translate-y-1 text-base md:text-lg"
+            className="btn-flat btn-flat-lg w-full md:w-auto justify-center"
           >
-            {viewDetailsLabel.renderEditable('inline-block bg-[#14C800] text-white px-6 py-3 rounded-lg')}
+            {viewDetailsLabel.renderEditable('font-semibold text-white')}
           </button>
         </div>
       </div>
@@ -114,6 +111,7 @@ const Projects = () => {
   // Get editable section labels
   const projectsTitle = useSectionLabel('SECTION_PROJECTS', 'projects');
   const loadingText = useSectionLabel('MSG_LOADING_PROJECTS', 'loading_projects');
+  const viewProjectLabel = useSectionLabel('BTN_VIEW_PROJECT', 'view_project');
 
   // Get projects from portfolio context
   const projects = getProjects();
@@ -183,23 +181,86 @@ const Projects = () => {
   }
 
   return (
-    <div className="flex-grow">
-      <main className="pt-20">
-        <section className="py-20 bg-gray-800">
-          <div className="container mx-auto px-4 text-center">
-            <h2 className="text-4xl font-bold mb-8 text-white">
-              {projectsTitle.renderEditable('text-4xl font-bold mb-8 text-white')}
+    <div className="flex-grow bg-[#03060a]">
+      <main>
+        <section className="relative bg-[#03060a] pt-20 pb-24 border-t border-white/5">
+          <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/30 to-transparent pointer-events-none" />
+          <div className="relative w-full px-6 md:px-12 lg:px-[7vw] text-left">
+            <div className="w-full max-w-[1200px]">
+            <h2 className="text-4xl font-bold text-white mb-4">
+              {projectsTitle.renderEditable('text-4xl font-bold text-white')}
             </h2>
+            <p className="text-white/60 max-w-2xl">
+              {translations[language]?.projects_intro ||
+                'Showcasing selected engagements that blend strategy, data, and engineering craftsmanship.'}
+            </p>
 
             {/* Project Management Controls (visible in edit mode) */}
-            <ProjectManagement />
+            <div className="mt-10 text-left">
+              <ProjectManagement />
+            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-12 max-w-5xl mx-auto">
+            <div className="space-y-10 mt-12">
               {projects.map((project) => {
                 const projectText = getProjectText(project);
-                const projectImage = project.images && project.images.length > 0
-                  ? `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${project.images[0].image_path}`
+                const projectImageData = project.images && project.images.length > 0 ? project.images[0] : null;
+                const apiBase = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+                const projectImage = projectImageData
+                  ? projectImageData.image_url
+                    ? projectImageData.image_url.startsWith('http')
+                      ? projectImageData.image_url
+                      : `${apiBase}${projectImageData.image_url}`
+                    : projectImageData.image_path?.startsWith('http')
+                      ? projectImageData.image_path
+                      : `${apiBase}/${projectImageData.image_path}`
                   : require('../assets/images/project1.jpg'); // fallback image
+
+                const description =
+                  projectText.brief ||
+                  projectText.description ||
+                  translations[language]?.project_description_fallback ||
+                  'Project details will be available soon.';
+
+                const getCategoryName = (category) => {
+                  if (!category) return null;
+                  if (category.category_texts && category.category_texts.length > 0) {
+                    const byLanguage = category.category_texts.find(
+                      (text) =>
+                        text.language_code === language ||
+                        text.language_id === (language === 'en' ? 1 : 2)
+                    );
+                    if (byLanguage?.name) {
+                      return byLanguage.name;
+                    }
+                    return category.category_texts[0].name || null;
+                  }
+                  return category.name || category.code || null;
+                };
+
+                const getSkillName = (skill) => {
+                  if (!skill) return null;
+                  if (skill.skill_texts && skill.skill_texts.length > 0) {
+                    const byLanguage = skill.skill_texts.find(
+                      (text) =>
+                        text.language_code === language ||
+                        text.language_id === (language === 'en' ? 1 : 2)
+                    );
+                    if (byLanguage?.name) {
+                      return byLanguage.name;
+                    }
+                    return skill.skill_texts[0].name || null;
+                  }
+                  return skill.name || skill.type || null;
+                };
+
+                const tags = Array.from(
+                  new Set(
+                    [
+                      ...(project.categories || []).map(getCategoryName),
+                      ...(project.skills || []).map(getSkillName),
+                    ].filter(Boolean)
+                  )
+                ).slice(0, 6);
                 
                 return (
                   <div
@@ -214,11 +275,7 @@ const Projects = () => {
                       // Call handler with Ctrl/Cmd flag
                       handleProjectClick(project, isCtrlClick);
                     }}
-                    className="relative group cursor-pointer rounded-xl overflow-hidden
-                      transition-all duration-300
-                      hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)]
-                      transform hover:-translate-y-1
-                      aspect-[16/10]"
+                    className="relative group cursor-pointer overflow-hidden border border-white/10 bg-gradient-to-br from-black/80 via-[#0c1624]/70 to-[#050b12]/70 shadow-[0_25px_60px_rgba(8,12,20,0.4)] transition-transform duration-300 hover:scale-[1.01] hover:shadow-[0_30px_70px_rgba(20,200,0,0.18)]"
                   >
                     {/* Edit/Delete Action Buttons (visible in edit mode) */}
                     <ProjectActionButtons
@@ -227,29 +284,76 @@ const Projects = () => {
                       onDelete={handleDeleteProject}
                     />
 
-                    {/* Project Thumbnail with Edit Capability */}
-                    <ProjectImageSelector
-                      project={project}
-                      category="thumbnail"
-                      currentImagePath={projectImage}
-                      alt={projectText.name}
-                      className="w-full h-full object-cover"
-                    />
-                    
-                    <div className="absolute inset-0 bg-black/75 md:bg-black/40 
-                      md:opacity-0 md:group-hover:opacity-100
-                      md:group-hover:bg-black/85 transition-all duration-300 
-                      flex items-center justify-center">
-                      <h3 className="text-white text-xl md:text-2xl font-bold text-center px-4
-                        md:opacity-0 md:group-hover:opacity-100 transform 
-                        transition-all duration-300
-                        md:translate-y-4 md:group-hover:translate-y-0">
-                        {projectText.name}
-                      </h3>
+                    <div className="flex flex-col lg:flex-row">
+                      <div className="relative lg:w-2/5 overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-br from-[#14C800]/15 via-transparent to-black/60 pointer-events-none mix-blend-screen" />
+                        {/* Project Thumbnail with Edit Capability */}
+                        <ProjectImageSelector
+                          project={project}
+                          category="thumbnail"
+                          currentImagePath={projectImage}
+                          alt={projectText.name}
+                          className="w-full h-64 lg:h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                      </div>
+
+                      <div className="flex-1 bg-black/40 backdrop-blur-sm p-6 lg:p-10 flex flex-col gap-6">
+                        <div className="space-y-3">
+                          <h3 className="text-2xl md:text-3xl font-bold text-white leading-tight">
+                            {projectText.name}
+                          </h3>
+                          <p className="text-white/70 text-base md:text-lg leading-relaxed">
+                            {description}
+                          </p>
+                        </div>
+
+                        {tags.length > 0 && (
+                          <div className="flex flex-wrap gap-3">
+                            {tags.map((tag) => (
+                              <span
+                                key={`${project.id}-${tag}`}
+                                className="chip chip-sm"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                          <div className="text-white/60 text-sm uppercase tracking-[0.2em]">
+                            {translations[language]?.project_cta_hint || 'Discover the details'}
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleViewDetails(project.id);
+                            }}
+                            className="btn-flat btn-flat-lg inline-flex items-center justify-center gap-2 font-semibold"
+                          >
+                            {viewProjectLabel.renderEditable('font-semibold text-white')}
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M13 7l5 5m0 0l-5 5m5-5H6"
+                              />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );
               })}
+            </div>
             </div>
           </div>
         </section>

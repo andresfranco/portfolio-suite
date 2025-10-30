@@ -20,7 +20,7 @@ function App() {
         <EditModeProvider>
           <BrowserRouter>
             <ErrorBoundary>
-              <div className="min-h-screen flex flex-col bg-gray-900">
+              <div className="min-h-screen flex flex-col bg-[#03060a] text-white">
                 {/* Edit Mode Indicator - only visible when in edit mode via backend */}
                 <EditModeIndicator />
                 

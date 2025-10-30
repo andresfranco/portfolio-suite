@@ -44,7 +44,7 @@ const ExperienceDetails = ({ experience, onBackClick, onPreviousClick, onNextCli
           <div className="flex justify-between items-center">
             <button
               onClick={onBackClick}
-              className="flex items-center gap-2 text-white/90 px-4 py-2 rounded-lg transition-all duration-300 hover:bg-[#14C800] hover:text-white hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] transform hover:-translate-y-1"
+              className="btn-flat btn-flat-sm flex items-center gap-2"
             >
               <FaArrowLeft />
               <span>{translations[language].back_to_home}</span>
@@ -54,7 +54,7 @@ const ExperienceDetails = ({ experience, onBackClick, onPreviousClick, onNextCli
               {onPreviousClick && (
                 <button
                   onClick={onPreviousClick}
-                  className="flex items-center gap-2 text-white/90 px-4 py-2 rounded-lg transition-all duration-300 hover:bg-[#14C800] hover:text-white hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] transform hover:-translate-y-1"
+                  className="btn-flat btn-flat-sm flex items-center gap-2"
                 >
                   <FaArrowLeft />
                   <span>{translations[language].previous}</span>
@@ -63,7 +63,7 @@ const ExperienceDetails = ({ experience, onBackClick, onPreviousClick, onNextCli
               {onNextClick && (
                 <button
                   onClick={onNextClick}
-                  className="flex items-center gap-2 text-white/90 px-4 py-2 rounded-lg transition-all duration-300 hover:bg-[#14C800] hover:text-white hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] transform hover:-translate-y-1"
+                  className="btn-flat btn-flat-sm flex items-center gap-2"
                 >
                   <span>{translations[language].next}</span>
                   <FaArrowRight />
@@ -120,19 +120,15 @@ const ExperienceDetails = ({ experience, onBackClick, onPreviousClick, onNextCli
                         ? skill.skill_texts[0].name
                         : skill.name?.[language] || skill.name || 'Skill';
                       
-                      return (
-                        <span
-                          key={skill.id || index}
-                          className="px-4 py-2 bg-gray-900 text-white rounded-full border 
-                            border-[#14C800]/30 transition-all duration-300 
-                            hover:bg-[#14C800] hover:border-transparent 
-                            hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)] 
-                            transform hover:-translate-y-1"
-                        >
-                          {skillName}
-                        </span>
-                      );
-                    })}
+                    return (
+                      <span
+                        key={skill.id || index}
+                        className="chip chip-lg"
+                      >
+                        {skillName}
+                      </span>
+                    );
+                  })}
                   </div>
                 </div>
               )}

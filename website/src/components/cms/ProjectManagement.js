@@ -32,10 +32,7 @@ export const ProjectManagement = () => {
       <div className="mb-6 flex justify-end">
         <button
           onClick={handleCreateProject}
-          className="px-6 py-3 bg-[#14C800] text-white rounded-lg font-semibold
-            transition-all duration-300 hover:bg-[#14C800]/90 
-            hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)]
-            transform hover:-translate-y-1 flex items-center gap-2"
+          className="btn-flat btn-flat-lg flex items-center gap-2 font-semibold text-gray-900"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -390,11 +387,7 @@ export const ProjectFormDialog = ({ mode = 'create', project = null, onClose, on
                     key={category.id}
                     type="button"
                     onClick={() => toggleCategory(category.id)}
-                    className={`px-4 py-2 rounded-lg border transition-all ${
-                      formData.categories.includes(category.id)
-                        ? 'bg-[#14C800] text-white border-[#14C800]'
-                        : 'bg-white text-gray-700 border-gray-300 hover:border-[#14C800]'
-                    }`}
+                    className={`btn-flat btn-flat-sm ${formData.categories.includes(category.id) ? 'btn-flat-active font-semibold' : ''}`}
                   >
                     {getCategoryName(category.id)}
                   </button>
@@ -413,11 +406,7 @@ export const ProjectFormDialog = ({ mode = 'create', project = null, onClose, on
                     key={skill.id}
                     type="button"
                     onClick={() => toggleSkill(skill.id)}
-                    className={`px-3 py-1 rounded-lg border text-sm transition-all ${
-                      formData.skills.includes(skill.id)
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-700 border-gray-300 hover:border-blue-600'
-                    }`}
+                    className={`btn-flat btn-flat-sm text-sm ${formData.skills.includes(skill.id) ? 'btn-flat-active font-semibold' : ''}`}
                   >
                     {getSkillName(skill.id)}
                   </button>
@@ -431,14 +420,14 @@ export const ProjectFormDialog = ({ mode = 'create', project = null, onClose, on
             <button
               type="submit"
               disabled={isLoading}
-              className="flex-1 px-6 py-3 bg-[#14C800] text-white rounded-lg font-semibold hover:bg-[#14C800]/90 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+            className="btn-flat btn-flat-lg flex-1 font-semibold text-gray-900 disabled:cursor-not-allowed"
             >
               {isLoading ? 'Saving...' : mode === 'create' ? 'Create Project' : 'Save Changes'}
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+              className="btn-flat btn-flat-lg font-semibold"
             >
               Cancel
             </button>
@@ -468,7 +457,7 @@ export const ProjectActionButtons = ({ project, onEdit, onDelete }) => {
           e.stopPropagation();
           onEdit(project);
         }}
-        className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-lg"
+        className="btn-flat btn-flat-sm"
         title="Edit Project"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -481,7 +470,7 @@ export const ProjectActionButtons = ({ project, onEdit, onDelete }) => {
           e.stopPropagation();
           onDelete(project);
         }}
-        className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors shadow-lg"
+        className="btn-flat btn-flat-sm text-red-300 hover:text-red-200"
         title="Delete Project"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -542,14 +531,14 @@ export const ProjectDeleteDialog = ({ project, onClose, onSuccess, authToken }) 
           <button
             onClick={handleDelete}
             disabled={isDeleting}
-            className="flex-1 px-6 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+            className="btn-flat btn-flat-lg flex-1 font-semibold text-red-200 hover:text-red-100 disabled:cursor-not-allowed"
           >
             {isDeleting ? 'Deleting...' : 'Delete Project'}
           </button>
           <button
             onClick={onClose}
             disabled={isDeleting}
-            className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+            className="btn-flat btn-flat-lg font-semibold text-gray-900"
           >
             Cancel
           </button>

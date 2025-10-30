@@ -81,10 +81,7 @@ const ChatModal = ({ isOpen, onClose }) => {
             />
             <button
               type="submit"
-              className="bg-[#14C800] text-white px-6 py-2 rounded-lg
-                transition-all duration-300 hover:bg-[#14C800]/90 
-                hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)]
-                transform hover:-translate-y-1 self-end"
+              className="btn-flat btn-flat-sm self-end"
             >
               Send
             </button>
