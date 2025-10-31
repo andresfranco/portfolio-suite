@@ -228,11 +228,11 @@ export const TranslationEditor = ({
       {/* Modal for multiline editing */}
       {isEditing && multiline && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="bg-[#03060a] border border-white/10 shadow-[0_20px_45px_rgba(10,15,30,0.55)] max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             {/* Header */}
-            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-white">
-              <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="px-6 py-4 border-b border-white/10">
+              <h3 className="text-xl font-semibold text-white flex items-center gap-2">
+                <svg className="w-6 h-6 text-[#14C800]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
                 {label || `Edit ${identifier.replace(/_/g, ' ')}`}
@@ -250,13 +250,14 @@ export const TranslationEditor = ({
                 disabled={isSaving}
                 className={`
                   w-full p-4 
-                  border-2 rounded-lg 
-                  font-sans text-gray-900
+                  border
+                  bg-transparent
+                  text-white
                   text-base leading-relaxed
                   resize-none
-                  focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                  focus:outline-none focus:ring-2 focus:ring-[#14C800]
                   disabled:opacity-50 disabled:cursor-not-allowed
-                  ${error ? 'border-red-500' : 'border-gray-300'}
+                  ${error ? 'border-red-500' : 'border-white/10'}
                 `}
                 style={{ 
                   minHeight: '300px',
@@ -266,7 +267,7 @@ export const TranslationEditor = ({
               
               {/* Error message */}
               {error && (
-                <div className="mt-4 p-3 bg-red-50 border border-red-300 rounded-lg text-red-700 text-sm flex items-start gap-3">
+                <div className="mt-4 p-3 bg-red-500/10 border border-red-500/40 rounded-none text-red-300 text-sm flex items-start gap-3">
                   <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                   </svg>
@@ -275,7 +276,7 @@ export const TranslationEditor = ({
               )}
               
               {/* Helper text */}
-              <div className="mt-4 text-sm text-gray-600 flex items-center gap-2">
+              <div className="mt-4 text-sm text-white/60 flex items-center gap-2">
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                 </svg>
@@ -284,19 +285,11 @@ export const TranslationEditor = ({
             </div>
             
             {/* Footer */}
-            <div className="px-6 py-3 border-t border-gray-200 bg-gray-50 flex justify-end gap-2">
+            <div className="px-6 py-3 border-t border-white/10 bg-transparent flex justify-end gap-2">
               <button 
                 onClick={handleCancel}
                 disabled={isSaving}
-                className="
-                  px-4 py-2
-                  bg-gray-200 hover:bg-gray-300 
-                  text-gray-800 text-sm font-medium
-                  rounded-md
-                  transition-colors
-                  disabled:opacity-50 disabled:cursor-not-allowed
-                  flex items-center gap-1.5
-                "
+                className="btn-flat btn-flat-sm"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -307,16 +300,7 @@ export const TranslationEditor = ({
               <button
                 onClick={handleSave}
                 disabled={isSaving}
-                className={`
-                  px-4 py-2
-                  bg-green-600 hover:bg-green-700 
-                  text-white text-sm font-medium
-                  rounded-md
-                  transition-colors
-                  disabled:bg-gray-400 disabled:cursor-not-allowed
-                  flex items-center gap-1.5
-                  shadow-sm
-                `}
+                className="btn-flat btn-flat-sm btn-flat-active flex items-center gap-1.5"
               >
                 {isSaving ? (
                   <>
@@ -343,10 +327,10 @@ export const TranslationEditor = ({
       {/* Inline editor for single-line text */}
       {isEditing && !multiline && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full">
+          <div className="bg-[#03060a] border border-white/10 shadow-[0_20px_45px_rgba(10,15,30,0.55)] max-w-2xl w-full">
             {/* Header */}
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">
+            <div className="px-6 py-4 border-b border-white/10">
+              <h3 className="text-lg font-semibold text-white">
                 {label || `Edit ${identifier.replace(/_/g, ' ')}`}
               </h3>
             </div>
@@ -363,40 +347,34 @@ export const TranslationEditor = ({
                 disabled={isSaving}
                 className={`
                   w-full px-4 py-3
-                  border-2 rounded-lg 
-                  font-sans text-gray-900 text-base
-                  focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                  border
+                  bg-transparent
+                  text-white
+                  focus:outline-none focus:ring-2 focus:ring-[#14C800]
                   disabled:opacity-50 disabled:cursor-not-allowed
-                  ${error ? 'border-red-500' : 'border-gray-300'}
+                  ${error ? 'border-red-500' : 'border-white/10'}
                 `}
               />
               
               {/* Error message */}
               {error && (
-                <div className="mt-3 p-2 bg-red-50 border border-red-300 rounded text-red-700 text-sm">
+                <div className="mt-3 p-2 bg-red-500/10 border border-red-500/40 rounded-none text-red-300 text-sm">
                   {error}
                 </div>
               )}
               
               {/* Helper text */}
-              <div className="mt-3 text-sm text-gray-600">
+              <div className="mt-3 text-sm text-white/60">
                 Press Enter to save, Escape to cancel
               </div>
             </div>
             
             {/* Footer */}
-            <div className="px-6 py-3 border-t border-gray-200 bg-gray-50 flex justify-end gap-2">
+            <div className="px-6 py-3 border-t border-white/10 bg-transparent flex justify-end gap-2">
               <button 
                 onClick={handleCancel}
                 disabled={isSaving}
-                className="
-                  px-4 py-2
-                  bg-gray-200 hover:bg-gray-300 
-                  text-gray-800 text-sm font-medium
-                  rounded-md
-                  transition-colors
-                  disabled:opacity-50 disabled:cursor-not-allowed
-                "
+                className="btn-flat btn-flat-sm"
               >
                 Cancel
               </button>
@@ -404,15 +382,7 @@ export const TranslationEditor = ({
               <button
                 onClick={handleSave}
                 disabled={isSaving}
-                className="
-                  px-4 py-2
-                  bg-green-600 hover:bg-green-700 
-                  text-white text-sm font-medium
-                  rounded-md
-                  transition-colors
-                  disabled:bg-gray-400 disabled:cursor-not-allowed
-                  shadow-sm
-                "
+                className="btn-flat btn-flat-sm btn-flat-active"
               >
                 {isSaving ? 'Saving...' : 'Save'}
               </button>

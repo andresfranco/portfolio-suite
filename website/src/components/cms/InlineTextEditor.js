@@ -264,12 +264,12 @@ export const InlineTextEditor = ({
       onClick={handleCancel}
     >
       <div 
-        className="bg-white rounded-lg shadow-2xl max-w-lg w-full max-h-[80vh] overflow-hidden flex flex-col"
+        className="bg-[#03060a] border border-white/10 shadow-[0_20px_45px_rgba(10,15,30,0.55)] max-w-lg w-full max-h-[80vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-white">
-          <h3 className="text-base font-semibold text-gray-900">
+        <div className="px-4 py-3 border-b border-white/10">
+          <h3 className="text-base font-semibold text-white">
             Edit {fieldName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
           </h3>
         </div>
@@ -285,14 +285,13 @@ export const InlineTextEditor = ({
               disabled={isSaving}
               className={`
                 w-full p-2 
-                border-2 
-                rounded-lg
-                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                border
+                bg-transparent
+                text-white
+                focus:outline-none focus:ring-2 focus:ring-[#14C800]
                 resize-y
-                text-gray-900 font-sans
-                bg-white
                 ${isSaving ? 'opacity-50 cursor-wait' : ''}
-                ${error ? 'border-red-500' : 'border-gray-300 focus:border-blue-500'}
+                ${error ? 'border-red-500' : 'border-white/10'}
               `}
               rows={12}
               placeholder={placeholder}
@@ -308,13 +307,12 @@ export const InlineTextEditor = ({
               disabled={isSaving}
               className={`
                 w-full p-2 
-                border-2 
-                rounded-lg
-                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
-                text-gray-900 font-sans
-                bg-white
+                border
+                bg-transparent
+                text-white
+                focus:outline-none focus:ring-2 focus:ring-[#14C800]
                 ${isSaving ? 'opacity-50 cursor-wait' : ''}
-                ${error ? 'border-red-500' : 'border-gray-300 focus:border-blue-500'}
+                ${error ? 'border-red-500' : 'border-white/10'}
               `}
               placeholder={placeholder}
               style={{ fontSize: '14px' }}
@@ -323,7 +321,7 @@ export const InlineTextEditor = ({
           
           {/* Error message */}
           {error && (
-            <div className="mt-2 p-2 bg-red-50 border border-red-300 rounded-lg text-red-700 text-sm flex items-start gap-2">
+            <div className="mt-2 p-2 bg-red-500/10 border border-red-500/40 rounded-none text-red-300 text-sm flex items-start gap-2">
               <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
               </svg>
@@ -332,7 +330,7 @@ export const InlineTextEditor = ({
           )}
           
           {/* Helper text */}
-          <div className="mt-2 text-xs text-gray-600 flex items-center gap-1">
+          <div className="mt-2 text-xs text-white/60 flex items-center gap-1">
             <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
             </svg>
@@ -347,18 +345,11 @@ export const InlineTextEditor = ({
         </div>
         
         {/* Footer */}
-        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex justify-end gap-2">
+        <div className="px-4 py-3 border-t border-white/10 bg-transparent flex justify-end gap-2">
           <button 
             onClick={handleCancel}
             disabled={isSaving}
-            className="
-              px-3 py-1.5 text-sm
-              bg-gray-200 hover:bg-gray-300 
-              text-gray-800 font-medium
-              rounded-lg
-              transition-colors
-              disabled:opacity-50 disabled:cursor-not-allowed
-            "
+            className="btn-flat btn-flat-sm"
           >
             Cancel
           </button>
@@ -366,16 +357,7 @@ export const InlineTextEditor = ({
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className={`
-              px-3 py-1.5 text-sm
-              bg-green-600 hover:bg-green-700 
-              text-white font-medium
-              rounded-lg
-              transition-colors
-              disabled:bg-gray-400 disabled:cursor-not-allowed
-              flex items-center gap-2
-              shadow-sm
-            `}
+            className="btn-flat btn-flat-sm btn-flat-active flex items-center gap-2"
           >
             {isSaving ? (
               <>

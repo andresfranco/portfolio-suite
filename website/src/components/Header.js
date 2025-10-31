@@ -4,6 +4,7 @@ import { LanguageContext } from '../context/LanguageContext';
 import { translations } from '../data/translations';
 import { useEditMode } from '../context/EditModeContext';
 import { useSectionLabel, SECTION_CODES } from '../hooks/useSectionLabel';
+import LanguageSelector from './LanguageSelector';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -99,23 +100,14 @@ const Header = () => {
             <label htmlFor="desktop-language-select" className="sr-only">
               {languageSwitcherLabel}
             </label>
-            <div className="relative">
-              <select
-                id="desktop-language-select"
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                className="select-flat"
-              >
-                {availableLanguages.map((lang) => (
-                  <option key={lang.code} value={lang.code}>
-                    {getLanguageLabel(lang.code)}
-                  </option>
-                ))}
-              </select>
-              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-white/60">
-                ▾
-              </span>
-            </div>
+            <LanguageSelector
+              id="desktop-language-select"
+              language={language}
+              setLanguage={setLanguage}
+              availableLanguages={availableLanguages}
+              getLanguageLabel={getLanguageLabel}
+              className="w-40"
+            />
           </div>
 
           {/* Mobile Menu Button */}
@@ -179,23 +171,14 @@ const Header = () => {
               <label htmlFor="mobile-language-select" className="sr-only">
                 {languageSwitcherLabel}
               </label>
-              <div className="relative">
-                <select
-                  id="mobile-language-select"
-                  value={language}
-                  onChange={(e) => setLanguage(e.target.value)}
-                  className="select-flat w-full text-lg"
-                >
-                  {availableLanguages.map((lang) => (
-                    <option key={lang.code} value={lang.code}>
-                      {getLanguageLabel(lang.code)}
-                    </option>
-                  ))}
-                </select>
-                <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-white/60">
-                  ▾
-                </span>
-              </div>
+              <LanguageSelector
+                id="mobile-language-select"
+                language={language}
+                setLanguage={setLanguage}
+                availableLanguages={availableLanguages}
+                getLanguageLabel={getLanguageLabel}
+                className="w-full text-lg"
+              />
             </div>
           </div>
         </div>
