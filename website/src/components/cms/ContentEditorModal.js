@@ -331,18 +331,18 @@ export const ContentEditorModal = ({
   }
   
   return (
-    <div 
+    <div
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[55] p-4"
       onClick={handleClose}
     >
-      <div 
-        className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+      <div
+        className="bg-[#03060a] border border-white/10 rounded-none shadow-[0_20px_45px_rgba(10,15,30,0.55)] max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-blue-50 to-white">
-          <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-            <svg className="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+            <svg className="w-7 h-7 text-[#14C800]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               {mode === 'create' ? (
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               ) : (
@@ -351,11 +351,11 @@ export const ContentEditorModal = ({
             </svg>
             {mode === 'create' ? 'Create' : 'Edit'} {type === 'project' ? 'Project' : 'Experience'}
           </h2>
-          
+
           <button
             onClick={handleClose}
             disabled={isSaving}
-            className="text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
+            className="text-white/60 hover:text-white transition-colors disabled:opacity-50"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -364,14 +364,14 @@ export const ContentEditorModal = ({
         </div>
         
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="flex-1 overflow-y-auto px-6 py-6 bg-[#03060a]">
           <div className="space-y-6">
             {/* Language indicator */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center gap-2">
-              <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="bg-white/5 border border-[#14C800]/50 rounded-none p-3 flex items-center gap-2">
+              <svg className="w-5 h-5 text-[#14C800]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
               </svg>
-              <span className="text-sm font-medium text-blue-900">
+              <span className="text-sm font-medium text-white">
                 {mode === 'create' ? 'Creating in' : 'Editing in'} {languageName}
               </span>
             </div>
@@ -379,7 +379,7 @@ export const ContentEditorModal = ({
             {/* Code field - only for experiences in create mode */}
             {type === 'experience' && mode === 'create' && (
               <div>
-                <label className="block mb-2 font-semibold text-gray-900 text-sm uppercase tracking-wide">
+                <label className="block mb-2 font-semibold text-white text-sm uppercase tracking-wide">
                   Code *
                 </label>
                 <input
@@ -387,38 +387,36 @@ export const ContentEditorModal = ({
                   value={formData.code || ''}
                   onChange={(e) => handleFieldChange('code', e.target.value)}
                   disabled={isSaving}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-gray-900 font-sans"
+                  className="w-full px-4 py-3 bg-white/5 border border-[#14C800]/50 rounded-none focus:outline-none focus:ring-2 focus:ring-[#14C800]/60 disabled:opacity-50 text-white placeholder-white/50"
                   placeholder="e.g., fullstack_dev"
-                  style={{ fontSize: '15px' }}
                 />
-                <p className="mt-1 text-xs text-gray-600">Unique identifier for this experience</p>
+                <p className="mt-1 text-xs text-white/60">Unique identifier for this experience</p>
               </div>
             )}
-            
+
             {/* Icon field - only for experiences in create mode */}
             {type === 'experience' && mode === 'create' && (
               <div>
-                <label className="block mb-2 font-semibold text-gray-900 text-sm uppercase tracking-wide">
+                <label className="block mb-2 font-semibold text-white text-sm uppercase tracking-wide">
                   Icon
                 </label>
                 <select
                   value={formData.icon || 'code'}
                   onChange={(e) => handleFieldChange('icon', e.target.value)}
                   disabled={isSaving}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-gray-900 font-sans"
-                  style={{ fontSize: '15px' }}
+                  className="w-full px-4 py-3 bg-white/5 border border-[#14C800]/50 rounded-none focus:outline-none focus:ring-2 focus:ring-[#14C800]/60 disabled:opacity-50 text-white"
                 >
                   <option value="code">Code (Development)</option>
                   <option value="database">Database</option>
                   <option value="cloud">Cloud</option>
                 </select>
-                <p className="mt-1 text-xs text-gray-600">Icon to display for this experience</p>
+                <p className="mt-1 text-xs text-white/60">Icon to display for this experience</p>
               </div>
             )}
-            
+
             {/* Name */}
             <div>
-              <label className="block mb-2 font-semibold text-gray-900 text-sm uppercase tracking-wide">
+              <label className="block mb-2 font-semibold text-white text-sm uppercase tracking-wide">
                 {type === 'experience' ? 'Experience Name *' : 'Name *'}
               </label>
               <input
@@ -426,16 +424,15 @@ export const ContentEditorModal = ({
                 value={textData.name || ''}
                 onChange={(e) => handleTextChange('name', e.target.value)}
                 disabled={isSaving}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-gray-900 font-sans"
+                className="w-full px-4 py-3 bg-white/5 border border-[#14C800]/50 rounded-none focus:outline-none focus:ring-2 focus:ring-[#14C800]/60 disabled:opacity-50 text-white placeholder-white/50"
                 placeholder={type === 'experience' ? 'e.g., Full Stack Development' : 'Enter name...'}
-                style={{ fontSize: '15px' }}
               />
             </div>
-            
+
             {/* Experience-specific fields - show Years first */}
             {type === 'experience' && (
               <div>
-                <label className="block mb-2 font-semibold text-gray-900 text-sm uppercase tracking-wide">
+                <label className="block mb-2 font-semibold text-white text-sm uppercase tracking-wide">
                   Years of Experience *
                 </label>
                 <input
@@ -445,11 +442,10 @@ export const ContentEditorModal = ({
                   value={formData.years || ''}
                   onChange={(e) => handleFieldChange('years', e.target.value)}
                   disabled={isSaving}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-gray-900 font-sans"
+                  className="w-full px-4 py-3 bg-white/5 border border-[#14C800]/50 rounded-none focus:outline-none focus:ring-2 focus:ring-[#14C800]/60 disabled:opacity-50 text-white placeholder-white/50"
                   placeholder="Number of years..."
-                  style={{ fontSize: '15px' }}
                 />
-                <p className="mt-1 text-xs text-gray-600">This will display as "{formData.years || '0'}+ years"</p>
+                <p className="mt-1 text-xs text-white/60">This will display as "{formData.years || '0'}+ years"</p>
               </div>
             )}
             
@@ -458,7 +454,7 @@ export const ContentEditorModal = ({
               <>
                 {/* Short Description */}
                 <div>
-                  <label className="block mb-2 font-semibold text-gray-900 text-sm uppercase tracking-wide">
+                  <label className="block mb-2 font-semibold text-white text-sm uppercase tracking-wide">
                     Short Description
                   </label>
                   <textarea
@@ -466,15 +462,14 @@ export const ContentEditorModal = ({
                     onChange={(e) => handleTextChange('short_description', e.target.value)}
                     disabled={isSaving}
                     rows={3}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y disabled:bg-gray-100 text-gray-900 font-sans"
+                    className="w-full px-4 py-3 bg-white/5 border border-[#14C800]/50 rounded-none focus:outline-none focus:ring-2 focus:ring-[#14C800]/60 resize-y disabled:opacity-50 text-white placeholder-white/50"
                     placeholder="Brief summary..."
-                    style={{ fontSize: '15px', lineHeight: '1.6' }}
                   />
                 </div>
-                
+
                 {/* Description */}
                 <div>
-                  <label className="block mb-2 font-semibold text-gray-900 text-sm uppercase tracking-wide">
+                  <label className="block mb-2 font-semibold text-white text-sm uppercase tracking-wide">
                     Description
                   </label>
                   <textarea
@@ -482,20 +477,20 @@ export const ContentEditorModal = ({
                     onChange={(e) => handleTextChange('description', e.target.value)}
                     disabled={isSaving}
                     rows={10}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y disabled:bg-gray-100 text-gray-900 font-sans"
+                    className="w-full px-4 py-3 bg-white/5 border border-[#14C800]/50 rounded-none focus:outline-none focus:ring-2 focus:ring-[#14C800]/60 resize-y disabled:opacity-50 text-white placeholder-white/50"
                     placeholder="Detailed description..."
-                    style={{ fontSize: '15px', lineHeight: '1.6', minHeight: '200px' }}
+                    style={{ minHeight: '200px' }}
                   />
                 </div>
               </>
             )}
-            
+
             {/* Project-specific fields - URLs */}
             {type === 'project' && (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block mb-2 font-semibold text-gray-900 text-sm uppercase tracking-wide">
+                    <label className="block mb-2 font-semibold text-white text-sm uppercase tracking-wide">
                       Repository URL
                     </label>
                     <input
@@ -503,14 +498,13 @@ export const ContentEditorModal = ({
                       value={formData.repository_url || ''}
                       onChange={(e) => handleFieldChange('repository_url', e.target.value)}
                       disabled={isSaving}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-gray-900 font-sans"
+                      className="w-full px-4 py-3 bg-white/5 border border-[#14C800]/50 rounded-none focus:outline-none focus:ring-2 focus:ring-[#14C800]/60 disabled:opacity-50 text-white placeholder-white/50"
                       placeholder="https://github.com/..."
-                      style={{ fontSize: '15px' }}
                     />
                   </div>
-                  
+
                   <div>
-                    <label className="block mb-2 font-semibold text-gray-900 text-sm uppercase tracking-wide">
+                    <label className="block mb-2 font-semibold text-white text-sm uppercase tracking-wide">
                       Website URL
                     </label>
                     <input
@@ -518,9 +512,8 @@ export const ContentEditorModal = ({
                       value={formData.website_url || ''}
                       onChange={(e) => handleFieldChange('website_url', e.target.value)}
                       disabled={isSaving}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-gray-900 font-sans"
+                      className="w-full px-4 py-3 bg-white/5 border border-[#14C800]/50 rounded-none focus:outline-none focus:ring-2 focus:ring-[#14C800]/60 disabled:opacity-50 text-white placeholder-white/50"
                       placeholder="https://example.com"
-                      style={{ fontSize: '15px' }}
                     />
                   </div>
                 </div>
@@ -529,7 +522,7 @@ export const ContentEditorModal = ({
             
             {/* Error message */}
             {error && (
-              <div className="p-4 bg-red-50 border border-red-300 rounded-lg text-red-700 text-sm flex items-start gap-3">
+              <div className="p-4 bg-red-500/10 border border-red-500/40 rounded-none text-red-300 text-sm flex items-start gap-3">
                 <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                 </svg>
@@ -538,49 +531,31 @@ export const ContentEditorModal = ({
             )}
           </div>
         </div>
-        
+
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 flex justify-between items-center bg-gray-50">
-          <div className="text-sm text-gray-600">
+        <div className="px-6 py-4 border-t border-white/10 flex justify-between items-center bg-[#03060a]">
+          <div className="text-sm text-white/70">
             {hasChanges && (
               <span className="flex items-center gap-2">
-                <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
+                <span className="w-2 h-2 bg-[#14C800] rounded-full animate-pulse"></span>
                 Unsaved changes
               </span>
             )}
           </div>
-          
+
           <div className="flex gap-3">
             <button
               onClick={handleClose}
               disabled={isSaving}
-              className="
-                px-6 py-2.5
-                bg-gray-200 hover:bg-gray-300 
-                text-gray-800 font-medium
-                rounded-lg
-                text-sm
-                transition-colors
-                disabled:opacity-50 disabled:cursor-not-allowed
-              "
+              className="btn-flat btn-flat-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
-            
+
             <button
               onClick={handleSave}
               disabled={isSaving || !hasChanges}
-              className="
-                px-6 py-2.5
-                bg-blue-600 hover:bg-blue-700 
-                text-white font-medium
-                rounded-lg
-                text-sm
-                transition-colors
-                disabled:bg-gray-400 disabled:cursor-not-allowed
-                flex items-center gap-2
-                shadow-sm
-              "
+              className="btn-flat btn-flat-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {isSaving ? (
                 <>

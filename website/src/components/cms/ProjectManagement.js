@@ -32,7 +32,7 @@ export const ProjectManagement = () => {
       <div className="mb-6 flex justify-end">
         <button
           onClick={handleCreateProject}
-          className="btn-flat btn-flat-lg flex items-center gap-2 font-semibold text-gray-900"
+          className="btn-flat btn-flat-lg flex items-center gap-2 font-semibold text-white"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -253,7 +253,7 @@ export const ProjectFormDialog = ({ mode = 'create', project = null, onClose, on
   if (loadingData) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[80]">
-        <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 shadow-2xl">
+    <div className="bg-[#03060a] border border-white/10 rounded-xl shadow-[0_20px_45px_rgba(10,15,30,0.55)] w-full max-w-4xl mx-4">
           <div className="flex items-center justify-center py-8">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#14C800]"></div>
           </div>
@@ -264,52 +264,65 @@ export const ProjectFormDialog = ({ mode = 'create', project = null, onClose, on
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[80] overflow-y-auto p-4">
-      <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 shadow-2xl my-8">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">
+      <div className="bg-[#03060a] border border-white/10 rounded-none shadow-[0_20px_45px_rgba(10,15,30,0.55)] w-full max-w-4xl mx-4 my-8 flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+            <svg className="w-7 h-7 text-[#14C800]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {mode === 'create' ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              )}
+            </svg>
             {mode === 'create' ? 'Create New Project' : 'Edit Project'}
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+            className="text-white/60 hover:text-white transition-colors"
           >
-            ×
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
 
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto px-6 py-6 bg-[#03060a]">
+
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+            <div className="bg-red-500/10 border border-red-500/40 text-red-300 px-4 py-3 rounded-none">
               {error}
             </div>
           )}
 
           {/* Basic Information */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">Basic Information</h3>
-            
+            <h3 className="text-lg font-semibold text-white">Basic Information</h3>
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block mb-2 font-semibold text-white text-sm uppercase tracking-wide">
                 Repository URL
               </label>
               <input
                 type="url"
                 value={formData.repository_url}
                 onChange={(e) => handleInputChange('repository_url', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#14C800]"
+                className="w-full px-4 py-3 bg-white/5 border border-[#14C800]/50 rounded-none focus:outline-none focus:ring-2 focus:ring-[#14C800]/60 text-white placeholder-white/50"
                 placeholder="https://github.com/username/repo"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block mb-2 font-semibold text-white text-sm uppercase tracking-wide">
                 Website URL
               </label>
               <input
                 type="url"
                 value={formData.website_url}
                 onChange={(e) => handleInputChange('website_url', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#14C800]"
+                className="w-full px-4 py-3 bg-white/5 border border-[#14C800]/50 rounded-none focus:outline-none focus:ring-2 focus:ring-[#14C800]/60 text-white placeholder-white/50"
                 placeholder="https://myproject.com"
               />
             </div>
@@ -318,12 +331,12 @@ export const ProjectFormDialog = ({ mode = 'create', project = null, onClose, on
           {/* Language Content */}
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <h3 className="text-lg font-semibold text-gray-900">Content</h3>
+              <h3 className="text-lg font-semibold text-white">Content</h3>
               {languages.length > formData.project_texts.length && (
                 <button
                   type="button"
                   onClick={addLanguage}
-                  className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                  className="px-3 py-1 btn-flat btn-flat-sm text-white rounded text-sm hover:text-white"
                 >
                   + Add Language
                 </button>
@@ -331,16 +344,16 @@ export const ProjectFormDialog = ({ mode = 'create', project = null, onClose, on
             </div>
 
             {formData.project_texts.map((text, index) => (
-              <div key={text.language_id} className="border border-gray-300 rounded-lg p-4 space-y-3">
+              <div key={text.language_id} className="border border-white/10 rounded-none p-4 space-y-3 bg-white/5">
                 <div className="flex justify-between items-center">
-                  <h4 className="font-medium text-gray-900">
+                  <h4 className="font-medium text-white">
                     {getLanguageName(text.language_id)}
                   </h4>
                   {formData.project_texts.length > 1 && (
                     <button
                       type="button"
                       onClick={() => removeLanguage(text.language_id)}
-                      className="text-red-600 hover:text-red-800 text-sm"
+                      className="text-red-400 hover:text-red-300 text-sm"
                     >
                       Remove
                     </button>
@@ -348,28 +361,27 @@ export const ProjectFormDialog = ({ mode = 'create', project = null, onClose, on
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block mb-2 font-semibold text-white text-sm uppercase tracking-wide">
                     Project Name *
                   </label>
                   <input
                     type="text"
                     value={text.name}
                     onChange={(e) => handleTextChange(text.language_id, 'name', e.target.value)}
-                    required={index === 0}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#14C800]"
+                    className="w-full px-4 py-3 bg-white/5 border border-[#14C800]/50 rounded-none focus:outline-none focus:ring-2 focus:ring-[#14C800]/60 text-white placeholder-white/50"
                     placeholder="Enter project name"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block mb-2 font-semibold text-white text-sm uppercase tracking-wide">
                     Description
                   </label>
                   <textarea
                     value={text.description}
                     onChange={(e) => handleTextChange(text.language_id, 'description', e.target.value)}
                     rows="4"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#14C800]"
+                    className="w-full px-4 py-3 bg-white/5 border border-[#14C800]/50 rounded-none focus:outline-none focus:ring-2 focus:ring-[#14C800]/60 resize-y text-white placeholder-white/50"
                     placeholder="Enter project description"
                   />
                 </div>
@@ -380,7 +392,7 @@ export const ProjectFormDialog = ({ mode = 'create', project = null, onClose, on
           {/* Categories */}
           {categories.length > 0 && (
             <div className="space-y-3">
-              <h3 className="text-lg font-semibold text-gray-900">Categories</h3>
+              <h3 className="text-lg font-semibold text-white">Categories</h3>
               <div className="flex flex-wrap gap-2">
                 {categories.map(category => (
                   <button
@@ -399,7 +411,7 @@ export const ProjectFormDialog = ({ mode = 'create', project = null, onClose, on
           {/* Skills */}
           {skills.length > 0 && (
             <div className="space-y-3">
-              <h3 className="text-lg font-semibold text-gray-900">Skills</h3>
+              <h3 className="text-lg font-semibold text-white">Skills</h3>
               <div className="flex flex-wrap gap-2 max-h-60 overflow-y-auto">
                 {skills.map(skill => (
                   <button
@@ -416,23 +428,39 @@ export const ProjectFormDialog = ({ mode = 'create', project = null, onClose, on
           )}
 
           {/* Actions */}
-          <div className="flex gap-3 pt-4 border-t">
+          <div className="flex gap-3 pt-4 border-t border-white/10">
             <button
               type="submit"
               disabled={isLoading}
-            className="btn-flat btn-flat-lg flex-1 font-semibold text-gray-900 disabled:cursor-not-allowed"
+              className="btn-flat btn-flat-sm flex-1 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {isLoading ? 'Saving...' : mode === 'create' ? 'Create Project' : 'Save Changes'}
+              {isLoading ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  {mode === 'create' ? 'Create Project' : 'Save Changes'}
+                </>
+              )}
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="btn-flat btn-flat-lg font-semibold"
+              className="btn-flat btn-flat-sm"
             >
               Cancel
             </button>
           </div>
         </form>
+        </div>
       </div>
     </div>
   );
@@ -509,17 +537,17 @@ export const ProjectDeleteDialog = ({ project, onClose, onSuccess, authToken }) 
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[80]">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Delete Project?</h2>
+      <div className="bg-[#03060a] rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl">
+        <h2 className="text-2xl font-bold text-white mb-4">Delete Project?</h2>
         
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          <div className="bg-red-500/10 border border-red-500/40 text-red-300 px-4 py-3 rounded mb-4">
             {error}
           </div>
         )}
 
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-          <p className="text-gray-700 mb-2">
+        <div className="bg-white/5 border border-red-500/40 rounded-lg p-4 mb-6">
+          <p className="text-white/80 mb-2">
             Are you sure you want to delete <strong>{projectText.name || 'this project'}</strong>?
           </p>
           <p className="text-sm text-red-600">
@@ -538,7 +566,7 @@ export const ProjectDeleteDialog = ({ project, onClose, onSuccess, authToken }) 
           <button
             onClick={onClose}
             disabled={isDeleting}
-            className="btn-flat btn-flat-lg font-semibold text-gray-900"
+            className="btn-flat btn-flat-lg font-semibold"
           >
             Cancel
           </button>
