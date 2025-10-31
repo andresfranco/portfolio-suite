@@ -199,14 +199,14 @@ export const ProjectMetadataEditor = ({ isOpen, onClose, project, onUpdate }) =>
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-[#03060a] border border-white/10 shadow-[0_20px_45px_rgba(10,15,30,0.55)] max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="bg-gray-800 text-white px-6 py-4 flex justify-between items-center">
+        <div className="text-white px-6 py-4 flex justify-between items-center border-b border-white/10">
           <h2 className="text-xl font-bold">Edit Project Metadata</h2>
           <button
             onClick={handleClose}
             disabled={saving}
-            className="text-gray-300 hover:text-white transition-colors"
+            className="text-gray-500 hover:text-white/80 transition-colors"
           >
             <FaTimes size={24} />
           </button>
@@ -228,7 +228,7 @@ export const ProjectMetadataEditor = ({ isOpen, onClose, project, onUpdate }) =>
 
               {/* Project Date */}
               <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                <label className="flex items-center gap-2 text-sm font-medium text-white/80 mb-2">
                   <FaCalendar className="text-gray-500" />
                   Project Date
                 </label>
@@ -236,7 +236,7 @@ export const ProjectMetadataEditor = ({ isOpen, onClose, project, onUpdate }) =>
                   type="date"
                   value={projectDate}
                   onChange={(e) => setProjectDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                  className="w-full px-3 py-2 border border-white/10 bg-white/10 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#14C800]"
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Optional: Date associated with this project
@@ -245,13 +245,13 @@ export const ProjectMetadataEditor = ({ isOpen, onClose, project, onUpdate }) =>
 
               {/* Categories */}
               <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                <label className="flex items-center gap-2 text-sm font-medium text-white/80 mb-2">
                   <FaFolder className="text-gray-500" />
                   Categories ({selectedCategories.length} selected)
                 </label>
-                <div className="border border-gray-300 rounded-lg p-4 max-h-60 overflow-y-auto">
+                <div className="border border-white/10 p-4 max-h-60 overflow-y-auto">
                   {availableCategories.length === 0 ? (
-                    <p className="text-gray-500 text-sm">No categories available</p>
+                    <p className="text-white/50 text-sm">No categories available</p>
                   ) : (
                     <div className="grid grid-cols-2 gap-2">
                       {availableCategories.map(category => {
@@ -261,12 +261,7 @@ export const ProjectMetadataEditor = ({ isOpen, onClose, project, onUpdate }) =>
                             key={category.id}
                             type="button"
                             onClick={() => toggleCategory(category)}
-                            className={`px-3 py-2 rounded-lg text-sm text-left transition-all ${
-                              isSelected
-                                ? 'bg-blue-500 text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
-                          >
+                            className={`btn-flat btn-flat-sm ${isSelected ? 'btn-flat-active' : ''}`}>
                             {getCategoryName(category)}
                           </button>
                         );
@@ -278,13 +273,13 @@ export const ProjectMetadataEditor = ({ isOpen, onClose, project, onUpdate }) =>
 
               {/* Skills */}
               <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                <label className="flex items-center gap-2 text-sm font-medium text-white/80 mb-2">
                   <FaCode className="text-gray-500" />
                   Skills ({selectedSkills.length} selected)
                 </label>
-                <div className="border border-gray-300 rounded-lg p-4 max-h-60 overflow-y-auto">
+                <div className="border border-white/10 p-4 max-h-60 overflow-y-auto">
                   {availableSkills.length === 0 ? (
-                    <p className="text-gray-500 text-sm">No skills available</p>
+                    <p className="text-white/50 text-sm">No skills available</p>
                   ) : (
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                       {availableSkills.map(skill => {
@@ -294,12 +289,7 @@ export const ProjectMetadataEditor = ({ isOpen, onClose, project, onUpdate }) =>
                             key={skill.id}
                             type="button"
                             onClick={() => toggleSkill(skill)}
-                            className={`px-3 py-2 rounded-lg text-sm text-left transition-all ${
-                              isSelected
-                                ? 'bg-green-500 text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
-                          >
+                            className={`btn-flat btn-flat-sm ${isSelected ? 'btn-flat-active' : ''}`}>
                             {getSkillName(skill)}
                           </button>
                         );
@@ -313,12 +303,12 @@ export const ProjectMetadataEditor = ({ isOpen, onClose, project, onUpdate }) =>
         </div>
 
         {/* Footer */}
-        <div className="bg-gray-50 px-6 py-4 flex justify-end gap-3 border-t border-gray-200">
+        <div className="bg-transparent px-6 py-4 flex justify-end gap-3 border-t border-white/10">
           <button
             type="button"
             onClick={handleClose}
             disabled={saving}
-            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+            className="btn-flat btn-flat-lg"
           >
             Cancel
           </button>
@@ -326,7 +316,7 @@ export const ProjectMetadataEditor = ({ isOpen, onClose, project, onUpdate }) =>
             type="button"
             onClick={handleSubmit}
             disabled={saving || loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+            className="btn-flat btn-flat-lg btn-flat-active flex items-center gap-2"
           >
             {saving ? (
               <>

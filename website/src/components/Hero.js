@@ -476,38 +476,38 @@ const Hero = () => {
                     {/* Dropdown menu */}
                     {showAddMenu && (
                       <div
-                        className="absolute top-full left-0 right-0 mt-2 bg-white shadow-xl border border-gray-200 overflow-hidden z-10"
+                        className="absolute top-full left-0 right-0 mt-2 bg-[#03060a] border border-white/10 overflow-hidden z-10 shadow-[0_20px_45px_rgba(10,15,30,0.55)]"
                         onMouseLeave={() => setShowAddMenu(false)}
                       >
                         <button
                           onClick={handleCreateNewExperience}
-                          className="w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors flex items-center gap-3 group"
+                          className="w-full px-4 py-3 text-left hover:bg-white/10 transition-colors flex items-center gap-3 group"
                         >
-                          <div className="w-10 h-10 bg-blue-100 group-hover:bg-blue-600 flex items-center justify-center transition-colors">
-                            <svg className="w-5 h-5 text-blue-600 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <div className="w-10 h-10 bg-white/5 border border-[#14C800]/50 group-hover:bg-[#14C800] group-hover:border-[#14C800] flex items-center justify-center transition-colors">
+                            <svg className="w-5 h-5 text-[#14C800] group-hover:text-black transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                             </svg>
                           </div>
                           <div className="flex-1">
-                            <div className="font-semibold text-gray-900">Create New</div>
-                            <div className="text-sm text-gray-600">Create a brand new experience</div>
+                            <div className="font-semibold text-white">Create New</div>
+                            <div className="text-sm text-white/70">Create a brand new experience</div>
                           </div>
                         </button>
 
-                        <div className="border-t border-gray-200"></div>
+                        <div className="border-t border-white/10"></div>
 
                         <button
                           onClick={handleAddExistingExperience}
-                          className="w-full px-4 py-3 text-left hover:bg-green-50 transition-colors flex items-center gap-3 group"
+                          className="w-full px-4 py-3 text-left hover:bg-white/10 transition-colors flex items-center gap-3 group"
                         >
-                          <div className="w-10 h-10 bg-green-100 group-hover:bg-green-600 flex items-center justify-center transition-colors">
-                            <svg className="w-5 h-5 text-green-600 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <div className="w-10 h-10 bg-white/5 border border-[#14C800]/50 group-hover:bg-[#14C800] group-hover:border-[#14C800] flex items-center justify-center transition-colors">
+                            <svg className="w-5 h-5 text-[#14C800] group-hover:text-black transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                             </svg>
                           </div>
                           <div className="flex-1">
-                            <div className="font-semibold text-gray-900">Add Existing</div>
-                            <div className="text-sm text-gray-600">Add from existing experiences</div>
+                            <div className="font-semibold text-white">Add Existing</div>
+                            <div className="text-sm text-white/70">Add from existing experiences</div>
                           </div>
                         </button>
                       </div>
@@ -628,32 +628,32 @@ const Hero = () => {
       
       {/* Delete Confirmation Dialog */}
       {isEditMode && experienceToDelete && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4"
           onClick={() => setExperienceToDelete(null)}
         >
-          <div 
-            className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6"
+          <div
+            className="bg-[#03060a] border border-white/10 rounded-none shadow-[0_20px_45px_rgba(10,15,30,0.55)] max-w-md w-full p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start gap-4">
-              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="flex-shrink-0 w-12 h-12 rounded-none bg-red-500/10 border border-red-500/40 flex items-center justify-center">
+                <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                <h3 className="text-lg font-semibold text-white mb-2">
                   Remove Experience
                 </h3>
-                <p className="text-gray-600 mb-4">
-                  Are you sure you want to remove <strong>{getExperienceText(experienceToDelete).name}</strong> from your portfolio? 
+                <p className="text-white/70 mb-4">
+                  Are you sure you want to remove <strong className="text-white">{getExperienceText(experienceToDelete).name}</strong> from your portfolio?
                   This will not delete the experience permanently, only remove it from this portfolio.
                 </p>
                 <div className="flex justify-end gap-3">
                   <button
                     onClick={() => setExperienceToDelete(null)}
-                    className="btn-flat btn-flat-sm text-gray-700 hover:text-gray-900"
+                    className="btn-flat btn-flat-sm"
                   >
                     Cancel
                   </button>

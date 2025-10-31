@@ -55,16 +55,43 @@ html, body {
 
 .select-flat {
   @apply bg-white/5 text-white/80 border border-[#14C800]/50 rounded-none pl-4 pr-12 py-2 appearance-none leading-tight focus:outline-none focus:ring-2 focus:ring-[#14C800]/60;
+  color-scheme: dark;
 }
 
 .select-flat:hover {
-  @apply bg-white/10 text-white;
+  @apply bg-white/10 text-white border-[#14C800];
 }
 
 .select-flat:active {
-  @apply bg-white/15 text-white;
+  @apply bg-white/20 text-white border-[#14C800]/90;
 }
 
-.select-flat option {
-  @apply bg-[#03060a] text-white;
+/* Image change button - High contrast overlay button for edit mode */
+.btn-image-change {
+  @apply flex items-center gap-2 px-4 py-2 rounded-none;
+  background: linear-gradient(135deg, rgba(3, 6, 10, 0.95) 0%, rgba(3, 6, 10, 0.98) 100%);
+  border: 2px solid #14C800;
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 0.875rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(20, 200, 0, 0.3);
+  backdrop-filter: blur(8px);
+  transition: all 0.2s ease;
+}
+
+.btn-image-change:hover {
+  background: linear-gradient(135deg, #14C800 0%, #12b300 100%);
+  color: #000000;
+  border-color: #14C800;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.95), 0 0 20px rgba(20, 200, 0, 0.5);
+  transform: translateY(-2px);
+}
+
+.btn-image-change svg {
+  color: #14C800;
+  transition: color 0.2s ease;
+}
+
+.btn-image-change:hover svg {
+  color: #000000;
 }

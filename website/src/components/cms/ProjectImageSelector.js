@@ -357,7 +357,7 @@ export const ProjectImageSelector = ({
               e.preventDefault();
               setIsModalOpen(true);
             }}
-            className="relative z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-white text-gray-800 px-4 py-2 rounded-lg shadow-lg hover:bg-gray-100 flex items-center gap-2 pointer-events-auto"
+            className="relative z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 btn-flat btn-flat-sm shadow-lg flex items-center gap-2 pointer-events-auto"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -369,7 +369,7 @@ export const ProjectImageSelector = ({
 
       {/* Image Selector Modal - Rendered as portal */}
       {isModalOpen && ReactDOM.createPortal(
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4"
           onClick={(e) => {
             // Close modal when clicking backdrop
@@ -378,21 +378,21 @@ export const ProjectImageSelector = ({
             }
           }}
         >
-          <div 
-            className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+          <div
+            className="bg-[#03060a] border border-white/10 rounded-none shadow-[0_20px_45px_rgba(10,15,30,0.55)] max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => {
               // Stop propagation from modal content to backdrop
               e.stopPropagation();
             }}
           >
             {/* Header */}
-            <div className="border-b border-gray-200 p-4 flex justify-between items-center">
-              <h3 className="text-xl font-bold text-gray-800">
+            <div className="border-b border-white/10 p-4 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-white">
                 Manage {category === 'thumbnail' ? 'Thumbnail' : 'Logo'} Image
               </h3>
-              <button 
+              <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600 transition-colors p-2"
+                className="text-white/60 hover:text-white transition-colors p-2"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -401,25 +401,25 @@ export const ProjectImageSelector = ({
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-6 bg-[#03060a]">
               {/* Upload Section */}
               <div className="mb-8">
-                <h4 className="text-lg font-semibold text-gray-700 mb-4">Upload New Image</h4>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors">
-                  <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <h4 className="text-lg font-semibold text-white mb-4">Upload New Image</h4>
+                <div className="border-2 border-dashed border-[#14C800]/50 rounded-none p-8 text-center hover:border-[#14C800] transition-colors bg-white/5">
+                  <svg className="w-12 h-12 text-white/60 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
                   <button
                     onClick={handleUploadClick}
                     disabled={uploading}
-                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="btn-flat btn-flat-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {uploading ? 'Uploading...' : 'Choose File'}
                   </button>
-                  <p className="text-sm text-gray-500 mt-2">
+                  <p className="text-sm text-white/70 mt-2">
                     or drag and drop an image here
                   </p>
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-xs text-white/50 mt-1">
                     PNG, JPG, GIF, WebP up to 5MB
                   </p>
                 </div>
@@ -428,12 +428,12 @@ export const ProjectImageSelector = ({
                 {uploading && (
                   <div className="mt-4">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-gray-700">Uploading...</span>
-                      <span className="text-sm text-gray-500">{uploadProgress}%</span>
+                      <span className="text-sm font-medium text-white">Uploading...</span>
+                      <span className="text-sm text-white/70">{uploadProgress}%</span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
-                      <div 
-                        className="bg-blue-600 h-2.5 transition-all duration-300"
+                    <div className="w-full bg-white/10 rounded-none h-2.5 overflow-hidden">
+                      <div
+                        className="bg-[#14C800] h-2.5 transition-all duration-300"
                         style={{ width: `${uploadProgress}%` }}
                       ></div>
                     </div>
@@ -442,30 +442,30 @@ export const ProjectImageSelector = ({
 
                 {/* Error Message */}
                 {error && (
-                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <p className="text-red-700 text-sm">{error}</p>
+                  <div className="mt-4 p-3 bg-red-500/10 border border-red-500/40 rounded-none">
+                    <p className="text-red-300 text-sm">{error}</p>
                   </div>
                 )}
               </div>
 
               {/* Existing Images Section */}
               <div>
-                <h4 className="text-lg font-semibold text-gray-700 mb-4">
+                <h4 className="text-lg font-semibold text-white mb-4">
                   Current {category === 'thumbnail' ? 'Thumbnail' : 'Logo'} Images
-                  <span className="text-sm text-gray-500 font-normal ml-2">
+                  <span className="text-sm text-white/60 font-normal ml-2">
                     ({language.toUpperCase()})
                   </span>
                 </h4>
-                <p className="text-sm text-gray-600 mb-4">
+                <p className="text-sm text-white/70 mb-4">
                   Uploading a new image will replace the current one.
                 </p>
-                
+
                 {availableImages.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="text-center py-8 text-white/60">
+                    <svg className="w-16 h-16 text-white/30 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
-                    <p>No {category} images available for this language</p>
+                    <p className="text-white">No {category} images available for this language</p>
                     <p className="text-sm mt-1">Upload a new image above</p>
                   </div>
                 ) : (
@@ -473,22 +473,22 @@ export const ProjectImageSelector = ({
                     {availableImages.map((image) => {
                       const isSelected = imageUrl.includes(image.image_path);
                       // Use image_url if available, otherwise construct from image_path
-                      const imgSrc = image.image_url 
+                      const imgSrc = image.image_url
                         ? `${API_BASE_URL}${image.image_url}`
                         : `${API_BASE_URL}/uploads/${image.image_path}`;
-                      
+
                       return (
                         <div
                           key={image.id}
                           className={`
-                            relative aspect-square rounded-lg overflow-hidden border-2
-                            ${isSelected 
-                              ? 'border-blue-500 ring-2 ring-blue-200' 
-                              : 'border-gray-200'
+                            relative aspect-square rounded-none overflow-hidden border-2
+                            ${isSelected
+                              ? 'border-[#14C800] ring-2 ring-[#14C800]/30'
+                              : 'border-white/10'
                             }
                           `}
                         >
-                          <img 
+                          <img
                             src={imgSrc}
                             alt={`${category} option`}
                             className="w-full h-full object-cover"
@@ -498,7 +498,7 @@ export const ProjectImageSelector = ({
                             }}
                           />
                           {isSelected && (
-                            <div className="absolute top-2 right-2 bg-blue-500 text-white rounded-full p-1">
+                            <div className="absolute top-2 right-2 bg-[#14C800] text-black rounded-none p-1">
                               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                               </svg>
@@ -507,7 +507,7 @@ export const ProjectImageSelector = ({
                           {/* Delete button */}
                           <button
                             onClick={(e) => handleDeleteImage(image, e)}
-                            className="absolute bottom-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-2 shadow-lg transition-colors"
+                            className="absolute bottom-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-none p-2 shadow-lg transition-colors"
                             title="Delete this image"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -523,10 +523,10 @@ export const ProjectImageSelector = ({
             </div>
 
             {/* Footer */}
-            <div className="border-t border-gray-200 p-4 flex justify-end gap-3">
+            <div className="border-t border-white/10 p-4 flex justify-end gap-3">
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                className="btn-flat btn-flat-sm"
               >
                 Cancel
               </button>
