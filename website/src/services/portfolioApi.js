@@ -763,6 +763,54 @@ export const portfolioApi = {
   },
 
   /**
+   * Add a project to a portfolio
+   * @param {number} portfolioId - Portfolio ID
+   * @param {number} projectId - Project ID
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - Success message
+   */
+  addProjectToPortfolio: async (portfolioId, projectId, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/portfolios/${portfolioId}/projects/${projectId}`,
+        {
+          method: 'POST',
+          headers: getHeaders(token, false), // No body, so no Content-Type needed
+          credentials: 'include',
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error adding project to portfolio:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Remove a project from a portfolio
+   * @param {number} portfolioId - Portfolio ID
+   * @param {number} projectId - Project ID
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - Success message
+   */
+  removeProjectFromPortfolio: async (portfolioId, projectId, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/portfolios/${portfolioId}/projects/${projectId}`,
+        {
+          method: 'DELETE',
+          headers: getHeaders(token),
+          credentials: 'include',
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error removing project from portfolio:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Get all languages
    * @param {string} token - Authentication token (optional for public access)
    * @returns {Promise<Object>} - Languages list
