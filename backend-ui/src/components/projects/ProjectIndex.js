@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Box, IconButton, Tooltip, Chip, Stack, Typography, Button, Container } from '@mui/material';
-import { Edit as EditIcon, Delete as DeleteIcon, PhotoLibrary as PhotoLibraryIcon, AttachFile as AttachFileIcon, ArrowUpward, ArrowDownward, Add, InfoOutlined } from '@mui/icons-material';
+import { Edit as EditIcon, Delete as DeleteIcon, PhotoLibrary as PhotoLibraryIcon, AttachFile as AttachFileIcon, ViewModule as ViewModuleIcon, ArrowUpward, ArrowDownward, Add, InfoOutlined } from '@mui/icons-material';
 import ProjectForm from './ProjectForm';
 import ReusableDataGrid from '../common/ReusableDataGrid';
 import ReusableFilters from '../common/ReusableFilters';
@@ -348,6 +348,11 @@ function ProjectIndexContent() {
     navigate(`/projects/${project.id}/attachments`);
   };
 
+  // Handle navigation to project sections
+  const handleSectionsClick = (project) => {
+    navigate(`/projects/${project.id}/sections`);
+  };
+
   // Define columns for the grid
   const baseColumns = useMemo(() => [
     { 
@@ -600,19 +605,19 @@ function ProjectIndexContent() {
     {
       field: 'actions',
       headerName: 'Actions',
-      width: 160,
+      width: 200,
       sortable: false,
       disableColumnMenu: true,
       renderCell: (params) => (
         <Box>
           <Tooltip title="Project Images">
-            <PermissionGate 
-              permissions={["VIEW_PROJECT_IMAGES", "UPLOAD_PROJECT_IMAGES", "EDIT_PROJECT_IMAGES", "DELETE_PROJECT_IMAGES", "MANAGE_PROJECT_IMAGES", "MANAGE_PROJECTS", "SYSTEM_ADMIN"]} 
+            <PermissionGate
+              permissions={["VIEW_PROJECT_IMAGES", "UPLOAD_PROJECT_IMAGES", "EDIT_PROJECT_IMAGES", "DELETE_PROJECT_IMAGES", "MANAGE_PROJECT_IMAGES", "MANAGE_PROJECTS", "SYSTEM_ADMIN"]}
               requireAll={false}
             >
-              <IconButton 
-                onClick={() => handleImagesClick(params.row)} 
-                size="small" 
+              <IconButton
+                onClick={() => handleImagesClick(params.row)}
+                size="small"
                 sx={{ color: '#1976d2', p: 0.5, mr: 0.5 }}
               >
                 <PhotoLibraryIcon fontSize="small" />
@@ -620,26 +625,40 @@ function ProjectIndexContent() {
             </PermissionGate>
           </Tooltip>
           <Tooltip title="Project Attachments">
-            <PermissionGate 
-              permissions={["VIEW_PROJECT_ATTACHMENTS", "UPLOAD_PROJECT_ATTACHMENTS", "DELETE_PROJECT_ATTACHMENTS", "MANAGE_PROJECT_ATTACHMENTS", "MANAGE_PROJECTS", "SYSTEM_ADMIN"]} 
+            <PermissionGate
+              permissions={["VIEW_PROJECT_ATTACHMENTS", "UPLOAD_PROJECT_ATTACHMENTS", "DELETE_PROJECT_ATTACHMENTS", "MANAGE_PROJECT_ATTACHMENTS", "MANAGE_PROJECTS", "SYSTEM_ADMIN"]}
               requireAll={false}
             >
-              <IconButton 
-                onClick={() => handleAttachmentsClick(params.row)} 
-                size="small" 
+              <IconButton
+                onClick={() => handleAttachmentsClick(params.row)}
+                size="small"
                 sx={{ color: '#1976d2', p: 0.5, mr: 0.5 }}
               >
                 <AttachFileIcon fontSize="small" />
               </IconButton>
             </PermissionGate>
           </Tooltip>
-          <Tooltip title="Edit Project">
-            <PermissionGate 
-              permissions={["EDIT_PROJECT", "MANAGE_PROJECTS", "SYSTEM_ADMIN"]} 
+          <Tooltip title="Project Sections">
+            <PermissionGate
+              permissions={["VIEW_SECTIONS", "EDIT_SECTIONS", "MANAGE_SECTIONS", "EDIT_PROJECT", "MANAGE_PROJECTS", "SYSTEM_ADMIN"]}
               requireAll={false}
             >
-              <IconButton 
-                onClick={() => handleEditClick(params.row)} 
+              <IconButton
+                onClick={() => handleSectionsClick(params.row)}
+                size="small"
+                sx={{ color: '#1976d2', p: 0.5, mr: 0.5 }}
+              >
+                <ViewModuleIcon fontSize="small" />
+              </IconButton>
+            </PermissionGate>
+          </Tooltip>
+          <Tooltip title="Edit Project">
+            <PermissionGate
+              permissions={["EDIT_PROJECT", "MANAGE_PROJECTS", "SYSTEM_ADMIN"]}
+              requireAll={false}
+            >
+              <IconButton
+                onClick={() => handleEditClick(params.row)}
                 size="small"
                 sx={{ color: '#1976d2', p: 0.5, mr: 0.5 }}
               >
@@ -648,13 +667,13 @@ function ProjectIndexContent() {
             </PermissionGate>
           </Tooltip>
           <Tooltip title="Delete Project">
-            <PermissionGate 
-              permissions={["DELETE_PROJECT", "MANAGE_PROJECTS", "SYSTEM_ADMIN"]} 
+            <PermissionGate
+              permissions={["DELETE_PROJECT", "MANAGE_PROJECTS", "SYSTEM_ADMIN"]}
               requireAll={false}
             >
-              <IconButton 
-                onClick={() => handleDeleteClick(params.row)} 
-                size="small" 
+              <IconButton
+                onClick={() => handleDeleteClick(params.row)}
+                size="small"
                 sx={{ color: '#e53935', p: 0.5 }}
               >
                 <DeleteIcon fontSize="small" />

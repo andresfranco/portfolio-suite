@@ -1,9 +1,7 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Box,
   Typography,
   Button,
@@ -36,7 +34,12 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  CardActions
+  CardActions,
+  Container,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -57,13 +60,14 @@ import {
   Download as DownloadIcon,
   Visibility as VisibilityIcon,
   Language as LanguageIcon,
-  DriveFileRenameOutline as DriveFileRenameOutlineIcon
+  DriveFileRenameOutline as DriveFileRenameOutlineIcon,
+  ArrowBack as ArrowBackIcon
 } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
-import { api, projectsApi, experiencesApi, sectionsApi } from '../../services/api';
+import { api, projectsApi, experiencesApi, sectionsApi } from '../services/api';
 import { useSnackbar } from 'notistack';
-import SERVER_URL from '../common/BackendServerData';
-import PermissionGate from '../common/PermissionGate';
+import SERVER_URL from '../components/common/BackendServerData';
+import PermissionGate from '../components/common/PermissionGate';
 
 // Tab Panel Component
 function TabPanel({ children, value, index, ...other }) {
@@ -84,7 +88,9 @@ function TabPanel({ children, value, index, ...other }) {
   );
 }
 
-function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
+function PortfolioDataPage() {
+  const { portfolioId } = useParams();
+  const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const [tabValue, setTabValue] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -172,25 +178,47 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
 
   // Fetch portfolio data
   const fetchPortfolioData = useCallback(async () => {
-    if (!portfolioId) return;
+    console.log('============================================');
+    console.log('FETCHPORTFOLIODATA FUNCTION CALLED!');
+    console.log('portfolioId:', portfolioId);
+    console.log('============================================');
+    
+    if (!portfolioId) {
+      console.warn('fetchPortfolioData: No portfolioId, returning early');
+      return;
+    }
     
     try {
       setLoading(true);
       setError(null);
       
+      console.log('============================================');
+      console.log('ABOUT TO MAKE API CALL');
+      console.log('URL:', `/api/portfolios/${portfolioId}`);
+      console.log('Params:', { include_full_details: true });
+      console.log('============================================');
+      
       // Fetch portfolio details with all related data (MUST include full_details to load relationships)
       const response = await api.get(`/api/portfolios/${portfolioId}`, { 
         params: { include_full_details: true } 
       });
+      
+      console.log('============================================');
+      console.log('API RESPONSE RECEIVED!');
+      console.log('Response status:', response.status);
+      console.log('Response data:', response.data);
+      console.log('============================================');
+      
       const portfolio = response.data;
       
-      // Debug: log attachments to see their structure
+      // Debug: log portfolio data structure
+      console.log('Portfolio data received:', portfolio);
+      console.log('Portfolio categories:', portfolio.categories);
+      console.log('Portfolio experiences:', portfolio.experiences);
+      console.log('Portfolio projects:', portfolio.projects);
+      console.log('Portfolio sections:', portfolio.sections);
+      console.log('Portfolio images:', portfolio.images);
       console.log('Portfolio attachments:', portfolio.attachments);
-      if (portfolio.attachments && portfolio.attachments.length > 0) {
-        console.log('First attachment:', portfolio.attachments[0]);
-        console.log('First attachment category:', portfolio.attachments[0].category);
-        console.log('First attachment language:', portfolio.attachments[0].language);
-      }
       
       setPortfolioData(portfolio);
       setCategories(portfolio.categories || []);
@@ -200,12 +228,27 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
       setImages(portfolio.images || []);
       setAttachments(portfolio.attachments || []);
       
+      console.log('============================================');
+      console.log('STATE UPDATED SUCCESSFULLY');
+      console.log('categories state:', portfolio.categories || []);
+      console.log('============================================');
+      
     } catch (err) {
+      console.error('============================================');
+      console.error('ERROR IN FETCHPORTFOLIODATA:');
+      console.error('Error object:', err);
+      console.error('Error message:', err.message);
+      console.error('Error response:', err.response);
+      console.error('============================================');
+      
       const errorMessage = err.response?.data?.detail || 'Failed to fetch portfolio data';
       setError(errorMessage);
       enqueueSnackbar(`Error: ${errorMessage}`, { variant: 'error' });
     } finally {
       setLoading(false);
+      console.log('============================================');
+      console.log('FETCHPORTFOLIODATA COMPLETE (finally block)');
+      console.log('============================================');
     }
   }, [portfolioId, enqueueSnackbar]);
 
@@ -285,26 +328,31 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
     }
   }, []);
 
-  // Initialize data on open
+  // Initialize data on component mount
   useEffect(() => {
-    if (open && portfolioId) {
+    console.log('PortfolioDataPage mounted with portfolioId:', portfolioId);
+    if (portfolioId) {
+      console.log('Calling fetchPortfolioData...');
       fetchPortfolioData();
+      console.log('Calling fetchAvailableOptions...');
       fetchAvailableOptions();
+      console.log('Calling fetchAttachmentCategories...');
       fetchAttachmentCategories();
+      console.log('Calling fetchLanguages...');
       fetchLanguages();
+    } else {
+      console.warn('No portfolioId provided to PortfolioDataPage!');
     }
-  }, [open, portfolioId, fetchPortfolioData, fetchAvailableOptions, fetchAttachmentCategories, fetchLanguages]);
+  }, [portfolioId, fetchPortfolioData, fetchAvailableOptions, fetchAttachmentCategories, fetchLanguages]);
 
   // Handle tab change
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
   };
 
-  // Close handler
-  const handleClose = () => {
-    setTabValue(0);
-    setError(null);
-    onClose();
+  // Back handler
+  const handleBack = () => {
+    navigate('/portfolios');
   };
 
   // Add/Remove category handlers
@@ -1477,32 +1525,20 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
   };
 
   return (
-    <>
-      <Dialog
-        open={open}
-        onClose={handleClose}
-        maxWidth="lg"
-        fullWidth
-        PaperProps={{
-          sx: { height: '90vh', display: 'flex', flexDirection: 'column' }
-        }}
-      >
-      <DialogTitle sx={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
-        borderBottom: 1,
-        borderColor: 'divider'
-      }}>
-        <Box>
-          <Typography variant="h6" component="div">
-            {portfolioName || `Portfolio #${portfolioId}`}
-          </Typography>
+    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+      <Paper>
+        <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6" component="div">
+                {portfolioData?.name || `Portfolio #${portfolioId}`}
+            </Typography>
+            <Button
+                variant="outlined"
+                startIcon={<ArrowBackIcon />}
+                onClick={handleBack}
+            >
+                Back to Portfolios
+            </Button>
         </Box>
-        <IconButton onClick={handleClose} size="small">
-          <CloseIcon />
-        </IconButton>
-      </DialogTitle>
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
         <Tabs 
@@ -1521,7 +1557,7 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
         </Tabs>
       </Box>
 
-      <DialogContent sx={{ flex: 1, p: 0, overflow: 'auto' }}>
+      <Box>
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200 }}>
             <CircularProgress />
@@ -2201,15 +2237,10 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
             </TabPanel>
           </>
         )}
-      </DialogContent>
+      </Box>
+      </Paper>
 
-      <DialogActions sx={{ borderTop: 1, borderColor: 'divider', p: 2 }}>
-        <Button onClick={handleClose} variant="outlined">
-          Close
-        </Button>
-      </DialogActions>
-    </Dialog>
-
+    {/* All Dialogs */}
     {/* Image Upload Dialog */}
   <PermissionGate permissions={["UPLOAD_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}>
   <Dialog open={imageUploadOpen} onClose={() => setImageUploadOpen(false)} maxWidth="sm" fullWidth>
@@ -2222,7 +2253,10 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
               style={{ display: 'none' }}
               id="image-upload-input"
               type="file"
-              onChange={(e) => setUploadFile(e.target.files[0])}
+              onChange={(e) => {
+                const file = e.target.files[0];
+                setUploadFile(file);
+              }}
             />
             <label htmlFor="image-upload-input">
               <Button
@@ -2236,6 +2270,49 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
               </Button>
             </label>
           </Box>
+          
+          {/* Image Preview */}
+          {uploadFile && (
+            <Box 
+              sx={{ 
+                position: 'relative',
+                width: '100%', 
+                maxHeight: 300,
+                overflow: 'hidden',
+                borderRadius: 2,
+                border: '2px solid #e0e0e0',
+                bgcolor: '#f5f5f5'
+              }}
+            >
+              <Box
+                component="img"
+                src={URL.createObjectURL(uploadFile)}
+                alt="Preview"
+                sx={{
+                  width: '100%',
+                  height: 'auto',
+                  maxHeight: 300,
+                  objectFit: 'contain'
+                }}
+              />
+              <IconButton
+                size="small"
+                onClick={() => setUploadFile(null)}
+                sx={{
+                  position: 'absolute',
+                  top: 8,
+                  right: 8,
+                  bgcolor: 'rgba(0, 0, 0, 0.6)',
+                  color: 'white',
+                  '&:hover': {
+                    bgcolor: 'rgba(0, 0, 0, 0.8)'
+                  }
+                }}
+              >
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            </Box>
+          )}
           
           <FormControl fullWidth>
             <InputLabel>Image Category</InputLabel>
@@ -2935,35 +3012,7 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
       </DialogActions>
     </Dialog>
 
-    {/* Image Rename Dialog */}
-    <Dialog open={renameDialogOpen} onClose={handleImageRenameCancel} maxWidth="sm" fullWidth>
-      <DialogTitle>Rename Image</DialogTitle>
-      <DialogContent>
-        <Box sx={{ pt: 2 }}>
-          <TextField
-            autoFocus
-            fullWidth
-            label="Image filename"
-            value={newImageName}
-            onChange={(e) => setNewImageName(e.target.value)}
-            placeholder="Enter new filename"
-            helperText="Include the file extension (e.g., .jpg, .png)"
-          />
-        </Box>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={handleImageRenameCancel}>Cancel</Button>
-        <Button
-          onClick={handleImageRenameConfirm}
-          variant="contained"
-          disabled={!newImageName.trim()}
-        >
-          Rename
-        </Button>
-      </DialogActions>
-    </Dialog>
-
-    {/* Fullscreen Image Preview Dialog */}
+    {/* Image Preview Dialog */}
     <Dialog 
       open={previewOpen} 
       onClose={handlePreviewClose} 
@@ -3065,8 +3114,8 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
             }}
           />
         )}
-             </Box>
-     </Dialog>
+      </Box>
+    </Dialog>
 
     {/* Delete Confirmation Dialog */}
     <Dialog 
@@ -3182,7 +3231,7 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
               </Box>
             )}
           </Box>
-                 )}
+        )}
 
         {/* Actions */}
         <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
@@ -3222,8 +3271,8 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
         </Box>
       </Box>
     </Dialog>
-  </>
-);
+    </Container>
+  );
 }
 
-export default PortfolioData; 
+export default PortfolioDataPage;
