@@ -927,6 +927,50 @@ export const portfolioApi = {
   },
 
   /**
+   * Upload attachment (generic file upload)
+   * @param {File} file - File to upload
+   * @param {string} entityType - Entity type ('section', 'project', etc.)
+   * @param {number} entityId - Entity ID
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - Uploaded file details
+   */
+  uploadAttachment: async (file, entityType, entityId, token) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const headers = getHeaders(token, false); // Don't include Content-Type for FormData
+
+      // Build query string
+      const queryParams = new URLSearchParams({
+        entity_type: entityType,
+        entity_id: entityId
+      });
+
+      console.log('[Upload Attachment] Sending file upload request:', {
+        entityType,
+        entityId,
+        fileName: file.name,
+        hasAuthToken: !!token
+      });
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/cms/content/attachments?${queryParams.toString()}`,
+        {
+          method: 'POST',
+          headers: headers,
+          credentials: 'include',
+          body: formData,
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error uploading attachment:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Upload an attachment for a specific project
    * @param {number} projectId - Project ID
    * @param {File} file - Attachment file to upload
@@ -972,6 +1016,229 @@ export const portfolioApi = {
       return await handleResponse(response);
     } catch (error) {
       console.error('Error uploading project attachment:', error);
+      throw error;
+    }
+  },
+
+  // ===================================
+  // Project Sections API
+  // ===================================
+
+  /**
+   * Get all sections for a project
+   * @param {number} projectId - Project ID
+   * @param {string} token - Authentication token
+   * @returns {Promise<Array>} - Array of sections
+   */
+  getProjectSections: async (projectId, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/projects/${projectId}/sections`,
+        {
+          method: 'GET',
+          headers: getHeaders(token),
+          credentials: 'include',
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error getting project sections:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Add an existing section to a project
+   * @param {number} projectId - Project ID
+   * @param {number} sectionId - Section ID
+   * @param {Object} data - Section association data {display_order}
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - Success message
+   */
+  addSectionToProject: async (projectId, sectionId, data, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/projects/${projectId}/sections/${sectionId}`,
+        {
+          method: 'POST',
+          headers: getHeaders(token),
+          credentials: 'include',
+          body: JSON.stringify(data),
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error adding section to project:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Create a new section and add it to a project
+   * @param {number} projectId - Project ID
+   * @param {Object} sectionData - Section data {code, section_texts, display_order}
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - Created section
+   */
+  createProjectSection: async (projectId, sectionData, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/projects/${projectId}/sections`,
+        {
+          method: 'POST',
+          headers: getHeaders(token),
+          credentials: 'include',
+          body: JSON.stringify(sectionData),
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error creating project section:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Remove a section from a project
+   * @param {number} projectId - Project ID
+   * @param {number} sectionId - Section ID
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - Success message
+   */
+  /**
+   * Update a section
+   * @param {number} sectionId - Section ID
+   * @param {Object} sectionData - Section data to update
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - Updated section
+   */
+  updateSection: async (sectionId, sectionData, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/sections/${sectionId}`,
+        {
+          method: 'PUT',
+          headers: getHeaders(token),
+          credentials: 'include',
+          body: JSON.stringify(sectionData),
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error updating section:', error);
+      throw error;
+    }
+  },
+
+  removeSectionFromProject: async (projectId, sectionId, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/projects/${projectId}/sections/${sectionId}`,
+        {
+          method: 'DELETE',
+          headers: getHeaders(token),
+          credentials: 'include',
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error removing section from project:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Add an image to a section
+   * @param {number} sectionId - Section ID
+   * @param {Object} imageData - Image data {image_path, language_id, display_order}
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - Created image
+   */
+  addSectionImage: async (sectionId, imageData, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/projects/sections/${sectionId}/images`,
+        {
+          method: 'POST',
+          headers: getHeaders(token),
+          credentials: 'include',
+          body: JSON.stringify(imageData),
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error adding section image:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Delete a section image
+   * @param {number} imageId - Image ID
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - Success message
+   */
+  deleteSectionImage: async (imageId, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/projects/sections/images/${imageId}`,
+        {
+          method: 'DELETE',
+          headers: getHeaders(token),
+          credentials: 'include',
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error deleting section image:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Add an attachment to a section
+   * @param {number} sectionId - Section ID
+   * @param {Object} attachmentData - Attachment data {file_path, file_name, language_id, display_order}
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - Created attachment
+   */
+  addSectionAttachment: async (sectionId, attachmentData, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/projects/sections/${sectionId}/attachments`,
+        {
+          method: 'POST',
+          headers: getHeaders(token),
+          credentials: 'include',
+          body: JSON.stringify(attachmentData),
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error adding section attachment:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Delete a section attachment
+   * @param {number} attachmentId - Attachment ID
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - Success message
+   */
+  deleteSectionAttachment: async (attachmentId, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/projects/sections/attachments/${attachmentId}`,
+        {
+          method: 'DELETE',
+          headers: getHeaders(token),
+          credentials: 'include',
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error deleting section attachment:', error);
       throw error;
     }
   },

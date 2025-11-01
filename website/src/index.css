@@ -80,11 +80,9 @@ html, body {
 }
 
 .btn-image-change:hover {
-  background: linear-gradient(135deg, #14C800 0%, #12b300 100%);
-  color: #000000;
-  border-color: #14C800;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.95), 0 0 20px rgba(20, 200, 0, 0.5);
-  transform: translateY(-2px);
+  @apply bg-white/10 text-white border-[#14C800];
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(20, 200, 0, 0.3);
+  transform: none;
 }
 
 .btn-image-change svg {
@@ -93,5 +91,5 @@ html, body {
 }
 
 .btn-image-change:hover svg {
-  color: #000000;
+  color: #ffffff;
 }

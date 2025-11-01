@@ -4,7 +4,7 @@ from app.models.permission import Permission
 from app.models.language import Language
 from app.models.translation import Translation
 from app.models.portfolio import Portfolio
-from app.models.section import Section
+from app.models.section import Section, SectionText, SectionImage, SectionAttachment
 from app.models.experience import Experience
 from app.models.project import Project
 from app.models.category_type import CategoryType

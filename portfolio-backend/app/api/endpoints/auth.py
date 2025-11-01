@@ -695,4 +695,37 @@ async def verify_token(
         "email": current_user.email,
         "is_active": current_user.is_active
     }
+
+
+@router.get("/csrf-token")
+async def get_csrf_token(
+    request: Request,
+    response: Response,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get or refresh CSRF token for authenticated users.
+    
+    This endpoint allows the frontend to obtain a fresh CSRF token
+    without having to re-authenticate. Useful when the CSRF token expires.
+    """
+    try:
+        # Generate a fresh CSRF token
+        csrf_token = SecureCookieManager.generate_csrf_token()
+        
+        # Set it as a cookie
+        SecureCookieManager.set_csrf_cookie(response, csrf_token)
+        
+        logger.info(f"CSRF token refreshed for user: {current_user.username}")
+        
+        return {
+            "csrf_token": csrf_token,
+            "message": "CSRF token generated successfully"
+        }
+    except Exception as e:
+        logger.error(f"Error generating CSRF token: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate CSRF token"
+        )
  
