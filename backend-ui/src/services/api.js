@@ -36,6 +36,16 @@ const api = axios.create({
   }
 });
 
+// Create a separate axios instance for CSRF refresh to avoid interceptor recursion
+const csrfRefreshInstance = axios.create({
+  baseURL: SERVER_URL || 'http://localhost:8000',
+  timeout: API_CONFIG.TIMEOUT,
+  withCredentials: true, // Important: Send cookies with every request
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
 // Request interceptor for CSRF token
 api.interceptors.request.use(
   (config) => {
@@ -99,10 +109,11 @@ api.interceptors.response.use(
     const { response, config } = error || {};
     if (!response) return Promise.reject(error);
     
-    // Handle CSRF token validation failures (403)
+    // Handle CSRF token validation failures (403) by refreshing tokens
+    // The refresh endpoint will provide a new CSRF token
     if (response.status === 403 && 
         response.data?.code === 'CSRF_VALIDATION_FAILED') {
-      logDebug('CSRF validation failed, attempting to refresh CSRF token');
+      logDebug('CSRF validation failed, refreshing tokens to get new CSRF token');
       
       // Avoid infinite loop
       if (config && config._csrfRetry) {
@@ -110,35 +121,55 @@ api.interceptors.response.use(
         return Promise.reject(error);
       }
       
+      // Check if we're authenticated (refresh token is in httpOnly cookie)
+      const isAuth = localStorage.getItem('isAuthenticated');
+      if (!isAuth) {
+        logError('Not authenticated, cannot refresh CSRF token');
+        localStorage.removeItem('csrf_token');
+        return Promise.reject(error);
+      }
+      
       try {
-        // Call the new CSRF refresh endpoint
-        const csrfResponse = await axios.get(
-          `${SERVER_URL || API_CONFIG.BASE_URL}/api/auth/csrf-token`,
-          { 
-            headers: { 'Content-Type': 'application/json' },
-            withCredentials: true // Important: Send cookies
-          }
-        );
+        // Refresh tokens - this will give us a new CSRF token
+        if (!isRefreshing) {
+          isRefreshing = true;
+          refreshPromise = csrfRefreshInstance.post(API_CONFIG.ENDPOINTS.auth.refreshToken, {})
+            .then((res) => {
+              // Update CSRF token from refresh response
+              if (res.data?.csrf_token) {
+                localStorage.setItem('csrf_token', res.data.csrf_token);
+                logInfo('CSRF token refreshed via token refresh');
+                return res.data.csrf_token;
+              }
+              return null;
+            })
+            .finally(() => {
+              isRefreshing = false;
+            });
+        }
         
-        if (csrfResponse.data?.csrf_token) {
-          // Update CSRF token in localStorage
-          localStorage.setItem('csrf_token', csrfResponse.data.csrf_token);
-          logInfo('CSRF token refreshed successfully');
-          
+        const newCsrfToken = await refreshPromise;
+        
+        if (newCsrfToken) {
           // Retry original request with new CSRF token
           const retryConfig = { 
             ...config, 
             _csrfRetry: true,
             headers: {
               ...(config.headers || {}),
-              'X-CSRF-Token': csrfResponse.data.csrf_token
+              'X-CSRF-Token': newCsrfToken
             }
           };
           
           return api.request(retryConfig);
+        } else {
+          logError('Failed to get CSRF token from refresh response');
+          return Promise.reject(error);
         }
-      } catch (csrfError) {
-        logError('CSRF token refresh failed:', csrfError);
+      } catch (refreshError) {
+        logError('Token refresh failed for CSRF update:', refreshError);
+        localStorage.removeItem('csrf_token');
+        localStorage.removeItem('isAuthenticated');
         return Promise.reject(error);
       }
     }
@@ -170,12 +201,8 @@ api.interceptors.response.use(
     try {
       if (!isRefreshing) {
         isRefreshing = true;
-        refreshPromise = axios.post(`${SERVER_URL || API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.auth.refreshToken}`,
-          {},
-          { 
-            headers: { 'Content-Type': 'application/json' },
-            withCredentials: true // Important: Send cookies
-          }
+        refreshPromise = csrfRefreshInstance.post(API_CONFIG.ENDPOINTS.auth.refreshToken,
+          {}
         ).then((res) => {
           // Update CSRF token if provided
           if (res.data?.csrf_token) {
