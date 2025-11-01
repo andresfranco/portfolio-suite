@@ -18,7 +18,6 @@ import {
 import { Edit as EditIcon, Delete as DeleteIcon, PhotoLibrary as PhotoLibraryIcon, AttachFile as AttachFileIcon, ArrowUpward, ArrowDownward, Dashboard as DashboardIcon, InfoOutlined, Language as LanguageIcon } from '@mui/icons-material';
 import PortfolioForm from './PortfolioForm';
 import PortfolioImageForm from './PortfolioImageForm';
-import PortfolioData from './PortfolioData';
 import ReusableDataGrid from '../common/ReusableDataGrid';
 import ReusableFilters from '../common/ReusableFilters';
 import ReusablePagination from '../common/ReusablePagination';
@@ -54,7 +53,6 @@ function PortfolioIndexContent() {
   const [sortModel, setSortModel] = useState([{ field: 'name', sort: 'asc' }]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isImageFormOpen, setIsImageFormOpen] = useState(false);
-  const [isPortfolioDataOpen, setIsPortfolioDataOpen] = useState(false);
   const [formMode, setFormMode] = useState(null);
   const [selectedPortfolio, setSelectedPortfolio] = useState(null);
   const [errorDialog, setErrorDialog] = useState({ open: false, title: '', message: '' });
@@ -407,8 +405,7 @@ function PortfolioIndexContent() {
 
   // Handle portfolio data button click
   const handlePortfolioDataClick = (portfolio) => {
-    setSelectedPortfolio(portfolio);
-    setIsPortfolioDataOpen(true);
+    navigate(`/portfolios/${portfolio.id}`);
   };
 
   // Handle edit website button click - opens website in edit mode
@@ -492,11 +489,6 @@ function PortfolioIndexContent() {
     }
   };
 
-  // Handle portfolio data close
-  const handlePortfolioDataClose = () => {
-    setIsPortfolioDataOpen(false);
-    setSelectedPortfolio(null);
-  };
 
   if (error) {
     return (
@@ -608,14 +600,6 @@ function PortfolioIndexContent() {
         />
       )}
 
-      {isPortfolioDataOpen && (
-        <PortfolioData
-          open={isPortfolioDataOpen}
-          onClose={handlePortfolioDataClose}
-          portfolioId={selectedPortfolio?.id}
-          portfolioName={selectedPortfolio?.name}
-        />
-      )}
 
       {/* Error Dialog */}
       <Dialog

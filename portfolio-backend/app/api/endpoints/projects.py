@@ -22,6 +22,7 @@ from app.crud import category as category_crud
 from app.crud import image as image_crud
 from app.core.security import create_temp_token, verify_temp_token
 from app.rag.rag_events import stage_event
+from app.schemas import section as section_schema
 
 router = APIRouter()
 
@@ -33,6 +34,82 @@ logger.info(f"Available crud modules: {dir(crud)}")
 logger.info(f"Project module available: {'project' in dir(crud)}")
 logger.info(f"Direct project_crud import: {project_crud is not None}")
 
+
+# =============================================================================
+# SECTION ROUTES - Must be defined before /{project_id}/ routes to avoid conflicts
+# =============================================================================
+
+@router.delete("/sections/images/{image_id}", status_code=status.HTTP_200_OK)
+@require_permission("EDIT_PROJECT")
+def delete_section_image(
+    *,
+    db: Session = Depends(deps.get_db),
+    image_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Delete a section image
+    """
+    logger.info(f"Deleting section image {image_id}")
+    try:
+        from app.crud import section as section_crud
+
+        image = section_crud.delete_section_image(db, image_id=image_id)
+        if not image:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Image not found"
+            )
+
+        logger.info(f"Successfully deleted section image {image_id}")
+        return {"message": "Image deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting section image: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting section image: {str(e)}"
+        )
+
+
+@router.delete("/sections/attachments/{attachment_id}", status_code=status.HTTP_200_OK)
+@require_permission("EDIT_PROJECT")
+def delete_section_attachment(
+    *,
+    db: Session = Depends(deps.get_db),
+    attachment_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Delete a section attachment
+    """
+    logger.info(f"Deleting section attachment {attachment_id}")
+    try:
+        from app.crud import section as section_crud
+
+        attachment = section_crud.delete_section_attachment(db, attachment_id=attachment_id)
+        if not attachment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Attachment not found"
+            )
+
+        logger.info(f"Successfully deleted section attachment {attachment_id}")
+        return {"message": "Attachment deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting section attachment: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting section attachment: {str(e)}"
+        )
+
+
+# =============================================================================
+# PROJECT ROUTES
+# =============================================================================
 
 @router.get("/", response_model=Dict[str, Any])
 @require_permission("VIEW_PROJECTS")
@@ -420,6 +497,10 @@ def read_project(
                 detail="Project not found",
             )
 
+        # Get sections with display_order from the association table
+        from app.crud import section as section_crud
+        sections_with_order = section_crud.get_project_sections(db, project_id=project_id)
+
         # Convert to dictionary for proper serialization
         project_dict = {
             "id": project.id,
@@ -453,6 +534,44 @@ def read_project(
                     "name": skill.skill_texts[0].name if skill.skill_texts else f"Skill {skill.id}"
                 }
                 for skill in (project.skills or [])
+            ],
+            "sections": [
+                {
+                    "id": section.id,
+                    "code": section.code,
+                    "display_order": getattr(section, 'display_order', 0),
+                    "section_texts": [
+                        {
+                            "id": text.id,
+                            "language_id": text.language_id,
+                            "text": text.text,
+                            "language": {
+                                "id": text.language.id,
+                                "code": text.language.code,
+                                "name": text.language.name
+                            } if text.language else None
+                        }
+                        for text in (section.section_texts or [])
+                    ],
+                    "images": [
+                        {
+                            "id": img.id,
+                            "image_path": img.image_path,
+                            "display_order": img.display_order
+                        }
+                        for img in (section.images or [])
+                    ],
+                    "attachments": [
+                        {
+                            "id": att.id,
+                            "file_path": att.file_path,
+                            "file_name": att.file_name,
+                            "display_order": att.display_order
+                        }
+                        for att in (section.attachments or [])
+                    ]
+                }
+                for section in sections_with_order
             ]
         }
 
@@ -1369,3 +1488,264 @@ async def generate_preview_token(
         "expires_in": 3600,
         "token": token
     }
+
+
+# ===================================
+# Project Sections Endpoints
+# ===================================
+
+@router.get("/{project_id}/sections", response_model=List[section_schema.Section])
+@require_permission("VIEW_PROJECT")
+def get_project_sections(
+    *,
+    db: Session = Depends(deps.get_db),
+    project_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Get all sections associated with a project
+    """
+    logger.info(f"Getting sections for project {project_id}")
+    try:
+        from app.crud import section as section_crud
+        sections = section_crud.get_project_sections(db, project_id=project_id)
+        return sections
+    except Exception as e:
+        logger.error(f"Error getting project sections: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error getting project sections: {str(e)}"
+        )
+
+
+@router.post("/{project_id}/sections/{section_id}", status_code=status.HTTP_201_CREATED)
+@require_permission("EDIT_PROJECT")
+def add_section_to_project(
+    *,
+    db: Session = Depends(deps.get_db),
+    project_id: int,
+    section_id: int,
+    section_data: section_schema.ProjectSectionAdd,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Add an existing section to a project
+    """
+    logger.info(f"Adding section {section_id} to project {project_id}")
+    try:
+        # Verify project exists
+        project = project_crud.get_project(db, project_id=project_id)
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found"
+            )
+
+        # Verify section exists
+        from app.crud import section as section_crud
+        section = section_crud.get_section(db, section_id=section_id)
+        if not section:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Section not found"
+            )
+
+        # Add section to project
+        result = section_crud.add_section_to_project(
+            db,
+            project_id=project_id,
+            section_id=section_id,
+            display_order=section_data.display_order
+        )
+
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Section already associated with project"
+            )
+
+        logger.info(f"Successfully added section {section_id} to project {project_id}")
+        return {"message": "Section added to project successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding section to project: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error adding section to project: {str(e)}"
+        )
+
+
+@router.post("/{project_id}/sections", status_code=status.HTTP_201_CREATED, response_model=section_schema.Section)
+@require_permission("EDIT_PROJECT")
+def create_and_add_section_to_project(
+    *,
+    db: Session = Depends(deps.get_db),
+    project_id: int,
+    section_data: section_schema.ProjectSectionCreate,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Create a new section and add it to a project
+    """
+    logger.info(f"Creating and adding new section to project {project_id}")
+    try:
+        # Verify project exists
+        project = project_crud.get_project(db, project_id=project_id)
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found"
+            )
+
+        # Create section
+        from app.crud import section as section_crud
+        section_create = section_schema.SectionCreate(
+            code=section_data.code,
+            section_texts=section_data.section_texts
+        )
+        new_section = section_crud.create_section(db, section=section_create)
+
+        # Add to project
+        section_crud.add_section_to_project(
+            db,
+            project_id=project_id,
+            section_id=new_section.id,
+            display_order=section_data.display_order
+        )
+
+        logger.info(f"Successfully created and added section {new_section.id} to project {project_id}")
+
+        # Return the created section with all relationships
+        return section_crud.get_section(db, section_id=new_section.id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating section for project: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating section for project: {str(e)}"
+        )
+
+
+@router.delete("/{project_id}/sections/{section_id}", status_code=status.HTTP_200_OK)
+@require_permission("EDIT_PROJECT")
+def remove_section_from_project(
+    *,
+    db: Session = Depends(deps.get_db),
+    project_id: int,
+    section_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Remove a section from a project (does not delete the section itself)
+    """
+    logger.info(f"Removing section {section_id} from project {project_id}")
+    try:
+        from app.crud import section as section_crud
+        result = section_crud.remove_section_from_project(db, project_id=project_id, section_id=section_id)
+
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Section not associated with this project"
+            )
+
+        logger.info(f"Successfully removed section {section_id} from project {project_id}")
+        return {"message": "Section removed from project successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error removing section from project: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error removing section from project: {str(e)}"
+        )
+
+
+@router.post("/sections/{section_id}/images", status_code=status.HTTP_201_CREATED, response_model=section_schema.SectionImageOut)
+@require_permission("EDIT_PROJECT")
+def add_section_image(
+    *,
+    db: Session = Depends(deps.get_db),
+    section_id: int,
+    image_data: section_schema.SectionImageCreate,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Add an image to a section
+    """
+    logger.info(f"Adding image to section {section_id}")
+    try:
+        from app.crud import section as section_crud
+
+        # Verify section exists
+        section = section_crud.get_section(db, section_id=section_id)
+        if not section:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Section not found"
+            )
+
+        # Add image
+        image = section_crud.add_section_image(
+            db,
+            section_id=section_id,
+            image_data=image_data,
+            created_by=current_user.id
+        )
+
+        logger.info(f"Successfully added image to section {section_id}")
+        return image
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding image to section: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error adding image to section: {str(e)}"
+        )
+
+
+@router.post("/sections/{section_id}/attachments", status_code=status.HTTP_201_CREATED, response_model=section_schema.SectionAttachmentOut)
+@require_permission("EDIT_PROJECT")
+def add_section_attachment(
+    *,
+    db: Session = Depends(deps.get_db),
+    section_id: int,
+    attachment_data: section_schema.SectionAttachmentCreate,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Add an attachment to a section
+    """
+    logger.info(f"Adding attachment to section {section_id}")
+    try:
+        from app.crud import section as section_crud
+
+        # Verify section exists
+        section = section_crud.get_section(db, section_id=section_id)
+        if not section:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Section not found"
+            )
+
+        # Add attachment
+        attachment = section_crud.add_section_attachment(
+            db,
+            section_id=section_id,
+            attachment_data=attachment_data,
+            created_by=current_user.id
+        )
+
+        logger.info(f"Successfully added attachment to section {section_id}")
+        return attachment
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding attachment to section: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error adding attachment to section: {str(e)}"
+        )
