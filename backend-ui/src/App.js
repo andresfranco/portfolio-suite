@@ -41,9 +41,11 @@ import { ProjectProvider } from './contexts/ProjectContext';
 import ProjectIndex from './components/projects/ProjectIndex';
 import ProjectImages from './components/projects/ProjectImages';
 import ProjectAttachments from './components/projects/ProjectAttachments';
+import ProjectSections from './components/projects/ProjectSections';
 import PortfolioIndex from './components/portfolios/PortfolioIndex';
 import PortfolioAttachments from './components/portfolios/PortfolioAttachments';
 import SectionIndex from './components/sections/SectionIndex';
+import PortfolioDataPage from './pages/PortfolioDataPage';
 
 import NotFound from './pages/NotFound';
 
@@ -200,8 +202,10 @@ function AppContent() {
             } />
             <Route path="projects/:projectId/images" element={<ProjectImages />} />
             <Route path="projects/:projectId/attachments" element={<ProjectAttachments />} />
+            <Route path="projects/:projectId/sections" element={<ProjectSections />} />
             <Route path="portfolios" element={<PortfolioIndex />} />
             <Route path="portfolios/:portfolioId/attachments" element={<PortfolioAttachments />} />
+            <Route path="/portfolios/:portfolioId" element={<PortfolioDataPage />} />
             <Route path="sections" element={<SectionIndex />} />
             
             {/* System Settings */}
@@ -236,7 +240,7 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <SnackbarProvider maxSnack={3} autoHideDuration={3000}>
+      <SnackbarProvider maxSnack={3} autoHideDuration={3000} preventDuplicate>
         <AuthorizationProvider>
           <AppContent />
         </AuthorizationProvider>

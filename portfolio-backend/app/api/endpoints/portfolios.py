@@ -171,6 +171,7 @@ def process_portfolios_for_response(
                         "project_texts": [],
                         "categories": [],
                         "skills": [],
+                        "sections": [],
                         "images": [],
                         "attachments": []
                     }
@@ -320,7 +321,70 @@ def process_portfolios_for_response(
                                     skill_dict["skill_texts"].append(text_dict)
                             
                             proj_dict["skills"].append(skill_dict)
-                    
+
+                    # Include project sections if they exist
+                    if hasattr(project, 'sections') and project.sections:
+                        for section in project.sections:
+                            sect_dict = {
+                                "id": section.id,
+                                "code": section.code,
+                                "display_order": section.display_order if hasattr(section, 'display_order') else 0,
+                                "section_texts": [],
+                                "images": [],
+                                "attachments": []
+                            }
+
+                            # Include section texts if they exist
+                            if hasattr(section, 'section_texts') and section.section_texts:
+                                for text in section.section_texts:
+                                    text_dict = {
+                                        "id": text.id,
+                                        "language_id": text.language_id,
+                                        "text": text.text
+                                    }
+
+                                    # Include language if it exists
+                                    if hasattr(text, "language") and text.language is not None:
+                                        language = text.language
+                                        text_dict["language"] = {
+                                            "id": language.id,
+                                            "code": language.code,
+                                            "name": language.name
+                                        }
+
+                                    sect_dict["section_texts"].append(text_dict)
+
+                            # Include section images if they exist
+                            if hasattr(section, 'images') and section.images:
+                                for image in section.images:
+                                    img_dict = {
+                                        "id": image.id,
+                                        "section_id": image.section_id,
+                                        "image_path": image.image_path,
+                                        "display_order": image.display_order if hasattr(image, 'display_order') else 0,
+                                        "language_id": image.language_id if hasattr(image, 'language_id') else None,
+                                        "created_at": image.created_at if hasattr(image, 'created_at') else None,
+                                        "updated_at": image.updated_at if hasattr(image, 'updated_at') else None
+                                    }
+                                    sect_dict["images"].append(img_dict)
+
+                            # Include section attachments if they exist
+                            if hasattr(section, 'attachments') and section.attachments:
+                                for attachment in section.attachments:
+                                    att_dict = {
+                                        "id": attachment.id,
+                                        "section_id": attachment.section_id,
+                                        "file_name": attachment.file_name,
+                                        "file_path": attachment.file_path,
+                                        "display_order": attachment.display_order if hasattr(attachment, 'display_order') else 0,
+                                        "language_id": attachment.language_id if hasattr(attachment, 'language_id') else None,
+                                        "created_at": attachment.created_at if hasattr(attachment, 'created_at') else None,
+                                        "updated_at": attachment.updated_at if hasattr(attachment, 'updated_at') else None
+                                    }
+                                    sect_dict["attachments"].append(att_dict)
+
+                            proj_dict["sections"].append(sect_dict)
+
                     portfolio_dict["projects"].append(proj_dict)
             
             # Process sections
@@ -603,20 +667,34 @@ def read_portfolio(
     *,
     db: Session = Depends(deps.get_db),
     portfolio_id: int,
+    include_full_details: bool = Query(False, description="Include full portfolio details"),
     current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Get portfolio by ID.
     """
-    logger.debug(f"Getting portfolio with ID {portfolio_id}")
+    print(f"\n\n{'='*80}")
+    print(f"PORTFOLIO ENDPOINT CALLED - ID: {portfolio_id}")
+    print(f"include_full_details: {include_full_details}")
+    print(f"User: {current_user.email if current_user else 'None'}")
+    print(f"{'='*80}\n")
     
-    portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
+    logger.info(f"========== GET PORTFOLIO {portfolio_id} - include_full_details={include_full_details} ==========")
+    logger.debug(f"Getting portfolio with ID {portfolio_id}, include_full_details={include_full_details}")
+    
+    portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id, full_details=include_full_details)
     if not portfolio:
         logger.warning(f"Portfolio with ID {portfolio_id} not found")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Portfolio not found"
         )
+    
+    logger.info(f"Portfolio found: {portfolio.name}")
+    logger.info(f"Portfolio has {len(portfolio.categories) if hasattr(portfolio, 'categories') else 0} categories")
+    logger.info(f"Portfolio has {len(portfolio.experiences) if hasattr(portfolio, 'experiences') else 0} experiences")
+    logger.info(f"Portfolio has {len(portfolio.projects) if hasattr(portfolio, 'projects') else 0} projects")
+    logger.info(f"Portfolio has {len(portfolio.sections) if hasattr(portfolio, 'sections') else 0} sections")
     
     # Process portfolio data
     can_view_images = permission_checker.user_has_permission(current_user, "VIEW_PORTFOLIO_IMAGES")
@@ -626,6 +704,23 @@ def read_portfolio(
         include_images=can_view_images,
         include_attachments=can_view_attachments,
     )
+    
+    logger.info(f"Processed result has {len(result[0]['categories']) if result and len(result) > 0 else 0} categories")
+    logger.info(f"========== END GET PORTFOLIO {portfolio_id} ==========")
+    
+    print(f"\n{'='*80}")
+    print(f"PORTFOLIO ENDPOINT RESPONSE")
+    print(f"Portfolio ID: {portfolio_id}")
+    if result and len(result) > 0:
+        print(f"Categories: {len(result[0]['categories'])}")
+        print(f"Category IDs: {[c['id'] for c in result[0]['categories']]}")
+        print(f"Experiences: {len(result[0]['experiences'])}")
+        print(f"Projects: {len(result[0]['projects'])}")
+        print(f"Sections: {len(result[0]['sections'])}")
+    else:
+        print("No result returned!")
+    print(f"{'='*80}\n")
+    
     return result[0] if result and len(result) > 0 else {
         "id": portfolio.id,
         "name": portfolio.name,
@@ -859,6 +954,13 @@ def delete_portfolio_image(
     """
     Delete a portfolio image.
     """
+    print(f"\n{'='*60}")
+    print(f"DELETE IMAGE REQUEST")
+    print(f"Portfolio ID: {portfolio_id}")
+    print(f"Image ID: {image_id}")
+    print(f"User: {current_user.username}")
+    print(f"{'='*60}\n")
+    
     logger.info(f"Deleting image {image_id} from portfolio {portfolio_id}")
     try:
         portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
@@ -869,6 +971,8 @@ def delete_portfolio_image(
                 detail="Portfolio not found"
             )
         
+        print(f"Portfolio found: {portfolio.id}")
+        
         portfolio_image = portfolio_crud.delete_portfolio_image(db, image_id=image_id)
         if not portfolio_image:
             logger.warning(f"Portfolio image with ID {image_id} not found")
@@ -877,22 +981,40 @@ def delete_portfolio_image(
                 detail="Portfolio image not found"
             )
         
+        print(f"Image found in DB: {portfolio_image.id}, path: {portfolio_image.image_path}")
+        
         # Delete the file from the filesystem
         if portfolio_image.image_path:
             file_path = os.path.join(settings.BASE_DIR, portfolio_image.image_path)
+            print(f"Attempting to delete file: {file_path}")
+            print(f"File exists: {os.path.exists(file_path)}")
+            
             if os.path.exists(file_path):
                 try:
                     os.remove(file_path)
                     logger.debug(f"Deleted image file: {file_path}")
+                    print(f"✓ File deleted successfully")
                 except OSError as e:
                     logger.warning(f"Could not delete image file {file_path}: {str(e)}")
+                    print(f"✗ File deletion failed: {str(e)}")
         
         logger.info(f"Image {image_id} deleted successfully")
+        print(f"✓ Image deleted successfully from database")
+        print(f"{'='*60}\n")
+        
         stage_event(db, {"op":"delete","source_table":"portfolio_images","source_id":str(image_id),"changed_fields":[]})
         return portfolio_image
     except HTTPException:
         raise
     except Exception as e:
+        print(f"\n{'!'*60}")
+        print(f"ERROR DELETING IMAGE:")
+        print(f"Error type: {type(e).__name__}")
+        print(f"Error message: {str(e)}")
+        import traceback
+        print(f"Traceback:\n{traceback.format_exc()}")
+        print(f"{'!'*60}\n")
+        
         logger.error(f"Error deleting portfolio image: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1384,6 +1506,13 @@ def delete_portfolio_attachment(
     """
     Delete a portfolio attachment.
     """
+    print(f"\n{'='*60}")
+    print(f"DELETE ATTACHMENT REQUEST")
+    print(f"Portfolio ID: {portfolio_id}")
+    print(f"Attachment ID: {attachment_id}")
+    print(f"User: {current_user.username}")
+    print(f"{'='*60}\n")
+    
     logger.info(f"Deleting attachment {attachment_id} from portfolio {portfolio_id}")
     try:
         portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
@@ -1394,6 +1523,8 @@ def delete_portfolio_attachment(
                 detail="Portfolio not found"
             )
         
+        print(f"Portfolio found: {portfolio.id}")
+        
         portfolio_attachment = portfolio_crud.delete_portfolio_attachment(db, attachment_id=attachment_id)
         if not portfolio_attachment:
             logger.warning(f"Portfolio attachment with ID {attachment_id} not found")
@@ -1402,22 +1533,40 @@ def delete_portfolio_attachment(
                 detail="Portfolio attachment not found"
             )
         
+        print(f"Attachment found in DB: {portfolio_attachment.id}, path: {portfolio_attachment.file_path}")
+        
         # Delete the file from the filesystem
         if portfolio_attachment.file_path:
             file_path = Path(settings.BASE_DIR) / portfolio_attachment.file_path
+            print(f"Attempting to delete file: {file_path}")
+            print(f"File exists: {file_path.exists()}")
+            
             if file_path.exists():
                 try:
                     os.remove(file_path)
                     logger.debug(f"Deleted attachment file: {file_path}")
+                    print(f"✓ File deleted successfully")
                 except OSError as e:
                     logger.warning(f"Could not delete attachment file {file_path}: {str(e)}")
+                    print(f"✗ File deletion failed: {str(e)}")
         
         logger.info(f"Attachment {attachment_id} deleted successfully")
+        print(f"✓ Attachment deleted successfully from database")
+        print(f"{'='*60}\n")
+        
         stage_event(db, {"op":"delete","source_table":"portfolio_attachments","source_id":str(attachment_id),"changed_fields":[]})
         return portfolio_attachment
     except HTTPException:
         raise
     except Exception as e:
+        print(f"\n{'!'*60}")
+        print(f"ERROR DELETING ATTACHMENT:")
+        print(f"Error type: {type(e).__name__}")
+        print(f"Error message: {str(e)}")
+        import traceback
+        print(f"Traceback:\n{traceback.format_exc()}")
+        print(f"{'!'*60}\n")
+        
         logger.error(f"Error deleting portfolio attachment: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1438,6 +1587,15 @@ def add_portfolio_category(
     """
     Add a category to a portfolio.
     """
+    print(f"\n{'='*60}")
+    print(f"ADD CATEGORY ENDPOINT CALLED")
+    print(f"User: {current_user.username}")
+    print(f"Portfolio ID: {portfolio_id}")
+    print(f"Category ID: {category_id}")
+    print(f"User Roles: {[role.name for role in current_user.roles]}")
+    print(f"User Permissions: {[perm.name for role in current_user.roles for perm in role.permissions]}")
+    print(f"{'='*60}\n")
+    
     logger.info(f"Adding category {category_id} to portfolio {portfolio_id}")
     try:
         # Verify portfolio exists
