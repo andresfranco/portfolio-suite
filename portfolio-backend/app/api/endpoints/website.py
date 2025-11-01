@@ -169,13 +169,22 @@ def filter_by_language(portfolio_data: dict, language_code: str) -> dict:
                     text for text in project["project_texts"]
                     if text.get("language", {}).get("code") == language_code
                 ]
-            
+
             # Filter skill texts within projects
             if "skills" in project:
                 for skill in project["skills"]:
                     if "skill_texts" in skill:
                         skill["skill_texts"] = [
                             text for text in skill["skill_texts"]
+                            if text.get("language", {}).get("code") == language_code
+                        ]
+
+            # Filter section texts within projects
+            if "sections" in project:
+                for section in project["sections"]:
+                    if "section_texts" in section:
+                        section["section_texts"] = [
+                            text for text in section["section_texts"]
                             if text.get("language", {}).get("code") == language_code
                         ]
     

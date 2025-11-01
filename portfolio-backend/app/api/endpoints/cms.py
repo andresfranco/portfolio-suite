@@ -259,10 +259,10 @@ async def upload_content_image(
     
     try:
         # Validate entity type
-        if entity_type not in ["portfolio", "project", "experience"]:
+        if entity_type not in ["portfolio", "project", "experience", "section"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid entity type: {entity_type}. Must be portfolio, project, or experience"
+                detail=f"Invalid entity type: {entity_type}. Must be portfolio, project, experience, or section"
             )
         
         # Validate file type
@@ -377,7 +377,21 @@ async def upload_content_image(
                 status_code=status.HTTP_501_NOT_IMPLEMENTED,
                 detail="Experience images not yet implemented"
             )
-        
+
+        elif entity_type == "section":
+            # Section images are handled separately - just save the file
+            # The actual SectionImage record is created via the section image endpoint
+            logger.info(f"File saved for section {entity_id}, path: {file_path}")
+            return {
+                "entity_type": entity_type,
+                "entity_id": entity_id,
+                "image_path": file_path,
+                "path": file_path,  # Alternative field name
+                "file_name": file.filename,
+                "category": category,
+                "message": "Section image file uploaded successfully. Use addSectionImage API to link it."
+            }
+
         db.commit()
         db.refresh(image)
         
@@ -400,6 +414,69 @@ async def upload_content_image(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error uploading image: {str(e)}"
+        )
+
+
+@router.post("/content/attachments")
+@require_permission("EDIT_CONTENT")
+async def upload_attachment(
+    file: UploadFile,
+    entity_type: str = Query(...),
+    entity_id: int = Query(...),
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+) -> Any:
+    """
+    Upload an attachment (file) for a content entity.
+    Requires EDIT_CONTENT permission.
+
+    Currently supports: section
+
+    Args:
+        file: File to upload
+        entity_type: Type of entity (section)
+        entity_id: ID of the entity
+
+    Returns:
+        Uploaded file details
+    """
+    logger.info(f"User {current_user.username} uploading attachment for {entity_type} {entity_id}")
+
+    try:
+        # Validate entity type
+        if entity_type not in ["section"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid entity type: {entity_type}. Currently only 'section' is supported for attachments"
+            )
+
+        # Save the file
+        from app.core.config import settings
+        upload_dir = Path(settings.UPLOADS_DIR) / f"{entity_type}s" / str(entity_id) / "attachments"
+        absolute_file_path = await file_utils.save_upload_file(file, directory=upload_dir)
+
+        # Convert absolute path to URL-friendly relative path
+        file_path = file_utils.get_file_url(absolute_file_path)
+
+        # For sections, just return the file path
+        # The actual SectionAttachment record is created via the section attachment endpoint
+        logger.info(f"File saved for {entity_type} {entity_id}, path: {file_path}")
+        return {
+            "entity_type": entity_type,
+            "entity_id": entity_id,
+            "file_path": file_path,
+            "path": file_path,  # Alternative field name
+            "file_name": file.filename,
+            "message": f"{entity_type.capitalize()} attachment uploaded successfully. Use addSectionAttachment API to link it."
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error uploading attachment: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error uploading attachment: {str(e)}"
         )
 
 
