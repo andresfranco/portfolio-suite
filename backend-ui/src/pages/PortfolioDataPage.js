@@ -31,7 +31,6 @@ import {
   InputLabel,
   List,
   ListItem,
-  ListItemButton,
   ListItemIcon,
   ListItemText,
   CardActions,
@@ -39,7 +38,8 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  TablePagination
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -60,7 +60,6 @@ import {
   Download as DownloadIcon,
   Visibility as VisibilityIcon,
   Language as LanguageIcon,
-  DriveFileRenameOutline as DriveFileRenameOutlineIcon,
   ArrowBack as ArrowBackIcon
 } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
@@ -107,8 +106,11 @@ function PortfolioDataPage() {
   
   // Available options states
   const [availableCategories, setAvailableCategories] = useState([]);
+  // eslint-disable-next-line no-unused-vars
   const [availableExperiences, setAvailableExperiences] = useState([]);
+  // eslint-disable-next-line no-unused-vars
   const [availableProjects, setAvailableProjects] = useState([]);
+  // eslint-disable-next-line no-unused-vars
   const [availableSections, setAvailableSections] = useState([]);
 
   // Upload dialog states
@@ -146,6 +148,7 @@ function PortfolioDataPage() {
   const [selectedProject, setSelectedProject] = useState(null);
 
   // Image rename states
+  // eslint-disable-next-line no-unused-vars
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [newImageName, setNewImageName] = useState('');
@@ -163,18 +166,34 @@ function PortfolioDataPage() {
   
   // Edit attachment states
   const [editAttachmentOpen, setEditAttachmentOpen] = useState(false);
-  const [selectedAttachment, setSelectedAttachment] = useState(null);
-  const [editAttachmentCategory, setEditAttachmentCategory] = useState('');
   const [editAttachmentLanguage, setEditAttachmentLanguage] = useState('');
+  const [editAttachmentCategory, setEditAttachmentCategory] = useState('');
   const [editSetAsDefault, setEditSetAsDefault] = useState(false);
+  const [selectedAttachment, setSelectedAttachment] = useState(null);
   const [editLoading, setEditLoading] = useState(false);
 
   // Edit image states
   const [editImageOpen, setEditImageOpen] = useState(false);
-  const [selectedImageForEdit, setSelectedImageForEdit] = useState(null);
-  const [editImageFileName, setEditImageFileName] = useState('');
-  const [editImageCategory, setEditImageCategory] = useState('');
   const [editImageLanguage, setEditImageLanguage] = useState('');
+  const [selectedImageForEdit, setSelectedImageForEdit] = useState(null);
+  const [editImageCategory, setEditImageCategory] = useState('');
+  const [editImageFileName, setEditImageFileName] = useState('');
+
+  // Pagination states for each tab
+  const [categoriesPage, setCategoriesPage] = useState(0);
+  const [categoriesRowsPerPage, setCategoriesRowsPerPage] = useState(10);
+  const [experiencesPage, setExperiencesPage] = useState(0);
+  const [experiencesRowsPerPage, setExperiencesRowsPerPage] = useState(10);
+  const [projectsPage, setProjectsPage] = useState(0);
+  const [projectsRowsPerPage, setProjectsRowsPerPage] = useState(10);
+  const [sectionsPage, setSectionsPage] = useState(0);
+  const [sectionsRowsPerPage, setSectionsRowsPerPage] = useState(10);
+
+  // Search states for filtering connected items
+  const [categoriesSearchTerm, setCategoriesSearchTerm] = useState('');
+  const [experiencesSearchTerm, setExperiencesSearchTerm] = useState('');
+  const [projectsSearchTerm, setProjectsSearchTerm] = useState('');
+  const [sectionsSearchTerm, setSectionsSearchTerm] = useState('');
 
   // Fetch portfolio data
   const fetchPortfolioData = useCallback(async () => {
@@ -479,12 +498,15 @@ function PortfolioDataPage() {
     setDeleteDialogOpen(true);
   };
 
+  // Image rename functionality (currently unused, reserved for future feature)
+  // eslint-disable-next-line no-unused-vars
   const handleImageRename = (image) => {
     setSelectedImage(image);
     setNewImageName(image.file_name);
     setRenameDialogOpen(true);
   };
 
+  // eslint-disable-next-line no-unused-vars
   const handleImageRenameConfirm = async () => {
     if (!selectedImage || !newImageName.trim()) {
       enqueueSnackbar('Please enter a valid filename', { variant: 'error' });
@@ -506,6 +528,7 @@ function PortfolioDataPage() {
     }
   };
 
+  // eslint-disable-next-line no-unused-vars
   const handleImageRenameCancel = () => {
     setRenameDialogOpen(false);
     setSelectedImage(null);
@@ -803,7 +826,8 @@ function PortfolioDataPage() {
     try {
       const promises = itemIds.map(id => addHandler(id));
       await Promise.all(promises);
-      enqueueSnackbar(`${itemIds.length} items added successfully`, { variant: 'success' });
+      // Don't show bulk success message - individual handlers already show messages
+      // enqueueSnackbar(`${itemIds.length} items added successfully`, { variant: 'success' });
     } catch (err) {
       enqueueSnackbar('Failed to add some items', { variant: 'error' });
     }
@@ -813,13 +837,15 @@ function PortfolioDataPage() {
     try {
       const promises = itemIds.map(id => removeHandler(id));
       await Promise.all(promises);
-      enqueueSnackbar(`${itemIds.length} items removed successfully`, { variant: 'success' });
+      // Don't show bulk success message - individual handlers already show messages
+      // enqueueSnackbar(`${itemIds.length} items removed successfully`, { variant: 'success' });
     } catch (err) {
       enqueueSnackbar('Failed to remove some items', { variant: 'error' });
     }
   };
 
-  // Generic component for managing associations
+  // Generic component for managing associations (currently unused, can be used for refactoring tabs)
+  // eslint-disable-next-line no-unused-vars
   const AssociationManager = ({ 
     title, 
     icon, 
@@ -829,7 +855,11 @@ function PortfolioDataPage() {
     onRemove, 
     getItemLabel,
     getItemId,
-    defaultShowConnected
+    defaultShowConnected,
+    page,
+    rowsPerPage,
+    onPageChange,
+    onRowsPerPageChange
   }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedItems, setSelectedItems] = useState([]);
@@ -850,10 +880,15 @@ function PortfolioDataPage() {
       getItemLabel(item).toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    // Pagination
+    const currentItems = showConnected ? filteredConnected : filteredAvailable;
+    const paginatedItems = currentItems.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+    
     // Handle search input change
     const handleSearchChange = (event) => {
       setSearchTerm(event.target.value);
       setSelectedItems([]); // Clear selections when search changes
+      onPageChange(null, 0); // Reset to first page
     };
 
     // Handle individual item selection
@@ -865,15 +900,14 @@ function PortfolioDataPage() {
       );
     };
 
-    // Handle select all/none
+    // Handle select all/none (only for current page)
     const handleSelectAll = () => {
-      const currentItems = showConnected ? filteredConnected : filteredAvailable;
-      const currentIds = currentItems.map(item => getItemId(item));
+      const currentPageIds = paginatedItems.map(item => getItemId(item));
       
-      if (selectedItems.length === currentIds.length) {
+      if (selectedItems.length === currentPageIds.length && currentPageIds.every(id => selectedItems.includes(id))) {
         setSelectedItems([]);
       } else {
-        setSelectedItems(currentIds);
+        setSelectedItems(currentPageIds);
       }
     };
 
@@ -897,12 +931,13 @@ function PortfolioDataPage() {
     const handleClearSearch = () => {
       setSearchTerm('');
       setSelectedItems([]);
+      onPageChange(null, 0);
     };
 
-    const currentItems = showConnected ? filteredConnected : filteredAvailable;
-    const currentIds = currentItems.map(item => getItemId(item));
-    const allSelected = selectedItems.length > 0 && selectedItems.length === currentIds.length;
-    const someSelected = selectedItems.length > 0 && selectedItems.length < currentIds.length;
+    const currentIds = paginatedItems.map(item => getItemId(item));
+    const allSelected = selectedItems.length > 0 && currentIds.every(id => selectedItems.includes(id));
+    // eslint-disable-next-line no-unused-vars
+    const someSelected = selectedItems.length > 0 && !allSelected;
 
     return (
       <Card sx={{ mb: 3 }}>
@@ -912,8 +947,8 @@ function PortfolioDataPage() {
           subheader={`${items.length} ${title.toLowerCase()} connected • ${availableToAdd.length} available to add`}
         />
         <CardContent>
-          {/* Search and Controls */}
-          <Box sx={{ mb: 3 }}>
+          {/* Search and Controls - TOP */}
+          <Box sx={{ mb: 2 }}>
             <Grid container spacing={2} alignItems="center">
               <Grid item xs={12} md={6}>
                 <TextField
@@ -939,7 +974,7 @@ function PortfolioDataPage() {
                 />
               </Grid>
               <Grid item xs={12} md={6}>
-                <Stack direction="row" spacing={1} alignItems="center">
+                <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
                   <FormControlLabel
                     control={
                       <Checkbox
@@ -947,6 +982,7 @@ function PortfolioDataPage() {
                         onChange={(e) => {
                           setShowConnected(e.target.checked);
                           setSelectedItems([]);
+                          onPageChange(null, 0);
                         }}
                         size="small"
                       />
@@ -954,7 +990,7 @@ function PortfolioDataPage() {
                     label="Show connected"
                     sx={{ mr: 2 }}
                   />
-                  {currentItems.length > 0 && (
+                  {paginatedItems.length > 0 && (
                     <>
                       <Button
                         size="small"
@@ -982,48 +1018,59 @@ function PortfolioDataPage() {
             </Grid>
           </Box>
 
-          {/* Items Display */}
-          <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 500 }}>
-            {showConnected ? 'Connected' : 'Available'} {title}:
-            {searchTerm && ` (filtered by "${searchTerm}")`}
-          </Typography>
+          <Divider sx={{ mb: 2 }} />
 
+          {/* Items Display */}
           {currentItems.length > 0 ? (
-            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
-              {currentItems.map((item) => {
-                const itemId = getItemId(item);
-                const isSelected = selectedItems.includes(itemId);
-                
-                return (
-                  <Chip
-                    key={itemId}
-                    label={getItemLabel(item)}
-                    color={showConnected ? 'primary' : 'default'}
-                    variant={isSelected ? 'filled' : 'outlined'}
-                    onClick={() => handleItemSelect(itemId)}
-                    onDelete={showConnected ? () => onRemove(itemId) : undefined}
-                    deleteIcon={showConnected ? <DeleteIcon /> : undefined}
-                    icon={!showConnected ? <AddIcon /> : undefined}
-                    sx={{ 
-                      cursor: 'pointer',
-                      backgroundColor: isSelected 
-                        ? alpha('#1976d2', 0.2)
-                        : showConnected 
-                          ? undefined 
-                          : 'transparent',
-                      '&:hover': { 
-                        backgroundColor: isSelected
-                          ? alpha('#1976d2', 0.3)
-                          : alpha('#1976d2', 0.08)
-                      },
-                      mb: 1
-                    }}
-                  />
-                );
-              })}
-            </Stack>
+            <>
+              <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1, minHeight: 100 }}>
+                {paginatedItems.map((item) => {
+                  const itemId = getItemId(item);
+                  const isSelected = selectedItems.includes(itemId);
+                  
+                  return (
+                    <Chip
+                      key={itemId}
+                      label={getItemLabel(item)}
+                      color={showConnected ? 'primary' : 'default'}
+                      variant={isSelected ? 'filled' : 'outlined'}
+                      onClick={() => handleItemSelect(itemId)}
+                      onDelete={showConnected ? () => onRemove(itemId) : undefined}
+                      deleteIcon={showConnected ? <DeleteIcon /> : undefined}
+                      icon={!showConnected ? <AddIcon /> : undefined}
+                      sx={{ 
+                        cursor: 'pointer',
+                        backgroundColor: isSelected 
+                          ? alpha('#1976d2', 0.2)
+                          : showConnected 
+                            ? undefined 
+                            : 'transparent',
+                        '&:hover': { 
+                          backgroundColor: isSelected
+                            ? alpha('#1976d2', 0.3)
+                            : alpha('#1976d2', 0.08)
+                        },
+                        mb: 1
+                      }}
+                    />
+                  );
+                })}
+              </Stack>
+              
+              {/* Pagination */}
+              <TablePagination
+                component="div"
+                count={currentItems.length}
+                page={page}
+                onPageChange={onPageChange}
+                rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={onRowsPerPageChange}
+                rowsPerPageOptions={[5, 10, 20]}
+                sx={{ mt: 2, borderTop: 1, borderColor: 'divider' }}
+              />
+            </>
           ) : (
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
               {searchTerm 
                 ? `No ${title.toLowerCase()} found matching "${searchTerm}"`
                 : showConnected 
@@ -1031,25 +1078,6 @@ function PortfolioDataPage() {
                   : `All available ${title.toLowerCase()} are already connected.`
               }
             </Typography>
-          )}
-
-          {/* Quick Actions */}
-          {!showConnected && filteredAvailable.length > 0 && (
-            <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
-              <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-                Quick Actions:
-              </Typography>
-              <Stack direction="row" spacing={1}>
-                <Button
-                  size="small"
-                  onClick={() => handleBulkAdd(filteredAvailable.map(getItemId), onAdd)}
-                  disabled={filteredAvailable.length === 0}
-                  startIcon={<AddIcon />}
-                >
-                  Add All Visible ({filteredAvailable.length})
-                </Button>
-              </Stack>
-            </Box>
           )}
         </CardContent>
       </Card>
@@ -1525,7 +1553,19 @@ function PortfolioDataPage() {
   };
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+    <Container 
+      maxWidth={false} 
+      disableGutters 
+      sx={{ 
+        ml: 0, 
+        mr: 0, 
+        pl: { xs: 2, sm: 3 }, 
+        pr: { xs: 2, sm: 3 }, 
+        mt: 2, 
+        mb: 4,
+        maxWidth: '100%'
+      }}
+    >
       <Paper>
         <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h6" component="div">
@@ -1652,55 +1692,7 @@ function PortfolioDataPage() {
                 showError 
                 errorMessage="You do not have permission to see Categories, please contact your system administrator."
               >
-                {/* Connected Categories (visible list like Sections) */}
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
-                    <CategoryIcon sx={{ mr: 1 }} />
-                    Connected Categories
-                  </Typography>
-                  {categories.length > 0 ? (
-                    <List>
-                      {categories.map((cat) => {
-                        const name = cat.category_texts?.[0]?.name || cat.code || `Category ${cat.id}`;
-                        return (
-                          <ListItem key={cat.id} divider>
-                            <ListItemIcon>
-                              <CategoryIcon />
-                            </ListItemIcon>
-                            <ListItemText
-                              primary={name}
-                              secondary={`ID: ${cat.id}${cat.type_code ? ` • Type: ${cat.type_code}` : ''}`}
-                            />
-                            <IconButton
-                              size="small"
-                              onClick={() => handleViewCategory(cat)}
-                              sx={{ mr: 1 }}
-                            >
-                              <VisibilityIcon />
-                            </IconButton>
-                            <PermissionGate permission="EDIT_PORTFOLIO">
-                              <IconButton
-                                size="small"
-                                color="error"
-                                onClick={() => handleRemoveCategory(cat.id)}
-                              >
-                                <DeleteIcon />
-                              </IconButton>
-                            </PermissionGate>
-                          </ListItem>
-                        );
-                      })}
-                    </List>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      No categories connected yet.
-                    </Typography>
-                  )}
-                </Box>
-
-                <Divider sx={{ my: 3 }} />
-
-                {/* Add Categories using multi-select search */}
+                {/* Add Categories using multi-select search - TOP */}
                 <PermissionGate permissions={["EDIT_PORTFOLIO", "VIEW_CATEGORIES"]} requireAll>
                   <CategoryAddManager
                     categories={categories}
@@ -1710,6 +1702,135 @@ function PortfolioDataPage() {
                     }}
                   />
                 </PermissionGate>
+
+                <Divider sx={{ my: 3 }} />
+
+                {/* Connected Categories (visible list like Sections) */}
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                    <CategoryIcon sx={{ mr: 1 }} />
+                    Connected Categories
+                  </Typography>
+                  
+                  {/* Search bar for connected categories */}
+                  <TextField
+                    fullWidth
+                    size="small"
+                    placeholder="Search connected categories..."
+                    value={categoriesSearchTerm}
+                    onChange={(e) => {
+                      setCategoriesSearchTerm(e.target.value);
+                      setCategoriesPage(0); // Reset to first page on search
+                    }}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon />
+                        </InputAdornment>
+                      ),
+                      endAdornment: categoriesSearchTerm && (
+                        <InputAdornment position="end">
+                          <IconButton 
+                            size="small" 
+                            onClick={() => {
+                              setCategoriesSearchTerm('');
+                              setCategoriesPage(0);
+                            }}
+                          >
+                            <ClearIcon />
+                          </IconButton>
+                        </InputAdornment>
+                      )
+                    }}
+                    sx={{ mb: 2 }}
+                  />
+
+                  {categories.length > 0 ? (
+                    <>
+                      <List>
+                        {categories
+                          .filter((cat) => {
+                            if (!categoriesSearchTerm) return true;
+                            const searchLower = categoriesSearchTerm.toLowerCase();
+                            const name = cat.category_texts?.[0]?.name || cat.code || '';
+                            const typeCode = cat.type_code || '';
+                            return (
+                              name.toLowerCase().includes(searchLower) ||
+                              typeCode.toLowerCase().includes(searchLower) ||
+                              cat.id.toString().includes(searchLower) ||
+                              // Search in all language texts
+                              cat.category_texts?.some(text => 
+                                text.name?.toLowerCase().includes(searchLower)
+                              )
+                            );
+                          })
+                          .slice(
+                            categoriesPage * categoriesRowsPerPage,
+                            categoriesPage * categoriesRowsPerPage + categoriesRowsPerPage
+                          )
+                          .map((cat) => {
+                            const name = cat.category_texts?.[0]?.name || cat.code || `Category ${cat.id}`;
+                            return (
+                              <ListItem key={cat.id} divider>
+                                <ListItemIcon>
+                                  <CategoryIcon />
+                                </ListItemIcon>
+                                <ListItemText
+                                  primary={name}
+                                  secondary={`ID: ${cat.id}${cat.type_code ? ` • Type: ${cat.type_code}` : ''}`}
+                                />
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleViewCategory(cat)}
+                                  sx={{ mr: 1 }}
+                                >
+                                  <VisibilityIcon />
+                                </IconButton>
+                                <PermissionGate permission="EDIT_PORTFOLIO">
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={() => handleRemoveCategory(cat.id)}
+                                  >
+                                    <DeleteIcon />
+                                  </IconButton>
+                                </PermissionGate>
+                              </ListItem>
+                            );
+                          })}
+                      </List>
+                      <TablePagination
+                        component="div"
+                        count={categories.filter((cat) => {
+                          if (!categoriesSearchTerm) return true;
+                          const searchLower = categoriesSearchTerm.toLowerCase();
+                          const name = cat.category_texts?.[0]?.name || cat.code || '';
+                          const typeCode = cat.type_code || '';
+                          return (
+                            name.toLowerCase().includes(searchLower) ||
+                            typeCode.toLowerCase().includes(searchLower) ||
+                            cat.id.toString().includes(searchLower) ||
+                            cat.category_texts?.some(text => 
+                              text.name?.toLowerCase().includes(searchLower)
+                            )
+                          );
+                        }).length}
+                        page={categoriesPage}
+                        onPageChange={(event, newPage) => setCategoriesPage(newPage)}
+                        rowsPerPage={categoriesRowsPerPage}
+                        onRowsPerPageChange={(event) => {
+                          setCategoriesRowsPerPage(parseInt(event.target.value, 10));
+                          setCategoriesPage(0);
+                        }}
+                        rowsPerPageOptions={[5, 10, 20]}
+                      />
+                    </>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      No categories connected yet.
+                    </Typography>
+                  )}
+                </Box>
               </PermissionGate>
             </TabPanel>
 
@@ -1720,56 +1841,7 @@ function PortfolioDataPage() {
                 showError 
                 errorMessage="You do not have permission to see Experiences, please contact your system administrator."
               >
-                {/* Connected Experiences */}
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
-                    <WorkIcon sx={{ mr: 1 }} />
-                    Connected Experiences
-                  </Typography>
-                  {experiences.length > 0 ? (
-                    <List>
-                      {experiences.map((exp) => {
-                        const base = exp.experience_texts?.[0]?.name || exp.code || `Experience ${exp.id}`;
-                        const years = exp.years ? ` (${exp.years} years)` : '';
-                        const label = `${base}${years}`;
-                        return (
-                          <ListItem key={exp.id} divider>
-                            <ListItemIcon>
-                              <WorkIcon />
-                            </ListItemIcon>
-                            <ListItemText
-                              primary={label}
-                              secondary={`ID: ${exp.id}`}
-                            />
-                            <IconButton
-                              size="small"
-                              onClick={() => handleViewExperience(exp)}
-                              sx={{ mr: 1 }}
-                            >
-                              <VisibilityIcon />
-                            </IconButton>
-                            <PermissionGate permission="EDIT_PORTFOLIO">
-                              <IconButton
-                                size="small"
-                                color="error"
-                                onClick={() => handleRemoveExperience(exp.id)}
-                              >
-                                <DeleteIcon />
-                              </IconButton>
-                            </PermissionGate>
-                          </ListItem>
-                        );
-                      })}
-                    </List>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      No experiences connected yet.
-                    </Typography>
-                  )}
-                </Box>
-
-                <Divider sx={{ my: 3 }} />
-
+                {/* Add Experiences - TOP */}
                 <PermissionGate permissions={["EDIT_PORTFOLIO", "VIEW_EXPERIENCES"]} requireAll>
                   <ExperienceAddManager
                     experiences={experiences}
@@ -1778,6 +1850,139 @@ function PortfolioDataPage() {
                     }}
                   />
                 </PermissionGate>
+
+                <Divider sx={{ my: 3 }} />
+
+                {/* Connected Experiences */}
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                    <WorkIcon sx={{ mr: 1 }} />
+                    Connected Experiences
+                  </Typography>
+
+                  {/* Search bar for connected experiences */}
+                  <TextField
+                    fullWidth
+                    size="small"
+                    placeholder="Search connected experiences..."
+                    value={experiencesSearchTerm}
+                    onChange={(e) => {
+                      setExperiencesSearchTerm(e.target.value);
+                      setExperiencesPage(0); // Reset to first page on search
+                    }}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon />
+                        </InputAdornment>
+                      ),
+                      endAdornment: experiencesSearchTerm && (
+                        <InputAdornment position="end">
+                          <IconButton 
+                            size="small" 
+                            onClick={() => {
+                              setExperiencesSearchTerm('');
+                              setExperiencesPage(0);
+                            }}
+                          >
+                            <ClearIcon />
+                          </IconButton>
+                        </InputAdornment>
+                      )
+                    }}
+                    sx={{ mb: 2 }}
+                  />
+
+                  {experiences.length > 0 ? (
+                    <>
+                      <List>
+                        {experiences
+                          .filter((exp) => {
+                            if (!experiencesSearchTerm) return true;
+                            const searchLower = experiencesSearchTerm.toLowerCase();
+                            const name = exp.experience_texts?.[0]?.name || exp.code || '';
+                            const years = exp.years ? exp.years.toString() : '';
+                            return (
+                              name.toLowerCase().includes(searchLower) ||
+                              exp.code?.toLowerCase().includes(searchLower) ||
+                              years.includes(searchLower) ||
+                              exp.id.toString().includes(searchLower) ||
+                              // Search in all language texts
+                              exp.experience_texts?.some(text => 
+                                text.name?.toLowerCase().includes(searchLower)
+                              )
+                            );
+                          })
+                          .slice(
+                            experiencesPage * experiencesRowsPerPage,
+                            experiencesPage * experiencesRowsPerPage + experiencesRowsPerPage
+                          )
+                          .map((exp) => {
+                            const base = exp.experience_texts?.[0]?.name || exp.code || `Experience ${exp.id}`;
+                            const years = exp.years ? ` (${exp.years} years)` : '';
+                            const label = `${base}${years}`;
+                            return (
+                              <ListItem key={exp.id} divider>
+                                <ListItemIcon>
+                                  <WorkIcon />
+                                </ListItemIcon>
+                                <ListItemText
+                                  primary={label}
+                                  secondary={`ID: ${exp.id}`}
+                                />
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleViewExperience(exp)}
+                                  sx={{ mr: 1 }}
+                                >
+                                  <VisibilityIcon />
+                                </IconButton>
+                                <PermissionGate permission="EDIT_PORTFOLIO">
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={() => handleRemoveExperience(exp.id)}
+                                  >
+                                    <DeleteIcon />
+                                  </IconButton>
+                                </PermissionGate>
+                              </ListItem>
+                            );
+                          })}
+                      </List>
+                      <TablePagination
+                        component="div"
+                        count={experiences.filter((exp) => {
+                          if (!experiencesSearchTerm) return true;
+                          const searchLower = experiencesSearchTerm.toLowerCase();
+                          const name = exp.experience_texts?.[0]?.name || exp.code || '';
+                          const years = exp.years ? exp.years.toString() : '';
+                          return (
+                            name.toLowerCase().includes(searchLower) ||
+                            exp.code?.toLowerCase().includes(searchLower) ||
+                            years.includes(searchLower) ||
+                            exp.id.toString().includes(searchLower) ||
+                            exp.experience_texts?.some(text => 
+                              text.name?.toLowerCase().includes(searchLower)
+                            )
+                          );
+                        }).length}
+                        page={experiencesPage}
+                        onPageChange={(event, newPage) => setExperiencesPage(newPage)}
+                        rowsPerPage={experiencesRowsPerPage}
+                        onRowsPerPageChange={(event) => {
+                          setExperiencesRowsPerPage(parseInt(event.target.value, 10));
+                          setExperiencesPage(0);
+                        }}
+                        rowsPerPageOptions={[5, 10, 20]}
+                      />
+                    </>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      No experiences connected yet.
+                    </Typography>
+                  )}
+                </Box>
               </PermissionGate>
             </TabPanel>
 
@@ -1788,54 +1993,7 @@ function PortfolioDataPage() {
                 showError 
                 errorMessage="You do not have permission to see Projects, please contact your system administrator."
               >
-                {/* Connected Projects */}
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
-                    <ProjectIcon sx={{ mr: 1 }} />
-                    Connected Projects
-                  </Typography>
-                  {projects.length > 0 ? (
-                    <List>
-                      {projects.map((proj) => {
-                        const title = proj.project_texts?.[0]?.name || proj.project_texts?.[0]?.title || `Project ${proj.id}`;
-                        return (
-                          <ListItem key={proj.id} divider>
-                            <ListItemIcon>
-                              <ProjectIcon />
-                            </ListItemIcon>
-                            <ListItemText
-                              primary={title}
-                              secondary={`ID: ${proj.id}`}
-                            />
-                            <IconButton
-                              size="small"
-                              onClick={() => handleViewProject(proj)}
-                              sx={{ mr: 1 }}
-                            >
-                              <VisibilityIcon />
-                            </IconButton>
-                            <PermissionGate permission="EDIT_PORTFOLIO">
-                              <IconButton
-                                size="small"
-                                color="error"
-                                onClick={() => handleRemoveProject(proj.id)}
-                              >
-                                <DeleteIcon />
-                              </IconButton>
-                            </PermissionGate>
-                          </ListItem>
-                        );
-                      })}
-                    </List>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      No projects connected yet.
-                    </Typography>
-                  )}
-                </Box>
-
-                <Divider sx={{ my: 3 }} />
-
+                {/* Add Projects - TOP */}
                 <PermissionGate permissions={["EDIT_PORTFOLIO", "VIEW_PROJECTS"]} requireAll>
                   <ProjectAddManager
                     projects={projects}
@@ -1844,6 +2002,143 @@ function PortfolioDataPage() {
                     }}
                   />
                 </PermissionGate>
+
+                <Divider sx={{ my: 3 }} />
+
+                {/* Connected Projects */}
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                    <ProjectIcon sx={{ mr: 1 }} />
+                    Connected Projects
+                  </Typography>
+
+                  {/* Search bar for connected projects */}
+                  <TextField
+                    fullWidth
+                    size="small"
+                    placeholder="Search connected projects..."
+                    value={projectsSearchTerm}
+                    onChange={(e) => {
+                      setProjectsSearchTerm(e.target.value);
+                      setProjectsPage(0); // Reset to first page on search
+                    }}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon />
+                        </InputAdornment>
+                      ),
+                      endAdornment: projectsSearchTerm && (
+                        <InputAdornment position="end">
+                          <IconButton 
+                            size="small" 
+                            onClick={() => {
+                              setProjectsSearchTerm('');
+                              setProjectsPage(0);
+                            }}
+                          >
+                            <ClearIcon />
+                          </IconButton>
+                        </InputAdornment>
+                      )
+                    }}
+                    sx={{ mb: 2 }}
+                  />
+
+                  {projects.length > 0 ? (
+                    <>
+                      <List>
+                        {projects
+                          .filter((proj) => {
+                            if (!projectsSearchTerm) return true;
+                            const searchLower = projectsSearchTerm.toLowerCase();
+                            const name = proj.project_texts?.[0]?.name || '';
+                            const title = proj.project_texts?.[0]?.title || '';
+                            const description = proj.project_texts?.[0]?.description || '';
+                            return (
+                              name.toLowerCase().includes(searchLower) ||
+                              title.toLowerCase().includes(searchLower) ||
+                              description.toLowerCase().includes(searchLower) ||
+                              proj.id.toString().includes(searchLower) ||
+                              // Search in all language texts
+                              proj.project_texts?.some(text => 
+                                text.name?.toLowerCase().includes(searchLower) ||
+                                text.title?.toLowerCase().includes(searchLower) ||
+                                text.description?.toLowerCase().includes(searchLower)
+                              )
+                            );
+                          })
+                          .slice(
+                            projectsPage * projectsRowsPerPage,
+                            projectsPage * projectsRowsPerPage + projectsRowsPerPage
+                          )
+                          .map((proj) => {
+                            const title = proj.project_texts?.[0]?.name || proj.project_texts?.[0]?.title || `Project ${proj.id}`;
+                            return (
+                              <ListItem key={proj.id} divider>
+                                <ListItemIcon>
+                                  <ProjectIcon />
+                                </ListItemIcon>
+                                <ListItemText
+                                  primary={title}
+                                  secondary={`ID: ${proj.id}`}
+                                />
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleViewProject(proj)}
+                                  sx={{ mr: 1 }}
+                                >
+                                  <VisibilityIcon />
+                                </IconButton>
+                                <PermissionGate permission="EDIT_PORTFOLIO">
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={() => handleRemoveProject(proj.id)}
+                                  >
+                                    <DeleteIcon />
+                                  </IconButton>
+                                </PermissionGate>
+                              </ListItem>
+                            );
+                          })}
+                      </List>
+                      <TablePagination
+                        component="div"
+                        count={projects.filter((proj) => {
+                          if (!projectsSearchTerm) return true;
+                          const searchLower = projectsSearchTerm.toLowerCase();
+                          const name = proj.project_texts?.[0]?.name || '';
+                          const title = proj.project_texts?.[0]?.title || '';
+                          const description = proj.project_texts?.[0]?.description || '';
+                          return (
+                            name.toLowerCase().includes(searchLower) ||
+                            title.toLowerCase().includes(searchLower) ||
+                            description.toLowerCase().includes(searchLower) ||
+                            proj.id.toString().includes(searchLower) ||
+                            proj.project_texts?.some(text => 
+                              text.name?.toLowerCase().includes(searchLower) ||
+                              text.title?.toLowerCase().includes(searchLower) ||
+                              text.description?.toLowerCase().includes(searchLower)
+                            )
+                          );
+                        }).length}
+                        page={projectsPage}
+                        onPageChange={(event, newPage) => setProjectsPage(newPage)}
+                        rowsPerPage={projectsRowsPerPage}
+                        onRowsPerPageChange={(event) => {
+                          setProjectsRowsPerPage(parseInt(event.target.value, 10));
+                          setProjectsPage(0);
+                        }}
+                        rowsPerPageOptions={[5, 10, 20]}
+                      />
+                    </>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      No projects connected yet.
+                    </Typography>
+                  )}
+                </Box>
               </PermissionGate>
             </TabPanel>
 
@@ -1854,50 +2149,7 @@ function PortfolioDataPage() {
                 showError 
                 errorMessage="You do not have permission to see Sections, please contact your system administrator."
               >
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
-                    <SectionIcon sx={{ mr: 1 }} />
-                    Connected Sections
-                  </Typography>
-                  {sections.length > 0 ? (
-                    <List>
-                      {sections.map((section) => (
-                        <ListItem key={section.id} divider>
-                          <ListItemIcon>
-                            <SectionIcon />
-                          </ListItemIcon>
-                          <ListItemText
-                            primary={section.code || `Section ${section.id}`}
-                            secondary={`ID: ${section.id}`}
-                          />
-                          <IconButton
-                            size="small"
-                            onClick={() => handleViewSection(section)}
-                            sx={{ mr: 1 }}
-                          >
-                            <VisibilityIcon />
-                          </IconButton>
-                          <PermissionGate permission="EDIT_PORTFOLIO">
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => handleRemoveSection(section.id)}
-                            >
-                              <DeleteIcon />
-                            </IconButton>
-                          </PermissionGate>
-                        </ListItem>
-                      ))}
-                    </List>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      No sections connected yet.
-                    </Typography>
-                  )}
-                </Box>
-
-                <Divider sx={{ my: 3 }} />
-
+                {/* Add Sections - TOP */}
                 <PermissionGate permissions={["EDIT_PORTFOLIO", "VIEW_SECTIONS"]} requireAll>
                   <SectionAddManager
                     sectionsConnected={sections}
@@ -1906,6 +2158,121 @@ function PortfolioDataPage() {
                     }}
                   />
                 </PermissionGate>
+
+                <Divider sx={{ my: 3 }} />
+
+                {/* Connected Sections */}
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                    <SectionIcon sx={{ mr: 1 }} />
+                    Connected Sections
+                  </Typography>
+
+                  {/* Search bar for connected sections */}
+                  <TextField
+                    fullWidth
+                    size="small"
+                    placeholder="Search connected sections..."
+                    value={sectionsSearchTerm}
+                    onChange={(e) => {
+                      setSectionsSearchTerm(e.target.value);
+                      setSectionsPage(0); // Reset to first page on search
+                    }}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon />
+                        </InputAdornment>
+                      ),
+                      endAdornment: sectionsSearchTerm && (
+                        <InputAdornment position="end">
+                          <IconButton 
+                            size="small" 
+                            onClick={() => {
+                              setSectionsSearchTerm('');
+                              setSectionsPage(0);
+                            }}
+                          >
+                            <ClearIcon />
+                          </IconButton>
+                        </InputAdornment>
+                      )
+                    }}
+                    sx={{ mb: 2 }}
+                  />
+
+                  {sections.length > 0 ? (
+                    <>
+                      <List>
+                        {sections
+                          .filter((section) => {
+                            if (!sectionsSearchTerm) return true;
+                            const searchLower = sectionsSearchTerm.toLowerCase();
+                            const code = section.code || '';
+                            return (
+                              code.toLowerCase().includes(searchLower) ||
+                              section.id.toString().includes(searchLower)
+                            );
+                          })
+                          .slice(
+                            sectionsPage * sectionsRowsPerPage,
+                            sectionsPage * sectionsRowsPerPage + sectionsRowsPerPage
+                          )
+                          .map((section) => (
+                            <ListItem key={section.id} divider>
+                              <ListItemIcon>
+                                <SectionIcon />
+                              </ListItemIcon>
+                              <ListItemText
+                                primary={section.code || `Section ${section.id}`}
+                                secondary={`ID: ${section.id}`}
+                              />
+                              <IconButton
+                                size="small"
+                                onClick={() => handleViewSection(section)}
+                                sx={{ mr: 1 }}
+                              >
+                                <VisibilityIcon />
+                              </IconButton>
+                              <PermissionGate permission="EDIT_PORTFOLIO">
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={() => handleRemoveSection(section.id)}
+                                >
+                                  <DeleteIcon />
+                                </IconButton>
+                              </PermissionGate>
+                            </ListItem>
+                          ))}
+                      </List>
+                      <TablePagination
+                        component="div"
+                        count={sections.filter((section) => {
+                          if (!sectionsSearchTerm) return true;
+                          const searchLower = sectionsSearchTerm.toLowerCase();
+                          const code = section.code || '';
+                          return (
+                            code.toLowerCase().includes(searchLower) ||
+                            section.id.toString().includes(searchLower)
+                          );
+                        }).length}
+                        page={sectionsPage}
+                        onPageChange={(event, newPage) => setSectionsPage(newPage)}
+                        rowsPerPage={sectionsRowsPerPage}
+                        onRowsPerPageChange={(event) => {
+                          setSectionsRowsPerPage(parseInt(event.target.value, 10));
+                          setSectionsPage(0);
+                        }}
+                        rowsPerPageOptions={[5, 10, 20]}
+                      />
+                    </>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      No sections connected yet.
+                    </Typography>
+                  )}
+                </Box>
               </PermissionGate>
             </TabPanel>
 
@@ -2255,7 +2622,9 @@ function PortfolioDataPage() {
               type="file"
               onChange={(e) => {
                 const file = e.target.files[0];
-                setUploadFile(file);
+                if (file) {
+                  setUploadFile(file);
+                }
               }}
             />
             <label htmlFor="image-upload-input">
@@ -2297,7 +2666,14 @@ function PortfolioDataPage() {
               />
               <IconButton
                 size="small"
-                onClick={() => setUploadFile(null)}
+                onClick={() => {
+                  setUploadFile(null);
+                  // Reset the file input
+                  const fileInput = document.getElementById('image-upload-input');
+                  if (fileInput) {
+                    fileInput.value = '';
+                  }
+                }}
                 sx={{
                   position: 'absolute',
                   top: 8,
