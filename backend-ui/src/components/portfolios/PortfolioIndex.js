@@ -15,7 +15,7 @@ import {
   DialogActions,
   Button
 } from '@mui/material';
-import { Edit as EditIcon, Delete as DeleteIcon, PhotoLibrary as PhotoLibraryIcon, AttachFile as AttachFileIcon, ArrowUpward, ArrowDownward, Dashboard as DashboardIcon, InfoOutlined, Language as LanguageIcon } from '@mui/icons-material';
+import { Delete as DeleteIcon, PhotoLibrary as PhotoLibraryIcon, AttachFile as AttachFileIcon, ArrowUpward, ArrowDownward, Dashboard as DashboardIcon, InfoOutlined, Language as LanguageIcon } from '@mui/icons-material';
 import PortfolioForm from './PortfolioForm';
 import PortfolioImageForm from './PortfolioImageForm';
 import ReusableDataGrid from '../common/ReusableDataGrid';
@@ -313,20 +313,6 @@ function PortfolioIndexContent() {
                 }}
               >
                 <LanguageIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </PermissionGate>
-          <PermissionGate permission="EDIT_PORTFOLIO">
-            <Tooltip title="Edit Portfolio">
-              <IconButton 
-                onClick={() => handleEditClick(params.row)} 
-                size="small"
-                sx={{ 
-                  color: '#1976d2',
-                  '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.04)' }
-                }}
-              >
-                <EditIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           </PermissionGate>

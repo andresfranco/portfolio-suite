@@ -195,6 +195,12 @@ function PortfolioDataPage() {
   const [projectsSearchTerm, setProjectsSearchTerm] = useState('');
   const [sectionsSearchTerm, setSectionsSearchTerm] = useState('');
 
+  // Edit portfolio overview states
+  const [isEditingOverview, setIsEditingOverview] = useState(false);
+  const [editedName, setEditedName] = useState('');
+  const [editedDescription, setEditedDescription] = useState('');
+  const [savingOverview, setSavingOverview] = useState(false);
+
   // Fetch portfolio data
   const fetchPortfolioData = useCallback(async () => {
     console.log('============================================');
@@ -819,6 +825,44 @@ function PortfolioDataPage() {
   const handleViewProject = (project) => {
     setSelectedProject(project);
     setProjectModalOpen(true);
+  };
+
+  // Portfolio overview edit handlers
+  const handleEditOverview = () => {
+    setEditedName(portfolioData?.name || '');
+    setEditedDescription(portfolioData?.description || '');
+    setIsEditingOverview(true);
+  };
+
+  const handleCancelEditOverview = () => {
+    setIsEditingOverview(false);
+    setEditedName('');
+    setEditedDescription('');
+  };
+
+  const handleSaveOverview = async () => {
+    if (!editedName.trim()) {
+      enqueueSnackbar('Portfolio name is required', { variant: 'error' });
+      return;
+    }
+
+    try {
+      setSavingOverview(true);
+      await api.put(`/api/portfolios/${portfolioId}`, {
+        name: editedName.trim(),
+        description: editedDescription.trim() || null
+      });
+      
+      enqueueSnackbar('Portfolio updated successfully', { variant: 'success' });
+      setIsEditingOverview(false);
+      await fetchPortfolioData();
+    } catch (err) {
+      console.error('Update portfolio error:', err);
+      const errorMsg = err.response?.data?.detail || 'Failed to update portfolio';
+      enqueueSnackbar(errorMsg, { variant: 'error' });
+    } finally {
+      setSavingOverview(false);
+    }
   };
 
   // Bulk operations
@@ -1613,73 +1657,134 @@ function PortfolioDataPage() {
                 showError 
                 errorMessage="You do not have permission to see Portfolio information, please contact your system administrator."
               >
-                <Card>
-                  <CardHeader
-                    avatar={<Avatar sx={{ bgcolor: '#1976d2' }}><InfoIcon /></Avatar>}
-                    title="Portfolio Information"
-                    subheader="Basic portfolio details"
-                  />
-                  <CardContent>
-                    <Grid container spacing={3}>
-                      <Grid item xs={12} md={6}>
-                        <Typography variant="subtitle2" color="text.secondary">Name</Typography>
-                        <Typography variant="body1" sx={{ mb: 2 }}>{portfolioData?.name || '-'}</Typography>
+                <Box sx={{ mb: 3 }}>
+                  {/* Title and Edit Section */}
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
+                      <InfoIcon sx={{ mr: 1 }} />
+                      Overview
+                    </Typography>
+                    <PermissionGate permission="EDIT_PORTFOLIO">
+                      {!isEditingOverview ? (
+                        <Button
+                          variant="outlined"
+                          startIcon={<EditIcon />}
+                          onClick={handleEditOverview}
+                          size="small"
+                        >
+                          Edit
+                        </Button>
+                      ) : (
+                        <Stack direction="row" spacing={1}>
+                          <Button
+                            variant="outlined"
+                            onClick={handleCancelEditOverview}
+                            disabled={savingOverview}
+                            size="small"
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            variant="contained"
+                            onClick={handleSaveOverview}
+                            disabled={savingOverview}
+                            size="small"
+                          >
+                            {savingOverview ? <CircularProgress size={20} /> : 'Save'}
+                          </Button>
+                        </Stack>
+                      )}
+                    </PermissionGate>
+                  </Box>
+
+                  <Card>
+                    <CardContent>
+                      <Grid container spacing={3}>
+                        <Grid item xs={12}>
+                          <Typography variant="subtitle2" color="text.secondary">ID</Typography>
+                          <Typography variant="body1" sx={{ mb: 2 }}>{portfolioData?.id || '-'}</Typography>
+                        </Grid>
+                        <Grid item xs={12}>
+                          <Typography variant="subtitle2" color="text.secondary">Name</Typography>
+                          {isEditingOverview ? (
+                            <TextField
+                              fullWidth
+                              value={editedName}
+                              onChange={(e) => setEditedName(e.target.value)}
+                              placeholder="Portfolio name"
+                              size="small"
+                              sx={{ mt: 1 }}
+                              required
+                            />
+                          ) : (
+                            <Typography variant="body1" sx={{ mb: 2 }}>{portfolioData?.name || '-'}</Typography>
+                          )}
+                        </Grid>
+                        <Grid item xs={12}>
+                          <Typography variant="subtitle2" color="text.secondary">Description</Typography>
+                          {isEditingOverview ? (
+                            <TextField
+                              fullWidth
+                              multiline
+                              rows={4}
+                              value={editedDescription}
+                              onChange={(e) => setEditedDescription(e.target.value)}
+                              placeholder="Portfolio description"
+                              size="small"
+                              sx={{ mt: 1 }}
+                            />
+                          ) : (
+                            <Typography variant="body1" sx={{ mb: 2 }}>
+                              {portfolioData?.description || 'No description provided'}
+                            </Typography>
+                          )}
+                        </Grid>
                       </Grid>
-                      <Grid item xs={12} md={6}>
-                        <Typography variant="subtitle2" color="text.secondary">ID</Typography>
-                        <Typography variant="body1" sx={{ mb: 2 }}>{portfolioData?.id || '-'}</Typography>
+                      
+                      <Divider sx={{ my: 3 }} />
+                      
+                      <Typography variant="h6" sx={{ mb: 2 }}>Quick Stats</Typography>
+                      <Grid container spacing={2}>
+                        <Grid item xs={6} sm={4} md={2}>
+                          <Paper sx={{ p: 2, textAlign: 'center' }}>
+                            <Typography variant="h4" color="primary">{categories.length}</Typography>
+                            <Typography variant="caption">Categories</Typography>
+                          </Paper>
+                        </Grid>
+                        <Grid item xs={6} sm={4} md={2}>
+                          <Paper sx={{ p: 2, textAlign: 'center' }}>
+                            <Typography variant="h4" color="primary">{experiences.length}</Typography>
+                            <Typography variant="caption">Experiences</Typography>
+                          </Paper>
+                        </Grid>
+                        <Grid item xs={6} sm={4} md={2}>
+                          <Paper sx={{ p: 2, textAlign: 'center' }}>
+                            <Typography variant="h4" color="primary">{projects.length}</Typography>
+                            <Typography variant="caption">Projects</Typography>
+                          </Paper>
+                        </Grid>
+                        <Grid item xs={6} sm={4} md={2}>
+                          <Paper sx={{ p: 2, textAlign: 'center' }}>
+                            <Typography variant="h4" color="primary">{sections.length}</Typography>
+                            <Typography variant="caption">Sections</Typography>
+                          </Paper>
+                        </Grid>
+                        <Grid item xs={6} sm={4} md={2}>
+                          <Paper sx={{ p: 2, textAlign: 'center' }}>
+                            <Typography variant="h4" color="primary">{images.length}</Typography>
+                            <Typography variant="caption">Images</Typography>
+                          </Paper>
+                        </Grid>
+                        <Grid item xs={6} sm={4} md={2}>
+                          <Paper sx={{ p: 2, textAlign: 'center' }}>
+                            <Typography variant="h4" color="primary">{attachments.length}</Typography>
+                            <Typography variant="caption">Attachments</Typography>
+                          </Paper>
+                        </Grid>
                       </Grid>
-                      <Grid item xs={12}>
-                        <Typography variant="subtitle2" color="text.secondary">Description</Typography>
-                        <Typography variant="body1" sx={{ mb: 2 }}>
-                          {portfolioData?.description || 'No description provided'}
-                        </Typography>
-                      </Grid>
-                    </Grid>
-                    
-                    <Divider sx={{ my: 3 }} />
-                    
-                    <Typography variant="h6" sx={{ mb: 2 }}>Quick Stats</Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={6} sm={4} md={2}>
-                        <Paper sx={{ p: 2, textAlign: 'center' }}>
-                          <Typography variant="h4" color="primary">{categories.length}</Typography>
-                          <Typography variant="caption">Categories</Typography>
-                        </Paper>
-                      </Grid>
-                      <Grid item xs={6} sm={4} md={2}>
-                        <Paper sx={{ p: 2, textAlign: 'center' }}>
-                          <Typography variant="h4" color="primary">{experiences.length}</Typography>
-                          <Typography variant="caption">Experiences</Typography>
-                        </Paper>
-                      </Grid>
-                      <Grid item xs={6} sm={4} md={2}>
-                        <Paper sx={{ p: 2, textAlign: 'center' }}>
-                          <Typography variant="h4" color="primary">{projects.length}</Typography>
-                          <Typography variant="caption">Projects</Typography>
-                        </Paper>
-                      </Grid>
-                      <Grid item xs={6} sm={4} md={2}>
-                        <Paper sx={{ p: 2, textAlign: 'center' }}>
-                          <Typography variant="h4" color="primary">{sections.length}</Typography>
-                          <Typography variant="caption">Sections</Typography>
-                        </Paper>
-                      </Grid>
-                      <Grid item xs={6} sm={4} md={2}>
-                        <Paper sx={{ p: 2, textAlign: 'center' }}>
-                          <Typography variant="h4" color="primary">{images.length}</Typography>
-                          <Typography variant="caption">Images</Typography>
-                        </Paper>
-                      </Grid>
-                      <Grid item xs={6} sm={4} md={2}>
-                        <Paper sx={{ p: 2, textAlign: 'center' }}>
-                          <Typography variant="h4" color="primary">{attachments.length}</Typography>
-                          <Typography variant="caption">Attachments</Typography>
-                        </Paper>
-                      </Grid>
-                    </Grid>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                </Box>
               </PermissionGate>
             </TabPanel>
 
