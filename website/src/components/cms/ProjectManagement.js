@@ -64,9 +64,11 @@ export const ProjectManagement = () => {
  * Dialog for creating or editing projects
  */
 export const ProjectFormDialog = ({ mode = 'create', project = null, onClose, onSuccess, authToken, language }) => {
+  const { portfolio } = usePortfolio();
   const [formData, setFormData] = useState({
     repository_url: '',
     website_url: '',
+    project_date: '',
     project_texts: [{ language_id: 1, name: '', description: '' }],
     categories: [],
     skills: []
@@ -105,6 +107,7 @@ export const ProjectFormDialog = ({ mode = 'create', project = null, onClose, on
           setFormData({
             repository_url: project.repository_url || '',
             website_url: project.website_url || '',
+            project_date: project.project_date || '',
             project_texts: project.project_texts?.map(text => ({
               language_id: text.language_id,
               name: text.name || '',
@@ -148,7 +151,24 @@ export const ProjectFormDialog = ({ mode = 'create', project = null, onClose, on
       }
 
       if (mode === 'create') {
-        await portfolioApi.createProject(formData, authToken);
+        // Create the project
+        const createdProject = await portfolioApi.createProject(formData, authToken);
+        console.log('Project created:', createdProject);
+
+        // Associate the project with the current portfolio
+        if (portfolio && portfolio.id && createdProject && createdProject.id) {
+          console.log(`Associating project ${createdProject.id} with portfolio ${portfolio.id}`);
+          try {
+            await portfolioApi.addProjectToPortfolio(portfolio.id, createdProject.id, authToken);
+            console.log('Project successfully associated with portfolio');
+          } catch (associationError) {
+            console.error('Error associating project with portfolio:', associationError);
+            // Show a warning but don't fail the entire operation
+            setError(`Project created but failed to associate with portfolio: ${associationError.message}`);
+          }
+        } else {
+          console.warn('Portfolio ID or created project ID not available for association');
+        }
       } else {
         await portfolioApi.updateProject(project.id, formData, authToken);
       }
@@ -324,6 +344,18 @@ export const ProjectFormDialog = ({ mode = 'create', project = null, onClose, on
                 onChange={(e) => handleInputChange('website_url', e.target.value)}
                 className="w-full px-4 py-3 bg-white/5 border border-[#14C800]/50 rounded-none focus:outline-none focus:ring-2 focus:ring-[#14C800]/60 text-white placeholder-white/50"
                 placeholder="https://myproject.com"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 font-semibold text-white text-sm uppercase tracking-wide">
+                Project Date
+              </label>
+              <input
+                type="date"
+                value={formData.project_date}
+                onChange={(e) => handleInputChange('project_date', e.target.value)}
+                className="w-full px-4 py-3 bg-white/5 border border-[#14C800]/50 rounded-none focus:outline-none focus:ring-2 focus:ring-[#14C800]/60 text-white placeholder-white/50"
               />
             </div>
           </div>
