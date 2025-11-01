@@ -1105,75 +1105,71 @@ function PortfolioDataPage() {
     };
 
     return (
-      <Card>
-        <CardHeader
-          avatar={<Avatar sx={{ bgcolor: '#1976d2' }}><CategoryIcon /></Avatar>}
-          title="Add Categories"
-          subheader={`${options.length} available to add`}
-          action={
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleAdd}
-              disabled={selectedOptions.length === 0}
-              sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
-            >
-              Add {selectedOptions.length > 0 ? `(${selectedOptions.length})` : ''}
-            </Button>
-          }
+      <Box>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+            Add Categories ({options.length} available)
+          </Typography>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleAdd}
+            disabled={selectedOptions.length === 0}
+            size="small"
+            sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
+          >
+            Add {selectedOptions.length > 0 ? `(${selectedOptions.length})` : ''}
+          </Button>
+        </Box>
+        <Autocomplete
+          multiple
+          options={options}
+          value={selectedOptions}
+          onChange={(e, newValue) => setSelectedOptions(newValue)}
+          getOptionLabel={getLabel}
+          isOptionEqualToValue={(option, value) => option.id === value.id}
+          filterSelectedOptions
+          size="small"
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              size="small"
+              placeholder="Search categories to add..."
+              InputProps={{
+                ...params.InputProps,
+                startAdornment: (
+                  <>
+                    <InputAdornment position="start">
+                      <SearchIcon />
+                    </InputAdornment>
+                    {params.InputProps.startAdornment}
+                  </>
+                ),
+              }}
+            />
+          )}
         />
-        <CardContent>
-          <Grid container spacing={2}>
-            <Grid item xs={12}>
-              <Autocomplete
-                multiple
-                options={options}
-                value={selectedOptions}
-                onChange={(e, newValue) => setSelectedOptions(newValue)}
-                getOptionLabel={getLabel}
-                isOptionEqualToValue={(option, value) => option.id === value.id}
-                filterSelectedOptions
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    size="small"
-                    placeholder="Search categories to add…"
-                    InputProps={{
-                      ...params.InputProps,
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <SearchIcon />
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                )}
-              />
-            </Grid>
-            {selectedOptions.length > 0 && (
-              <Grid item xs={12}>
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>Selected:</Typography>
-                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
-                  {selectedOptions.map(opt => (
-                    <Chip
-                      key={opt.id}
-                      label={getLabel(opt)}
-                      onDelete={() => handleRemoveSelected(opt.id)}
-                    />
-                  ))}
-                </Stack>
-              </Grid>
-            )}
-            {options.length === 0 && (
-              <Grid item xs={12}>
-                <Typography variant="body2" color="text.secondary">
-                  All available categories are already connected.
-                </Typography>
-              </Grid>
-            )}
-          </Grid>
-        </CardContent>
-      </Card>
+        {selectedOptions.length > 0 && (
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>Selected:</Typography>
+            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+              {selectedOptions.map(opt => (
+                <Chip
+                  key={opt.id}
+                  label={getLabel(opt)}
+                  onDelete={() => handleRemoveSelected(opt.id)}
+                  size="small"
+                />
+              ))}
+            </Stack>
+          </Box>
+        )}
+        {options.length === 0 && (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
+            All available categories are already connected.
+          </Typography>
+        )}
+      </Box>
     );
   };
 
@@ -1230,71 +1226,74 @@ function PortfolioDataPage() {
     };
 
     return (
-      <Card>
-        <CardHeader
-          avatar={<Avatar sx={{ bgcolor: '#1976d2' }}><WorkIcon /></Avatar>}
-          title="Add Experiences"
-          subheader={`${filteredOptions.length} available to add`}
-          action={
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleAdd}
-              disabled={selectedOptions.length === 0}
-              sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
-            >
-              Add {selectedOptions.length > 0 ? `(${selectedOptions.length})` : ''}
-            </Button>
-          }
+      <Box>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+            Add Experiences ({filteredOptions.length} available)
+          </Typography>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleAdd}
+            disabled={selectedOptions.length === 0}
+            size="small"
+            sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
+          >
+            Add {selectedOptions.length > 0 ? `(${selectedOptions.length})` : ''}
+          </Button>
+        </Box>
+        <Autocomplete
+          multiple
+          options={filteredOptions}
+          value={selectedOptions}
+          onChange={(e, newValue) => setSelectedOptions(newValue)}
+          onOpen={loadAll}
+          onInputChange={handleInputChange}
+          getOptionLabel={getLabel}
+          isOptionEqualToValue={(option, value) => option.id === value.id}
+          filterSelectedOptions
+          loading={loadingOptions}
+          size="small"
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              size="small"
+              placeholder="Search experiences to add..."
+              InputProps={{
+                ...params.InputProps,
+                startAdornment: (
+                  <>
+                    <InputAdornment position="start">
+                      <SearchIcon />
+                    </InputAdornment>
+                    {params.InputProps.startAdornment}
+                  </>
+                ),
+              }}
+            />
+          )}
         />
-        <CardContent>
-          <Grid container spacing={2}>
-            <Grid item xs={12}>
-              <Autocomplete
-                multiple
-                options={filteredOptions}
-                value={selectedOptions}
-                onChange={(e, newValue) => setSelectedOptions(newValue)}
-                onOpen={loadAll}
-                onInputChange={handleInputChange}
-                getOptionLabel={getLabel}
-                isOptionEqualToValue={(option, value) => option.id === value.id}
-                filterSelectedOptions
-                loading={loadingOptions}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    size="small"
-                    placeholder="Search experiences to add…"
-                    InputProps={{
-                      ...params.InputProps,
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <SearchIcon />
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                )}
-              />
-            </Grid>
-            {selectedOptions.length > 0 && (
-              <Grid item xs={12}>
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>Selected:</Typography>
-                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
-                  {selectedOptions.map(opt => (
-                    <Chip
-                      key={opt.id}
-                      label={getLabel(opt)}
-                      onDelete={() => handleRemoveSelected(opt.id)}
-                    />
-                  ))}
-                </Stack>
-              </Grid>
-            )}
-          </Grid>
-        </CardContent>
-      </Card>
+        {selectedOptions.length > 0 && (
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>Selected:</Typography>
+            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+              {selectedOptions.map(opt => (
+                <Chip
+                  key={opt.id}
+                  label={getLabel(opt)}
+                  onDelete={() => handleRemoveSelected(opt.id)}
+                  size="small"
+                />
+              ))}
+            </Stack>
+          </Box>
+        )}
+        {filteredOptions.length === 0 && !loadingOptions && (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
+            All available experiences are already connected.
+          </Typography>
+        )}
+      </Box>
     );
   };
 
@@ -1350,71 +1349,74 @@ function PortfolioDataPage() {
     };
 
     return (
-      <Card>
-        <CardHeader
-          avatar={<Avatar sx={{ bgcolor: '#1976d2' }}><ProjectIcon /></Avatar>}
-          title="Add Projects"
-          subheader={`${filteredOptions.length} available to add`}
-          action={
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleAdd}
-              disabled={selectedOptions.length === 0}
-              sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
-            >
-              Add {selectedOptions.length > 0 ? `(${selectedOptions.length})` : ''}
-            </Button>
-          }
+      <Box>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+            Add Projects ({filteredOptions.length} available)
+          </Typography>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleAdd}
+            disabled={selectedOptions.length === 0}
+            size="small"
+            sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
+          >
+            Add {selectedOptions.length > 0 ? `(${selectedOptions.length})` : ''}
+          </Button>
+        </Box>
+        <Autocomplete
+          multiple
+          options={filteredOptions}
+          value={selectedOptions}
+          onChange={(e, newValue) => setSelectedOptions(newValue)}
+          onOpen={loadAll}
+          onInputChange={handleInputChange}
+          getOptionLabel={getLabel}
+          isOptionEqualToValue={(option, value) => option.id === value.id}
+          filterSelectedOptions
+          loading={loadingOptions}
+          size="small"
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              size="small"
+              placeholder="Search projects to add..."
+              InputProps={{
+                ...params.InputProps,
+                startAdornment: (
+                  <>
+                    <InputAdornment position="start">
+                      <SearchIcon />
+                    </InputAdornment>
+                    {params.InputProps.startAdornment}
+                  </>
+                ),
+              }}
+            />
+          )}
         />
-        <CardContent>
-          <Grid container spacing={2}>
-            <Grid item xs={12}>
-              <Autocomplete
-                multiple
-                options={filteredOptions}
-                value={selectedOptions}
-                onChange={(e, newValue) => setSelectedOptions(newValue)}
-                onOpen={loadAll}
-                onInputChange={handleInputChange}
-                getOptionLabel={getLabel}
-                isOptionEqualToValue={(option, value) => option.id === value.id}
-                filterSelectedOptions
-                loading={loadingOptions}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    size="small"
-                    placeholder="Search projects to add…"
-                    InputProps={{
-                      ...params.InputProps,
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <SearchIcon />
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                )}
-              />
-            </Grid>
-            {selectedOptions.length > 0 && (
-              <Grid item xs={12}>
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>Selected:</Typography>
-                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
-                  {selectedOptions.map(opt => (
-                    <Chip
-                      key={opt.id}
-                      label={getLabel(opt)}
-                      onDelete={() => handleRemoveSelected(opt.id)}
-                    />
-                  ))}
-                </Stack>
-              </Grid>
-            )}
-          </Grid>
-        </CardContent>
-      </Card>
+        {selectedOptions.length > 0 && (
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>Selected:</Typography>
+            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+              {selectedOptions.map(opt => (
+                <Chip
+                  key={opt.id}
+                  label={getLabel(opt)}
+                  onDelete={() => handleRemoveSelected(opt.id)}
+                  size="small"
+                />
+              ))}
+            </Stack>
+          </Box>
+        )}
+        {filteredOptions.length === 0 && !loadingOptions && (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
+            All available projects are already connected.
+          </Typography>
+        )}
+      </Box>
     );
   };
 
@@ -1477,78 +1479,74 @@ function PortfolioDataPage() {
     };
 
     return (
-      <Card>
-        <CardHeader
-          avatar={<Avatar sx={{ bgcolor: '#1976d2' }}><SectionIcon /></Avatar>}
-          title="Add Sections"
-          subheader={`${filteredOptions.length} available to add`}
-          action={
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleAdd}
-              disabled={selectedOptions.length === 0}
-              sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
-            >
-              Add {selectedOptions.length > 0 ? `(${selectedOptions.length})` : ''}
-            </Button>
-          }
+      <Box>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+            Add Sections ({filteredOptions.length} available)
+          </Typography>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleAdd}
+            disabled={selectedOptions.length === 0}
+            size="small"
+            sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
+          >
+            Add {selectedOptions.length > 0 ? `(${selectedOptions.length})` : ''}
+          </Button>
+        </Box>
+        <Autocomplete
+          multiple
+          options={filteredOptions}
+          value={selectedOptions}
+          onChange={(e, newValue) => setSelectedOptions(newValue)}
+          onOpen={loadAll}
+          onInputChange={handleInputChange}
+          getOptionLabel={getLabel}
+          isOptionEqualToValue={(option, value) => option.id === value.id}
+          filterSelectedOptions
+          loading={loadingOptions}
+          size="small"
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              size="small"
+              placeholder="Search sections to add..."
+              InputProps={{
+                ...params.InputProps,
+                startAdornment: (
+                  <>
+                    <InputAdornment position="start">
+                      <SearchIcon />
+                    </InputAdornment>
+                    {params.InputProps.startAdornment}
+                  </>
+                ),
+              }}
+            />
+          )}
         />
-        <CardContent>
-          <Grid container spacing={2}>
-            <Grid item xs={12}>
-              <Autocomplete
-                multiple
-                options={filteredOptions}
-                value={selectedOptions}
-                onChange={(e, newValue) => setSelectedOptions(newValue)}
-                onOpen={loadAll}
-                onInputChange={handleInputChange}
-                getOptionLabel={getLabel}
-                isOptionEqualToValue={(option, value) => option.id === value.id}
-                filterSelectedOptions
-                loading={loadingOptions}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    size="small"
-                    placeholder="Search sections to add…"
-                    InputProps={{
-                      ...params.InputProps,
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <SearchIcon />
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                )}
-              />
-            </Grid>
-            {selectedOptions.length > 0 && (
-              <Grid item xs={12}>
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>Selected:</Typography>
-                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
-                  {selectedOptions.map(opt => (
-                    <Chip
-                      key={opt.id}
-                      label={getLabel(opt)}
-                      onDelete={() => handleRemoveSelected(opt.id)}
-                    />
-                  ))}
-                </Stack>
-              </Grid>
-            )}
-            {filteredOptions.length === 0 && (
-              <Grid item xs={12}>
-                <Typography variant="body2" color="text.secondary">
-                  All available sections are already connected.
-                </Typography>
-              </Grid>
-            )}
-          </Grid>
-        </CardContent>
-      </Card>
+        {selectedOptions.length > 0 && (
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>Selected:</Typography>
+            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+              {selectedOptions.map(opt => (
+                <Chip
+                  key={opt.id}
+                  label={getLabel(opt)}
+                  onDelete={() => handleRemoveSelected(opt.id)}
+                  size="small"
+                />
+              ))}
+            </Stack>
+          </Box>
+        )}
+        {filteredOptions.length === 0 && !loadingOptions && (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
+            All available sections are already connected.
+          </Typography>
+        )}
+      </Box>
     );
   };
 
@@ -1692,23 +1690,28 @@ function PortfolioDataPage() {
                 showError 
                 errorMessage="You do not have permission to see Categories, please contact your system administrator."
               >
-                {/* Add Categories using multi-select search - TOP */}
-                <PermissionGate permissions={["EDIT_PORTFOLIO", "VIEW_CATEGORIES"]} requireAll>
-                  <CategoryAddManager
-                    categories={categories}
-                    availableCategories={availableCategories}
-                    onAddMany={async (ids) => {
-                      await handleBulkAdd(ids, handleAddCategory);
-                    }}
-                  />
-                </PermissionGate>
-
-                <Divider sx={{ my: 3 }} />
-
-                {/* Connected Categories (visible list like Sections) */}
                 <Box sx={{ mb: 3 }}>
+                  {/* Title and Add Section */}
                   <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
                     <CategoryIcon sx={{ mr: 1 }} />
+                    Categories
+                  </Typography>
+
+                  {/* Add Categories using multi-select search */}
+                  <PermissionGate permissions={["EDIT_PORTFOLIO", "VIEW_CATEGORIES"]} requireAll>
+                    <CategoryAddManager
+                      categories={categories}
+                      availableCategories={availableCategories}
+                      onAddMany={async (ids) => {
+                        await handleBulkAdd(ids, handleAddCategory);
+                      }}
+                    />
+                  </PermissionGate>
+
+                  <Divider sx={{ my: 3 }} />
+
+                  {/* Connected Categories Section */}
+                  <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
                     Connected Categories
                   </Typography>
                   
@@ -1841,22 +1844,27 @@ function PortfolioDataPage() {
                 showError 
                 errorMessage="You do not have permission to see Experiences, please contact your system administrator."
               >
-                {/* Add Experiences - TOP */}
-                <PermissionGate permissions={["EDIT_PORTFOLIO", "VIEW_EXPERIENCES"]} requireAll>
-                  <ExperienceAddManager
-                    experiences={experiences}
-                    onAddMany={async (ids) => {
-                      await handleBulkAdd(ids, handleAddExperience);
-                    }}
-                  />
-                </PermissionGate>
-
-                <Divider sx={{ my: 3 }} />
-
-                {/* Connected Experiences */}
                 <Box sx={{ mb: 3 }}>
+                  {/* Title and Add Section */}
                   <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
                     <WorkIcon sx={{ mr: 1 }} />
+                    Experiences
+                  </Typography>
+
+                  {/* Add Experiences */}
+                  <PermissionGate permissions={["EDIT_PORTFOLIO", "VIEW_EXPERIENCES"]} requireAll>
+                    <ExperienceAddManager
+                      experiences={experiences}
+                      onAddMany={async (ids) => {
+                        await handleBulkAdd(ids, handleAddExperience);
+                      }}
+                    />
+                  </PermissionGate>
+
+                  <Divider sx={{ my: 3 }} />
+
+                  {/* Connected Experiences Section */}
+                  <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
                     Connected Experiences
                   </Typography>
 
@@ -1993,22 +2001,27 @@ function PortfolioDataPage() {
                 showError 
                 errorMessage="You do not have permission to see Projects, please contact your system administrator."
               >
-                {/* Add Projects - TOP */}
-                <PermissionGate permissions={["EDIT_PORTFOLIO", "VIEW_PROJECTS"]} requireAll>
-                  <ProjectAddManager
-                    projects={projects}
-                    onAddMany={async (ids) => {
-                      await handleBulkAdd(ids, handleAddProject);
-                    }}
-                  />
-                </PermissionGate>
-
-                <Divider sx={{ my: 3 }} />
-
-                {/* Connected Projects */}
                 <Box sx={{ mb: 3 }}>
+                  {/* Title and Add Section */}
                   <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
                     <ProjectIcon sx={{ mr: 1 }} />
+                    Projects
+                  </Typography>
+
+                  {/* Add Projects */}
+                  <PermissionGate permissions={["EDIT_PORTFOLIO", "VIEW_PROJECTS"]} requireAll>
+                    <ProjectAddManager
+                      projects={projects}
+                      onAddMany={async (ids) => {
+                        await handleBulkAdd(ids, handleAddProject);
+                      }}
+                    />
+                  </PermissionGate>
+
+                  <Divider sx={{ my: 3 }} />
+
+                  {/* Connected Projects Section */}
+                  <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
                     Connected Projects
                   </Typography>
 
@@ -2149,22 +2162,27 @@ function PortfolioDataPage() {
                 showError 
                 errorMessage="You do not have permission to see Sections, please contact your system administrator."
               >
-                {/* Add Sections - TOP */}
-                <PermissionGate permissions={["EDIT_PORTFOLIO", "VIEW_SECTIONS"]} requireAll>
-                  <SectionAddManager
-                    sectionsConnected={sections}
-                    onAddMany={async (ids) => {
-                      await handleBulkAdd(ids, handleAddSection);
-                    }}
-                  />
-                </PermissionGate>
-
-                <Divider sx={{ my: 3 }} />
-
-                {/* Connected Sections */}
                 <Box sx={{ mb: 3 }}>
+                  {/* Title and Add Section */}
                   <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
                     <SectionIcon sx={{ mr: 1 }} />
+                    Sections
+                  </Typography>
+
+                  {/* Add Sections */}
+                  <PermissionGate permissions={["EDIT_PORTFOLIO", "VIEW_SECTIONS"]} requireAll>
+                    <SectionAddManager
+                      sectionsConnected={sections}
+                      onAddMany={async (ids) => {
+                        await handleBulkAdd(ids, handleAddSection);
+                      }}
+                    />
+                  </PermissionGate>
+
+                  <Divider sx={{ my: 3 }} />
+
+                  {/* Connected Sections Section */}
+                  <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
                     Connected Sections
                   </Typography>
 
