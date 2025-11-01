@@ -15,21 +15,25 @@ logger = setup_logger("app.crud.project")
 def get_project(db: Session, project_id: int) -> Optional[Project]:
     """
     Retrieve a project by ID with all relationships loaded
-    
+
     Args:
         db: Database session
         project_id: ID of the project to retrieve
-        
+
     Returns:
         Project object if found, None otherwise
     """
     logger.debug(f"Fetching project with ID {project_id}")
+    from app.models.section import Section, SectionText, SectionImage, SectionAttachment
     return db.query(Project).options(
         selectinload(Project.project_texts).selectinload(ProjectText.language),
         selectinload(Project.categories),
         selectinload(Project.skills).selectinload(Skill.skill_texts),
         selectinload(Project.images),
-        selectinload(Project.attachments)
+        selectinload(Project.attachments),
+        selectinload(Project.sections).selectinload(Section.section_texts).selectinload(SectionText.language),
+        selectinload(Project.sections).selectinload(Section.images),
+        selectinload(Project.sections).selectinload(Section.attachments)
     ).filter(Project.id == project_id).first()
 
 def create_project(db: Session, project: ProjectCreate):

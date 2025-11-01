@@ -15,26 +15,26 @@ from app.core.db import db_transaction
 logger = setup_logger("app.crud.portfolio")
 
 # CRUD Functions
-def get_portfolio(db: Session, portfolio_id: int) -> Optional[Portfolio]:
-    """Get portfolio by ID with all relationships loaded"""
-    logger.debug(f"Fetching portfolio with ID {portfolio_id}")
+def get_portfolio(db: Session, portfolio_id: int, full_details: bool = False) -> Optional[Portfolio]:
+    """Get portfolio by ID, with optional loading of all relationships"""
+    logger.debug(f"Fetching portfolio with ID {portfolio_id}, full_details={full_details}")
     try:
-        portfolio = db.query(Portfolio).options(
-            # Use selectinload for many-to-many relationships to avoid cartesian products
-            selectinload(Portfolio.categories).selectinload(Category.category_texts).selectinload(CategoryText.language),
-            selectinload(Portfolio.experiences).selectinload(Experience.experience_texts).selectinload(ExperienceText.language),
-            selectinload(Portfolio.projects).selectinload(Project.project_texts).selectinload(ProjectText.language),
-            selectinload(Portfolio.sections).selectinload(Section.section_texts).selectinload(SectionText.language),
-            # Use joinedload for one-to-many relationships
-            joinedload(Portfolio.images).joinedload(PortfolioImage.language),
-            # Load attachments with their category and language relationships
-            selectinload(Portfolio.attachments).selectinload(PortfolioAttachment.category).selectinload(Category.category_texts).selectinload(CategoryText.language),
-            selectinload(Portfolio.attachments).selectinload(PortfolioAttachment.language)
-        ).filter(Portfolio.id == portfolio_id).first()
+        query = db.query(Portfolio)
+        if full_details:
+            query = query.options(
+                selectinload(Portfolio.categories).selectinload(Category.category_texts).selectinload(CategoryText.language),
+                selectinload(Portfolio.experiences).selectinload(Experience.experience_texts).selectinload(ExperienceText.language),
+                selectinload(Portfolio.projects).selectinload(Project.project_texts).selectinload(ProjectText.language),
+                selectinload(Portfolio.sections).selectinload(Section.section_texts).selectinload(SectionText.language),
+                joinedload(Portfolio.images).joinedload(PortfolioImage.language),
+                selectinload(Portfolio.attachments).selectinload(PortfolioAttachment.category).selectinload(Category.category_texts).selectinload(CategoryText.language),
+                selectinload(Portfolio.attachments).selectinload(PortfolioAttachment.language)
+            )
         
-        if portfolio:
+        portfolio = query.filter(Portfolio.id == portfolio_id).first()
+        
+        if portfolio and full_details:
             # Force load all relationships to materialize them in memory
-            # This prevents lazy loading errors after session closes
             _ = len(portfolio.categories)
             for category in portfolio.categories:
                 _ = len(category.category_texts)
@@ -87,6 +87,8 @@ def get_portfolio(db: Session, portfolio_id: int) -> Optional[Portfolio]:
                     logger.debug(f"  Language NOT loaded (language_id={attachment.language_id})")
             
             logger.debug(f"Portfolio found: {portfolio.name} with {len(portfolio.categories or [])} categories, {len(portfolio.experiences or [])} experiences, {len(portfolio.projects or [])} projects, {len(portfolio.sections or [])} sections")
+        elif portfolio:
+            logger.debug(f"Portfolio found: {portfolio.name} (basic details only)")
         else:
             logger.warning(f"Portfolio with ID {portfolio_id} not found")
         return portfolio
@@ -221,11 +223,18 @@ def delete_portfolio_image(db: Session, image_id: int) -> Optional[PortfolioImag
     logger.debug(f"Deleting portfolio image with ID {image_id}")
     
     try:
-        db_image = db.query(PortfolioImage).filter(PortfolioImage.id == image_id).first()
+        # Eagerly load the language relationship to avoid DetachedInstanceError
+        db_image = db.query(PortfolioImage).options(
+            joinedload(PortfolioImage.language)
+        ).filter(PortfolioImage.id == image_id).first()
         
         if not db_image:
             logger.warning(f"Portfolio image with ID {image_id} not found for deletion")
             return None
+        
+        # Force load the language relationship before deletion
+        if db_image.language:
+            _ = db_image.language.id
         
         db.delete(db_image)
         logger.info(f"Portfolio image {image_id} deleted successfully")
@@ -491,11 +500,21 @@ def delete_portfolio_attachment(db: Session, attachment_id: int) -> Optional[Por
     logger.debug(f"Deleting portfolio attachment with ID {attachment_id}")
     
     try:
-        db_attachment = db.query(PortfolioAttachment).filter(PortfolioAttachment.id == attachment_id).first()
+        # Eagerly load the language and category relationships to avoid DetachedInstanceError
+        db_attachment = db.query(PortfolioAttachment).options(
+            joinedload(PortfolioAttachment.language),
+            joinedload(PortfolioAttachment.category)
+        ).filter(PortfolioAttachment.id == attachment_id).first()
         
         if not db_attachment:
             logger.warning(f"Portfolio attachment with ID {attachment_id} not found for deletion")
             return None
+        
+        # Force load relationships before deletion
+        if db_attachment.language:
+            _ = db_attachment.language.id
+        if db_attachment.category:
+            _ = db_attachment.category.id
         
         db.delete(db_attachment)
         logger.info(f"Portfolio attachment {attachment_id} deleted successfully")

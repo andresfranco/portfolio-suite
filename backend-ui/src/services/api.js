@@ -98,6 +98,52 @@ api.interceptors.response.use(
   async (error) => {
     const { response, config } = error || {};
     if (!response) return Promise.reject(error);
+    
+    // Handle CSRF token validation failures (403)
+    if (response.status === 403 && 
+        response.data?.code === 'CSRF_VALIDATION_FAILED') {
+      logDebug('CSRF validation failed, attempting to refresh CSRF token');
+      
+      // Avoid infinite loop
+      if (config && config._csrfRetry) {
+        logError('CSRF refresh already attempted, giving up');
+        return Promise.reject(error);
+      }
+      
+      try {
+        // Call the new CSRF refresh endpoint
+        const csrfResponse = await axios.get(
+          `${SERVER_URL || API_CONFIG.BASE_URL}/api/auth/csrf-token`,
+          { 
+            headers: { 'Content-Type': 'application/json' },
+            withCredentials: true // Important: Send cookies
+          }
+        );
+        
+        if (csrfResponse.data?.csrf_token) {
+          // Update CSRF token in localStorage
+          localStorage.setItem('csrf_token', csrfResponse.data.csrf_token);
+          logInfo('CSRF token refreshed successfully');
+          
+          // Retry original request with new CSRF token
+          const retryConfig = { 
+            ...config, 
+            _csrfRetry: true,
+            headers: {
+              ...(config.headers || {}),
+              'X-CSRF-Token': csrfResponse.data.csrf_token
+            }
+          };
+          
+          return api.request(retryConfig);
+        }
+      } catch (csrfError) {
+        logError('CSRF token refresh failed:', csrfError);
+        return Promise.reject(error);
+      }
+    }
+    
+    // Handle authentication failures (401)
     if (response.status !== 401) return Promise.reject(error);
 
     // Don't try to refresh token for password verification errors

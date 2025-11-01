@@ -31,3 +31,4 @@ export {
   ProjectDeleteDialog
 } from './ProjectManagement';
 export { ProjectMetadataEditor } from './ProjectMetadataEditor';
+export { default as ProjectSectionManager } from './ProjectSectionManager';

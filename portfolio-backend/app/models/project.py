@@ -36,6 +36,7 @@ class Project(Base):
     portfolios = relationship("Portfolio", secondary="portfolio_projects", back_populates="projects")
     categories = relationship("Category", secondary=project_categories, back_populates="projects")
     skills = relationship("Skill", secondary=project_skills, back_populates="projects")
+    sections = relationship("Section", secondary="project_sections", back_populates="projects")
     project_texts = relationship("ProjectText", back_populates="project")
     images = relationship("ProjectImage", back_populates="project")
     attachments = relationship("ProjectAttachment", back_populates="project")

@@ -1,8 +1,12 @@
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import asc, desc, or_
-from app.models.section import Section, SectionText
+from sqlalchemy import asc, desc, or_, select
+from app.models.section import Section, SectionText, SectionImage, SectionAttachment, project_sections
 from app.models.language import Language
-from app.schemas.section import SectionCreate, SectionUpdate, SectionTextCreate, Filter
+from app.models.project import Project
+from app.schemas.section import (
+    SectionCreate, SectionUpdate, SectionTextCreate, Filter,
+    SectionImageCreate, SectionAttachmentCreate, ProjectSectionCreate
+)
 from typing import List, Optional, Tuple
 from app.core.logging import setup_logger
 from app.core.db import db_transaction
@@ -309,4 +313,174 @@ def get_sections_paginated(
         return sections, total
     except Exception as e:
         logger.error(f"Error in get_sections_paginated: {e}")
+        raise
+
+
+# Project Section Association Functions
+@db_transaction
+def add_section_to_project(db: Session, project_id: int, section_id: int, display_order: int = 0):
+    """Add a section to a project"""
+    logger.debug(f"Adding section {section_id} to project {project_id} with order {display_order}")
+
+    try:
+        # Check if association already exists
+        stmt = select(project_sections).where(
+            project_sections.c.project_id == project_id,
+            project_sections.c.section_id == section_id
+        )
+        existing = db.execute(stmt).first()
+
+        if existing:
+            logger.warning(f"Section {section_id} already associated with project {project_id}")
+            return False
+
+        # Insert association
+        stmt = project_sections.insert().values(
+            project_id=project_id,
+            section_id=section_id,
+            display_order=display_order
+        )
+        db.execute(stmt)
+        logger.info(f"Successfully added section {section_id} to project {project_id}")
+        return True
+    except Exception as e:
+        logger.error(f"Error adding section to project: {e}")
+        raise
+
+
+@db_transaction
+def remove_section_from_project(db: Session, project_id: int, section_id: int):
+    """Remove a section from a project"""
+    logger.debug(f"Removing section {section_id} from project {project_id}")
+
+    try:
+        stmt = project_sections.delete().where(
+            project_sections.c.project_id == project_id,
+            project_sections.c.section_id == section_id
+        )
+        result = db.execute(stmt)
+
+        if result.rowcount == 0:
+            logger.warning(f"Section {section_id} not found in project {project_id}")
+            return False
+
+        logger.info(f"Successfully removed section {section_id} from project {project_id}")
+        return True
+    except Exception as e:
+        logger.error(f"Error removing section from project: {e}")
+        raise
+
+
+def get_project_sections(db: Session, project_id: int) -> List[Section]:
+    """Get all sections for a project with display_order from the association table"""
+    logger.debug(f"Getting sections for project {project_id}")
+
+    try:
+        # Query sections with display_order from the association table
+        results = db.query(Section, project_sections.c.display_order).join(
+            project_sections,
+            Section.id == project_sections.c.section_id
+        ).filter(
+            project_sections.c.project_id == project_id
+        ).options(
+            joinedload(Section.section_texts).joinedload(SectionText.language),
+            joinedload(Section.images),
+            joinedload(Section.attachments)
+        ).order_by(project_sections.c.display_order).all()
+
+        # Add display_order as an attribute to each section object
+        sections = []
+        for section, display_order in results:
+            section.display_order = display_order
+            sections.append(section)
+
+        logger.debug(f"Found {len(sections)} sections for project {project_id}")
+        return sections
+    except Exception as e:
+        logger.error(f"Error getting project sections: {e}")
+        raise
+
+
+# Section Image Functions
+@db_transaction
+def add_section_image(db: Session, section_id: int, image_data: SectionImageCreate, created_by: int = 1):
+    """Add an image to a section"""
+    logger.debug(f"Adding image to section {section_id}")
+
+    try:
+        image = SectionImage(
+            section_id=section_id,
+            image_path=image_data.image_path,
+            language_id=image_data.language_id,
+            display_order=image_data.display_order,
+            created_by=created_by,
+            updated_by=created_by
+        )
+        db.add(image)
+        logger.info(f"Successfully added image to section {section_id}")
+        return image
+    except Exception as e:
+        logger.error(f"Error adding section image: {e}")
+        raise
+
+
+@db_transaction
+def delete_section_image(db: Session, image_id: int):
+    """Delete a section image"""
+    logger.debug(f"Deleting section image {image_id}")
+
+    try:
+        image = db.query(SectionImage).filter(SectionImage.id == image_id).first()
+        if not image:
+            logger.warning(f"Section image {image_id} not found")
+            return None
+
+        db.delete(image)
+        logger.info(f"Successfully deleted section image {image_id}")
+        return image
+    except Exception as e:
+        logger.error(f"Error deleting section image: {e}")
+        raise
+
+
+# Section Attachment Functions
+@db_transaction
+def add_section_attachment(db: Session, section_id: int, attachment_data: SectionAttachmentCreate, created_by: int = 1):
+    """Add an attachment to a section"""
+    logger.debug(f"Adding attachment to section {section_id}")
+
+    try:
+        attachment = SectionAttachment(
+            section_id=section_id,
+            file_path=attachment_data.file_path,
+            file_name=attachment_data.file_name,
+            language_id=attachment_data.language_id,
+            display_order=attachment_data.display_order,
+            created_by=created_by,
+            updated_by=created_by
+        )
+        db.add(attachment)
+        logger.info(f"Successfully added attachment to section {section_id}")
+        return attachment
+    except Exception as e:
+        logger.error(f"Error adding section attachment: {e}")
+        raise
+
+
+@db_transaction
+def delete_section_attachment(db: Session, attachment_id: int):
+    """Delete a section attachment"""
+    logger.debug(f"Deleting section attachment {attachment_id}")
+
+    try:
+        attachment = db.query(SectionAttachment).filter(SectionAttachment.id == attachment_id).first()
+        if not attachment:
+            logger.warning(f"Section attachment {attachment_id} not found")
+            return None
+
+        db.delete(attachment)
+        logger.info(f"Successfully deleted section attachment {attachment_id}")
+        return attachment
+    except Exception as e:
+        logger.error(f"Error deleting section attachment: {e}")
         raise

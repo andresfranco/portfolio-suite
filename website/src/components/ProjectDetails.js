@@ -1,11 +1,11 @@
 import React, { useContext, useState } from 'react';
-import { FaGithub, FaGlobe, FaCalendar, FaFolder, FaArrowLeft, FaArrowRight, FaPencil } from 'react-icons/fa6';
+import { FaGithub, FaGlobe, FaCalendar, FaFolder, FaArrowLeft, FaArrowRight, FaPencil, FaDownload } from 'react-icons/fa6';
 import { translations } from '../data/translations';
 import { LanguageContext } from '../context/LanguageContext';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useEditMode } from '../context/EditModeContext';
 import { useSectionLabel } from '../hooks/useSectionLabel';
-import { InlineTextEditor, ProjectImageSelector, ProjectMetadataEditor } from './cms';
+import { InlineTextEditor, ProjectImageSelector, ProjectMetadataEditor, ProjectSectionManager } from './cms';
 
 const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) => {
   const { language } = useContext(LanguageContext);
@@ -264,6 +264,69 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
               </div>
             </div>
 
+            {/* Project Sections - Between description and skills */}
+            {project.sections && project.sections.length > 0 && (
+              <div className="mt-8 space-y-8">
+                {project.sections
+                  .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+                  .map((section, index) => {
+                  // Get section text in current language
+                  const sectionText = section.section_texts?.find(
+                    text => text.language?.code === language
+                  ) || section.section_texts?.[0];
+
+                  if (!sectionText) return null;
+
+                  return (
+                    <div key={section.id} className="bg-gray-800/50 rounded-xl p-6 border border-gray-700/50">
+                      {/* Section Content */}
+                      <div className="prose prose-lg prose-invert max-w-none">
+                        <p className="text-gray-300 whitespace-pre-wrap leading-relaxed">{sectionText.text}</p>
+                      </div>
+
+                      {/* Section Images */}
+                      {section.images && section.images.length > 0 && (
+                        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {section.images
+                            .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+                            .map((image) => (
+                              <img
+                                key={image.id}
+                                src={`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${image.image_path}`}
+                                alt="Section diagram"
+                                className="w-full rounded-lg border border-gray-700/50"
+                              />
+                            ))}
+                        </div>
+                      )}
+
+                      {/* Section Attachments */}
+                      {section.attachments && section.attachments.length > 0 && (
+                        <div className="mt-6 space-y-2">
+                          <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Downloads</h4>
+                          <div className="flex flex-wrap gap-3">
+                            {section.attachments
+                              .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+                              .map((attachment) => (
+                                <a
+                                  key={attachment.id}
+                                  href={`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${attachment.file_path}`}
+                                  download={attachment.file_name}
+                                  className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700/50 hover:bg-gray-700 border border-[#14C800]/30 hover:border-[#14C800]/60 rounded text-[#14C800] hover:text-white transition-all duration-200"
+                                >
+                                  <FaDownload size={14} />
+                                  <span className="text-sm">{attachment.file_name}</span>
+                                </a>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             {/* Skills Section - Added extra bottom margin */}
             {project.skills && project.skills.length > 0 && (
               <div className="mt-8 mb-12">
@@ -273,9 +336,9 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
                 <div className="flex flex-wrap gap-3">
                   {project.skills.map((skill, index) => {
                     const skillName = getSkillName(skill);
-                    
+
                     if (!skillName) return null;
-                    
+
                     return (
                       <span
                         key={skill.id || index}
@@ -287,6 +350,14 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
                   })}
                 </div>
               </div>
+            )}
+
+            {/* Project Section Management - Edit Mode Only */}
+            {isEditMode && (
+              <ProjectSectionManager
+                project={project}
+                onUpdate={handleMetadataUpdate}
+              />
             )}
           </div>
 
