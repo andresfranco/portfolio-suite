@@ -57,6 +57,7 @@ def create_section(db: Session, section: SectionCreate):
         # Create the section
         db_section = Section(
             code=section.code,
+            display_style=section.display_style,  # Add display_style
             # Set default values for user tracking fields
             created_by=1,  # Default user ID
             updated_by=1   # Default user ID
@@ -64,7 +65,7 @@ def create_section(db: Session, section: SectionCreate):
         db.add(db_section)
         db.flush()  # Flush to get the section ID
         
-        logger.debug(f"Created section with ID {db_section.id}")
+        logger.debug(f"Created section with ID {db_section.id}, display_style={section.display_style}")
         
         # Create section texts
         for text_data in section.section_texts:
@@ -108,6 +109,11 @@ def update_section(db: Session, section_id: int, section: SectionUpdate):
         if section.code is not None:
             logger.debug(f"Updating code from {db_section.code} to {section.code}")
             db_section.code = section.code
+        
+        # Update display_style if provided
+        if section.display_style is not None:
+            logger.debug(f"Updating display_style to {section.display_style}")
+            db_section.display_style = section.display_style
         
         # Update user tracking
         db_section.updated_by = 1  # Default user ID

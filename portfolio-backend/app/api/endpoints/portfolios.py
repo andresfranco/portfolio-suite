@@ -329,6 +329,7 @@ def process_portfolios_for_response(
                                 "id": section.id,
                                 "code": section.code,
                                 "display_order": section.display_order if hasattr(section, 'display_order') else 0,
+                                "display_style": section.display_style if hasattr(section, 'display_style') else "bordered",  # Add display_style
                                 "section_texts": [],
                                 "images": [],
                                 "attachments": []

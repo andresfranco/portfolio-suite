@@ -71,6 +71,7 @@ class SectionAttachmentOut(SectionAttachmentBase):
 
 class SectionBase(BaseModel):
     code: str
+    display_style: str = "bordered"  # 'bordered' or 'borderless'
 
 class SectionCreate(SectionBase):
     section_texts: List[SectionTextCreate]
@@ -78,6 +79,7 @@ class SectionCreate(SectionBase):
 class SectionUpdate(BaseModel):
     code: Optional[str] = None
     section_texts: Optional[List[SectionTextCreate]] = None
+    display_style: Optional[str] = None
 
 class Section(SectionBase):
     id: int
@@ -96,6 +98,7 @@ class ProjectSectionCreate(BaseModel):
     code: str
     section_texts: List[SectionTextCreate]
     display_order: int = 0
+    display_style: str = "bordered"  # 'bordered' or 'borderless'
 
 class Filter(BaseModel):
     field: str
