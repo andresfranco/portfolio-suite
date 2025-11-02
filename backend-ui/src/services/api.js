@@ -248,13 +248,48 @@ const projectsApi = {
   
   // Project images
   getProjectImages: (projectId) => api.get(`/api/projects/${projectId}/images/`),
-  uploadProjectImage: (projectId, formData) => api.post(`/api/projects/${projectId}/images/`, formData),
+  uploadProjectImage: (projectId, file, categoryCode, languageId = null) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('category_code', categoryCode);
+    if (languageId) {
+      formData.append('language_id', languageId);
+    }
+    
+    return api.post(`/api/projects/${projectId}/images`, formData);
+  },
   updateProjectImage: (projectId, imageId, formData) => api.put(`/api/projects/${projectId}/images/${imageId}`, formData),
   deleteProjectImage: (projectId, imageId) => api.delete(`/api/projects/${projectId}/images/${imageId}`),
   
   // Project attachments
   getProjectAttachments: (projectId) => api.get(`/api/projects/${projectId}/attachments/`),
-  uploadProjectAttachment: (projectId, formData) => api.post(`/api/projects/${projectId}/attachments/`, formData),
+  uploadProjectAttachment: (projectId, file, categoryId = null, isDefault = false, languageId = null) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (categoryId) {
+      formData.append('category_id', categoryId);
+    }
+    if (languageId) {
+      formData.append('language_id', languageId);
+    }
+    // Note: is_default is handled separately by backend for resume attachments
+    
+    return api.post(`/api/projects/${projectId}/attachments`, formData);
+  },
+  updateProjectAttachment: (projectId, attachmentId, categoryId, isDefault, languageId = null) => {
+    const params = new URLSearchParams();
+    if (categoryId) {
+      params.append('category_id', categoryId);
+    }
+    if (isDefault !== undefined) {
+      params.append('is_default', isDefault ? 'true' : 'false');
+    }
+    if (languageId) {
+      params.append('language_id', languageId);
+    }
+    const url = `/api/projects/${projectId}/attachments/${attachmentId}?${params.toString()}`;
+    return api.put(url, {});
+  },
   deleteProjectAttachment: (projectId, attachmentId) => api.delete(`/api/projects/${projectId}/attachments/${attachmentId}`),
   
   // Portfolio image methods
