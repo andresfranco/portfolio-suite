@@ -1172,6 +1172,35 @@ def read_project_attachments(
         }
         if attachment.file_path:
             attachment_dict["file_url"] = get_file_url(attachment.file_path)
+        
+        # Add language object if present
+        if attachment.language:
+            attachment_dict["language"] = {
+                "id": attachment.language.id,
+                "name": attachment.language.name,
+                "code": attachment.language.code,
+                "image": attachment.language.image
+            }
+        
+        # Add category object if present
+        if attachment.category:
+            category_name = attachment.category.code
+            if attachment.category.category_texts:
+                # Get English or first available category name
+                for text in attachment.category.category_texts:
+                    if text.language and text.language.code == 'en':
+                        category_name = text.name
+                        break
+                if category_name == attachment.category.code and attachment.category.category_texts:
+                    category_name = attachment.category.category_texts[0].name
+            
+            attachment_dict["category"] = {
+                "id": attachment.category.id,
+                "code": attachment.category.code,
+                "name": category_name,
+                "texts": [{"name": t.name, "language_id": t.language_id} for t in attachment.category.category_texts] if attachment.category.category_texts else []
+            }
+        
         attachment_list.append(attachment_dict)
     
     return {
@@ -1309,6 +1338,65 @@ async def upload_project_attachment(
             detail=f"Internal server error: {str(e)}"
         )
 
+
+@router.put("/{project_id}/attachments/{attachment_id}", response_model=schemas.ProjectAttachmentOut)
+@require_permission("EDIT_PROJECT_ATTACHMENTS")
+def update_project_attachment(
+    *,
+    db: Session = Depends(deps.get_db),
+    project_id: int,
+    attachment_id: int,
+    category_id: Optional[int] = Query(None),
+    language_id: Optional[int] = Query(None),
+    is_default: bool = Query(False),
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Update a project attachment's metadata (category, language, is_default flag).
+    """
+    logger.info(f"Updating attachment {attachment_id} for project {project_id}")
+    
+    # Check if project exists
+    project = crud.project.get_project(db, project_id=project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Get the attachment
+    attachment = crud.project.get_project_attachment(db, attachment_id=attachment_id)
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Project attachment not found")
+    
+    # Verify the attachment belongs to the specified project
+    if attachment.project_id != project_id:
+        raise HTTPException(status_code=400, detail="Attachment does not belong to the specified project")
+    
+    # Validate category if provided
+    if category_id is not None:
+        category = crud.category.get_category(db, category_id=category_id)
+        if not category:
+            raise HTTPException(status_code=404, detail=f"Category with ID {category_id} not found")
+    
+    # Validate language if provided
+    if language_id is not None:
+        language = db.query(models.Language).filter(models.Language.id == language_id).first()
+        if not language:
+            raise HTTPException(status_code=404, detail=f"Language with ID {language_id} not found")
+    
+    # Update the attachment
+    updated_attachment = crud.project.update_project_attachment(
+        db,
+        attachment_id=attachment_id,
+        category_id=category_id,
+        language_id=language_id,
+        is_default=is_default,
+        updated_by=current_user.id
+    )
+    
+    if not updated_attachment:
+        raise HTTPException(status_code=500, detail="Failed to update attachment")
+    
+    logger.info(f"Successfully updated attachment {attachment_id}")
+    return updated_attachment
 
 @router.delete("/{project_id}/attachments/{attachment_id}", response_model=schemas.ProjectAttachmentOut)
 @require_permission("DELETE_PROJECT_ATTACHMENTS")
