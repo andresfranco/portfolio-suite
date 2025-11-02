@@ -16,6 +16,7 @@ class Section(Base):
     __tablename__ = "sections"
     id = Column(Integer, primary_key=True, index=True)
     code = Column(String, unique=True, index=True)
+    display_style = Column(String, default="bordered")  # 'bordered' or 'borderless'
 
     # Timestamp and user tracking fields
     created_at = Column(DateTime(timezone=True), server_default=func.now())

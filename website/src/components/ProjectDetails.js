@@ -264,69 +264,6 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
               </div>
             </div>
 
-            {/* Project Sections - Between description and skills */}
-            {project.sections && project.sections.length > 0 && (
-              <div className="mt-8 space-y-8">
-                {project.sections
-                  .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-                  .map((section, index) => {
-                  // Get section text in current language
-                  const sectionText = section.section_texts?.find(
-                    text => text.language?.code === language
-                  ) || section.section_texts?.[0];
-
-                  if (!sectionText) return null;
-
-                  return (
-                    <div key={section.id} className="bg-gray-800/50 rounded-xl p-6 border border-gray-700/50">
-                      {/* Section Content */}
-                      <div className="prose prose-lg prose-invert max-w-none">
-                        <p className="text-gray-300 whitespace-pre-wrap leading-relaxed">{sectionText.text}</p>
-                      </div>
-
-                      {/* Section Images */}
-                      {section.images && section.images.length > 0 && (
-                        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {section.images
-                            .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-                            .map((image) => (
-                              <img
-                                key={image.id}
-                                src={`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${image.image_path}`}
-                                alt="Section diagram"
-                                className="w-full rounded-lg border border-gray-700/50"
-                              />
-                            ))}
-                        </div>
-                      )}
-
-                      {/* Section Attachments */}
-                      {section.attachments && section.attachments.length > 0 && (
-                        <div className="mt-6 space-y-2">
-                          <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Downloads</h4>
-                          <div className="flex flex-wrap gap-3">
-                            {section.attachments
-                              .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-                              .map((attachment) => (
-                                <a
-                                  key={attachment.id}
-                                  href={`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${attachment.file_path}`}
-                                  download={attachment.file_name}
-                                  className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700/50 hover:bg-gray-700 border border-[#14C800]/30 hover:border-[#14C800]/60 rounded text-[#14C800] hover:text-white transition-all duration-200"
-                                >
-                                  <FaDownload size={14} />
-                                  <span className="text-sm">{attachment.file_name}</span>
-                                </a>
-                              ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
             {/* Skills Section - Added extra bottom margin */}
             {project.skills && project.skills.length > 0 && (
               <div className="mt-8 mb-12">
@@ -352,7 +289,91 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
               </div>
             )}
 
-            {/* Project Section Management - Edit Mode Only */}
+            {/* Project Sections - Display Mode (below skills) */}
+            {!isEditMode && project.sections && project.sections.length > 0 && (
+              <div className="mt-8 space-y-8">
+                {project.sections
+                  .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+                  .map((section, index) => {
+                  // Get section text in current language
+                  const sectionText = section.section_texts?.find(
+                    text => text.language?.code === language
+                  ) || section.section_texts?.[0];
+
+                  if (!sectionText) return null;
+
+                  // Determine if section should have borders
+                  const isBordered = section.display_style !== 'borderless';
+
+                  return (
+                    <div key={section.id} className={isBordered ? "bg-gray-800/50 rounded-xl p-6 border border-gray-700/50" : ""}>
+                      {/* Section Content */}
+                      <div className="prose prose-lg prose-invert max-w-none">
+                        <p className="text-gray-300 whitespace-pre-wrap leading-relaxed">{sectionText.text}</p>
+                      </div>
+
+                      {/* Section Images */}
+                      {section.images && section.images.length > 0 && (
+                        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {section.images
+                            .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+                            .map((image) => {
+                              // Remove leading slash to avoid double slashes
+                              const cleanPath = image.image_path.startsWith('/') 
+                                ? image.image_path.substring(1) 
+                                : image.image_path;
+                              const imageUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${cleanPath}`;
+                              
+                              return (
+                                <img
+                                  key={image.id}
+                                  src={imageUrl}
+                                  alt="Section diagram"
+                                  className={isBordered ? "w-full rounded-lg border border-gray-700/50" : "w-full"}
+                                  onError={(e) => {
+                                    console.error('Failed to load section image:', image.image_path, 'URL:', imageUrl);
+                                  }}
+                                />
+                              );
+                            })}
+                        </div>
+                      )}
+
+                      {/* Section Attachments */}
+                      {section.attachments && section.attachments.length > 0 && (
+                        <div className="mt-6">
+                          <div className="flex flex-wrap gap-3">
+                            {section.attachments
+                              .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+                              .map((attachment) => {
+                                // Remove leading slash to avoid double slashes
+                                const cleanPath = attachment.file_path.startsWith('/') 
+                                  ? attachment.file_path.substring(1) 
+                                  : attachment.file_path;
+                                const fileUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${cleanPath}`;
+                                
+                                return (
+                                  <a
+                                    key={attachment.id}
+                                    href={fileUrl}
+                                    download={attachment.file_name}
+                                    className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700/50 hover:bg-gray-700 border border-[#14C800]/30 hover:border-[#14C800]/60 rounded text-[#14C800] hover:text-white transition-all duration-200"
+                                  >
+                                    <FaDownload size={14} />
+                                    <span className="text-sm">{attachment.file_name}</span>
+                                  </a>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Project Section Management - Edit Mode Only (below skills) */}
             {isEditMode && (
               <ProjectSectionManager
                 project={project}
