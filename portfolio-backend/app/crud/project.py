@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import asc, desc, or_, func
 from app.models.project import Project, ProjectText, ProjectImage, ProjectAttachment
-from app.models.category import Category
+from app.models.category import Category, CategoryText
 from app.models.skill import Skill
 from app.models.language import Language
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectTextCreate, ProjectTextUpdate, ProjectImageCreate, ProjectAttachmentCreate, Filter, ProjectOut
@@ -257,7 +257,11 @@ def get_project_attachments_paginated(
     """
     logger.debug(f"Fetching paginated attachments for project {project_id}, page={page}, page_size={page_size}")
     
-    query = db.query(ProjectAttachment).filter(ProjectAttachment.project_id == project_id)
+    # Eagerly load language and category relationships
+    query = db.query(ProjectAttachment)\
+        .options(selectinload(ProjectAttachment.language))\
+        .options(selectinload(ProjectAttachment.category).selectinload(Category.category_texts).selectinload(CategoryText.language))\
+        .filter(ProjectAttachment.project_id == project_id)
     
     # Apply filename filter
     if filename_filter:
@@ -276,7 +280,7 @@ def get_project_attachments_paginated(
     offset = (page - 1) * page_size
     attachments = query.offset(offset).limit(page_size).all()
     
-    logger.debug(f"Found {len(attachments)} attachments out of {total} total")
+    logger.debug(f"Found {len(attachments)} attachments out of {total} total for project {project_id}")
     return attachments, total
 
 def get_project_attachment(db: Session, attachment_id: int) -> Optional[ProjectAttachment]:
@@ -285,6 +289,40 @@ def get_project_attachment(db: Session, attachment_id: int) -> Optional[ProjectA
     """
     logger.debug(f"Fetching attachment with ID {attachment_id}")
     return db.query(ProjectAttachment).filter(ProjectAttachment.id == attachment_id).first()
+
+def update_project_attachment(
+    db: Session, 
+    attachment_id: int, 
+    category_id: Optional[int] = None,
+    language_id: Optional[int] = None,
+    is_default: Optional[bool] = None,
+    updated_by: Optional[int] = None
+) -> Optional[ProjectAttachment]:
+    """
+    Update a project attachment's metadata (category, language, is_default)
+    """
+    logger.debug(f"Updating attachment {attachment_id}: category_id={category_id}, language_id={language_id}, is_default={is_default}")
+    
+    attachment = db.query(ProjectAttachment).filter(ProjectAttachment.id == attachment_id).first()
+    if not attachment:
+        logger.warning(f"Attachment {attachment_id} not found")
+        return None
+    
+    # Update fields if provided
+    if category_id is not None:
+        attachment.category_id = category_id
+    if language_id is not None:
+        attachment.language_id = language_id
+    if is_default is not None:
+        attachment.is_default = is_default
+    if updated_by is not None:
+        attachment.updated_by = updated_by
+    
+    db.commit()
+    db.refresh(attachment)
+    
+    logger.info(f"Successfully updated attachment {attachment_id}")
+    return attachment
 
 def delete_project_attachment(db: Session, attachment_id: int):
     logger.debug(f"Deleting project attachment with ID {attachment_id}")

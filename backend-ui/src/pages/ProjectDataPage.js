@@ -326,7 +326,9 @@ function ProjectDataPage() {
       try {
         const attachmentsRes = await projectsApi.getProjectAttachments(projectId);
         console.log('Attachments fetched:', attachmentsRes.data);
-        setAttachments(attachmentsRes.data || []);
+        // Backend returns paginated response with 'items' array
+        const attachmentsData = attachmentsRes.data?.items || attachmentsRes.data || [];
+        setAttachments(attachmentsData);
       } catch (e) {
         console.error('Error fetching attachments:', e);
         setAttachments([]);
@@ -1973,7 +1975,10 @@ function ProjectDataPage() {
                         {selectedImageForEdit.file_name || selectedImageForEdit.image_path?.split('/').pop() || 'Unnamed file'}
                       </Typography>
                       <Typography variant="caption" color="text.secondary" display="block">
-                        Category: {selectedImageForEdit.category || 'None'}
+                        Category: {(() => {
+                          const categoryObj = imageCategories.find(cat => cat.code === selectedImageForEdit.category);
+                          return categoryObj ? getCategoryDisplayName(categoryObj) : selectedImageForEdit.category || 'None';
+                        })()}
                       </Typography>
                       {selectedImageForEdit.language && (
                         <Typography variant="caption" color="text.secondary" display="block">
@@ -2011,9 +2016,27 @@ function ProjectDataPage() {
                   />
                 </Button>
                 {replacementImageFile && (
-                  <Alert severity="info" sx={{ mt: 1 }}>
-                    New file selected: {replacementImageFile.name}
-                  </Alert>
+                  <Box>
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                      New file selected: {replacementImageFile.name}
+                    </Alert>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2, bgcolor: '#e3f2fd', borderRadius: 1 }}>
+                      <Box
+                        component="img"
+                        src={URL.createObjectURL(replacementImageFile)}
+                        alt="New image preview"
+                        sx={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 1 }}
+                      />
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="body2" fontWeight={500}>
+                          Preview of New Image
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {replacementImageFile.name}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Box>
                 )}
               </Box>
               
