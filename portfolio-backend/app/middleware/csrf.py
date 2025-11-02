@@ -33,6 +33,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
     EXEMPT_PATHS = [
         "/api/auth/login",
         "/api/auth/register",
+        "/api/auth/refresh-token",  # Token refresh needs to work even with expired CSRF
         "/api/auth/password-reset-request",
         "/api/auth/mfa/verify-login",
         "/docs",
