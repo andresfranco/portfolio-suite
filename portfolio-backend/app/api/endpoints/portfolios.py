@@ -746,7 +746,25 @@ def update_portfolio(
 ) -> Any:
     portfolio = portfolio_crud.update_portfolio(db, portfolio_id, portfolio_in)
     stage_event(db, {"op":"update","source_table":"portfolios","source_id":str(portfolio_id),"changed_fields":list(portfolio_in.model_dump(exclude_unset=True).keys())})
-    return portfolio
+    
+    # Reload portfolio with full details to properly serialize relationships
+    portfolio_full = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id, full_details=True)
+    if not portfolio_full:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Portfolio not found after update"
+        )
+    
+    # Process portfolio data properly
+    can_view_images = permission_checker.user_has_permission(current_user, "VIEW_PORTFOLIO_IMAGES")
+    can_view_attachments = permission_checker.user_has_permission(current_user, "VIEW_PORTFOLIO_ATTACHMENTS")
+    result = process_portfolios_for_response(
+        [portfolio_full],
+        include_images=can_view_images,
+        include_attachments=can_view_attachments,
+    )
+    
+    return result[0] if result and len(result) > 0 else portfolio_full
 
 @router.delete("/{portfolio_id}", response_model=PortfolioOut, status_code=status.HTTP_200_OK)
 @require_permission("DELETE_PORTFOLIO")

@@ -42,6 +42,7 @@ import ProjectIndex from './components/projects/ProjectIndex';
 import ProjectImages from './components/projects/ProjectImages';
 import ProjectAttachments from './components/projects/ProjectAttachments';
 import ProjectSections from './components/projects/ProjectSections';
+import ProjectDataPage from './pages/ProjectDataPage';
 import PortfolioIndex from './components/portfolios/PortfolioIndex';
 import PortfolioAttachments from './components/portfolios/PortfolioAttachments';
 import SectionIndex from './components/sections/SectionIndex';
@@ -200,6 +201,7 @@ function AppContent() {
                 </ProjectProvider>
               </CategoryProvider>
             } />
+            <Route path="projects/:projectId" element={<ProjectDataPage />} />
             <Route path="projects/:projectId/images" element={<ProjectImages />} />
             <Route path="projects/:projectId/attachments" element={<ProjectAttachments />} />
             <Route path="projects/:projectId/sections" element={<ProjectSections />} />
