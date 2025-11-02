@@ -540,6 +540,7 @@ def read_project(
                     "id": section.id,
                     "code": section.code,
                     "display_order": getattr(section, 'display_order', 0),
+                    "display_style": section.display_style or "bordered",  # Add display_style field
                     "section_texts": [
                         {
                             "id": text.id,
@@ -1690,7 +1691,8 @@ def create_and_add_section_to_project(
         from app.crud import section as section_crud
         section_create = section_schema.SectionCreate(
             code=section_data.code,
-            section_texts=section_data.section_texts
+            section_texts=section_data.section_texts,
+            display_style=section_data.display_style  # Add display_style
         )
         new_section = section_crud.create_section(db, section=section_create)
 
