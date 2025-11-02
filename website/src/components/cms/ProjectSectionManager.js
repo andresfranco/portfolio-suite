@@ -69,7 +69,15 @@ const ProjectSectionManager = ({ project, onUpdate }) => {
     try {
       setLoading(true);
       const data = await portfolioApi.getProjectSections(project.id, authToken);
-      setSections(data || []);
+      // Add timestamp to images to prevent caching issues
+      const sectionsWithTimestamp = (data || []).map(section => ({
+        ...section,
+        images: (section.images || []).map(img => ({
+          ...img,
+          _loadTimestamp: Date.now()
+        }))
+      }));
+      setSections(sectionsWithTimestamp);
     } catch (err) {
       console.error('Error loading sections:', err);
       setError('Failed to load sections');
@@ -112,6 +120,17 @@ const ProjectSectionManager = ({ project, onUpdate }) => {
     setEditingSection(null);
   };
 
+  // Force refresh sections when dialog closes (to get updated images)
+  const handleCloseDialog = () => {
+    setShowAddDialog(false);
+    loadSections(); // Refresh to get latest data
+  };
+
+  const handleEditClose = () => {
+    setEditingSection(null);
+    loadSections(); // Refresh to get latest data
+  };
+
   return (
     <div className="mt-8 border-t border-gray-700/50 pt-8">
       <div className="flex justify-between items-center mb-4">
@@ -139,28 +158,25 @@ const ProjectSectionManager = ({ project, onUpdate }) => {
           <p className="text-sm text-gray-500">Sections allow you to add rich content with text, images, and downloadable files.</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-8">
           {sections
             .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-            .map((section) => (
-              <div
-                key={section.id}
-                className="bg-gray-800/50 rounded-xl p-4 border border-gray-700/50"
-              >
-                <div className="flex justify-between items-start mb-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="font-semibold text-white">{section.code}</span>
-                      <span className="text-xs text-gray-500 bg-gray-700/50 px-2 py-1 rounded">
-                        Order: {section.display_order || 0}
-                      </span>
-                    </div>
-                    <div className="text-sm text-gray-400 line-clamp-2">
-                      {section.section_texts?.[0]?.text?.substring(0, 150)}
-                      {section.section_texts?.[0]?.text?.length > 150 ? '...' : ''}
-                    </div>
-                  </div>
-                  <div className="flex gap-2 ml-4">
+            .map((section) => {
+              const sectionText = section.section_texts?.[0];
+              
+              // Determine if section should have borders
+              const isBordered = section.display_style !== 'borderless';
+              const containerClasses = isBordered
+                ? "bg-gray-800/50 rounded-xl p-6 border border-gray-700/50 relative"
+                : "relative p-6";
+              
+              return (
+                <div
+                  key={section.id}
+                  className={containerClasses}
+                >
+                  {/* Edit controls */}
+                  <div className="absolute top-4 right-4 flex gap-2 bg-gray-900/90 p-2 rounded border border-gray-700/50">
                     <button
                       onClick={() => handleEditSection(section)}
                       className="text-blue-400 hover:text-blue-300 p-2"
@@ -176,17 +192,95 @@ const ProjectSectionManager = ({ project, onUpdate }) => {
                       <FaTrash />
                     </button>
                   </div>
+
+                  {/* Section metadata */}
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="text-xs text-gray-500 bg-gray-700/50 px-2 py-1 rounded">
+                      {section.code}
+                    </span>
+                    <span className="text-xs text-gray-500 bg-gray-700/50 px-2 py-1 rounded">
+                      Order: {section.display_order || 0}
+                    </span>
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      isBordered 
+                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50' 
+                        : 'bg-purple-500/20 text-purple-400 border border-purple-500/50'
+                    }`}>
+                      {isBordered ? 'Bordered' : 'Borderless'}
+                    </span>
+                  </div>
+
+                  {/* Section content preview */}
+                  {sectionText && (
+                    <div className="prose prose-lg prose-invert max-w-none mb-4">
+                      <p className="text-gray-300 whitespace-pre-wrap leading-relaxed">
+                        {sectionText.text}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Section images */}
+                  {section.images && section.images.length > 0 && (
+                    <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {section.images
+                        .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+                        .map((image) => {
+                          // Remove leading slash to avoid double slashes
+                          const cleanPath = image.image_path.startsWith('/') 
+                            ? image.image_path.substring(1) 
+                            : image.image_path;
+                          const imageUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${cleanPath}`;
+                          // Add timestamp to prevent caching issues
+                          const timestamp = image._uploadTimestamp || image._loadTimestamp || Date.now();
+                          const timestampedUrl = `${imageUrl}?t=${timestamp}`;
+                          
+                          return (
+                            <img
+                              key={image.id}
+                              src={timestampedUrl}
+                              alt="Section diagram"
+                              className="w-full rounded-lg border border-gray-700/50"
+                              onError={(e) => {
+                                console.error('Failed to load section image:', image.image_path, 'URL:', timestampedUrl);
+                              }}
+                            />
+                          );
+                        })}
+                    </div>
+                  )}
+
+                  {/* Section attachments */}
+                  {section.attachments && section.attachments.length > 0 && (
+                    <div className="mt-6 space-y-2">
+                      <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Downloads</h4>
+                      <div className="flex flex-wrap gap-3">
+                        {section.attachments
+                          .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+                          .map((attachment) => {
+                            // Remove leading slash to avoid double slashes
+                            const cleanPath = attachment.file_path.startsWith('/') 
+                              ? attachment.file_path.substring(1) 
+                              : attachment.file_path;
+                            const fileUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${cleanPath}`;
+                            
+                            return (
+                              <a
+                                key={attachment.id}
+                                href={fileUrl}
+                                download={attachment.file_name}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700/50 hover:bg-gray-700 border border-[#14C800]/30 hover:border-[#14C800]/60 rounded text-[#14C800] hover:text-white transition-all duration-200"
+                              >
+                                <FaFile size={14} />
+                                <span className="text-sm">{attachment.file_name}</span>
+                              </a>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="flex gap-4 text-xs text-gray-500">
-                  <span className="flex items-center gap-1">
-                    <FaImage /> {section.images?.length || 0} images
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <FaFile /> {section.attachments?.length || 0} files
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
         </div>
       )}
 
@@ -194,7 +288,7 @@ const ProjectSectionManager = ({ project, onUpdate }) => {
         <SectionEditorDialog
           projectId={project.id}
           authToken={authToken}
-          onClose={() => setShowAddDialog(false)}
+          onClose={handleCloseDialog}
           onSuccess={async () => {
             setShowAddDialog(false);
             await loadSections();
@@ -208,7 +302,7 @@ const ProjectSectionManager = ({ project, onUpdate }) => {
           projectId={project.id}
           section={editingSection}
           authToken={authToken}
-          onClose={() => setEditingSection(null)}
+          onClose={handleEditClose}
           onSuccess={handleSectionUpdated}
         />
       )}
@@ -235,6 +329,7 @@ const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess
     code: section?.code || '',
     section_texts: section?.section_texts || [{ language_id: 1, text: '' }],
     display_order: section?.display_order || 0,
+    display_style: section?.display_style || 'bordered', // New field
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -520,6 +615,50 @@ const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess
               disabled={loading}
             />
             <p className="text-xs text-gray-500 mt-1">Lower numbers appear first (0 = first)</p>
+          </div>
+
+          {/* Display Style Toggle */}
+          <div>
+            <label className="block mb-3 font-semibold text-white text-sm uppercase tracking-wide">
+              Display Style
+            </label>
+            <div className="flex gap-4">
+              <button
+                type="button"
+                onClick={() => setFormData((prev) => ({ ...prev, display_style: 'bordered' }))}
+                className={`flex-1 px-4 py-3 rounded font-semibold transition-all duration-200 ${
+                  formData.display_style === 'bordered'
+                    ? 'bg-[#14C800]/20 border-2 border-[#14C800] text-[#14C800]'
+                    : 'bg-gray-800/50 border border-gray-700/50 text-gray-400 hover:text-gray-300 hover:border-gray-600'
+                }`}
+                disabled={loading}
+              >
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-full h-12 border-2 border-current rounded bg-current/10"></div>
+                  <span className="text-sm">With Border</span>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData((prev) => ({ ...prev, display_style: 'borderless' }))}
+                className={`flex-1 px-4 py-3 rounded font-semibold transition-all duration-200 ${
+                  formData.display_style === 'borderless'
+                    ? 'bg-[#14C800]/20 border-2 border-[#14C800] text-[#14C800]'
+                    : 'bg-gray-800/50 border border-gray-700/50 text-gray-400 hover:text-gray-300 hover:border-gray-600'
+                }`}
+                disabled={loading}
+              >
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-full h-12 border-0 bg-transparent">
+                    <div className="w-full h-full bg-current/10"></div>
+                  </div>
+                  <span className="text-sm">Borderless</span>
+                </div>
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Choose how this section appears: with a bordered box or seamlessly integrated into the page
+            </p>
           </div>
 
           {/* Images Section - Only for editing */}
