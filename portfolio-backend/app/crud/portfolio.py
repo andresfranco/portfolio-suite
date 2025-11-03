@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session, joinedload, selectinload
-from sqlalchemy import asc, desc, or_
+from sqlalchemy import asc, desc, or_, select, func
 from app.models.portfolio import Portfolio, PortfolioImage, PortfolioAttachment
 from app.models.language import Language
 from app.models.category import Category, CategoryText
@@ -607,9 +607,24 @@ def add_portfolio_experience(db: Session, portfolio_id: int, experience_id: int)
             logger.info(f"Experience {experience_id} already associated with portfolio {portfolio_id}")
             return True
         
-        # Add the association
-        portfolio.experiences.append(experience)
-        logger.info(f"Experience {experience_id} added to portfolio {portfolio_id} successfully")
+        # Get the next order number
+        from app.models.portfolio import portfolio_experiences
+        max_order_result = db.execute(
+            select(func.max(portfolio_experiences.c.order))
+            .where(portfolio_experiences.c.portfolio_id == portfolio_id)
+        ).scalar()
+        next_order = (max_order_result or 0) + 1
+        
+        # Add the association with order
+        stmt = portfolio_experiences.insert().values(
+            portfolio_id=portfolio_id,
+            experience_id=experience_id,
+            order=next_order
+        )
+        db.execute(stmt)
+        db.flush()
+        
+        logger.info(f"Experience {experience_id} added to portfolio {portfolio_id} with order {next_order}")
         return True
     except Exception as e:
         logger.error(f"Error adding experience {experience_id} to portfolio {portfolio_id}: {str(e)}", exc_info=True)
@@ -667,9 +682,24 @@ def add_portfolio_project(db: Session, portfolio_id: int, project_id: int) -> bo
             logger.info(f"Project {project_id} already associated with portfolio {portfolio_id}")
             return True
         
-        # Add the association
-        portfolio.projects.append(project)
-        logger.info(f"Project {project_id} added to portfolio {portfolio_id} successfully")
+        # Get the next order number
+        from app.models.portfolio import portfolio_projects
+        max_order_result = db.execute(
+            select(func.max(portfolio_projects.c.order))
+            .where(portfolio_projects.c.portfolio_id == portfolio_id)
+        ).scalar()
+        next_order = (max_order_result or 0) + 1
+        
+        # Add the association with order
+        stmt = portfolio_projects.insert().values(
+            portfolio_id=portfolio_id,
+            project_id=project_id,
+            order=next_order
+        )
+        db.execute(stmt)
+        db.flush()
+        
+        logger.info(f"Project {project_id} added to portfolio {portfolio_id} with order {next_order}")
         return True
     except Exception as e:
         logger.error(f"Error adding project {project_id} to portfolio {portfolio_id}: {str(e)}", exc_info=True)
@@ -727,9 +757,24 @@ def add_portfolio_section(db: Session, portfolio_id: int, section_id: int) -> bo
             logger.info(f"Section {section_id} already associated with portfolio {portfolio_id}")
             return True
         
-        # Add the association
-        portfolio.sections.append(section)
-        logger.info(f"Section {section_id} added to portfolio {portfolio_id} successfully")
+        # Get the next order number
+        from app.models.portfolio import portfolio_sections
+        max_order_result = db.execute(
+            select(func.max(portfolio_sections.c.order))
+            .where(portfolio_sections.c.portfolio_id == portfolio_id)
+        ).scalar()
+        next_order = (max_order_result or 0) + 1
+        
+        # Add the association with order
+        stmt = portfolio_sections.insert().values(
+            portfolio_id=portfolio_id,
+            section_id=section_id,
+            order=next_order
+        )
+        db.execute(stmt)
+        db.flush()
+        
+        logger.info(f"Section {section_id} added to portfolio {portfolio_id} with order {next_order}")
         return True
     except Exception as e:
         logger.error(f"Error adding section {section_id} to portfolio {portfolio_id}: {str(e)}", exc_info=True)
