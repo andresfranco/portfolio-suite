@@ -13,3 +13,4 @@ from app.models.skill_type import SkillType
 from app.models.skill import Skill
 from app.models.system_setting import SystemSetting
 from app.models.agent import AgentCredential, Agent, AgentTemplate, AgentSession, AgentMessage, AgentTestRun
+from app.models.link import LinkCategoryType, LinkCategory, LinkCategoryText, PortfolioLink, PortfolioLinkText

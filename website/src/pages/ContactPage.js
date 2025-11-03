@@ -1,7 +1,9 @@
 import React, { useState, useContext, useEffect } from 'react'; // Import useContext
-import { FaGithub, FaLinkedin, FaXTwitter, FaCircleCheck, FaCircleExclamation } from 'react-icons/fa6'; // Removed FaEnvelope as it's handled by the Contact component
+import { FaGithub, FaLinkedin, FaXTwitter, FaCircleCheck, FaCircleExclamation, FaGlobe, FaEnvelope } from 'react-icons/fa6'; // Removed FaEnvelope as it's handled by the Contact component
+import * as FaIcons from 'react-icons/fa6';
 import { useParams } from 'react-router-dom';
 import { LanguageContext } from '../context/LanguageContext'; // Import LanguageContext
+import { usePortfolio } from '../context/PortfolioContext';
 import { useSectionLabel } from '../hooks/useSectionLabel';
 import { translations } from '../data/translations'; // Import translations
 import { portfolioApi } from '../services/portfolioApi'; // Import API service
@@ -9,7 +11,10 @@ import { portfolioApi } from '../services/portfolioApi'; // Import API service
 const ContactPage = () => {
   const { lang } = useParams();
   const { language, setLanguage } = useContext(LanguageContext); // Get language from context
+  const { portfolioData } = usePortfolio();
   const t = translations[language]; // Get translations for the current language
+  const [portfolioLinks, setPortfolioLinks] = useState([]);
+  const [linksLoading, setLinksLoading] = useState(true);
 
   useEffect(() => {
     if (!lang) {
@@ -23,6 +28,29 @@ const ContactPage = () => {
       setLanguage(normalizedLang);
     }
   }, [lang, language, setLanguage]);
+
+  // Fetch portfolio links
+  useEffect(() => {
+    const fetchLinks = async () => {
+      if (!portfolioData?.id) {
+        setLinksLoading(false);
+        return;
+      }
+
+      try {
+        setLinksLoading(true);
+        const response = await portfolioApi.getPortfolioLinks(portfolioData.id, true);
+        setPortfolioLinks(response || []);
+      } catch (error) {
+        console.error('Error fetching portfolio links:', error);
+        setPortfolioLinks([]);
+      } finally {
+        setLinksLoading(false);
+      }
+    };
+
+    fetchLinks();
+  }, [portfolioData?.id]);
 
   // Get editable section labels
   const getInTouchLabel = useSectionLabel('SECTION_GET_IN_TOUCH', 'get_in_touch');
@@ -60,12 +88,47 @@ const ContactPage = () => {
   const [submitStatus, setSubmitStatus] = useState(null); // 'success', 'error', or null
   const [submitMessage, setSubmitMessage] = useState('');
 
-  // Use translation keys for social links
-  const socialLinks = [
-    { icon: FaGithub, href: 'https://github.com/yourusername', label: githubLabel },
-    { icon: FaLinkedin, href: 'https://linkedin.com/in/yourusername', label: linkedinLabel },
-    { icon: FaXTwitter, href: 'https://x.com/yourusername', label: twitterLabel }
-  ];
+  // Helper function to get icon component from icon name
+  const getIconComponent = (iconName) => {
+    if (!iconName) return FaGlobe;
+
+    // Try to get the icon from FaIcons
+    const IconComponent = FaIcons[iconName];
+    return IconComponent || FaGlobe; // Fallback to globe icon
+  };
+
+  // Helper function to get link name in current language
+  const getLinkName = (link) => {
+    if (!link.link_texts || link.link_texts.length === 0) {
+      return link.category?.texts?.[0]?.name || 'Link';
+    }
+
+    // Get language ID based on current language (1 = English, 2 = Spanish)
+    const languageId = language === 'es' ? 2 : 1;
+
+    // Find text for current language
+    const text = link.link_texts.find(t => t.language_id === languageId);
+
+    // Fallback to first available text or category name
+    return text?.name || link.link_texts[0]?.name || link.category?.texts?.[0]?.name || 'Link';
+  };
+
+  // Build social links from database or use fallback
+  const socialLinks = linksLoading ? [] : (
+    portfolioLinks.length > 0
+      ? portfolioLinks.map(link => ({
+          icon: getIconComponent(link.category?.icon_name),
+          href: link.url,
+          label: getLinkName(link),
+          ariaLabel: getLinkName(link)
+        }))
+      : [
+          // Fallback to hardcoded links if no links in database
+          { icon: FaGithub, href: 'https://github.com/yourusername', label: 'GitHub', ariaLabel: githubLabel.value },
+          { icon: FaLinkedin, href: 'https://linkedin.com/in/yourusername', label: 'LinkedIn', ariaLabel: linkedinLabel.value },
+          { icon: FaXTwitter, href: 'https://x.com/yourusername', label: 'Twitter', ariaLabel: twitterLabel.value }
+        ]
+  );
 
   // Validation function
   const validateField = (name, value) => {
@@ -386,23 +449,27 @@ const ContactPage = () => {
               {connectLabel.renderEditable('text-2xl font-bold text-white text-center mb-8')}
             </h3>
             <div className="flex justify-center items-center gap-8 flex-wrap">
-              {socialLinks.map((social, index) => {
-                const Icon = social.icon;
-                // Get translated label for aria-label
-                const label = social.label.value;
-                return (
-                  <a
-                    key={index}
-                    href={social.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn-flat btn-flat-icon"
-                    aria-label={label} // Use translated label
-                  >
-                    <Icon />
-                  </a>
-                );
-              })}
+              {linksLoading ? (
+                <p className="text-white/70">Loading links...</p>
+              ) : socialLinks.length > 0 ? (
+                socialLinks.map((social, index) => {
+                  const Icon = social.icon;
+                  return (
+                    <a
+                      key={index}
+                      href={social.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-flat btn-flat-icon"
+                      aria-label={social.ariaLabel || social.label}
+                    >
+                      <Icon />
+                    </a>
+                  );
+                })
+              ) : (
+                <p className="text-white/70">No social links available</p>
+              )}
             </div>
           </div>
         </div>
