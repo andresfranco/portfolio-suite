@@ -46,7 +46,16 @@ export const translations = {
     message_label: "Message",
     send_message_button: "Send Message",
     sending_button: "Sending...",
-    connect_with_me: "Connect With Me"
+    connect_with_me: "Connect With Me",
+    // Form Validation Messages
+    validation_name_required: "Please enter your name",
+    validation_name_min_length: "Name must be at least 2 characters",
+    validation_email_required: "Please enter your email address",
+    validation_email_invalid: "Please enter a valid email address",
+    validation_subject_required: "Please enter a subject",
+    validation_subject_min_length: "Subject must be at least 3 characters",
+    validation_message_required: "Please enter your message",
+    validation_message_min_length: "Message must be at least 10 characters"
   },
   es: {
     home: "Inicio",
@@ -95,6 +104,15 @@ export const translations = {
     message_label: "Mensaje",
     send_message_button: "Enviar Mensaje",
     sending_button: "Enviando...",
-    connect_with_me: "Conéctate Conmigo"
+    connect_with_me: "Conéctate Conmigo",
+    // Form Validation Messages
+    validation_name_required: "Por favor ingresa tu nombre",
+    validation_name_min_length: "El nombre debe tener al menos 2 caracteres",
+    validation_email_required: "Por favor ingresa tu correo electrónico",
+    validation_email_invalid: "Por favor ingresa un correo electrónico válido",
+    validation_subject_required: "Por favor ingresa un asunto",
+    validation_subject_min_length: "El asunto debe tener al menos 3 caracteres",
+    validation_message_required: "Por favor ingresa tu mensaje",
+    validation_message_min_length: "El mensaje debe tener al menos 10 caracteres"
   }
 };

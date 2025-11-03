@@ -1242,6 +1242,30 @@ export const portfolioApi = {
       throw error;
     }
   },
+
+  /**
+   * Send a contact form email
+   * @param {Object} contactData - Contact form data {name, email, subject, message}
+   * @returns {Promise<Object>} - Success response
+   */
+  sendContactEmail: async (contactData) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/email/send`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(contactData),
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error sending contact email:', error);
+      throw error;
+    }
+  },
 };
 
 export default portfolioApi;

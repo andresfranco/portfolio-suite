@@ -16,7 +16,8 @@ portfolio_experiences = Table(
     "portfolio_experiences",
     Base.metadata,
     Column("portfolio_id", Integer, ForeignKey("portfolios.id")),
-    Column("experience_id", Integer, ForeignKey("experiences.id"))
+    Column("experience_id", Integer, ForeignKey("experiences.id")),
+    Column("order", Integer, nullable=False, default=0)
 )
 
 # Association table for many-to-many relationship between portfolios and projects
@@ -24,7 +25,8 @@ portfolio_projects = Table(
     "portfolio_projects",
     Base.metadata,
     Column("portfolio_id", Integer, ForeignKey("portfolios.id")),
-    Column("project_id", Integer, ForeignKey("projects.id"))
+    Column("project_id", Integer, ForeignKey("projects.id")),
+    Column("order", Integer, nullable=False, default=0)
 )
 
 # Association table for many-to-many relationship between portfolios and sections
@@ -32,7 +34,8 @@ portfolio_sections = Table(
     "portfolio_sections",
     Base.metadata,
     Column("portfolio_id", Integer, ForeignKey("portfolios.id")),
-    Column("section_id", Integer, ForeignKey("sections.id"))
+    Column("section_id", Integer, ForeignKey("sections.id")),
+    Column("order", Integer, nullable=False, default=0)
 )
 
 class Portfolio(Base):
@@ -50,9 +53,24 @@ class Portfolio(Base):
     
     # Relationships
     categories = relationship("Category", secondary="portfolio_categories", back_populates="portfolios")
-    experiences = relationship("Experience", secondary="portfolio_experiences", back_populates="portfolios")
-    projects = relationship("Project", secondary="portfolio_projects", back_populates="portfolios")
-    sections = relationship("Section", secondary="portfolio_sections", back_populates="portfolios")
+    experiences = relationship(
+        "Experience",
+        secondary="portfolio_experiences",
+        back_populates="portfolios",
+        order_by="portfolio_experiences.c.order"
+    )
+    projects = relationship(
+        "Project",
+        secondary="portfolio_projects",
+        back_populates="portfolios",
+        order_by="portfolio_projects.c.order"
+    )
+    sections = relationship(
+        "Section",
+        secondary="portfolio_sections",
+        back_populates="portfolios",
+        order_by="portfolio_sections.c.order"
+    )
     images = relationship("PortfolioImage", back_populates="portfolio", cascade="all, delete-orphan")
     attachments = relationship("PortfolioAttachment", back_populates="portfolio", cascade="all, delete-orphan")
 
