@@ -29,7 +29,8 @@ try:
         agents,
         security_dashboard,
         website,
-        cms
+        cms,
+        links
     )
     logger.debug("Successfully imported all endpoint modules")
 except ImportError as e:
@@ -63,6 +64,7 @@ try:
     api_router.include_router(category_types.router, prefix="/category-types", tags=["Category Types"])
     api_router.include_router(skills.router, prefix="/skills", tags=["Skills"])
     api_router.include_router(skill_types.router, prefix="/skill-types", tags=["Skill Types"])
+    api_router.include_router(links.router, prefix="/links", tags=["Links"])
     
     # Public website API (no authentication required)
     api_router.include_router(website.router, prefix="/website", tags=["Website"])

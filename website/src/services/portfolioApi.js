@@ -1266,6 +1266,31 @@ export const portfolioApi = {
       throw error;
     }
   },
+
+  /**
+   * Get portfolio links
+   * @param {number} portfolioId - Portfolio ID
+   * @param {boolean} activeOnly - Only fetch active links (default: true)
+   * @returns {Promise<Array>} - Array of portfolio links
+   */
+  getPortfolioLinks: async (portfolioId, activeOnly = true) => {
+    try {
+      const params = activeOnly ? '?is_active=true' : '';
+      const response = await fetch(
+        `${API_BASE_URL}/api/links/portfolios/${portfolioId}/links${params}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error fetching portfolio links:', error);
+      throw error;
+    }
+  },
 };
 
 export default portfolioApi;

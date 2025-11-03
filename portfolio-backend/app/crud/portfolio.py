@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import asc, desc, or_, select, func
 from app.models.portfolio import Portfolio, PortfolioImage, PortfolioAttachment
+from app.models.link import PortfolioLink, LinkCategory, LinkCategoryText, LinkCategoryType
 from app.models.language import Language
 from app.models.category import Category, CategoryText
 from app.models.experience import Experience, ExperienceText
@@ -28,7 +29,10 @@ def get_portfolio(db: Session, portfolio_id: int, full_details: bool = False) ->
                 selectinload(Portfolio.sections).selectinload(Section.section_texts).selectinload(SectionText.language),
                 joinedload(Portfolio.images).joinedload(PortfolioImage.language),
                 selectinload(Portfolio.attachments).selectinload(PortfolioAttachment.category).selectinload(Category.category_texts).selectinload(CategoryText.language),
-                selectinload(Portfolio.attachments).selectinload(PortfolioAttachment.language)
+                selectinload(Portfolio.attachments).selectinload(PortfolioAttachment.language),
+                selectinload(Portfolio.links).selectinload(PortfolioLink.category).selectinload(LinkCategory.category_texts),
+                selectinload(Portfolio.links).selectinload(PortfolioLink.category).selectinload(LinkCategory.category_type),
+                selectinload(Portfolio.links).selectinload(PortfolioLink.link_texts)
             )
         
         portfolio = query.filter(Portfolio.id == portfolio_id).first()
@@ -85,8 +89,20 @@ def get_portfolio(db: Session, portfolio_id: int, full_details: bool = False) ->
                     _ = attachment.language.id
                 else:
                     logger.debug(f"  Language NOT loaded (language_id={attachment.language_id})")
-            
-            logger.debug(f"Portfolio found: {portfolio.name} with {len(portfolio.categories or [])} categories, {len(portfolio.experiences or [])} experiences, {len(portfolio.projects or [])} projects, {len(portfolio.sections or [])} sections")
+
+            _ = len(portfolio.links)
+            logger.debug(f"Found {len(portfolio.links)} links")
+            for link in portfolio.links:
+                if hasattr(link, 'category') and link.category:
+                    _ = link.category.id
+                    if hasattr(link.category, 'category_texts'):
+                        _ = len(link.category.category_texts)
+                    if hasattr(link.category, 'category_type'):
+                        _ = link.category.category_type
+                if hasattr(link, 'link_texts'):
+                    _ = len(link.link_texts)
+
+            logger.debug(f"Portfolio found: {portfolio.name} with {len(portfolio.categories or [])} categories, {len(portfolio.experiences or [])} experiences, {len(portfolio.projects or [])} projects, {len(portfolio.sections or [])} sections, {len(portfolio.links or [])} links")
         elif portfolio:
             logger.debug(f"Portfolio found: {portfolio.name} (basic details only)")
         else:
