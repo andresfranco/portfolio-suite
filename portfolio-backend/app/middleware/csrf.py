@@ -36,6 +36,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         "/api/auth/refresh-token",  # Token refresh needs to work even with expired CSRF
         "/api/auth/password-reset-request",
         "/api/auth/mfa/verify-login",
+        "/api/email/send",  # Public contact form endpoint
         "/docs",
         "/openapi.json",
         "/healthz",
