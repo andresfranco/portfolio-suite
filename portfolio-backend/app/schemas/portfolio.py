@@ -5,6 +5,7 @@ from datetime import datetime
 if TYPE_CHECKING:
     from app.schemas.category import CategoryOut
     from app.schemas.language import LanguageOut
+    from app.schemas.link import PortfolioLinkOut
 
 class PortfolioImageBase(BaseModel):
     image_path: str
@@ -149,7 +150,8 @@ class PortfolioOut(PortfolioBase):
     sections: List[Dict[str, Any]] = []
     images: List[PortfolioImageOut] = []
     attachments: List[PortfolioAttachmentOut] = []
-    
+    links: List[Any] = []  # Using Any to avoid circular import, will be List[PortfolioLinkOut] at runtime
+
     model_config = ConfigDict(from_attributes=True)
 
 class Filter(BaseModel):

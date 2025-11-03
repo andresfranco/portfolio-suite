@@ -1,10 +1,14 @@
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { LanguageContext } from '../context/LanguageContext';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useEditMode } from '../context/EditModeContext';
 import { useSectionLabel } from '../hooks/useSectionLabel';
+import { useContentEditor } from '../hooks/useContentEditor';
 import { translations } from '../data/translations';
+import { DragDropContext, Droppable } from '@hello-pangea/dnd';
+import DraggableProjectCard from './DraggableProjectCard';
+import './DragAndDrop.css';
 import { 
   InlineTextEditor, 
   ProjectImageSelector,
@@ -99,7 +103,7 @@ const Projects = () => {
   const navigate = useNavigate();
   const { lang } = useParams();
   const { language, setLanguage } = useContext(LanguageContext);
-  const { getProjects, getProjectText, loading, refreshPortfolio } = usePortfolio();
+  const { portfolio, getProjects, getProjectText, loading, refreshPortfolio } = usePortfolio();
   const { isEditMode, authToken, showNotification } = useEditMode();
 
   // Edit mode states
@@ -114,7 +118,78 @@ const Projects = () => {
   const viewProjectLabel = useSectionLabel('BTN_VIEW_PROJECT', 'view_project');
 
   // Get projects from portfolio context
-  const projects = getProjects();
+  const apiProjects = getProjects();
+  
+  // Local state for optimistic UI updates during drag and drop
+  const [projects, setProjects] = useState([]);
+  
+  // Track if we're currently reordering to prevent sync conflicts
+  const isReorderingRef = useRef(false);
+  
+  // Content editor hook for projects reordering
+  const { reorderItems } = useContentEditor('project');
+  
+  // Sync local state with API data (but not during reordering)
+  useEffect(() => {
+    if (!isReorderingRef.current) {
+      console.log('Syncing projects from API:', apiProjects);
+      setProjects(apiProjects);
+    }
+  }, [apiProjects]);
+
+  /**
+   * Handle drag end event to reorder projects
+   */
+  const handleDragEnd = async (result) => {
+    console.log('Drag end result:', result);
+    
+    // If dropped outside the list or no movement
+    if (!result.destination) {
+      console.log('No destination - dropped outside');
+      return;
+    }
+    
+    if (result.destination.index === result.source.index) {
+      console.log('No movement - same position');
+      return;
+    }
+
+    console.log(`Moving from index ${result.source.index} to ${result.destination.index}`);
+    console.log('Current projects:', projects);
+
+    // Set flag to prevent useEffect from resetting our optimistic update
+    isReorderingRef.current = true;
+
+    // Optimistically update the UI immediately
+    const reorderedProjects = Array.from(projects);
+    const [movedItem] = reorderedProjects.splice(result.source.index, 1);
+    reorderedProjects.splice(result.destination.index, 0, movedItem);
+    
+    console.log('Reordered projects:', reorderedProjects);
+    
+    // Update local state immediately for instant feedback
+    setProjects(reorderedProjects);
+
+    // Get the new order of IDs
+    const newOrderIds = reorderedProjects.map(proj => proj.id);
+    console.log('New order IDs:', newOrderIds);
+
+    try {
+      // Persist the new order to the backend
+      await reorderItems(newOrderIds, portfolio.id);
+      
+      // Wait a bit for the backend to process before allowing sync
+      setTimeout(() => {
+        isReorderingRef.current = false;
+      }, 500);
+    } catch (error) {
+      console.error('Failed to reorder projects:', error);
+      // Revert to original order on error
+      setProjects(apiProjects);
+      isReorderingRef.current = false;
+      // The error notification is already shown by reorderItems
+    }
+  };
 
   // Sync language from URL prefix when present
   useEffect(() => {
@@ -200,8 +275,24 @@ const Projects = () => {
               <ProjectManagement />
             </div>
 
-            <div className="space-y-10 mt-12">
-              {projects.map((project) => {
+            {/* Projects List with Drag and Drop */}
+            <DragDropContext onDragEnd={handleDragEnd}>
+              <Droppable droppableId="projects-list" isDropDisabled={!isEditMode}>
+                {(provided, snapshot) => (
+                  <div
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
+                    className={`space-y-10 mt-12 transition-all duration-300 droppable-container ${
+                      snapshot.isDraggingOver && isEditMode 
+                        ? 'gap-12 is-dragging-over' 
+                        : ''
+                    }`}
+                    style={{
+                      minHeight: snapshot.isDraggingOver ? '500px' : 'auto',
+                      padding: snapshot.isDraggingOver ? '1.5rem' : '0',
+                    }}
+                  >
+                    {projects.map((project, index) => {
                 const projectText = getProjectText(project);
                 const projectImageData = project.images && project.images.length > 0 ? project.images[0] : null;
                 const apiBase = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -263,97 +354,30 @@ const Projects = () => {
                 ).slice(0, 6);
                 
                 return (
-                  <div
+                  <DraggableProjectCard
                     key={project.id}
-                    onClick={(e) => {
-                      // Don't open modal if event was already handled (defaultPrevented)
-                      if (e.defaultPrevented) return;
-                      
-                      // Check if Ctrl/Cmd key is pressed
-                      const isCtrlClick = e.ctrlKey || e.metaKey;
-                      
-                      // Call handler with Ctrl/Cmd flag
-                      handleProjectClick(project, isCtrlClick);
-                    }}
-                    className="relative group cursor-pointer overflow-hidden border border-white/10 bg-gradient-to-br from-black/80 via-[#0c1624]/70 to-[#050b12]/70 shadow-[0_25px_60px_rgba(8,12,20,0.4)] transition-transform duration-300 hover:scale-[1.01] hover:shadow-[0_30px_70px_rgba(20,200,0,0.18)]"
-                  >
-                    {/* Edit/Delete Action Buttons (visible in edit mode) */}
-                    <ProjectActionButtons
-                      project={project}
-                      onEdit={handleEditProject}
-                      onDelete={handleDeleteProject}
-                    />
-
-                    <div className="flex flex-col lg:flex-row">
-                      <div className="relative lg:w-2/5 overflow-hidden">
-                        <div className="absolute inset-0 bg-gradient-to-br from-[#14C800]/15 via-transparent to-black/60 pointer-events-none mix-blend-screen" />
-                        {/* Project Thumbnail with Edit Capability */}
-                        <ProjectImageSelector
-                          project={project}
-                          category="thumbnail"
-                          currentImagePath={projectImage}
-                          alt={projectText.name}
-                          className="w-full h-64 lg:h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        />
-                      </div>
-
-                      <div className="flex-1 bg-black/40 backdrop-blur-sm p-6 lg:p-10 flex flex-col gap-6">
-                        <div className="space-y-3">
-                          <h3 className="text-2xl md:text-3xl font-bold text-white leading-tight">
-                            {projectText.name}
-                          </h3>
-                          <p className="text-white/70 text-base md:text-lg leading-relaxed">
-                            {description}
-                          </p>
-                        </div>
-
-                        {tags.length > 0 && (
-                          <div className="flex flex-wrap gap-3">
-                            {tags.map((tag) => (
-                              <span
-                                key={`${project.id}-${tag}`}
-                                className="chip chip-sm"
-                              >
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                          <div className="text-white/60 text-sm uppercase tracking-[0.2em]">
-                            {translations[language]?.project_cta_hint || 'Discover the details'}
-                          </div>
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleViewDetails(project.id);
-                            }}
-                            className="btn-flat btn-flat-lg inline-flex items-center justify-center gap-2 font-semibold"
-                          >
-                            {viewProjectLabel.renderEditable('font-semibold text-white')}
-                            <svg
-                              className="w-4 h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M13 7l5 5m0 0l-5 5m5-5H6"
-                              />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                    project={project}
+                    index={index}
+                    isEditMode={isEditMode}
+                    projectText={projectText}
+                    projectImage={projectImage}
+                    description={description}
+                    tags={tags}
+                    language={language}
+                    translations={translations}
+                    viewProjectLabel={viewProjectLabel}
+                    onProjectClick={handleProjectClick}
+                    onViewDetails={handleViewDetails}
+                    onEdit={handleEditProject}
+                    onDelete={handleDeleteProject}
+                  />
                 );
               })}
-            </div>
+              {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
+            </DragDropContext>
             </div>
           </div>
         </section>

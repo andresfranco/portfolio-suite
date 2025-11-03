@@ -60,13 +60,15 @@ import {
   Download as DownloadIcon,
   Visibility as VisibilityIcon,
   Language as LanguageIcon,
-  ArrowBack as ArrowBackIcon
+  ArrowBack as ArrowBackIcon,
+  Link as LinkIconTab
 } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
-import { api, projectsApi, experiencesApi, sectionsApi } from '../services/api';
+import { api, projectsApi, experiencesApi, sectionsApi, linksApi } from '../services/api';
 import { useSnackbar } from 'notistack';
 import SERVER_URL from '../components/common/BackendServerData';
 import PermissionGate from '../components/common/PermissionGate';
+import PortfolioLinks from '../components/portfolios/PortfolioLinks';
 
 // Tab Panel Component
 function TabPanel({ children, value, index, ...other }) {
@@ -1636,6 +1638,7 @@ function PortfolioDataPage() {
           <Tab icon={<SectionIcon />} label="Sections" />
           <Tab icon={<PhotoLibraryIcon />} label="Images" />
           <Tab icon={<AttachFileIcon />} label="Attachments" />
+          <Tab icon={<LinkIconTab />} label="Links" />
         </Tabs>
       </Box>
 
@@ -2723,6 +2726,17 @@ function PortfolioDataPage() {
                   )}
                 </CardContent>
               </Card>
+              </PermissionGate>
+            </TabPanel>
+
+            {/* Links Tab */}
+            <TabPanel value={tabValue} index={7}>
+              <PermissionGate
+                permissions={["VIEW_PORTFOLIOS", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}
+                showError
+                errorMessage="You do not have permission to manage portfolio links."
+              >
+                <PortfolioLinks portfolioId={portfolioId} />
               </PermissionGate>
             </TabPanel>
           </>
