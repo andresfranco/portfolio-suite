@@ -27,8 +27,9 @@ const DraggableExperienceCard = ({
         <div
           ref={provided.innerRef}
           {...provided.draggableProps}
+          {...provided.dragHandleProps}
           onClick={(e) => {
-            // Don't trigger click while dragging or on drag handle
+            // Don't trigger click while dragging
             if (snapshot.isDragging) return;
             onCardClick(experience.id, e);
           }}
@@ -42,25 +43,8 @@ const DraggableExperienceCard = ({
           style={{
             ...provided.draggableProps.style,
           }}
-          title={isEditMode ? "Drag to reorder • Click to edit • Ctrl/Cmd+Click to view details" : "View experience details"}
+          title={isEditMode ? "Drag anywhere to reorder • Click to edit • Ctrl/Cmd+Click to view details" : "View experience details"}
         >
-          {/* Drag Handle - only visible in edit mode */}
-          {isEditMode && (
-            <div
-              {...provided.dragHandleProps}
-              className={`absolute top-2 left-2 p-2.5 transition-all cursor-grab active:cursor-grabbing z-10 ${
-                snapshot.isDragging 
-                  ? 'bg-[#14C800] text-black opacity-100 scale-110' 
-                  : 'bg-[#14C800]/30 hover:bg-[#14C800]/50 text-[#14C800] opacity-60 hover:opacity-100'
-              }`}
-              title="Drag to reorder"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 8h16M4 16h16" />
-              </svg>
-            </div>
-          )}
 
           <div className="flex items-center justify-center w-14 h-14 bg-[#14C800]/10 text-[#14C800] text-2xl group-hover:scale-105 group-hover:bg-[#14C800]/25 transition-all duration-300 self-start">
             <Icon />
@@ -83,7 +67,11 @@ const DraggableExperienceCard = ({
           {isEditMode && !snapshot.isDragging && (
             <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <button
-                onClick={(e) => onDelete(experience.id, e)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(experience.id, e);
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
                 className="p-1.5 bg-red-500/80 hover:bg-red-600 text-white transition-colors"
                 title="Remove experience"
               >
@@ -96,7 +84,10 @@ const DraggableExperienceCard = ({
 
           {/* Edit indicator in edit mode */}
           {isEditMode && !snapshot.isDragging && (
-            <div className="text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div 
+              className="text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
