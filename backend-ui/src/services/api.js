@@ -410,12 +410,40 @@ const sectionsApi = {
   checkUnique: (params) => api.get('/api/sections/check-unique/', { params })
 };
 
-export { 
-  api, 
-  projectsApi, 
-  categoriesApi, 
-  languagesApi, 
-  skillsApi, 
+// Links API
+const linksApi = {
+  // Link Category Types
+  getLinkCategoryTypes: (params) => api.get('/api/links/category-types', { params }),
+  getLinkCategoryType: (code) => api.get(`/api/links/category-types/${code}`),
+  createLinkCategoryType: (data) => api.post('/api/links/category-types', data),
+  updateLinkCategoryType: (code, data) => api.put(`/api/links/category-types/${code}`, data),
+  deleteLinkCategoryType: (code) => api.delete(`/api/links/category-types/${code}`),
+
+  // Link Categories
+  getLinkCategories: (params) => api.get('/api/links/categories', { params }),
+  getLinkCategory: (id) => api.get(`/api/links/categories/${id}`),
+  createLinkCategory: (data) => api.post('/api/links/categories', data),
+  updateLinkCategory: (id, data) => api.put(`/api/links/categories/${id}`, data),
+  deleteLinkCategory: (id) => api.delete(`/api/links/categories/${id}`),
+  createLinkCategoryText: (categoryId, data) => api.post(`/api/links/categories/${categoryId}/texts`, data),
+
+  // Portfolio Links
+  getPortfolioLinks: (portfolioId, params) => api.get(`/api/links/portfolios/${portfolioId}/links`, { params }),
+  getPortfolioLink: (linkId) => api.get(`/api/links/portfolios/links/${linkId}`),
+  createPortfolioLink: (data) => api.post('/api/links/portfolios/links', data),
+  updatePortfolioLink: (linkId, data) => api.put(`/api/links/portfolios/links/${linkId}`, data),
+  deletePortfolioLink: (linkId) => api.delete(`/api/links/portfolios/links/${linkId}`),
+  updatePortfolioLinksOrder: (portfolioId, data) => api.put(`/api/links/portfolios/${portfolioId}/links/order`, data),
+  createPortfolioLinkText: (linkId, data) => api.post(`/api/links/portfolios/links/${linkId}/texts`, data)
+};
+
+export {
+  api,
+  projectsApi,
+  categoriesApi,
+  languagesApi,
+  skillsApi,
   experiencesApi,
-  sectionsApi 
+  sectionsApi,
+  linksApi
 }; 
