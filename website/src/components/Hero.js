@@ -1,4 +1,4 @@
-import React, { useState, useContext, useMemo, useEffect } from 'react';
+import React, { useState, useContext, useMemo, useEffect, useRef } from 'react';
 import defaultHeroImage from '../assets/images/hero.jpg';
 import ChatModal from './ChatModal';
 import { LanguageContext } from '../context/LanguageContext';
@@ -10,6 +10,9 @@ import { InlineTextEditor, ImageUploader, ContentEditorModal, RichTextEditor, Ex
 import { useContentEditor } from '../hooks/useContentEditor';
 import { useSectionLabel, SECTION_CODES } from '../hooks/useSectionLabel';
 import { portfolioApi } from '../services/portfolioApi';
+import { DragDropContext, Droppable } from '@hello-pangea/dnd';
+import DraggableExperienceCard from './DraggableExperienceCard';
+import './DragAndDrop.css';
 
 const Hero = () => {
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -117,7 +120,8 @@ const Hero = () => {
     editingItem, 
     isModalOpen, 
     startEditing, 
-    stopEditing 
+    stopEditing,
+    reorderItems
   } = useContentEditor('experience');
   
   // State for create modal
@@ -127,7 +131,21 @@ const Hero = () => {
   const [showAddMenu, setShowAddMenu] = useState(false);
 
   // Get experiences from API
-  const experiences = getExperiences();
+  const apiExperiences = getExperiences();
+  
+  // Local state for optimistic UI updates during drag and drop
+  const [experiences, setExperiences] = useState([]);
+  
+  // Track if we're currently reordering to prevent sync conflicts
+  const isReorderingRef = useRef(false);
+  
+  // Sync local state with API data (but not during reordering)
+  useEffect(() => {
+    if (!isReorderingRef.current) {
+      console.log('Syncing experiences from API:', apiExperiences);
+      setExperiences(apiExperiences);
+    }
+  }, [apiExperiences]);
   
   // Get hero tagline section
   const sections = getSections();
@@ -301,6 +319,60 @@ const Hero = () => {
     return resumeFileName || `${language}_resume.pdf`;
   };
 
+  /**
+   * Handle drag end event to reorder experiences
+   */
+  const handleDragEnd = async (result) => {
+    console.log('Drag end result:', result);
+    
+    // If dropped outside the list or no movement
+    if (!result.destination) {
+      console.log('No destination - dropped outside');
+      return;
+    }
+    
+    if (result.destination.index === result.source.index) {
+      console.log('No movement - same position');
+      return;
+    }
+
+    console.log(`Moving from index ${result.source.index} to ${result.destination.index}`);
+    console.log('Current experiences:', experiences);
+
+    // Set flag to prevent useEffect from resetting our optimistic update
+    isReorderingRef.current = true;
+
+    // Optimistically update the UI immediately
+    const reorderedExperiences = Array.from(experiences);
+    const [movedItem] = reorderedExperiences.splice(result.source.index, 1);
+    reorderedExperiences.splice(result.destination.index, 0, movedItem);
+    
+    console.log('Reordered experiences:', reorderedExperiences);
+    
+    // Update local state immediately for instant feedback
+    setExperiences(reorderedExperiences);
+
+    // Get the new order of IDs
+    const newOrderIds = reorderedExperiences.map(exp => exp.id);
+    console.log('New order IDs:', newOrderIds);
+
+    try {
+      // Persist the new order to the backend
+      await reorderItems(newOrderIds, portfolio.id);
+      
+      // Wait a bit for the backend to process before allowing sync
+      setTimeout(() => {
+        isReorderingRef.current = false;
+      }, 500);
+    } catch (error) {
+      console.error('Failed to reorder experiences:', error);
+      // Revert to original order on error
+      setExperiences(apiExperiences);
+      isReorderingRef.current = false;
+      // The error notification is already shown by reorderItems
+    }
+  };
+
   // Show loading state
   if (loading) {
     return (
@@ -403,118 +475,101 @@ const Hero = () => {
             </div>
 
             <div className="flex flex-col gap-6 w-full items-start">
-              {/* Experience Section */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full max-w-[720px] justify-items-stretch">
-                {experiences.map((exp) => {
-                  const Icon = getIconComponent(exp.icon);
-                  const experienceText = getExperienceText(exp);
-
-                  return (
+              {/* Experience Section with Drag and Drop */}
+              <DragDropContext onDragEnd={handleDragEnd}>
+                <Droppable droppableId="experiences-list" isDropDisabled={!isEditMode}>
+                  {(provided, snapshot) => (
                     <div
-                      key={exp.id}
-                      onClick={(e) => handleExperienceClick(exp.id, e)}
-                      className="relative flex flex-col gap-3 items-start bg-white/10 p-5 min-h-[180px] backdrop-blur-sm shadow-[0_15px_35px_rgba(5,10,30,0.4)] transform hover:-translate-y-1 transition-all duration-300 hover:bg-white/20 group cursor-pointer"
-                      title={isEditMode ? "Click to edit • Ctrl/Cmd+Click to view details" : "View experience details"}
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      className={`grid grid-cols-1 sm:grid-cols-2 w-full max-w-[720px] justify-items-stretch transition-all duration-300 droppable-container ${
+                        snapshot.isDraggingOver && isEditMode 
+                          ? 'gap-12 is-dragging-over' 
+                          : 'gap-6'
+                      }`}
+                      style={{
+                        minHeight: snapshot.isDraggingOver ? '500px' : 'auto',
+                        padding: snapshot.isDraggingOver ? '1.5rem' : '0',
+                      }}
                     >
-                      <div className="flex items-center justify-center w-14 h-14 bg-[#14C800]/10 text-[#14C800] text-2xl group-hover:scale-105 group-hover:bg-[#14C800]/25 transition-all duration-300 self-start">
-                        <Icon />
-                      </div>
-                      <div className="flex-1 flex flex-col items-start justify-center">
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-3xl font-bold text-white">{exp.years_experience || exp.years}+</span>
-                          {/* Use editable years label */}
-                          <span className="text-white/60 text-xs uppercase tracking-wide">
-                            {yearsLabel.renderEditable('text-white/60 text-xs uppercase tracking-wide')}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-white font-semibold leading-relaxed">
-                          {experienceText.name}
-                        </p>
-                      </div>
+                      {experiences.map((exp, index) => {
+                        const experienceText = getExperienceText(exp);
 
-                      {/* Edit mode controls */}
+                        return (
+                          <DraggableExperienceCard
+                            key={exp.id}
+                            experience={exp}
+                            index={index}
+                            isEditMode={isEditMode}
+                            experienceText={experienceText}
+                            yearsLabel={yearsLabel}
+                            onCardClick={handleExperienceClick}
+                            onDelete={handleDeleteExperience}
+                            getIconComponent={getIconComponent}
+                          />
+                        );
+                      })}
+                      {provided.placeholder}
+
+                      {/* Add new experience button in edit mode */}
                       {isEditMode && (
-                        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="relative">
                           <button
-                            onClick={(e) => handleDeleteExperience(exp.id, e)}
-                            className="p-1.5 bg-red-500/80 hover:bg-red-600 text-white transition-colors"
-                            title="Remove experience"
+                            onClick={handleAddExperience}
+                            className="flex flex-col items-start justify-center gap-3 bg-white/10 hover:bg-white/20 p-5 min-h-[180px] backdrop-blur-sm transition-all duration-300 text-white/70 hover:text-[#14C800] w-full text-left"
+                            title="Add experience"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                             </svg>
+                            <span className="font-medium">Add Experience</span>
                           </button>
-                        </div>
-                      )}
 
-                      {/* Edit indicator in edit mode */}
-                      {isEditMode && (
-                        <div className="text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
+                          {/* Dropdown menu */}
+                          {showAddMenu && (
+                            <div
+                              className="absolute top-full left-0 right-0 mt-2 bg-[#03060a] border border-white/10 overflow-hidden z-10 shadow-[0_20px_45px_rgba(10,15,30,0.55)]"
+                              onMouseLeave={() => setShowAddMenu(false)}
+                            >
+                              <button
+                                onClick={handleCreateNewExperience}
+                                className="w-full px-4 py-3 text-left hover:bg-white/10 transition-colors flex items-center gap-3 group"
+                              >
+                                <div className="w-10 h-10 bg-white/5 border border-[#14C800]/50 group-hover:bg-[#14C800] group-hover:border-[#14C800] flex items-center justify-center transition-colors">
+                                  <svg className="w-5 h-5 text-[#14C800] group-hover:text-black transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                  </svg>
+                                </div>
+                                <div className="flex-1">
+                                  <div className="font-semibold text-white">Create New</div>
+                                  <div className="text-sm text-white/70">Create a brand new experience</div>
+                                </div>
+                              </button>
+
+                              <div className="border-t border-white/10"></div>
+
+                              <button
+                                onClick={handleAddExistingExperience}
+                                className="w-full px-4 py-3 text-left hover:bg-white/10 transition-colors flex items-center gap-3 group"
+                              >
+                                <div className="w-10 h-10 bg-white/5 border border-[#14C800]/50 group-hover:bg-[#14C800] group-hover:border-[#14C800] flex items-center justify-center transition-colors">
+                                  <svg className="w-5 h-5 text-[#14C800] group-hover:text-black transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                  </svg>
+                                </div>
+                                <div className="flex-1">
+                                  <div className="font-semibold text-white">Add Existing</div>
+                                  <div className="text-sm text-white/70">Add from existing experiences</div>
+                                </div>
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
-                  );
-                })}
-
-                {/* Add new experience button in edit mode */}
-                {isEditMode && (
-                  <div className="relative">
-                    <button
-                      onClick={handleAddExperience}
-                      className="flex flex-col items-start justify-center gap-3 bg-white/10 hover:bg-white/20 p-5 min-h-[180px] backdrop-blur-sm transition-all duration-300 text-white/70 hover:text-[#14C800] w-full text-left"
-                      title="Add experience"
-                    >
-                      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      <span className="font-medium">Add Experience</span>
-                    </button>
-
-                    {/* Dropdown menu */}
-                    {showAddMenu && (
-                      <div
-                        className="absolute top-full left-0 right-0 mt-2 bg-[#03060a] border border-white/10 overflow-hidden z-10 shadow-[0_20px_45px_rgba(10,15,30,0.55)]"
-                        onMouseLeave={() => setShowAddMenu(false)}
-                      >
-                        <button
-                          onClick={handleCreateNewExperience}
-                          className="w-full px-4 py-3 text-left hover:bg-white/10 transition-colors flex items-center gap-3 group"
-                        >
-                          <div className="w-10 h-10 bg-white/5 border border-[#14C800]/50 group-hover:bg-[#14C800] group-hover:border-[#14C800] flex items-center justify-center transition-colors">
-                            <svg className="w-5 h-5 text-[#14C800] group-hover:text-black transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                          </div>
-                          <div className="flex-1">
-                            <div className="font-semibold text-white">Create New</div>
-                            <div className="text-sm text-white/70">Create a brand new experience</div>
-                          </div>
-                        </button>
-
-                        <div className="border-t border-white/10"></div>
-
-                        <button
-                          onClick={handleAddExistingExperience}
-                          className="w-full px-4 py-3 text-left hover:bg-white/10 transition-colors flex items-center gap-3 group"
-                        >
-                          <div className="w-10 h-10 bg-white/5 border border-[#14C800]/50 group-hover:bg-[#14C800] group-hover:border-[#14C800] flex items-center justify-center transition-colors">
-                            <svg className="w-5 h-5 text-[#14C800] group-hover:text-black transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                          </div>
-                          <div className="flex-1">
-                            <div className="font-semibold text-white">Add Existing</div>
-                            <div className="text-sm text-white/70">Add from existing experiences</div>
-                          </div>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+                  )}
+                </Droppable>
+              </DragDropContext>
 
               <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-start sm:items-center w-full">
                 {/* Chat with AI button - editable label in edit mode */}

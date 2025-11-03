@@ -1,9 +1,10 @@
 import React, { useState, useContext, useEffect } from 'react'; // Import useContext
-import { FaGithub, FaLinkedin, FaXTwitter } from 'react-icons/fa6'; // Removed FaEnvelope as it's handled by the Contact component
+import { FaGithub, FaLinkedin, FaXTwitter, FaCircleCheck, FaCircleExclamation } from 'react-icons/fa6'; // Removed FaEnvelope as it's handled by the Contact component
 import { useParams } from 'react-router-dom';
 import { LanguageContext } from '../context/LanguageContext'; // Import LanguageContext
 import { useSectionLabel } from '../hooks/useSectionLabel';
 import { translations } from '../data/translations'; // Import translations
+import { portfolioApi } from '../services/portfolioApi'; // Import API service
 
 const ContactPage = () => {
   const { lang } = useParams();
@@ -43,7 +44,21 @@ const ContactPage = () => {
     subject: '',
     message: ''
   });
+  const [errors, setErrors] = useState({
+    name: '',
+    email: '',
+    subject: '',
+    message: ''
+  });
+  const [touched, setTouched] = useState({
+    name: false,
+    email: false,
+    subject: false,
+    message: false
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState(null); // 'success', 'error', or null
+  const [submitMessage, setSubmitMessage] = useState('');
 
   // Use translation keys for social links
   const socialLinks = [
@@ -52,17 +67,151 @@ const ContactPage = () => {
     { icon: FaXTwitter, href: 'https://x.com/yourusername', label: twitterLabel }
   ];
 
+  // Validation function
+  const validateField = (name, value) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    switch (name) {
+      case 'name':
+        if (!value.trim()) {
+          return t.validation_name_required;
+        } else if (value.trim().length < 2) {
+          return t.validation_name_min_length;
+        }
+        return '';
+
+      case 'email':
+        if (!value.trim()) {
+          return t.validation_email_required;
+        } else if (!emailRegex.test(value.trim())) {
+          return t.validation_email_invalid;
+        }
+        return '';
+
+      case 'subject':
+        if (!value.trim()) {
+          return t.validation_subject_required;
+        } else if (value.trim().length < 3) {
+          return t.validation_subject_min_length;
+        }
+        return '';
+
+      case 'message':
+        if (!value.trim()) {
+          return t.validation_message_required;
+        } else if (value.trim().length < 10) {
+          return t.validation_message_min_length;
+        }
+        return '';
+
+      default:
+        return '';
+    }
+  };
+
+  // Validate all fields
+  const validateForm = () => {
+    const newErrors = {
+      name: validateField('name', formData.name),
+      email: validateField('email', formData.email),
+      subject: validateField('subject', formData.subject),
+      message: validateField('message', formData.message)
+    };
+
+    setErrors(newErrors);
+
+    // Mark all fields as touched
+    setTouched({
+      name: true,
+      email: true,
+      subject: true,
+      message: true
+    });
+
+    // Return true if no errors
+    return !Object.values(newErrors).some(error => error !== '');
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitStatus(null);
+    setSubmitMessage('');
+
+    // Validate form before submitting
+    if (!validateForm()) {
+      return;
+    }
+
     setIsSubmitting(true);
-    // Add your email service integration here
-    console.log('Form submitted:', formData);
-    setIsSubmitting(false);
-    // Optionally, clear the form or show a success message
+
+    try {
+      // Call the backend API to send the email
+      const response = await portfolioApi.sendContactEmail(formData);
+
+      // Show success message
+      setSubmitStatus('success');
+      setSubmitMessage(response.message || 'Your message has been sent successfully! I\'ll get back to you soon.');
+
+      // Clear the form after successful submission
+      setFormData({
+        name: '',
+        email: '',
+        subject: '',
+        message: ''
+      });
+
+      // Clear errors and touched state
+      setErrors({
+        name: '',
+        email: '',
+        subject: '',
+        message: ''
+      });
+      setTouched({
+        name: false,
+        email: false,
+        subject: false,
+        message: false
+      });
+
+      // Auto-hide success message after 8 seconds
+      setTimeout(() => {
+        setSubmitStatus(null);
+        setSubmitMessage('');
+      }, 8000);
+    } catch (error) {
+      // Show error message
+      setSubmitStatus('error');
+      setSubmitMessage(error.message || 'Failed to send your message. Please try again later or contact me directly.');
+
+      // Auto-hide error message after 10 seconds
+      setTimeout(() => {
+        setSubmitStatus(null);
+        setSubmitMessage('');
+      }, 10000);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+
+    // Clear error when user starts typing (if field was touched)
+    if (touched[name]) {
+      setErrors({ ...errors, [name]: validateField(name, value) });
+    }
+  };
+
+  const handleBlur = (e) => {
+    const { name, value } = e.target;
+
+    // Mark field as touched
+    setTouched({ ...touched, [name]: true });
+
+    // Validate field
+    setErrors({ ...errors, [name]: validateField(name, value) });
   };
 
   return (
@@ -83,8 +232,33 @@ const ContactPage = () => {
             {descriptionLabel.renderEditable('text-gray-300 text-center mb-12 text-lg')}
           </div>
 
+          {/* Success/Error Message Display */}
+          {submitStatus && (
+            <div
+              className={`mb-6 p-4 rounded-lg border transition-all duration-300 ${
+                submitStatus === 'success'
+                  ? 'bg-[#14C800]/10 border-[#14C800] text-[#14C800]'
+                  : 'bg-red-500/10 border-red-500 text-red-400'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                {submitStatus === 'success' ? (
+                  <FaCircleCheck className="text-2xl flex-shrink-0 mt-1" />
+                ) : (
+                  <FaCircleExclamation className="text-2xl flex-shrink-0 mt-1" />
+                )}
+                <div className="flex-1">
+                  <h4 className="font-bold mb-1">
+                    {submitStatus === 'success' ? 'Message Sent!' : 'Error Sending Message'}
+                  </h4>
+                  <p className="text-sm opacity-90">{submitMessage}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Contact Form */}
-          <form onSubmit={handleSubmit} className="space-y-6 mb-16">
+          <form onSubmit={handleSubmit} className="space-y-6 mb-16" noValidate>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 {/* Use translation for the label */}
@@ -95,11 +269,23 @@ const ContactPage = () => {
                   type="text"
                   id="name"
                   name="name"
-                  required
                   value={formData.name}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 rounded-none bg-white/10 text-white border border-white/10 focus:outline-none focus:border-[#14C800] transition-colors"
+                  onBlur={handleBlur}
+                  className={`w-full px-4 py-3 rounded-none bg-white/10 text-white border transition-all duration-200 focus:outline-none ${
+                    touched.name && errors.name
+                      ? 'border-red-500 focus:border-red-500'
+                      : 'border-white/10 focus:border-[#14C800]'
+                  }`}
+                  aria-invalid={touched.name && errors.name ? 'true' : 'false'}
+                  aria-describedby={touched.name && errors.name ? 'name-error' : undefined}
                 />
+                {touched.name && errors.name && (
+                  <p id="name-error" className="mt-2 text-sm text-red-400 flex items-center gap-1 animate-fadeIn">
+                    <FaCircleExclamation className="flex-shrink-0" />
+                    <span>{errors.name}</span>
+                  </p>
+                )}
               </div>
               <div>
                 {/* Use translation for the label */}
@@ -110,11 +296,23 @@ const ContactPage = () => {
                   type="email"
                   id="email"
                   name="email"
-                  required
                   value={formData.email}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 rounded-none bg-white/10 text-white border border-white/10 focus:outline-none focus:border-[#14C800] transition-colors"
+                  onBlur={handleBlur}
+                  className={`w-full px-4 py-3 rounded-none bg-white/10 text-white border transition-all duration-200 focus:outline-none ${
+                    touched.email && errors.email
+                      ? 'border-red-500 focus:border-red-500'
+                      : 'border-white/10 focus:border-[#14C800]'
+                  }`}
+                  aria-invalid={touched.email && errors.email ? 'true' : 'false'}
+                  aria-describedby={touched.email && errors.email ? 'email-error' : undefined}
                 />
+                {touched.email && errors.email && (
+                  <p id="email-error" className="mt-2 text-sm text-red-400 flex items-center gap-1 animate-fadeIn">
+                    <FaCircleExclamation className="flex-shrink-0" />
+                    <span>{errors.email}</span>
+                  </p>
+                )}
               </div>
             </div>
             <div>
@@ -126,11 +324,23 @@ const ContactPage = () => {
                 type="text"
                 id="subject"
                 name="subject"
-                required
                 value={formData.subject}
                 onChange={handleChange}
-                className="w-full px-4 py-3 rounded-none bg-white/10 text-white border border-white/10 focus:outline-none focus:border-[#14C800] transition-colors"
+                onBlur={handleBlur}
+                className={`w-full px-4 py-3 rounded-none bg-white/10 text-white border transition-all duration-200 focus:outline-none ${
+                  touched.subject && errors.subject
+                    ? 'border-red-500 focus:border-red-500'
+                    : 'border-white/10 focus:border-[#14C800]'
+                }`}
+                aria-invalid={touched.subject && errors.subject ? 'true' : 'false'}
+                aria-describedby={touched.subject && errors.subject ? 'subject-error' : undefined}
               />
+              {touched.subject && errors.subject && (
+                <p id="subject-error" className="mt-2 text-sm text-red-400 flex items-center gap-1 animate-fadeIn">
+                  <FaCircleExclamation className="flex-shrink-0" />
+                  <span>{errors.subject}</span>
+                </p>
+              )}
             </div>
             <div>
               {/* Use translation for the label */}
@@ -140,12 +350,24 @@ const ContactPage = () => {
               <textarea
                 id="message"
                 name="message"
-                required
                 rows="6"
                 value={formData.message}
                 onChange={handleChange}
-                className="w-full px-4 py-3 rounded-none bg-white/10 text-white border border-white/10 focus:outline-none focus:border-[#14C800] transition-colors resize-none"
+                onBlur={handleBlur}
+                className={`w-full px-4 py-3 rounded-none bg-white/10 text-white border transition-all duration-200 focus:outline-none resize-none ${
+                  touched.message && errors.message
+                    ? 'border-red-500 focus:border-red-500'
+                    : 'border-white/10 focus:border-[#14C800]'
+                }`}
+                aria-invalid={touched.message && errors.message ? 'true' : 'false'}
+                aria-describedby={touched.message && errors.message ? 'message-error' : undefined}
               ></textarea>
+              {touched.message && errors.message && (
+                <p id="message-error" className="mt-2 text-sm text-red-400 flex items-center gap-1 animate-fadeIn">
+                  <FaCircleExclamation className="flex-shrink-0" />
+                  <span>{errors.message}</span>
+                </p>
+              )}
             </div>
             <button
               type="submit"

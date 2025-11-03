@@ -1,0 +1,68 @@
+/* Drag and Drop Custom Styles */
+
+/* Enhanced placeholder visibility during drag */
+.draggable-placeholder {
+  background: rgba(20, 200, 0, 0.15) !important;
+  border: 3px dashed rgba(20, 200, 0, 0.6) !important;
+  border-radius: 4px;
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  margin: 8px 0;
+}
+
+.draggable-placeholder::before {
+  content: "DROP HERE";
+  color: rgba(20, 200, 0, 0.8);
+  font-weight: 700;
+  font-size: 16px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Improve drop animation */
+.draggable-item {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.draggable-item.is-dragging {
+  opacity: 0.6;
+}
+
+/* Better spacing during drag - more prominent drop zones */
+.droppable-container.is-dragging-over {
+  padding: 1.5rem;
+  gap: 3rem !important;
+  background: rgba(20, 200, 0, 0.08) !important;
+  border: 2px dashed rgba(20, 200, 0, 0.4);
+  border-radius: 8px;
+}
+
+/* Smooth transitions for reordering */
+.draggable-item:not(.is-dragging) {
+  transition: transform 0.3s cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Add visual indicator between items during drag */
+.droppable-container.is-dragging-over > * {
+  position: relative;
+}
+
+.droppable-container.is-dragging-over > *::after {
+  content: '';
+  position: absolute;
+  bottom: -24px;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: rgba(20, 200, 0, 0.3);
+  border-radius: 2px;
+}
+
+.droppable-container.is-dragging-over > *:last-child::after {
+  display: none;
+}
+
