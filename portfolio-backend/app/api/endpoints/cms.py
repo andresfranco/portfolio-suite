@@ -12,6 +12,7 @@ from app.models import User
 from app.crud import project as project_crud
 from app.crud import experience as experience_crud
 from app.crud import section as section_crud
+from app.crud import portfolio as portfolio_crud
 from app.schemas.project import ProjectTextUpdate
 from app.schemas.experience import ExperienceTextUpdate
 from app.schemas.section import SectionTextUpdate
@@ -491,9 +492,6 @@ def reorder_content(
     Reorder projects, experiences, or sections within a portfolio.
     Requires EDIT_CONTENT permission.
     
-    Note: This is a placeholder implementation. Full implementation would require
-    adding an 'order' or 'position' field to the association tables.
-    
     Args:
         reorder_request: Entity type, entity IDs in new order, and portfolio ID
     
@@ -513,25 +511,56 @@ def reorder_content(
                 detail=f"Invalid entity type: {reorder_request.entity_type}"
             )
         
-        # TODO: Implement actual reordering logic
-        # This would require:
-        # 1. Adding an 'order' column to portfolio_projects, portfolio_experiences, portfolio_sections tables
-        # 2. Updating the order values based on the entity_ids list
-        # 3. Committing the changes
+        # Validate portfolio exists
+        portfolio = portfolio_crud.get_portfolio(db, portfolio_id=reorder_request.portfolio_id)
+        if not portfolio:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Portfolio with ID {reorder_request.portfolio_id} not found"
+            )
         
-        logger.warning(
-            f"Reorder operation requested but not fully implemented for {reorder_request.entity_type}"
+        # Determine the association table based on entity type
+        if reorder_request.entity_type == "experience":
+            from app.models.portfolio import portfolio_experiences
+            table = portfolio_experiences
+            entity_column = "experience_id"
+        elif reorder_request.entity_type == "project":
+            from app.models.portfolio import portfolio_projects
+            table = portfolio_projects
+            entity_column = "project_id"
+        else:  # section
+            from app.models.portfolio import portfolio_sections
+            table = portfolio_sections
+            entity_column = "section_id"
+        
+        # Update the order for each entity
+        updated_count = 0
+        for new_order, entity_id in enumerate(reorder_request.entity_ids, start=1):
+            stmt = (
+                table.update()
+                .where(table.c.portfolio_id == reorder_request.portfolio_id)
+                .where(table.c[entity_column] == entity_id)
+                .values(order=new_order)
+            )
+            result = db.execute(stmt)
+            updated_count += result.rowcount
+        
+        db.commit()
+        
+        logger.info(
+            f"Successfully reordered {updated_count} {reorder_request.entity_type}(s) "
+            f"in portfolio {reorder_request.portfolio_id}"
         )
         
         return ContentOrderResponse(
-            message=f"Reorder operation acknowledged for {reorder_request.entity_type}. "
-                    "Full implementation requires database schema update.",
-            reordered_count=len(reorder_request.entity_ids)
+            message=f"Successfully reordered {updated_count} {reorder_request.entity_type}(s)",
+            reordered_count=updated_count
         )
         
     except HTTPException:
         raise
     except Exception as e:
+        db.rollback()
         logger.error(f"Error reordering content: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
