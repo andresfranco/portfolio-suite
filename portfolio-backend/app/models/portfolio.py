@@ -73,6 +73,7 @@ class Portfolio(Base):
     )
     images = relationship("PortfolioImage", back_populates="portfolio", cascade="all, delete-orphan")
     attachments = relationship("PortfolioAttachment", back_populates="portfolio", cascade="all, delete-orphan")
+    links = relationship("PortfolioLink", back_populates="portfolio", cascade="all, delete-orphan", order_by="PortfolioLink.order")
 
 
 class PortfolioImage(Base):
