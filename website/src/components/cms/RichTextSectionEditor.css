@@ -111,6 +111,319 @@
   line-height: 1.5;
 }
 
+/* Code Block with Syntax Highlighting - Elegant Box Design */
+.ProseMirror pre.code-block {
+  position: relative;
+  background: linear-gradient(135deg, rgba(30, 30, 30, 0.98) 0%, rgba(20, 20, 20, 0.98) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 40px 20px 20px 20px;
+  margin: 20px 0;
+  overflow: hidden;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.7;
+  box-shadow:
+    0 4px 6px rgba(0, 0, 0, 0.3),
+    0 1px 3px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Subtle top bar decoration */
+.ProseMirror pre.code-block::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  pointer-events: none;
+}
+
+.ProseMirror pre.code-block code {
+  display: block;
+  white-space: pre;
+  overflow-x: auto;
+  min-height: 1.5em;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  color: #d4d4d4 !important; /* VS Code default text color - force override */
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+/* Language Badge - Elegant Design */
+.ProseMirror pre.code-block::before {
+  position: absolute;
+  top: 6px;
+  right: 12px;
+  font-size: 10px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(20, 200, 0, 0.2);
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(20, 200, 0, 0.4);
+  z-index: 10;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Language-specific badges */
+.ProseMirror pre.language-javascript::before {
+  content: 'JavaScript';
+  background: rgba(240, 219, 79, 0.15);
+  border-color: rgba(240, 219, 79, 0.3);
+  color: #f0db4f;
+}
+
+.ProseMirror pre.language-typescript::before {
+  content: 'TypeScript';
+  background: rgba(49, 120, 198, 0.15);
+  border-color: rgba(49, 120, 198, 0.3);
+  color: #3178c6;
+}
+
+.ProseMirror pre.language-python::before {
+  content: 'Python';
+  background: rgba(55, 118, 171, 0.15);
+  border-color: rgba(55, 118, 171, 0.3);
+  color: #3776ab;
+}
+
+.ProseMirror pre.language-java::before {
+  content: 'Java';
+  background: rgba(240, 82, 54, 0.15);
+  border-color: rgba(240, 82, 54, 0.3);
+  color: #f05236;
+}
+
+.ProseMirror pre.language-csharp::before {
+  content: 'C#';
+  background: rgba(154, 82, 163, 0.15);
+  border-color: rgba(154, 82, 163, 0.3);
+  color: #9a52a3;
+}
+
+.ProseMirror pre.language-cpp::before {
+  content: 'C++';
+  background: rgba(0, 89, 156, 0.15);
+  border-color: rgba(0, 89, 156, 0.3);
+  color: #00599c;
+}
+
+.ProseMirror pre.language-php::before {
+  content: 'PHP';
+  background: rgba(119, 123, 180, 0.15);
+  border-color: rgba(119, 123, 180, 0.3);
+  color: #777bb4;
+}
+
+.ProseMirror pre.language-ruby::before {
+  content: 'Ruby';
+  background: rgba(204, 52, 45, 0.15);
+  border-color: rgba(204, 52, 45, 0.3);
+  color: #cc342d;
+}
+
+.ProseMirror pre.language-go::before {
+  content: 'Go';
+  background: rgba(0, 173, 216, 0.15);
+  border-color: rgba(0, 173, 216, 0.3);
+  color: #00add8;
+}
+
+.ProseMirror pre.language-rust::before {
+  content: 'Rust';
+  background: rgba(206, 73, 0, 0.15);
+  border-color: rgba(206, 73, 0, 0.3);
+  color: #ce4900;
+}
+
+.ProseMirror pre.language-swift::before {
+  content: 'Swift';
+  background: rgba(240, 81, 56, 0.15);
+  border-color: rgba(240, 81, 56, 0.3);
+  color: #f05138;
+}
+
+.ProseMirror pre.language-kotlin::before {
+  content: 'Kotlin';
+  background: rgba(124, 77, 255, 0.15);
+  border-color: rgba(124, 77, 255, 0.3);
+  color: #7c4dff;
+}
+
+.ProseMirror pre.language-sql::before {
+  content: 'SQL';
+  background: rgba(204, 102, 0, 0.15);
+  border-color: rgba(204, 102, 0, 0.3);
+  color: #cc6600;
+}
+
+.ProseMirror pre.language-html::before {
+  content: 'HTML';
+  background: rgba(227, 79, 38, 0.15);
+  border-color: rgba(227, 79, 38, 0.3);
+  color: #e34f26;
+}
+
+.ProseMirror pre.language-css::before {
+  content: 'CSS';
+  background: rgba(38, 77, 228, 0.15);
+  border-color: rgba(38, 77, 228, 0.3);
+  color: #264de4;
+}
+
+.ProseMirror pre.language-scss::before {
+  content: 'SCSS';
+  background: rgba(207, 100, 154, 0.15);
+  border-color: rgba(207, 100, 154, 0.3);
+  color: #cf649a;
+}
+
+.ProseMirror pre.language-json::before {
+  content: 'JSON';
+  background: rgba(41, 128, 185, 0.15);
+  border-color: rgba(41, 128, 185, 0.3);
+  color: #2980b9;
+}
+
+.ProseMirror pre.language-yaml::before {
+  content: 'YAML';
+  background: rgba(203, 56, 55, 0.15);
+  border-color: rgba(203, 56, 55, 0.3);
+  color: #cb3837;
+}
+
+.ProseMirror pre.language-bash::before {
+  content: 'Bash';
+  background: rgba(76, 175, 80, 0.15);
+  border-color: rgba(76, 175, 80, 0.3);
+  color: #4caf50;
+}
+
+.ProseMirror pre.language-shell::before {
+  content: 'Shell';
+  background: rgba(76, 175, 80, 0.15);
+  border-color: rgba(76, 175, 80, 0.3);
+  color: #4caf50;
+}
+
+.ProseMirror pre.language-markdown::before {
+  content: 'Markdown';
+  background: rgba(156, 39, 176, 0.15);
+  border-color: rgba(156, 39, 176, 0.3);
+  color: #9c27b0;
+}
+
+.ProseMirror pre.language-plaintext::before {
+  content: 'Plain Text';
+  background: rgba(158, 158, 158, 0.15);
+  border-color: rgba(158, 158, 158, 0.3);
+  color: #9e9e9e;
+}
+
+/* Prism.js Syntax Highlighting Tokens - VS Code Dark+ Theme */
+/* Using !important to override any default Prism theme */
+.ProseMirror pre.code-block .token.comment,
+.ProseMirror pre.code-block .token.prolog,
+.ProseMirror pre.code-block .token.doctype,
+.ProseMirror pre.code-block .token.cdata {
+  color: #6a9955 !important;
+  font-style: italic;
+}
+
+.ProseMirror pre.code-block .token.punctuation {
+  color: #d4d4d4 !important;
+}
+
+.ProseMirror pre.code-block .token.property,
+.ProseMirror pre.code-block .token.tag,
+.ProseMirror pre.code-block .token.boolean,
+.ProseMirror pre.code-block .token.number,
+.ProseMirror pre.code-block .token.constant,
+.ProseMirror pre.code-block .token.symbol,
+.ProseMirror pre.code-block .token.deleted {
+  color: #b5cea8 !important;
+}
+
+.ProseMirror pre.code-block .token.selector,
+.ProseMirror pre.code-block .token.attr-name,
+.ProseMirror pre.code-block .token.string,
+.ProseMirror pre.code-block .token.char,
+.ProseMirror pre.code-block .token.builtin,
+.ProseMirror pre.code-block .token.inserted {
+  color: #ce9178 !important;
+}
+
+.ProseMirror pre.code-block .token.operator,
+.ProseMirror pre.code-block .token.entity,
+.ProseMirror pre.code-block .token.url,
+.ProseMirror pre.code-block .language-css .token.string,
+.ProseMirror pre.code-block .style .token.string {
+  color: #d4d4d4 !important;
+}
+
+.ProseMirror pre.code-block .token.atrule,
+.ProseMirror pre.code-block .token.attr-value,
+.ProseMirror pre.code-block .token.keyword {
+  color: #c586c0 !important;
+}
+
+/* Python specific keywords use blue instead of purple */
+.ProseMirror pre.code-block .language-python .token.keyword {
+  color: #569cd6 !important;
+}
+
+.ProseMirror pre.code-block .token.function {
+  color: #dcdcaa !important;
+}
+
+.ProseMirror pre.code-block .token[class~="class-name"] {
+  color: #4ec9b0 !important;
+}
+
+.ProseMirror pre.code-block .token.regex,
+.ProseMirror pre.code-block .token.important,
+.ProseMirror pre.code-block .token.variable {
+  color: #d16969 !important;
+}
+
+.ProseMirror pre.code-block .token.important,
+.ProseMirror pre.code-block .token.bold {
+  font-weight: bold;
+}
+
+.ProseMirror pre.code-block .token.italic {
+  font-style: italic;
+}
+
+/* Scrollbar styling for code blocks */
+.ProseMirror pre.code-block code::-webkit-scrollbar {
+  height: 8px;
+}
+
+.ProseMirror pre.code-block code::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.ProseMirror pre.code-block code::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.ProseMirror pre.code-block code::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
 /* Links */
 .ProseMirror a {
   color: #14C800;
