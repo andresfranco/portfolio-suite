@@ -386,24 +386,24 @@ const Hero = () => {
     <>
       <section
         id="home"
-        className="relative overflow-hidden bg-[#050b13] min-h-[70vh] md:min-h-[65vh] pt-28 md:pt-36 pb-20"
+        className="relative overflow-hidden bg-[#050b13] min-h-[70vh] md:min-h-[65vh] lg:min-h-[75vh] xl:min-h-[80vh] pt-28 md:pt-36 pb-20 w-full max-w-[100vw]"
       >
         <div
-          className={`absolute inset-y-0 right-0 w-full lg:w-1/2 overflow-hidden transition-opacity duration-300 ${isEditMode ? "" : "pointer-events-none"}`}
+          className={`absolute top-0 bottom-0 right-0 w-full lg:w-[55%] overflow-hidden transition-opacity duration-300 ${isEditMode ? "" : "pointer-events-none"}`}
         >
           {/* Background image layer */}
           <div className="absolute inset-0 z-0">
             <img
               src={heroImage}
               alt="Hero visual"
-              className="absolute inset-0 w-full h-full object-cover opacity-80"
+              className="absolute inset-0 w-full h-full object-cover object-right opacity-80"
             />
           </div>
           
           {/* Overlay effects - only block pointer events when NOT in edit mode */}
           <div className={`absolute inset-0 z-10 ${isEditMode ? 'pointer-events-none' : ''}`}>
-            <div className="absolute inset-0 bg-gradient-to-l from-[#03060a]/20 via-[#03060a]/45 to-transparent mix-blend-soft-light" />
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/20 to-black/45" />
+            <div className="absolute inset-0 bg-gradient-to-l from-[#03060a]/10 via-[#03060a]/40 lg:via-[#03060a]/50 to-[#03060a]/80 lg:to-transparent mix-blend-soft-light" />
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/15 to-black/40" />
             <div className="absolute top-[-10%] right-[-5%] w-[70%] h-[60%] bg-[#03060a]/55 blur-3xl" />
             <div className="absolute bottom-[-15%] right-[-10%] w-[85%] h-[70%] bg-[#03060a]/55 blur-[120px]" />
             <div className="absolute top-[-10%] left-[-20%] w-[50%] h-[55%] bg-[#03060a]/65 blur-[110px]" />
@@ -440,17 +440,17 @@ const Hero = () => {
         <div className="absolute -left-24 top-1/3 w-72 h-72 rounded-full bg-[#14C800]/10 blur-3xl pointer-events-none" />
         <div className="absolute -right-28 top-1/2 w-80 h-80 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
 
-        <div className="relative z-10 w-full px-6 md:px-12 lg:px-[7vw] py-16">
-          <div className="flex flex-col gap-8 max-w-[720px] items-start">
+        <div className="relative z-10 w-full px-6 md:px-12 lg:px-[7vw] xl:px-[5vw] 2xl:px-[10vw] py-16">
+          <div className="flex flex-col gap-8 max-w-full lg:max-w-[50%] xl:max-w-[55%] 2xl:max-w-[60%] items-start">
             {/* Editable person name in edit mode */}
-            <h1 className="text-4xl md:text-6xl font-extrabold text-white drop-shadow-lg">
+            <h1 className="text-4xl md:text-6xl xl:text-7xl 2xl:text-8xl font-extrabold text-white drop-shadow-lg">
               {isEditMode && portfolio?.id ? (
                 <InlineTextEditor
                   value={person.name}
                   entityType="portfolio"
                   entityId={portfolio.id}
                   fieldName="name"
-                  className="text-4xl md:text-6xl font-extrabold text-white drop-shadow-lg"
+                  className="text-4xl md:text-6xl xl:text-7xl 2xl:text-8xl font-extrabold text-white drop-shadow-lg"
                   placeholder="Enter name..."
                 />
               ) : (
@@ -459,7 +459,7 @@ const Hero = () => {
             </h1>
 
             {/* Use hero tagline - editable in edit mode */}
-            <div className="text-lg md:text-2xl text-white/90 max-w-2xl">
+            <div className="text-lg md:text-2xl xl:text-3xl 2xl:text-4xl text-white/90 max-w-full">
               {isEditMode ? (
                 heroTaglineText?.id ? (
                   <RichTextEditor
@@ -469,7 +469,7 @@ const Hero = () => {
                     fieldName="text"
                     label="Hero Tagline"
                     placeholder="Enter hero tagline..."
-                    className="text-lg md:text-2xl text-white/90"
+                    className="text-lg md:text-2xl xl:text-3xl 2xl:text-4xl text-white/90"
                   />
                 ) : (
                   <div className="bg-yellow-900/50 border-2 border-yellow-500 p-4 text-white">
@@ -487,7 +487,7 @@ const Hero = () => {
                   </div>
                 )
               ) : (
-                <p className="text-lg md:text-2xl text-white/90">
+                <p className="text-lg md:text-2xl xl:text-3xl 2xl:text-4xl text-white/90">
                   {heroTaglineValue}
                 </p>
               )}
@@ -501,7 +501,7 @@ const Hero = () => {
                     <div
                       ref={provided.innerRef}
                       {...provided.droppableProps}
-                      className={`grid grid-cols-1 sm:grid-cols-2 w-full max-w-[720px] justify-items-stretch transition-all duration-300 droppable-container ${
+                      className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 w-full max-w-full justify-items-stretch transition-all duration-300 droppable-container ${
                         snapshot.isDraggingOver && isEditMode 
                           ? 'gap-12 is-dragging-over' 
                           : 'gap-6'
@@ -590,7 +590,7 @@ const Hero = () => {
                 </Droppable>
               </DragDropContext>
 
-              <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-start sm:items-center w-full">
+              <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-start sm:items-center w-full flex-wrap">
                 {/* Chat with AI button - editable label in edit mode */}
                 <button
                   onClick={(e) => {
@@ -603,7 +603,7 @@ const Hero = () => {
                     setIsChatOpen(true);
                   }}
                   title={isEditMode ? "Click to edit • Ctrl/Cmd+Click to open chat" : "Open chat"}
-                  className="btn-flat btn-flat-lg whitespace-nowrap"
+                  className="btn-flat btn-flat-lg whitespace-nowrap text-base md:text-lg xl:text-xl"
                 >
                   {isEditMode && !chatButtonText?.id ? (
                     <span className="text-sm italic opacity-75" title="Create 'chat_with_ai' section to edit">
@@ -636,7 +636,7 @@ const Hero = () => {
                       }
                       }}
                       title={isEditMode ? "Click to edit • Ctrl/Cmd+Click to download" : "Download CV"}
-                      className="btn-flat btn-flat-lg inline-flex items-center justify-center whitespace-nowrap"
+                      className="btn-flat btn-flat-lg inline-flex items-center justify-center whitespace-nowrap text-base md:text-lg xl:text-xl"
                     >
                     {isEditMode && !downloadCvText?.id ? (
                       <span className="text-sm italic opacity-75" title="Create 'download_cv' section to edit">
@@ -659,7 +659,7 @@ const Hero = () => {
                     <button
                       disabled
                       title="No resume available for this language"
-                      className="btn-flat btn-flat-lg inline-flex items-center justify-center whitespace-nowrap"
+                      className="btn-flat btn-flat-lg inline-flex items-center justify-center whitespace-nowrap text-base md:text-lg xl:text-xl"
                     >
                     {downloadCvValue} (Not Available)
                   </button>

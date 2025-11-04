@@ -49,7 +49,7 @@ const Header = () => {
 
   return (
     <header className="fixed w-full z-[60] bg-black/70 backdrop-blur-sm">
-      <nav className="container mx-auto px-6 py-4 relative">
+      <nav className="w-full px-6 md:px-12 lg:px-[7vw] xl:px-[5vw] 2xl:px-[10vw] py-4 xl:py-5 2xl:py-6 relative">
         <div className="flex items-center justify-between">
           <Link 
             to="/" 
@@ -64,16 +64,16 @@ const Header = () => {
             title={isEditMode ? "Click to edit • Ctrl/Cmd+Click to go home" : "Go to homepage"}
           >
             {isEditMode
-              ? brandName.renderEditable('text-white text-2xl font-bold transition-colors duration-200 group-hover:text-[#14C800]')
+              ? brandName.renderEditable('text-white text-2xl xl:text-3xl 2xl:text-4xl font-bold transition-colors duration-200 group-hover:text-[#14C800]')
               : (
-                <span className="text-white text-2xl font-bold transition-colors duration-200 group-hover:text-[#14C800]">
+                <span className="text-white text-2xl xl:text-3xl 2xl:text-4xl font-bold transition-colors duration-200 group-hover:text-[#14C800]">
                   {brandName.value}
                 </span>
               )}
           </Link>
           
           {/* Desktop Menu */}
-          <ul className="hidden md:flex space-x-2">
+          <ul className="hidden md:flex space-x-2 xl:space-x-4">
             {menuItems.map((item) => (
               <li key={item.path}>
                 <button
@@ -87,7 +87,7 @@ const Header = () => {
                     handleNavigation(item.path);
                   }}
                   title={isEditMode ? `Click to edit • Ctrl/Cmd+Click to navigate to ${item.label.value}` : `Navigate to ${item.label.value}`}
-                  className={`btn-flat ${location.pathname === item.path ? 'btn-flat-active' : ''}`}
+                  className={`btn-flat text-base xl:text-lg 2xl:text-xl ${location.pathname === item.path ? 'btn-flat-active' : ''}`}
                 >
                   {item.label.renderEditable('text-white/90')}
                 </button>
@@ -106,7 +106,7 @@ const Header = () => {
               setLanguage={setLanguage}
               availableLanguages={availableLanguages}
               getLanguageLabel={getLanguageLabel}
-              className="w-40"
+              className="w-40 xl:w-48 2xl:w-56 text-base xl:text-lg 2xl:text-xl"
             />
           </div>
 
