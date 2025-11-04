@@ -19,6 +19,8 @@ export { InlineTextEditor } from './InlineTextEditor';
 export { ImageUploader } from './ImageUploader';
 export { ProjectImageSelector } from './ProjectImageSelector';
 export { RichTextEditor } from './RichTextEditor';
+export { default as RichTextSectionEditor } from './RichTextSectionEditor';
+export { ContentEditableWYSIWYG } from './ContentEditableWYSIWYG';
 export { ContentEditorModal } from './ContentEditorModal';
 export { TranslationEditor } from './TranslationEditor';
 export { ExperienceSelector } from './ExperienceSelector';
