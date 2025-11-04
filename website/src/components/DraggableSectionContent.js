@@ -1,6 +1,7 @@
 import React from 'react';
 import { Draggable } from '@hello-pangea/dnd';
 import { FaDownload } from 'react-icons/fa6';
+import ResizableImage from './ResizableImage';
 import './RichTextContent.css';
 
 /**
@@ -107,10 +108,11 @@ export const DraggableImageContent = ({ image, index, isEditMode, sectionId, isB
       sectionId={sectionId}
       isBordered={isBordered}
     >
-      <img
+      <ResizableImage
         src={imageUrl}
         alt="Section diagram"
         className={isBordered ? "w-full rounded-lg border border-gray-700/50" : "w-full"}
+        isEditMode={isEditMode}
         onError={(e) => {
           console.error('Failed to load section image:', image.image_path, 'URL:', imageUrl);
         }}

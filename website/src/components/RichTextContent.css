@@ -131,6 +131,149 @@
   line-height: 1.5;
 }
 
+/* Monaco Editor Syntax Highlighting - VS Code Dark+ Theme */
+/* Matching the ContentEditableWYSIWG color scheme */
+
+/* Base code token styles */
+.rich-text-content .token.comment,
+.rich-text-content .token.prolog,
+.rich-text-content .token.doctype,
+.rich-text-content .token.cdata {
+  color: #6a9955 !important;
+  font-style: italic !important;
+}
+
+.rich-text-content .token.punctuation {
+  color: #ffd700 !important; /* Golden parentheses like Monaco */
+}
+
+.rich-text-content .token.property,
+.rich-text-content .token.tag,
+.rich-text-content .token.boolean,
+.rich-text-content .token.number,
+.rich-text-content .token.constant,
+.rich-text-content .token.symbol,
+.rich-text-content .token.deleted {
+  color: #b5cea8 !important;
+}
+
+.rich-text-content .token.selector,
+.rich-text-content .token.attr-name,
+.rich-text-content .token.string,
+.rich-text-content .token.char,
+.rich-text-content .token.builtin,
+.rich-text-content .token.inserted {
+  color: #ce9178 !important;
+}
+
+.rich-text-content .token.operator,
+.rich-text-content .token.entity,
+.rich-text-content .token.url,
+.rich-text-content .language-css .token.string,
+.rich-text-content .style .token.string {
+  color: #d4d4d4 !important;
+}
+
+.rich-text-content .token.atrule,
+.rich-text-content .token.attr-value,
+.rich-text-content .token.keyword {
+  color: #569cd6 !important;
+}
+
+.rich-text-content .token.function {
+  color: #dcdcaa !important;
+}
+
+.rich-text-content .token.class-name {
+  color: #4ec9b0 !important; /* Teal for classes */
+}
+
+.rich-text-content .token.regex,
+.rich-text-content .token.important,
+.rich-text-content .token.variable {
+  color: #d16969 !important;
+}
+
+.rich-text-content .token.important,
+.rich-text-content .token.bold {
+  font-weight: bold !important;
+}
+
+.rich-text-content .token.italic {
+  font-style: italic !important;
+}
+
+/* Language-specific refinements */
+
+/* JavaScript/TypeScript */
+.rich-text-content .language-javascript .token.keyword,
+.rich-text-content .language-typescript .token.keyword,
+.rich-text-content .language-jsx .token.keyword,
+.rich-text-content .language-tsx .token.keyword {
+  color: #569cd6 !important;
+}
+
+.rich-text-content .language-javascript .token.function,
+.rich-text-content .language-typescript .token.function {
+  color: #dcdcaa !important;
+}
+
+.rich-text-content .language-javascript .token.string,
+.rich-text-content .language-typescript .token.string {
+  color: #ce9178 !important;
+}
+
+/* Python */
+.rich-text-content .language-python .token.keyword {
+  color: #569cd6 !important;
+}
+
+.rich-text-content .language-python .token.builtin {
+  color: #4ec9b0 !important;
+}
+
+.rich-text-content .language-python .token.decorator {
+  color: #dcdcaa !important;
+}
+
+/* JSON */
+.rich-text-content .language-json .token.property {
+  color: #9cdcfe !important;
+}
+
+.rich-text-content .language-json .token.string {
+  color: #ce9178 !important;
+}
+
+/* CSS/SCSS */
+.rich-text-content .language-css .token.selector,
+.rich-text-content .language-scss .token.selector {
+  color: #d7ba7d !important;
+}
+
+.rich-text-content .language-css .token.property,
+.rich-text-content .language-scss .token.property {
+  color: #9cdcfe !important;
+}
+
+/* HTML/JSX */
+.rich-text-content .language-markup .token.tag,
+.rich-text-content .language-html .token.tag,
+.rich-text-content .language-jsx .token.tag,
+.rich-text-content .language-tsx .token.tag {
+  color: #569cd6 !important;
+}
+
+.rich-text-content .language-markup .token.attr-name,
+.rich-text-content .language-html .token.attr-name {
+  color: #9cdcfe !important;
+}
+
+.rich-text-content .language-markup .token.attr-value,
+.rich-text-content .language-html .token.attr-value {
+  color: #ce9178 !important;
+}
+
 /* Links */
 .rich-text-content a {
   color: #14C800;
@@ -196,3 +339,132 @@
 }
 
 /* Font sizes (inline styles from editor are preserved automatically) */
+
+/* High-Resolution Display Optimizations */
+/* Enhanced typography and spacing for 1920px+ displays */
+@media (min-width: 1920px) {
+  .rich-text-content {
+    line-height: 1.8;
+  }
+
+  .rich-text-content h1 {
+    font-size: 2.25rem;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    margin: 2rem 0 1rem;
+  }
+
+  .rich-text-content h2 {
+    font-size: 1.75rem;
+    letter-spacing: -0.01em;
+    margin: 1.75rem 0 0.875rem;
+  }
+
+  .rich-text-content h3 {
+    font-size: 1.375rem;
+    margin: 1.5rem 0 0.75rem;
+  }
+
+  .rich-text-content h4 {
+    font-size: 1.125rem;
+  }
+
+  .rich-text-content p {
+    margin: 1rem 0;
+    font-size: 1.0625rem;
+  }
+
+  .rich-text-content pre {
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    border-radius: 0.625rem;
+  }
+
+  .rich-text-content pre code {
+    font-size: 0.9375rem;
+    line-height: 1.6;
+  }
+
+  .rich-text-content blockquote {
+    padding-left: 1.5rem;
+    margin: 1.5rem 0;
+    font-size: 1.0625rem;
+  }
+
+  .rich-text-content ul,
+  .rich-text-content ol {
+    padding-left: 2rem;
+    margin: 1rem 0;
+  }
+
+  .rich-text-content li {
+    margin: 0.375rem 0;
+  }
+
+  .rich-text-content img,
+  .rich-text-content img.tiptap-image {
+    margin: 1.5rem 0;
+  }
+}
+
+/* Super high-resolution displays (2560px+) */
+@media (min-width: 2560px) {
+  .rich-text-content {
+    line-height: 1.85;
+  }
+
+  .rich-text-content h1 {
+    font-size: 2.5rem;
+    margin: 2.5rem 0 1.25rem;
+  }
+
+  .rich-text-content h2 {
+    font-size: 2rem;
+    margin: 2rem 0 1rem;
+  }
+
+  .rich-text-content h3 {
+    font-size: 1.5rem;
+    margin: 1.75rem 0 0.875rem;
+  }
+
+  .rich-text-content h4 {
+    font-size: 1.25rem;
+  }
+
+  .rich-text-content p {
+    margin: 1.25rem 0;
+    font-size: 1.125rem;
+  }
+
+  .rich-text-content pre {
+    padding: 2rem;
+    margin: 2rem 0;
+  }
+
+  .rich-text-content pre code {
+    font-size: 1rem;
+    line-height: 1.7;
+  }
+
+  .rich-text-content blockquote {
+    padding-left: 2rem;
+    margin: 2rem 0;
+    font-size: 1.125rem;
+  }
+
+  .rich-text-content ul,
+  .rich-text-content ol {
+    padding-left: 2.5rem;
+    margin: 1.25rem 0;
+  }
+
+  .rich-text-content li {
+    margin: 0.5rem 0;
+  }
+
+  .rich-text-content img,
+  .rich-text-content img.tiptap-image {
+    margin: 2rem 0;
+  }
+}
