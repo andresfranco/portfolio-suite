@@ -1,4 +1,5 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
@@ -8,14 +9,42 @@ import Underline from '@tiptap/extension-underline';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import { FontFamily } from '@tiptap/extension-font-family';
+import Editor from '@monaco-editor/react';
+import Prism from 'prismjs';
+import 'prismjs/themes/prism-tomorrow.css'; // GitHub-like dark theme (same as ContentEditableWYSIWYG)
+// Import language support - same as ContentEditableWYSIWYG
+import 'prismjs/components/prism-markup';
+import 'prismjs/components/prism-clike';
+import 'prismjs/components/prism-javascript';
+import 'prismjs/components/prism-typescript';
+import 'prismjs/components/prism-python';
+import 'prismjs/components/prism-java';
+import 'prismjs/components/prism-csharp';
+import 'prismjs/components/prism-c';
+import 'prismjs/components/prism-cpp';
+import 'prismjs/components/prism-markup-templating';
+import 'prismjs/components/prism-php';
+import 'prismjs/components/prism-ruby';
+import 'prismjs/components/prism-go';
+import 'prismjs/components/prism-rust';
+import 'prismjs/components/prism-swift';
+import 'prismjs/components/prism-kotlin';
+import 'prismjs/components/prism-sql';
+import 'prismjs/components/prism-css';
+import 'prismjs/components/prism-sass';
+import 'prismjs/components/prism-scss';
+import 'prismjs/components/prism-json';
+import 'prismjs/components/prism-yaml';
+import 'prismjs/components/prism-markdown';
+import 'prismjs/components/prism-bash';
 import './RichTextSectionEditor.css';
-import { 
-  FaBold, 
-  FaItalic, 
-  FaUnderline, 
-  FaStrikethrough, 
-  FaListUl, 
-  FaListOl, 
+import {
+  FaBold,
+  FaItalic,
+  FaUnderline,
+  FaStrikethrough,
+  FaListUl,
+  FaListOl,
   FaQuoteLeft,
   FaCode,
   FaHeading,
@@ -29,7 +58,10 @@ import {
   FaUndo,
   FaRedo,
   FaFile,
-  FaTextHeight
+  FaTextHeight,
+  FaTimes,
+  FaCheck,
+  FaExclamationTriangle
 } from 'react-icons/fa';
 import portfolioApi from '../../services/portfolioApi';
 
@@ -115,6 +147,15 @@ const RichTextSectionEditor = ({
   const [fontSize, setFontSize] = useState('16px');
   const [showFontSizeInput, setShowFontSizeInput] = useState(false);
 
+  // Code block dialog state
+  const [showCodeDialog, setShowCodeDialog] = useState(false);
+  const [codeContent, setCodeContent] = useState('');
+  const [codeLanguage, setCodeLanguage] = useState('javascript');
+
+  // HTML source dialog state
+  const [showHtmlDialog, setShowHtmlDialog] = useState(false);
+  const [htmlSource, setHtmlSource] = useState('');
+
   // Initialize TipTap editor
   const editor = useEditor({
     extensions: [
@@ -160,6 +201,23 @@ const RichTextSectionEditor = ({
       }
     }
   });
+
+  // Apply Prism syntax highlighting when content changes
+  useEffect(() => {
+    if (editor) {
+      // Highlight code blocks whenever content changes
+      setTimeout(() => {
+        try {
+          const codeBlocks = document.querySelectorAll('.ProseMirror pre code[class*="language-"]');
+          codeBlocks.forEach(block => {
+            Prism.highlightElement(block);
+          });
+        } catch (error) {
+          console.warn('Prism highlighting error:', error);
+        }
+      }, 100);
+    }
+  }, [editor?.getHTML()]);
 
   /**
    * Handle image upload and insert into editor
@@ -336,6 +394,71 @@ const RichTextSectionEditor = ({
     setShowFontSizeInput(false);
   }, [editor, fontSize]);
 
+  /**
+   * Open code block dialog
+   */
+  const openCodeDialog = useCallback(() => {
+    setCodeContent('');
+    setCodeLanguage('javascript');
+    setShowCodeDialog(true);
+  }, []);
+
+  /**
+   * Insert code block from dialog
+   */
+  const insertCodeBlockFromDialog = useCallback(() => {
+    if (!editor || !codeContent.trim()) return;
+
+    const escapedCode = codeContent
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+
+    const codeBlockHtml = `<pre class="code-block language-${codeLanguage}" data-language="${codeLanguage}"><code class="language-${codeLanguage}">${escapedCode}</code></pre>`;
+
+    editor.chain().focus().insertContent(codeBlockHtml).run();
+
+    // Apply syntax highlighting immediately
+    setTimeout(() => {
+      const codeBlocks = document.querySelectorAll('.ProseMirror pre code[class*="language-"]');
+      codeBlocks.forEach(block => {
+        try {
+          Prism.highlightElement(block);
+        } catch (e) {
+          console.warn('Failed to highlight code block:', e);
+        }
+      });
+    }, 50);
+
+    setShowCodeDialog(false);
+    setCodeContent('');
+  }, [editor, codeContent, codeLanguage]);
+
+  /**
+   * Open HTML source editor
+   */
+  const openHtmlEditor = useCallback(() => {
+    if (!editor) return;
+    setHtmlSource(editor.getHTML());
+    setShowHtmlDialog(true);
+  }, [editor]);
+
+  /**
+   * Apply HTML source changes
+   */
+  const applyHtmlSource = useCallback(() => {
+    if (!editor) return;
+    try {
+      editor.commands.setContent(htmlSource);
+      setShowHtmlDialog(false);
+      setError(null);
+    } catch (err) {
+      setError('Invalid HTML content. Please check your code.');
+    }
+  }, [editor, htmlSource]);
+
   if (!editor) {
     return <div className="text-gray-400 p-4">Loading editor...</div>;
   }
@@ -459,10 +582,10 @@ const RichTextSectionEditor = ({
             <FaQuoteLeft />
           </ToolbarButton>
           <ToolbarButton
-            onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+            onClick={openCodeDialog}
             active={editor.isActive('codeBlock')}
             disabled={disabled}
-            title="Code Block"
+            title="Code Block with Syntax Highlighting"
           >
             <FaCode />
           </ToolbarButton>
@@ -560,7 +683,7 @@ const RichTextSectionEditor = ({
         </div>
 
         {/* Undo/Redo */}
-        <div className="flex gap-1">
+        <div className="flex gap-1 pr-2 border-r border-gray-700">
           <ToolbarButton
             onClick={() => editor.chain().focus().undo().run()}
             disabled={disabled || !editor.can().undo()}
@@ -574,6 +697,17 @@ const RichTextSectionEditor = ({
             title="Redo"
           >
             <FaRedo />
+          </ToolbarButton>
+        </div>
+
+        {/* HTML Source */}
+        <div className="flex gap-1">
+          <ToolbarButton
+            onClick={openHtmlEditor}
+            disabled={disabled}
+            title="Edit HTML Source"
+          >
+            &lt;HTML&gt;
           </ToolbarButton>
         </div>
       </div>
@@ -702,9 +836,204 @@ const RichTextSectionEditor = ({
           <li>Select text and click the <strong>A</strong> icon to change font size</li>
           <li>Click the image icon to upload and insert images inline</li>
           <li>Select text and click the link icon to add hyperlinks</li>
-          <li>Attach downloadable files using the file icon</li>
+          <li>Click the <strong>&lt;/&gt;</strong> icon to add code blocks with syntax highlighting</li>
+          <li>Click the <strong>&lt;HTML&gt;</strong> icon to edit raw HTML source</li>
         </ul>
       </div>
+
+      {/* Code Block Dialog */}
+      {showCodeDialog && createPortal(
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4">
+          <div className="bg-gray-900 border border-gray-700/50 rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-gray-700/50 flex items-center justify-between">
+              <h3 className="text-xl font-semibold text-white flex items-center gap-2">
+                <FaCode className="text-[#14C800]" />
+                Insert Code Block
+              </h3>
+              <button
+                onClick={() => setShowCodeDialog(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <FaTimes size={24} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4 flex-1 overflow-y-auto">
+              <div>
+                <label className="block text-sm font-semibold text-white mb-2">
+                  Programming Language
+                </label>
+                <select
+                  value={codeLanguage}
+                  onChange={(e) => setCodeLanguage(e.target.value)}
+                  className="w-full p-3 bg-gray-800 border border-gray-700 rounded text-white focus:outline-none focus:border-[#14C800] transition-colors"
+                >
+                  <option value="javascript">JavaScript</option>
+                  <option value="typescript">TypeScript</option>
+                  <option value="python">Python</option>
+                  <option value="java">Java</option>
+                  <option value="csharp">C#</option>
+                  <option value="cpp">C++</option>
+                  <option value="php">PHP</option>
+                  <option value="ruby">Ruby</option>
+                  <option value="go">Go</option>
+                  <option value="rust">Rust</option>
+                  <option value="swift">Swift</option>
+                  <option value="kotlin">Kotlin</option>
+                  <option value="sql">SQL</option>
+                  <option value="html">HTML</option>
+                  <option value="css">CSS</option>
+                  <option value="scss">SCSS</option>
+                  <option value="json">JSON</option>
+                  <option value="yaml">YAML</option>
+                  <option value="markdown">Markdown</option>
+                  <option value="bash">Bash</option>
+                  <option value="shell">Shell</option>
+                  <option value="plaintext">Plain Text</option>
+                </select>
+              </div>
+
+              <div className="flex-1 flex flex-col">
+                <label className="block text-sm font-semibold text-white mb-2">
+                  Code Content
+                </label>
+                <div className="flex-1 border border-gray-700 rounded overflow-hidden" style={{ minHeight: '450px' }}>
+                  <Editor
+                    height="450px"
+                    language={codeLanguage === 'plaintext' ? 'plaintext' : codeLanguage}
+                    value={codeContent}
+                    onChange={(value) => setCodeContent(value || '')}
+                    theme="vs-dark"
+                    options={{
+                      minimap: { enabled: false },
+                      fontSize: 14,
+                      lineHeight: 22,
+                      tabSize: 2,
+                      wordWrap: 'off',
+                      scrollBeyondLastLine: false,
+                      automaticLayout: true,
+                      formatOnPaste: true,
+                      formatOnType: true
+                    }}
+                    onMount={(editor) => editor.focus()}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-700/50 flex justify-end gap-3">
+              <button
+                onClick={() => setShowCodeDialog(false)}
+                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white rounded font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={insertCodeBlockFromDialog}
+                disabled={!codeContent.trim()}
+                className="px-4 py-2 bg-[#14C800] hover:bg-[#12b000] text-white rounded font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <FaCode />
+                Insert Code Block
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* HTML Source Dialog */}
+      {showHtmlDialog && createPortal(
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4">
+          <div className="bg-gray-900 border border-gray-700/50 rounded-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-gray-700/50 flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-semibold text-white flex items-center gap-2">
+                  <FaCode className="text-[#14C800]" />
+                  HTML Source Code Editor
+                </h3>
+                <p className="text-sm text-gray-400 mt-1">
+                  Edit the HTML source code directly. Changes will be applied when you click "Apply Changes".
+                </p>
+              </div>
+              <button
+                onClick={() => setShowHtmlDialog(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <FaTimes size={24} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-hidden p-6">
+              <div className="h-full border border-gray-700 rounded overflow-hidden">
+                <Editor
+                  height="600px"
+                  defaultLanguage="html"
+                  value={htmlSource}
+                  onChange={(value) => setHtmlSource(value || '')}
+                  theme="vs-dark"
+                  options={{
+                    minimap: { enabled: true },
+                    fontSize: 14,
+                    lineHeight: 22,
+                    tabSize: 2,
+                    wordWrap: 'on',
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
+                    formatOnPaste: true,
+                    formatOnType: true,
+                    bracketPairColorization: { enabled: true },
+                    autoClosingBrackets: 'always',
+                    autoClosingQuotes: 'always',
+                    autoIndent: 'full',
+                    folding: true,
+                    lineNumbers: 'on',
+                    matchBrackets: 'always',
+                    suggest: {
+                      showKeywords: true,
+                      showSnippets: true
+                    }
+                  }}
+                  onMount={(editor) => {
+                    editor.focus();
+                    editor.getAction('editor.action.formatDocument').run();
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-700/50 flex justify-between items-center">
+              <div className="text-xs text-gray-400 flex items-center gap-2">
+                <FaExclamationTriangle className="text-yellow-500" />
+                <span>Be careful when editing HTML directly. Invalid HTML may cause display issues.</span>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowHtmlDialog(false)}
+                  className="px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white rounded font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={applyHtmlSource}
+                  className="px-4 py-2 bg-[#14C800] hover:bg-[#12b000] text-white rounded font-medium transition-colors flex items-center gap-2"
+                >
+                  <FaCheck />
+                  Apply Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

@@ -1,5 +1,33 @@
 import React, { useState, useEffect, useRef, useContext, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import Editor from '@monaco-editor/react';
+import Prism from 'prismjs';
+import 'prismjs/themes/prism-tomorrow.css'; // GitHub-like dark theme
+// Import language support - order matters! Dependencies must be loaded first
+import 'prismjs/components/prism-markup'; // HTML/XML base
+import 'prismjs/components/prism-clike'; // Required for C++, Java, C#, etc.
+import 'prismjs/components/prism-javascript';
+import 'prismjs/components/prism-typescript';
+import 'prismjs/components/prism-python';
+import 'prismjs/components/prism-java';
+import 'prismjs/components/prism-csharp';
+import 'prismjs/components/prism-c'; // Required for C++
+import 'prismjs/components/prism-cpp';
+import 'prismjs/components/prism-markup-templating'; // Required for PHP
+import 'prismjs/components/prism-php';
+import 'prismjs/components/prism-ruby';
+import 'prismjs/components/prism-go';
+import 'prismjs/components/prism-rust';
+import 'prismjs/components/prism-swift';
+import 'prismjs/components/prism-kotlin';
+import 'prismjs/components/prism-sql';
+import 'prismjs/components/prism-css';
+import 'prismjs/components/prism-sass'; // Required for SCSS
+import 'prismjs/components/prism-scss';
+import 'prismjs/components/prism-json';
+import 'prismjs/components/prism-yaml';
+import 'prismjs/components/prism-markdown';
+import 'prismjs/components/prism-bash';
 import { useEditMode } from '../../context/EditModeContext';
 import { usePortfolio } from '../../context/PortfolioContext';
 import { portfolioApi } from '../../services/portfolioApi';
@@ -59,6 +87,8 @@ export const ContentEditableWYSIWYG = ({
   // Dialog states
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [showImageDialog, setShowImageDialog] = useState(false);
+  const [showCodeDialog, setShowCodeDialog] = useState(false);
+  const [showHtmlSourceDialog, setShowHtmlSourceDialog] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   const [linkText, setLinkText] = useState('');
   const [imageFile, setImageFile] = useState(null);
@@ -68,6 +98,9 @@ export const ContentEditableWYSIWYG = ({
   const [existingImages, setExistingImages] = useState([]);
   const [loadingExistingImages, setLoadingExistingImages] = useState(false);
   const [existingImagesError, setExistingImagesError] = useState(null);
+  const [codeContent, setCodeContent] = useState('');
+  const [codeLanguage, setCodeLanguage] = useState('javascript');
+  const [htmlSource, setHtmlSource] = useState('');
   const fileInputRef = useRef(null);
   const savedSelectionRef = useRef(null);
 
@@ -139,6 +172,44 @@ export const ContentEditableWYSIWYG = ({
     return () => document.removeEventListener('selectionchange', updateFormatState);
   }, [isEditing]);
 
+  // Ensure all code blocks are non-editable and have delete buttons
+  useEffect(() => {
+    if (!isEditing || !editorRef.current) return;
+
+    const makeCodeBlocksNonEditable = () => {
+      const codeBlocks = editorRef.current.querySelectorAll('pre');
+      codeBlocks.forEach(block => {
+        // Only set contenteditable="false" if it contains a code element
+        if (block.querySelector('code')) {
+          block.setAttribute('contenteditable', 'false');
+          
+          // Add delete button if not already present
+          if (!block.querySelector('.code-block-delete-btn')) {
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'code-block-delete-btn';
+            deleteBtn.innerHTML = '×';
+            deleteBtn.setAttribute('type', 'button');
+            deleteBtn.setAttribute('title', 'Delete code block');
+            deleteBtn.setAttribute('aria-label', 'Delete code block');
+            block.appendChild(deleteBtn);
+          }
+        }
+      });
+    };
+
+    // Set initially
+    makeCodeBlocksNonEditable();
+
+    // Create a MutationObserver to handle dynamically added code blocks
+    const observer = new MutationObserver(makeCodeBlocksNonEditable);
+    observer.observe(editorRef.current, {
+      childList: true,
+      subtree: true,
+    });
+
+    return () => observer.disconnect();
+  }, [isEditing, localValue]);
+
   /**
    * Fetch existing images that belong to the current entity (experience, project, etc.)
    */
@@ -188,6 +259,28 @@ export const ContentEditableWYSIWYG = ({
       setExistingImagesError(null);
     }
   }, [showImageDialog, entityType, fetchExistingImages]);
+
+  /**
+   * Highlight code blocks with Prism.js after rendering
+   */
+  useEffect(() => {
+    if (!isEditing) {
+      // Highlight all code blocks in display mode
+      try {
+        Prism.highlightAll();
+      } catch (error) {
+        console.warn('Prism highlighting error:', error);
+        // Fallback: try to highlight specific elements
+        document.querySelectorAll('pre code[class*="language-"]').forEach((block) => {
+          try {
+            Prism.highlightElement(block);
+          } catch (e) {
+            console.warn('Failed to highlight code block:', e);
+          }
+        });
+      }
+    }
+  }, [value, isEditing]);
 
   /**
    * Execute formatting command
@@ -434,6 +527,215 @@ export const ContentEditableWYSIWYG = ({
    */
   const applyHeading = (level) => {
     execCommand('formatBlock', `<h${level}>`);
+  };
+
+  /**
+   * Insert blockquote - Wrap selected text
+   */
+  const insertBlockquote = () => {
+    const selection = window.getSelection();
+    const selectedText = selection.toString();
+
+    if (selectedText) {
+      // Wrap selected text in blockquote
+      const blockquoteHtml = `<blockquote>${selectedText}</blockquote>`;
+      document.execCommand('insertHTML', false, blockquoteHtml);
+      handleContentChange();
+    } else {
+      // Insert empty blockquote
+      document.execCommand('formatBlock', false, '<blockquote>');
+    }
+    editorRef.current?.focus();
+  };
+
+  /**
+   * Insert code block - Show dialog
+   */
+  const insertCodeBlock = () => {
+    const selection = window.getSelection();
+    let selectedText = '';
+
+    if (selection && selection.rangeCount > 0) {
+      selectedText = selection.toString();
+      savedSelectionRef.current = selection.getRangeAt(0).cloneRange();
+    }
+
+    // Pre-fill with selected text if any
+    setCodeContent(selectedText || '');
+    setCodeLanguage('javascript');
+    setShowCodeDialog(true);
+  };
+
+  /**
+   * Handle code block insert/update from dialog
+   */
+  const handleInsertCodeBlock = () => {
+    if (codeContent.trim()) {
+      // Check if we're editing an existing code block
+      if (savedSelectionRef.current?.editingCodeBlock) {
+        const existingBlock = savedSelectionRef.current.editingCodeBlock;
+
+        // Update the existing code block
+        existingBlock.className = `code-block language-${codeLanguage} editable-code-block`;
+        existingBlock.dataset.language = codeLanguage;
+
+        const codeElement = existingBlock.querySelector('code');
+        codeElement.className = `language-${codeLanguage}`;
+        codeElement.textContent = codeContent;
+
+        // Apply syntax highlighting
+        setTimeout(() => {
+          Prism.highlightElement(codeElement);
+        }, 50);
+
+        handleContentChange();
+        showNotification('Success', 'Code block updated', 'success');
+      } else {
+        // Insert new code block
+        restoreEditorSelection();
+        editorRef.current?.focus();
+
+        // Create a code block with syntax highlighting classes and data attributes for editing
+        const codeHtml = `<br><pre class="code-block language-${codeLanguage} editable-code-block" data-language="${codeLanguage}" contenteditable="false"><code class="language-${codeLanguage}">${escapeHtml(codeContent)}</code></pre><br>`;
+        document.execCommand('insertHTML', false, codeHtml);
+        handleContentChange();
+
+        // Apply syntax highlighting immediately in edit mode
+        setTimeout(() => {
+          if (editorRef.current) {
+            const codeBlocks = editorRef.current.querySelectorAll('pre code[class*="language-"]');
+            codeBlocks.forEach(block => {
+              Prism.highlightElement(block);
+            });
+          }
+        }, 50);
+
+        showNotification('Success', 'Code block inserted', 'success');
+      }
+    }
+
+    setShowCodeDialog(false);
+    setCodeContent('');
+    savedSelectionRef.current = null;
+  };
+
+  /**
+   * Handle click on code block to edit it
+   */
+  const handleCodeBlockClick = useCallback((event) => {
+    if (!isEditing) return;
+
+    // Check if delete button was clicked
+    if (event.target.closest('.code-block-delete-btn')) {
+      const codeBlock = event.target.closest('pre');
+      if (codeBlock) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        // Remove the code block
+        codeBlock.remove();
+        handleContentChange();
+        showNotification('Success', 'Code block deleted', 'success');
+      }
+      return;
+    }
+
+    // Look for ANY pre element (not just those with .code-block class)
+    // This ensures we can edit code blocks even after they've been saved and reloaded
+    const codeBlock = event.target.closest('pre');
+    if (codeBlock) {
+      // Only handle pre elements that contain code elements (actual code blocks)
+      const codeElement = codeBlock.querySelector('code');
+      if (!codeElement) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      // Get existing code and language
+      const existingCode = codeElement.textContent;
+
+      // Try multiple methods to get the language:
+      // 1. From data-language attribute on pre
+      // 2. From class on pre (language-*)
+      // 3. From class on code element (language-*)
+      // 4. Default to javascript
+      let language = codeBlock.dataset.language;
+
+      if (!language) {
+        const preClassMatch = codeBlock.className.match(/language-(\w+)/);
+        if (preClassMatch) {
+          language = preClassMatch[1];
+        }
+      }
+
+      if (!language) {
+        const codeClassMatch = codeElement.className.match(/language-(\w+)/);
+        if (codeClassMatch) {
+          language = codeClassMatch[1];
+        }
+      }
+
+      language = language || 'javascript';
+
+      // Add necessary classes if not present (for consistent styling)
+      if (!codeBlock.classList.contains('code-block')) {
+        codeBlock.classList.add('code-block');
+      }
+      if (!codeBlock.classList.contains('editable-code-block')) {
+        codeBlock.classList.add('editable-code-block');
+      }
+      if (!codeBlock.classList.contains(`language-${language}`)) {
+        codeBlock.classList.add(`language-${language}`);
+      }
+
+      // Ensure contenteditable is false to prevent direct editing
+      codeBlock.setAttribute('contenteditable', 'false');
+
+      // Store reference to the code block being edited
+      savedSelectionRef.current = { editingCodeBlock: codeBlock };
+
+      // Open dialog with existing content
+      setCodeContent(existingCode);
+      setCodeLanguage(language);
+      setShowCodeDialog(true);
+    }
+  }, [isEditing]);
+
+  /**
+   * Escape HTML for safe insertion
+   */
+  const escapeHtml = (text) => {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  };
+
+  /**
+   * Toggle HTML source view
+   */
+  const toggleHtmlSource = () => {
+    if (!showHtmlSourceDialog) {
+      // Opening HTML source - get current content
+      setHtmlSource(editorRef.current?.innerHTML || localValue);
+    }
+    setShowHtmlSourceDialog(!showHtmlSourceDialog);
+  };
+
+  /**
+   * Apply HTML source changes
+   */
+  const applyHtmlSource = () => {
+    try {
+      // Update the editor content
+      if (editorRef.current) {
+        editorRef.current.innerHTML = htmlSource;
+        setLocalValue(htmlSource);
+      }
+      setShowHtmlSourceDialog(false);
+      showNotification('Success', 'HTML source updated', 'success');
+    } catch (err) {
+      showNotification('Error', 'Invalid HTML content', 'error');
+    }
   };
 
   /**
@@ -766,6 +1068,22 @@ export const ContentEditableWYSIWYG = ({
                 </button>
                 <button
                   type="button"
+                  onClick={insertCodeBlock}
+                  className="wysiwyg-toolbar-btn"
+                  title="Insert Code Block"
+                >
+                  &lt;/&gt;
+                </button>
+                <button
+                  type="button"
+                  onClick={insertBlockquote}
+                  className="wysiwyg-toolbar-btn"
+                  title="Insert Blockquote"
+                >
+                  ❝❞
+                </button>
+                <button
+                  type="button"
                   onClick={() => execCommand('insertHorizontalRule')}
                   className="wysiwyg-toolbar-btn"
                   title="Horizontal Line"
@@ -775,7 +1093,7 @@ export const ContentEditableWYSIWYG = ({
               </div>
 
               {/* Clear Formatting */}
-              <div className="flex gap-1">
+              <div className="flex gap-1 border-r border-white/10 pr-2">
                 <button
                   type="button"
                   onClick={() => execCommand('removeFormat')}
@@ -801,6 +1119,18 @@ export const ContentEditableWYSIWYG = ({
                   ↷
                 </button>
               </div>
+
+              {/* HTML Source */}
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={toggleHtmlSource}
+                  className="wysiwyg-toolbar-btn"
+                  title="View/Edit HTML Source"
+                >
+                  &lt;HTML&gt;
+                </button>
+              </div>
             </div>
 
             {/* Content Editor */}
@@ -809,7 +1139,39 @@ export const ContentEditableWYSIWYG = ({
                 ref={editorRef}
                 contentEditable={!isSaving}
                 onInput={handleContentChange}
+                onClick={handleCodeBlockClick}
+                onKeyDown={(e) => {
+                  // Prevent typing inside code blocks
+                  const selection = window.getSelection();
+                  if (selection && selection.anchorNode) {
+                    const codeBlock = selection.anchorNode.nodeType === Node.ELEMENT_NODE
+                      ? selection.anchorNode.closest('pre')
+                      : selection.anchorNode.parentElement?.closest('pre');
+                    
+                    if (codeBlock && codeBlock.querySelector('code')) {
+                      // Allow navigation keys but prevent typing
+                      const allowedKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'];
+                      if (!allowedKeys.includes(e.key)) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }
+                    }
+                  }
+                }}
                 onPaste={(e) => {
+                  // Prevent pasting inside code blocks
+                  const selection = window.getSelection();
+                  if (selection && selection.anchorNode) {
+                    const codeBlock = selection.anchorNode.nodeType === Node.ELEMENT_NODE
+                      ? selection.anchorNode.closest('pre')
+                      : selection.anchorNode.parentElement?.closest('pre');
+                    
+                    if (codeBlock && codeBlock.querySelector('code')) {
+                      e.preventDefault();
+                      return;
+                    }
+                  }
+
                   // Allow pasting but strip some problematic formatting
                   e.preventDefault();
                   const text = e.clipboardData.getData('text/html') || e.clipboardData.getData('text/plain');
@@ -1181,6 +1543,235 @@ export const ContentEditableWYSIWYG = ({
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Code Block Dialog */}
+      {showCodeDialog && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[60] p-4">
+          <div className="bg-[#03060a] border border-white/10 shadow-[0_20px_45px_rgba(10,15,30,0.55)] max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="px-4 py-3 border-b border-white/10">
+              <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                <svg className="w-5 h-5 text-[#14C800]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                </svg>
+                Insert Code Block
+              </h3>
+            </div>
+
+            {/* Content */}
+            <div className="p-4 space-y-4 flex-1 overflow-y-auto">
+              <div>
+                <label className="block text-sm font-medium text-white/80 mb-2">
+                  Programming Language
+                </label>
+                <select
+                  value={codeLanguage}
+                  onChange={(e) => setCodeLanguage(e.target.value)}
+                  className="w-full p-2 border bg-[#0f1117] text-white focus:outline-none focus:ring-2 focus:ring-[#14C800] border-white/10 rounded"
+                  style={{
+                    color: '#ffffff',
+                    backgroundColor: '#0f1117'
+                  }}
+                >
+                  <option value="javascript" style={{ backgroundColor: '#0f1117', color: '#ffffff' }}>JavaScript</option>
+                  <option value="typescript" style={{ backgroundColor: '#0f1117', color: '#ffffff' }}>TypeScript</option>
+                  <option value="python" style={{ backgroundColor: '#0f1117', color: '#ffffff' }}>Python</option>
+                  <option value="java" style={{ backgroundColor: '#0f1117', color: '#ffffff' }}>Java</option>
+                  <option value="csharp" style={{ backgroundColor: '#0f1117', color: '#ffffff' }}>C#</option>
+                  <option value="cpp" style={{ backgroundColor: '#0f1117', color: '#ffffff' }}>C++</option>
+                  <option value="php" style={{ backgroundColor: '#0f1117', color: '#ffffff' }}>PHP</option>
+                  <option value="ruby" style={{ backgroundColor: '#0f1117', color: '#ffffff' }}>Ruby</option>
+                  <option value="go" style={{ backgroundColor: '#0f1117', color: '#ffffff' }}>Go</option>
+                  <option value="rust" style={{ backgroundColor: '#0f1117', color: '#ffffff' }}>Rust</option>
+                  <option value="swift" style={{ backgroundColor: '#0f1117', color: '#ffffff' }}>Swift</option>
+                  <option value="kotlin" style={{ backgroundColor: '#0f1117', color: '#ffffff' }}>Kotlin</option>
+                  <option value="sql" style={{ backgroundColor: '#0f1117', color: '#ffffff' }}>SQL</option>
+                  <option value="html" style={{ backgroundColor: '#0f1117', color: '#ffffff' }}>HTML</option>
+                  <option value="css" style={{ backgroundColor: '#0f1117', color: '#ffffff' }}>CSS</option>
+                  <option value="scss" style={{ backgroundColor: '#0f1117', color: '#ffffff' }}>SCSS</option>
+                  <option value="json" style={{ backgroundColor: '#0f1117', color: '#ffffff' }}>JSON</option>
+                  <option value="yaml" style={{ backgroundColor: '#0f1117', color: '#ffffff' }}>YAML</option>
+                  <option value="markdown" style={{ backgroundColor: '#0f1117', color: '#ffffff' }}>Markdown</option>
+                  <option value="bash" style={{ backgroundColor: '#0f1117', color: '#ffffff' }}>Bash</option>
+                  <option value="shell" style={{ backgroundColor: '#0f1117', color: '#ffffff' }}>Shell</option>
+                  <option value="plaintext" style={{ backgroundColor: '#0f1117', color: '#ffffff' }}>Plain Text</option>
+                </select>
+              </div>
+
+              <div className="flex-1 flex flex-col">
+                <label className="block text-sm font-medium text-white/80 mb-2">
+                  Code Content
+                </label>
+                <div className="flex-1 border border-white/10 rounded overflow-hidden" style={{ minHeight: '450px' }}>
+                  <Editor
+                    height="450px"
+                    language={codeLanguage === 'plaintext' ? 'plaintext' : codeLanguage}
+                    value={codeContent}
+                    onChange={(value) => setCodeContent(value || '')}
+                    theme="vs-dark"
+                    options={{
+                      minimap: { enabled: false },
+                      fontSize: 14,
+                      lineHeight: 22,
+                      tabSize: 2,
+                      wordWrap: 'off',
+                      scrollBeyondLastLine: false,
+                      automaticLayout: true,
+                      formatOnPaste: true,
+                      formatOnType: true,
+                      scrollbar: {
+                        vertical: 'auto',
+                        horizontal: 'auto'
+                      }
+                    }}
+                    onMount={(editor) => {
+                      editor.focus();
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="text-xs text-white/60 flex items-center gap-2">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+                <span>Select the language and paste your code. Press Tab to indent, Escape to cancel.</span>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-4 py-3 border-t border-white/10 bg-transparent flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowCodeDialog(false);
+                  setCodeContent('');
+                  editorRef.current?.focus();
+                }}
+                className="btn-flat btn-flat-sm"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Cancel
+              </button>
+
+              <button
+                onClick={handleInsertCodeBlock}
+                disabled={!codeContent.trim()}
+                className="btn-flat btn-flat-sm btn-flat-active flex items-center gap-1.5"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Insert Code Block
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* HTML Source Dialog */}
+      {showHtmlSourceDialog && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[60] p-4">
+          <div className="bg-[#03060a] border border-white/10 shadow-[0_20px_45px_rgba(10,15,30,0.55)] max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="px-4 py-3 border-b border-white/10">
+              <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                <svg className="w-5 h-5 text-[#14C800]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                </svg>
+                HTML Source Code Editor
+              </h3>
+              <p className="text-xs text-white/60 mt-1">
+                Edit the HTML source code directly. Changes will be applied when you click "Apply Changes".
+              </p>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-hidden p-4">
+              <div className="h-full border border-white/10 rounded overflow-hidden">
+                <Editor
+                  height="600px"
+                  defaultLanguage="html"
+                  value={htmlSource}
+                  onChange={(value) => setHtmlSource(value || '')}
+                  theme="vs-dark"
+                  options={{
+                    minimap: { enabled: true },
+                    fontSize: 14,
+                    lineHeight: 22,
+                    tabSize: 2,
+                    wordWrap: 'on',
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
+                    formatOnPaste: true,
+                    formatOnType: true,
+                    bracketPairColorization: { enabled: true },
+                    autoClosingBrackets: 'always',
+                    autoClosingQuotes: 'always',
+                    autoIndent: 'full',
+                    folding: true,
+                    lineNumbers: 'on',
+                    matchBrackets: 'always',
+                    suggest: {
+                      showKeywords: true,
+                      showSnippets: true,
+                      snippetsPreventQuickSuggestions: false
+                    },
+                    quickSuggestions: {
+                      other: true,
+                      comments: false,
+                      strings: true
+                    }
+                  }}
+                  onMount={(editor) => {
+                    editor.focus();
+                    // Format the document on mount
+                    editor.getAction('editor.action.formatDocument').run();
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-4 py-3 border-t border-white/10 bg-transparent flex justify-between items-center">
+              <div className="text-xs text-white/60 flex items-center gap-2">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+                <span>Be careful when editing HTML directly. Invalid HTML may cause display issues.</span>
+              </div>
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setShowHtmlSourceDialog(false);
+                    editorRef.current?.focus();
+                  }}
+                  className="btn-flat btn-flat-sm"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Cancel
+                </button>
+
+                <button
+                  onClick={applyHtmlSource}
+                  className="btn-flat btn-flat-sm btn-flat-active flex items-center gap-1.5"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Apply Changes
+                </button>
+              </div>
             </div>
           </div>
         </div>,
