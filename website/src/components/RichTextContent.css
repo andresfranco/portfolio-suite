@@ -1,0 +1,198 @@
+/* Rich Text Content Display Styles */
+/* Styles for rendering HTML content from TipTap editor */
+
+.rich-text-content {
+  color: #d1d5db;
+  line-height: 1.75;
+}
+
+.rich-text-content p {
+  margin: 0.75rem 0;
+}
+
+.rich-text-content p:first-child {
+  margin-top: 0;
+}
+
+.rich-text-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* Headings */
+.rich-text-content h1,
+.rich-text-content h2,
+.rich-text-content h3,
+.rich-text-content h4,
+.rich-text-content h5,
+.rich-text-content h6 {
+  font-weight: 700;
+  color: #ffffff;
+  margin: 1.5rem 0 0.75rem;
+  line-height: 1.3;
+}
+
+.rich-text-content h1:first-child,
+.rich-text-content h2:first-child,
+.rich-text-content h3:first-child,
+.rich-text-content h4:first-child,
+.rich-text-content h5:first-child,
+.rich-text-content h6:first-child {
+  margin-top: 0;
+}
+
+.rich-text-content h1 {
+  font-size: 2rem;
+  line-height: 1.2;
+}
+
+.rich-text-content h2 {
+  font-size: 1.5rem;
+}
+
+.rich-text-content h3 {
+  font-size: 1.25rem;
+}
+
+.rich-text-content h4 {
+  font-size: 1.1rem;
+}
+
+.rich-text-content h5 {
+  font-size: 1rem;
+}
+
+.rich-text-content h6 {
+  font-size: 0.9rem;
+}
+
+/* Lists */
+.rich-text-content ul,
+.rich-text-content ol {
+  padding-left: 1.5rem;
+  margin: 0.75rem 0;
+}
+
+.rich-text-content li {
+  margin: 0.25rem 0;
+  color: #d1d5db;
+}
+
+.rich-text-content ul {
+  list-style-type: disc;
+}
+
+.rich-text-content ol {
+  list-style-type: decimal;
+}
+
+.rich-text-content ul ul,
+.rich-text-content ol ul {
+  list-style-type: circle;
+}
+
+.rich-text-content ol ol,
+.rich-text-content ul ol {
+  list-style-type: lower-alpha;
+}
+
+/* Blockquote */
+.rich-text-content blockquote {
+  border-left: 4px solid #14C800;
+  padding-left: 1rem;
+  margin: 1rem 0;
+  font-style: italic;
+  color: #9ca3af;
+}
+
+/* Code */
+.rich-text-content code {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #14C800;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.9em;
+}
+
+.rich-text-content pre {
+  background-color: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin: 1rem 0;
+  overflow-x: auto;
+}
+
+.rich-text-content pre code {
+  background-color: transparent;
+  padding: 0;
+  color: #e5e7eb;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* Links */
+.rich-text-content a {
+  color: #14C800;
+  text-decoration: underline;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.rich-text-content a:hover {
+  color: #12b000;
+}
+
+/* Images */
+.rich-text-content img,
+.rich-text-content img.tiptap-image {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+  display: block;
+}
+
+/* Horizontal Rule */
+.rich-text-content hr {
+  border: none;
+  border-top: 2px solid rgba(255, 255, 255, 0.1);
+  margin: 2rem 0;
+}
+
+/* Text alignment */
+.rich-text-content [style*="text-align: left"] {
+  text-align: left;
+}
+
+.rich-text-content [style*="text-align: center"] {
+  text-align: center;
+}
+
+.rich-text-content [style*="text-align: right"] {
+  text-align: right;
+}
+
+.rich-text-content [style*="text-align: justify"] {
+  text-align: justify;
+}
+
+/* Strong and emphasis */
+.rich-text-content strong {
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.rich-text-content em {
+  font-style: italic;
+}
+
+.rich-text-content u {
+  text-decoration: underline;
+}
+
+.rich-text-content s {
+  text-decoration: line-through;
+}
+
+/* Font sizes (inline styles from editor are preserved automatically) */

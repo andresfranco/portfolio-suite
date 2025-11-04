@@ -22,11 +22,16 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
   const [editingSection, setEditingSection] = useState(null);
   const [showAddSectionDialog, setShowAddSectionDialog] = useState(false);
   const [confirmDeleteSection, setConfirmDeleteSection] = useState(null);
+  const [showSkillsManager, setShowSkillsManager] = useState(false);
+  const [selectedSkillsToRemove, setSelectedSkillsToRemove] = useState(new Set());
 
   // State for main section ordering (UI layout)
   const defaultSectionOrder = ['title', 'image', 'description', 'skills', 'sections'];
   const [sectionOrder, setSectionOrder] = useState(defaultSectionOrder);
   const isReorderingRef = useRef(false);
+  
+  // Ref to scroll to skills section
+  const skillsSectionRef = useRef(null);
 
   // State for project sections ordering (actual database sections)
   const [projectSections, setProjectSections] = useState([]);
@@ -233,6 +238,104 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
     setTimeout(() => {
       isReorderingSectionsRef.current = false;
     }, 500);
+  };
+
+  /**
+   * Handle skill removal
+   */
+  const handleRemoveSkill = async (skillId) => {
+    if (!authToken || !project?.id) return;
+
+    try {
+      await portfolioApi.removeSkillFromProject(project.id, skillId, authToken);
+      await refreshPortfolio();
+      showNotification('Skill Removed', 'The skill has been removed from this project.', 'success');
+      
+      // Scroll to skills section to keep focus
+      setTimeout(() => {
+        skillsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    } catch (error) {
+      console.error('Failed to remove skill:', error);
+      showNotification('Remove Failed', error.message || 'Failed to remove skill', 'error');
+    }
+  };
+
+  /**
+   * Handle multiple skills removal
+   */
+  const handleRemoveSelectedSkills = async () => {
+    if (!authToken || !project?.id || selectedSkillsToRemove.size === 0) return;
+
+    try {
+      let successCount = 0;
+      let failCount = 0;
+
+      // Remove skills in parallel
+      const promises = Array.from(selectedSkillsToRemove).map(async (skillId) => {
+        try {
+          await portfolioApi.removeSkillFromProject(project.id, skillId, authToken);
+          successCount++;
+        } catch (error) {
+          console.error(`Failed to remove skill ${skillId}:`, error);
+          failCount++;
+        }
+      });
+
+      await Promise.all(promises);
+
+      if (successCount > 0) {
+        await refreshPortfolio();
+        setSelectedSkillsToRemove(new Set());
+        showNotification(
+          'Skills Removed', 
+          `Successfully removed ${successCount} skill${successCount > 1 ? 's' : ''} from this project.`, 
+          'success'
+        );
+        
+        // Scroll to skills section to keep focus
+        setTimeout(() => {
+          skillsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
+      }
+
+      if (failCount > 0) {
+        showNotification('Partial Failure', `Failed to remove ${failCount} skill(s)`, 'error');
+      }
+    } catch (error) {
+      console.error('Failed to remove skills:', error);
+      showNotification('Remove Failed', error.message || 'Failed to remove skills', 'error');
+    }
+  };
+
+  /**
+   * Toggle skill selection for removal
+   */
+  const toggleSkillSelection = (skillId) => {
+    const newSelection = new Set(selectedSkillsToRemove);
+    if (newSelection.has(skillId)) {
+      newSelection.delete(skillId);
+    } else {
+      newSelection.add(skillId);
+    }
+    setSelectedSkillsToRemove(newSelection);
+  };
+
+  /**
+   * Select all skills for removal
+   */
+  const selectAllSkills = () => {
+    if (project.skills && project.skills.length > 0) {
+      const allSkillIds = new Set(project.skills.map(s => s.id));
+      setSelectedSkillsToRemove(allSkillIds);
+    }
+  };
+
+  /**
+   * Clear skill selection
+   */
+  const clearSkillSelection = () => {
+    setSelectedSkillsToRemove(new Set());
   };
 
   /**
@@ -557,7 +660,8 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
                         );
                       
                       case 'skills':
-                        return project.skills && project.skills.length > 0 ? (
+                        // Show skills section if there are skills OR if in edit mode
+                        return (project.skills && project.skills.length > 0) || isEditMode ? (
                           <DraggableProjectSection
                             key="skills"
                             sectionType="skills"
@@ -565,22 +669,98 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
                             isEditMode={isEditMode}
                             className="mt-8 mb-12"
                           >
-                            <h2 className="text-2xl font-bold text-white mb-6">
-                              {skillsTechLabel.renderEditable('text-2xl font-bold text-white mb-6')}
-                            </h2>
-                            <div className="flex flex-wrap gap-3">
-                              {project.skills.map((skill, skillIndex) => {
-                                const skillName = getSkillName(skill);
-                                if (!skillName) return null;
-                                return (
-                                  <span
-                                    key={skill.id || skillIndex}
-                                    className="chip chip-lg"
-                                  >
-                                    {skillName}
-                                  </span>
-                                );
-                              })}
+                            <div ref={skillsSectionRef} className="scroll-mt-32">
+                              <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-2xl font-bold text-white">
+                                  {skillsTechLabel.renderEditable('text-2xl font-bold text-white')}
+                                </h2>
+                                {isEditMode && (
+                                  <div className="flex gap-2">
+                                    {project.skills && project.skills.length > 0 && (
+                                      <>
+                                        {selectedSkillsToRemove.size > 0 ? (
+                                          <>
+                                            <button
+                                              onClick={clearSkillSelection}
+                                              className="btn-flat btn-flat-sm flex items-center gap-2 bg-gray-700 hover:bg-gray-600"
+                                            >
+                                              Clear ({selectedSkillsToRemove.size})
+                                            </button>
+                                            <button
+                                              onClick={handleRemoveSelectedSkills}
+                                              className="btn-flat btn-flat-sm flex items-center gap-2 bg-red-500/20 border-red-500 hover:bg-red-500/30 text-red-400"
+                                            >
+                                              <FaPlus size={14} className="rotate-45" />
+                                              <span>Remove {selectedSkillsToRemove.size}</span>
+                                            </button>
+                                          </>
+                                        ) : (
+                                          <button
+                                            onClick={selectAllSkills}
+                                            className="btn-flat btn-flat-sm flex items-center gap-2"
+                                          >
+                                            Select All
+                                          </button>
+                                        )}
+                                      </>
+                                    )}
+                                    <button
+                                      onClick={() => {
+                                        setShowSkillsManager(true);
+                                        clearSkillSelection();
+                                      }}
+                                      className="btn-flat btn-flat-sm flex items-center gap-2"
+                                    >
+                                      <FaPlus size={14} />
+                                      <span>Add Skills</span>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                              {project.skills && project.skills.length > 0 ? (
+                                <div className="flex flex-wrap gap-3">
+                                  {project.skills.map((skill, skillIndex) => {
+                                    const skillName = getSkillName(skill);
+                                    if (!skillName) return null;
+                                    const isSelected = selectedSkillsToRemove.has(skill.id);
+                                    return (
+                                      <div key={skill.id || skillIndex} className="relative group">
+                                        <button
+                                          onClick={() => isEditMode && toggleSkillSelection(skill.id)}
+                                          disabled={!isEditMode}
+                                          className={`
+                                            chip chip-lg transition-all duration-200 cursor-pointer
+                                            ${isEditMode ? 'hover:scale-105' : ''}
+                                            ${isSelected 
+                                              ? 'bg-red-500/20 border-red-500 text-red-400 ring-2 ring-red-500/50' 
+                                              : ''
+                                            }
+                                          `}
+                                        >
+                                          {skillName}
+                                          {isEditMode && isSelected && (
+                                            <span className="ml-1 text-red-400">✓</span>
+                                          )}
+                                        </button>
+                                        {isEditMode && !isSelected && (
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleRemoveSkill(skill.id);
+                                            }}
+                                            className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs z-10"
+                                            title="Remove skill"
+                                          >
+                                            ✕
+                                          </button>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : isEditMode ? (
+                                <p className="text-gray-400">No skills added yet. Click "Add Skills" to add some.</p>
+                              ) : null}
                             </div>
                           </DraggableProjectSection>
                         ) : null;
@@ -594,14 +774,14 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
                             isEditMode={isEditMode}
                           >
                             {/* Project Sections with Individual Drag and Drop */}
-                            <div className="mt-8">
+                            <div className="mt-8 scroll-mt-40">
                               <DragDropContext onDragEnd={handleProjectSectionsDragEnd}>
                                 <Droppable droppableId="project-sections-list" isDropDisabled={!isEditMode}>
                                   {(provided, snapshot) => (
                                     <div
                                       ref={provided.innerRef}
                                       {...provided.droppableProps}
-                                      className={`space-y-8 transition-all duration-300 ${
+                                      className={`space-y-8 transition-all duration-300 scroll-mt-40 ${
                                         snapshot.isDraggingOver && isEditMode 
                                           ? 'droppable-container is-dragging-over bg-[#14C800]/5 ring-1 ring-[#14C800]/30 ring-inset p-4 rounded-lg' 
                                           : ''
@@ -801,6 +981,320 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
           </div>
         </div>
       )}
+
+      {/* Skills Manager Dialog */}
+      {showSkillsManager && (
+        <SkillsManagerDialog
+          projectId={project.id}
+          currentSkills={project.skills || []}
+          authToken={authToken}
+          language={language}
+          onClose={() => setShowSkillsManager(false)}
+          onUpdate={async () => {
+            await refreshPortfolio();
+            showNotification('Skills Updated', 'Project skills have been updated successfully.', 'success');
+            
+            // Scroll to skills section after a brief delay
+            setTimeout(() => {
+              skillsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300);
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+// Skills Manager Dialog Component
+const SkillsManagerDialog = ({ projectId, currentSkills, authToken, language, onClose, onUpdate }) => {
+  const [availableSkills, setAvailableSkills] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedSkills, setSelectedSkills] = useState(new Set());
+  const [adding, setAdding] = useState(false);
+  const [addedCount, setAddedCount] = useState(0);
+
+  useEffect(() => {
+    fetchAvailableSkills();
+  }, []);
+
+  const fetchAvailableSkills = async () => {
+    try {
+      setLoading(true);
+      const response = await portfolioApi.getAllSkills(authToken);
+      // Backend returns paginated response with items array
+      setAvailableSkills(response?.items || []);
+    } catch (error) {
+      console.error('Failed to fetch skills:', error);
+      setAvailableSkills([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getSkillName = (skill) => {
+    if (!skill) return '';
+    if (skill.skill_texts && skill.skill_texts.length > 0) {
+      const skillText = skill.skill_texts.find(text => 
+        text.language_code === language || text.language_id === (language === 'en' ? 1 : 2)
+      );
+      if (skillText?.name) return skillText.name;
+      if (skill.skill_texts[0]?.name) return skill.skill_texts[0].name;
+    }
+    return skill.name || skill.type || '';
+  };
+
+  const currentSkillIds = new Set(currentSkills.map(s => s.id));
+  
+  const filteredSkills = availableSkills.filter(skill => {
+    if (currentSkillIds.has(skill.id)) return false;
+    const skillName = getSkillName(skill).toLowerCase();
+    return skillName.includes(searchTerm.toLowerCase());
+  });
+
+  const toggleSkillSelection = (skillId) => {
+    const newSelection = new Set(selectedSkills);
+    if (newSelection.has(skillId)) {
+      newSelection.delete(skillId);
+    } else {
+      newSelection.add(skillId);
+    }
+    setSelectedSkills(newSelection);
+  };
+
+  const selectAll = () => {
+    const allFilteredIds = new Set(filteredSkills.map(s => s.id));
+    setSelectedSkills(allFilteredIds);
+  };
+
+  const clearSelection = () => {
+    setSelectedSkills(new Set());
+  };
+
+  const handleAddSelectedSkills = async () => {
+    if (selectedSkills.size === 0) return;
+    
+    try {
+      setAdding(true);
+      let successCount = 0;
+      let failCount = 0;
+
+      // Add skills in parallel for better performance
+      const promises = Array.from(selectedSkills).map(async (skillId) => {
+        try {
+          await portfolioApi.addSkillToProject(projectId, skillId, authToken);
+          successCount++;
+        } catch (error) {
+          console.error(`Failed to add skill ${skillId}:`, error);
+          failCount++;
+        }
+      });
+
+      await Promise.all(promises);
+
+      if (successCount > 0) {
+        setAddedCount(successCount);
+        await onUpdate();
+        setSelectedSkills(new Set());
+        await fetchAvailableSkills();
+        
+        // Show success message
+        setTimeout(() => setAddedCount(0), 3000);
+      }
+
+      if (failCount > 0) {
+        console.error(`Failed to add ${failCount} skill(s)`);
+      }
+    } catch (error) {
+      console.error('Failed to add skills:', error);
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4">
+      <div className="bg-gray-800 rounded-xl p-6 max-w-3xl w-full border border-gray-700 max-h-[85vh] flex flex-col">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h3 className="text-2xl font-bold text-white mb-1">Manage Skills</h3>
+            <p className="text-sm text-gray-400">
+              Select multiple skills to add them to your project
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-white transition-colors text-2xl leading-none"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Search and Actions Bar */}
+        <div className="space-y-3 mb-4">
+          <input
+            type="text"
+            placeholder="Search skills..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-4 py-2.5 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-[#14C800] focus:outline-none transition-colors"
+          />
+          
+          {/* Selection Actions */}
+          {filteredSkills.length > 0 && (
+            <div className="flex items-center justify-between">
+              <div className="flex gap-2">
+                <button
+                  onClick={selectAll}
+                  disabled={adding}
+                  className="text-sm text-[#14C800] hover:text-[#12b000] transition-colors disabled:opacity-50"
+                >
+                  Select All ({filteredSkills.length})
+                </button>
+                {selectedSkills.size > 0 && (
+                  <>
+                    <span className="text-gray-600">|</span>
+                    <button
+                      onClick={clearSelection}
+                      disabled={adding}
+                      className="text-sm text-gray-400 hover:text-white transition-colors disabled:opacity-50"
+                    >
+                      Clear Selection
+                    </button>
+                  </>
+                )}
+              </div>
+              
+              {selectedSkills.size > 0 && (
+                <span className="text-sm text-gray-400">
+                  {selectedSkills.size} selected
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Skills Grid */}
+        <div className="flex-1 overflow-y-auto mb-4 pr-2 custom-scrollbar">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <div className="w-12 h-12 border-4 border-gray-600 border-t-[#14C800] rounded-full animate-spin mx-auto mb-3"></div>
+                <p className="text-gray-400">Loading skills...</p>
+              </div>
+            </div>
+          ) : filteredSkills.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-400 text-lg mb-2">
+                {searchTerm ? '🔍 No skills found' : '✨ All skills added!'}
+              </p>
+              <p className="text-gray-500 text-sm">
+                {searchTerm 
+                  ? 'Try adjusting your search term' 
+                  : 'All available skills are already in this project'}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {filteredSkills.map(skill => {
+                const isSelected = selectedSkills.has(skill.id);
+                return (
+                  <button
+                    key={skill.id}
+                    onClick={() => toggleSkillSelection(skill.id)}
+                    disabled={adding}
+                    className={`
+                      flex items-center justify-between p-3 rounded-lg transition-all duration-200
+                      ${isSelected 
+                        ? 'bg-[#14C800]/20 border-2 border-[#14C800] shadow-lg shadow-[#14C800]/20' 
+                        : 'bg-gray-700/50 border-2 border-transparent hover:bg-gray-700 hover:border-gray-600'
+                      }
+                      disabled:opacity-50 disabled:cursor-not-allowed
+                      group
+                    `}
+                  >
+                    <span className={`text-sm font-medium ${isSelected ? 'text-white' : 'text-gray-300'}`}>
+                      {getSkillName(skill)}
+                    </span>
+                    <div className={`
+                      w-5 h-5 rounded border-2 flex items-center justify-center transition-all
+                      ${isSelected 
+                        ? 'bg-[#14C800] border-[#14C800]' 
+                        : 'border-gray-600 group-hover:border-gray-500'
+                      }
+                    `}>
+                      {isSelected && (
+                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Current Skills Summary */}
+        {currentSkills.length > 0 && (
+          <div className="border-t border-gray-700 pt-4 mb-4">
+            <p className="text-sm text-gray-400 mb-3">
+              Current skills ({currentSkills.length}):
+            </p>
+            <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto custom-scrollbar pr-2">
+              {currentSkills.map(skill => (
+                <span 
+                  key={skill.id} 
+                  className="chip chip-sm bg-gray-700 text-gray-300 border border-gray-600"
+                >
+                  {getSkillName(skill)}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Success Message */}
+        {addedCount > 0 && (
+          <div className="mb-4 p-3 bg-[#14C800]/20 border border-[#14C800] rounded-lg">
+            <p className="text-[#14C800] text-sm font-medium text-center">
+              ✓ Successfully added {addedCount} skill{addedCount > 1 ? 's' : ''}!
+            </p>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex gap-3 justify-end">
+          <button
+            onClick={onClose}
+            disabled={adding}
+            className="px-6 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Close
+          </button>
+          {selectedSkills.size > 0 && (
+            <button
+              onClick={handleAddSelectedSkills}
+              disabled={adding}
+              className="px-6 py-2.5 bg-[#14C800] hover:bg-[#12b000] text-white rounded-lg transition-all flex items-center gap-2 font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#14C800]/30"
+            >
+              {adding ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  <span>Adding...</span>
+                </>
+              ) : (
+                <>
+                  <FaPlus size={14} />
+                  <span>Add {selectedSkills.size} Skill{selectedSkills.size > 1 ? 's' : ''}</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

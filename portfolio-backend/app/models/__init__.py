@@ -5,7 +5,7 @@ from app.models.language import Language
 from app.models.translation import Translation
 from app.models.portfolio import Portfolio
 from app.models.section import Section, SectionText, SectionImage, SectionAttachment
-from app.models.experience import Experience
+from app.models.experience import Experience, ExperienceImage
 from app.models.project import Project
 from app.models.category_type import CategoryType
 from app.models.category import Category
