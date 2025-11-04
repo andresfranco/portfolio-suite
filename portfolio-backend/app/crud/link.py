@@ -385,6 +385,34 @@ def update_portfolio_link(db: Session, link_id: int, link: PortfolioLinkUpdate) 
 
 
 @db_transaction
+def set_portfolio_link_image(db: Session, link_id: int, image_path: Optional[str]) -> Optional[PortfolioLink]:
+    """
+    Update the image_path for a portfolio link.
+
+    Args:
+        db: Database session
+        link_id: ID of the portfolio link
+        image_path: New image path to set, or None to remove the image
+
+    Returns:
+        Updated PortfolioLink or None if not found
+    """
+    logger.debug(f"Setting image for portfolio link ID: {link_id} to {image_path}")
+
+    db_link = get_portfolio_link(db, link_id)
+    if not db_link:
+        logger.warning(f"Portfolio link not found when setting image: {link_id}")
+        return None
+
+    db_link.image_path = image_path
+    db.flush()
+    logger.info(f"Updated image for portfolio link {link_id}")
+
+    db.refresh(db_link)
+    return db_link
+
+
+@db_transaction
 def delete_portfolio_link(db: Session, link_id: int) -> Optional[PortfolioLink]:
     """Delete a portfolio link."""
     logger.debug(f"Deleting portfolio link ID: {link_id}")

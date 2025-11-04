@@ -344,6 +344,59 @@ function ProjectIndexContent() {
     navigate(`/projects/${project.id}`); // Opens Overview tab by default
   };
 
+  // Handle opening project in website CMS edit mode
+  const handleViewInCMS = async (project, event) => {
+    console.log('🚀🚀🚀 HANDLE VIEW IN CMS CALLED! 🚀🚀🚀');
+    
+    // Prevent default behavior and stop propagation
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
+    try {
+      console.log('Opening project in CMS:', project);
+      console.log('Project ID:', project.id);
+      console.log('Project slug:', project.slug);
+      
+      // Generate website token from backend
+      const tokenResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/auth/generate-website-token`, {
+        credentials: 'include', // Include cookies for authentication
+      });
+      
+      if (!tokenResponse.ok) {
+        const errorText = await tokenResponse.text();
+        console.error('Token generation failed:', tokenResponse.status, errorText);
+        throw new Error('Failed to generate token');
+      }
+      
+      const data = await tokenResponse.json();
+      console.log('Token response:', data);
+      
+      // Backend returns 'access_token', not 'token'
+      const token = data.access_token || data.token;
+      
+      if (token) {
+        const websiteUrl = process.env.REACT_APP_WEBSITE_URL || 'http://localhost:3000';
+        
+        // Always use ID since slug might be empty or undefined
+        const projectIdentifier = project.id;
+        console.log('Using project ID:', projectIdentifier);
+        
+        const projectUrl = `${websiteUrl}/en/projects/${projectIdentifier}?token=${token}&edit=true`;
+        
+        console.log('Opening URL:', projectUrl);
+        
+        // Open in new tab
+        window.open(projectUrl, '_blank');
+      } else {
+        console.error('No token in response:', data);
+      }
+    } catch (err) {
+      console.error('Error opening project in CMS:', err);
+    }
+  };
+
   // Define columns for the grid
   const baseColumns = useMemo(() => [
     { 
@@ -596,7 +649,7 @@ function ProjectIndexContent() {
     {
       field: 'actions',
       headerName: 'Actions',
-      width: 150,
+      width: 180,
       sortable: false,
       disableColumnMenu: true,
       renderCell: (params) => (
@@ -612,6 +665,20 @@ function ProjectIndexContent() {
                 sx={{ color: '#1976d2', p: 0.5, mr: 0.5 }}
               >
                 <DashboardIcon fontSize="small" />
+              </IconButton>
+            </PermissionGate>
+          </Tooltip>
+          <Tooltip title="Edit in Website CMS">
+            <PermissionGate
+              permissions={["EDIT_PROJECT", "MANAGE_PROJECTS", "SYSTEM_ADMIN"]}
+              requireAll={false}
+            >
+              <IconButton
+                onClick={(e) => handleViewInCMS(params.row, e)}
+                size="small"
+                sx={{ color: '#43a047', p: 0.5, mr: 0.5 }}
+              >
+                <EditIcon fontSize="small" />
               </IconButton>
             </PermissionGate>
           </Tooltip>
