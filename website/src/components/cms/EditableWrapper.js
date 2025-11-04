@@ -104,6 +104,7 @@ export const EditableTextWrapper = ({
   className = '',
   label = 'Edit text',
   disabled = false,
+  block = false,
 }) => {
   const { isEditMode } = useEditMode();
 
@@ -114,12 +115,12 @@ export const EditableTextWrapper = ({
   const handleClick = (e) => {
     // Allow Ctrl/Cmd+Click to propagate (for following links)
     const isModifierClick = e.ctrlKey || e.metaKey;
-    
+
     if (isModifierClick) {
       // Let the click propagate for link following
       return;
     }
-    
+
     if (!disabled && onEdit) {
       e.stopPropagation();
       e.preventDefault();
@@ -127,9 +128,12 @@ export const EditableTextWrapper = ({
     }
   };
 
+  const Element = block ? 'div' : 'span';
+  const displayClass = block ? 'block' : 'inline-block';
+
   return (
-    <span
-      className={`relative inline-block group ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} ${className}`}
+    <Element
+      className={`relative ${displayClass} group ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} ${className}`}
       onClick={handleClick}
       style={disabled ? { pointerEvents: 'none' } : {}}
     >
@@ -140,8 +144,8 @@ export const EditableTextWrapper = ({
       
       {/* Edit icon */}
       <span className={`
-        absolute -top-1 -right-6 
-        opacity-0 group-hover:opacity-100 
+        absolute -top-1 -right-6
+        opacity-0 group-hover:opacity-100
         transition-opacity
         ${disabled ? 'text-gray-400' : 'text-blue-500'}
       `}>
@@ -149,7 +153,7 @@ export const EditableTextWrapper = ({
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
         </svg>
       </span>
-    </span>
+    </Element>
   );
 };
 

@@ -223,19 +223,20 @@ export const InlineTextEditor = ({
   
   // If not in edit mode, just display the value
   if (!isEditMode) {
+    const Element = multiline ? 'div' : 'span';
     return (
-      <span className={className}>
+      <Element className={className}>
         {value || <span className="text-gray-400 italic">{placeholder}</span>}
-      </span>
+      </Element>
     );
   }
   
   // If in edit mode but not editing this field
   if (!isEditing) {
     const isDisabled = activeEditor && activeEditor !== editorId;
-    
+
     return (
-      <EditableTextWrapper 
+      <EditableTextWrapper
         onEdit={() => {
           // Check if another editor is already active
           if (activeEditor && activeEditor !== editorId) {
@@ -251,6 +252,7 @@ export const InlineTextEditor = ({
         }}
         className={className}
         disabled={isDisabled}
+        block={multiline}
       >
         {value || <span className="text-gray-400 italic">{placeholder}</span>}
       </EditableTextWrapper>
