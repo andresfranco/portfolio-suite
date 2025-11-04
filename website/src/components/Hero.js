@@ -319,6 +319,52 @@ const Hero = () => {
     return resumeFileName || `${language}_resume.pdf`;
   };
 
+  // Function to handle resume download
+  const handleResumeDownload = async (e) => {
+    e.preventDefault();
+
+    // In edit mode, prevent download unless Ctrl/Cmd+Click
+    if (isEditMode && !e.ctrlKey && !e.metaKey) {
+      e.stopPropagation();
+      return;
+    }
+
+    const url = getResumeFile();
+    if (!url) return;
+
+    try {
+      // Fetch the file as a blob
+      const response = await fetch(url, {
+        credentials: 'include',
+        mode: 'cors'
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download resume');
+      }
+
+      const blob = await response.blob();
+
+      // Create a temporary URL for the blob
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      // Create a temporary anchor element and trigger download
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = getResumeFileName();
+      document.body.appendChild(link);
+      link.click();
+
+      // Clean up
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error('Error downloading resume:', error);
+      // Fallback: open in new tab if download fails
+      window.open(url, '_blank');
+    }
+  };
+
   /**
    * Handle drag end event to reorder experiences
    */
@@ -625,16 +671,8 @@ const Hero = () => {
 
                 {/* Download CV button - editable label in edit mode */}
                   {resumeUrl ? (
-                    <a
-                      href={getResumeFile()}
-                      download={getResumeFileName()}
-                      onClick={(e) => {
-                      // In edit mode, prevent download unless Ctrl/Cmd+Click
-                      if (isEditMode && !e.ctrlKey && !e.metaKey) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                      }
-                      }}
+                    <button
+                      onClick={handleResumeDownload}
                       title={isEditMode ? "Click to edit • Ctrl/Cmd+Click to download" : "Download CV"}
                       className="btn-flat btn-flat-lg inline-flex items-center justify-center whitespace-nowrap text-base md:text-lg xl:text-xl"
                     >
@@ -654,7 +692,7 @@ const Hero = () => {
                     ) : (
                       downloadCvValue
                     )}
-                  </a>
+                  </button>
                   ) : (
                     <button
                       disabled
