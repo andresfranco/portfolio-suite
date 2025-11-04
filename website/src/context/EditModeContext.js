@@ -86,15 +86,28 @@ export const EditModeProvider = ({ children }) => {
         const urlToken = urlParams.get('token');
         const editMode = urlParams.get('edit') === 'true';
 
+        console.log('🔐 EditModeContext: Loading auth', {
+          urlToken: urlToken ? `${urlToken.substring(0, 20)}...` : 'null',
+          editMode,
+          hasUrlToken: !!urlToken,
+          fullUrl: window.location.href
+        });
+
         if (urlToken && editMode) {
+          console.log('🔐 Token found in URL, verifying...');
+          
           // Token from URL - verify and store it
           const isValid = await verifyAndLoadUser(urlToken);
+          
+          console.log('🔐 Token verification result:', isValid);
           
           if (isValid) {
             setAuthToken(urlToken);
             setIsEditMode(true);
             localStorage.setItem(TOKEN_KEY, urlToken);
             localStorage.setItem(EDIT_MODE_KEY, 'true');
+            
+            console.log('✅ Edit mode activated successfully!');
             
             // Clean URL params after storing token
             const newUrl = window.location.pathname + window.location.hash;
@@ -107,7 +120,7 @@ export const EditModeProvider = ({ children }) => {
               'success'
             );
           } else {
-            console.error('Invalid token from URL');
+            console.error('❌ Invalid token from URL');
             setError('Invalid authentication token');
             showNotification(
               'Authentication Failed',
@@ -160,10 +173,14 @@ export const EditModeProvider = ({ children }) => {
    */
   const verifyAndLoadUser = async (token) => {
     try {
+      console.log('🔍 Verifying token...');
       const isValid = await verifyToken(token);
+      console.log('🔍 Token valid:', isValid);
+      
       if (!isValid) return false;
 
       // Fetch user details with permissions
+      console.log('👤 Fetching user data...');
       const response = await fetch(`${API_BASE_URL}/api/users/me`, {
         method: 'GET',
         headers: {
@@ -171,15 +188,19 @@ export const EditModeProvider = ({ children }) => {
         },
       });
 
+      console.log('👤 User data response status:', response.status);
+      
       if (!response.ok) return false;
 
       const userData = await response.json();
+      console.log('👤 User data loaded:', userData.username);
+      
       setUser(userData);
       localStorage.setItem(USER_KEY, JSON.stringify(userData));
       
       return true;
     } catch (err) {
-      console.error('Error verifying token and loading user:', err);
+      console.error('❌ Error verifying token and loading user:', err);
       return false;
     }
   };
@@ -191,15 +212,17 @@ export const EditModeProvider = ({ children }) => {
    */
   const verifyToken = async (token) => {
     try {
+      console.log('🔐 Calling /api/auth/verify...');
       const response = await fetch(`${API_BASE_URL}/api/auth/verify`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
+      console.log('🔐 Verify response status:', response.status);
       return response.ok;
     } catch (err) {
-      console.error('Token verification failed:', err);
+      console.error('❌ Token verification failed:', err);
       return false;
     }
   };

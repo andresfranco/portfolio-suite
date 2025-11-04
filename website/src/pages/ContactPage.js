@@ -1,20 +1,34 @@
-import React, { useState, useContext, useEffect } from 'react'; // Import useContext
-import { FaGithub, FaLinkedin, FaXTwitter, FaCircleCheck, FaCircleExclamation, FaGlobe, FaEnvelope } from 'react-icons/fa6'; // Removed FaEnvelope as it's handled by the Contact component
-import * as FaIcons from 'react-icons/fa6';
+import React, { useState, useContext, useEffect, useMemo, useCallback } from 'react';
+import { FaCircleCheck, FaCircleExclamation, FaPen, FaPlus } from 'react-icons/fa6';
 import { useParams } from 'react-router-dom';
 import { LanguageContext } from '../context/LanguageContext'; // Import LanguageContext
 import { usePortfolio } from '../context/PortfolioContext';
 import { useSectionLabel } from '../hooks/useSectionLabel';
 import { translations } from '../data/translations'; // Import translations
-import { portfolioApi } from '../services/portfolioApi'; // Import API service
+import { useEditMode } from '../context/EditModeContext';
+import ContactLinksEditor from '../components/ContactLinksEditor';
+import ContactLinkCreateDialog from '../components/ContactLinkCreateDialog';
+import { getIconComponent as resolveIconComponent } from '../utils/iconUtils';
+import { usePortfolioLinks } from '../hooks/usePortfolioLinks';
+import { sortLinksByOrder, getLinkDisplayName } from '../utils/linkDisplay';
 
 const ContactPage = () => {
   const { lang } = useParams();
   const { language, setLanguage } = useContext(LanguageContext); // Get language from context
-  const { portfolioData } = usePortfolio();
+  const { portfolio: portfolioData } = usePortfolio();
+  const { isEditMode, authToken } = useEditMode();
   const t = translations[language]; // Get translations for the current language
-  const [portfolioLinks, setPortfolioLinks] = useState([]);
-  const [linksLoading, setLinksLoading] = useState(true);
+  const {
+    links: portfolioLinks,
+    loading: linksLoading,
+    refresh: refreshPortfolioLinks
+  } = usePortfolioLinks({
+    portfolioId: portfolioData?.id,
+    isEditMode,
+    authToken
+  });
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!lang) {
@@ -29,29 +43,6 @@ const ContactPage = () => {
     }
   }, [lang, language, setLanguage]);
 
-  // Fetch portfolio links
-  useEffect(() => {
-    const fetchLinks = async () => {
-      if (!portfolioData?.id) {
-        setLinksLoading(false);
-        return;
-      }
-
-      try {
-        setLinksLoading(true);
-        const response = await portfolioApi.getPortfolioLinks(portfolioData.id, true);
-        setPortfolioLinks(response || []);
-      } catch (error) {
-        console.error('Error fetching portfolio links:', error);
-        setPortfolioLinks([]);
-      } finally {
-        setLinksLoading(false);
-      }
-    };
-
-    fetchLinks();
-  }, [portfolioData?.id]);
-
   // Get editable section labels
   const getInTouchLabel = useSectionLabel('SECTION_GET_IN_TOUCH', 'get_in_touch');
   const descriptionLabel = useSectionLabel('LABEL_CONTACT_DESCRIPTION', 'contact_page_description');
@@ -62,10 +53,6 @@ const ContactPage = () => {
   const messageLabel = useSectionLabel('FORM_MESSAGE', 'message_label');
   const sendButtonLabel = useSectionLabel('BTN_SEND_MESSAGE', 'send_message_button');
   const sendingLabel = useSectionLabel('BTN_SENDING', 'sending_button');
-  const githubLabel = useSectionLabel('SOCIAL_GITHUB', 'github');
-  const linkedinLabel = useSectionLabel('SOCIAL_LINKEDIN', 'linkedin');
-  const twitterLabel = useSectionLabel('SOCIAL_TWITTER', 'twitter');
-
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -88,47 +75,61 @@ const ContactPage = () => {
   const [submitStatus, setSubmitStatus] = useState(null); // 'success', 'error', or null
   const [submitMessage, setSubmitMessage] = useState('');
 
-  // Helper function to get icon component from icon name
-  const getIconComponent = (iconName) => {
-    if (!iconName) return FaGlobe;
-
-    // Try to get the icon from FaIcons
-    const IconComponent = FaIcons[iconName];
-    return IconComponent || FaGlobe; // Fallback to globe icon
-  };
-
   // Helper function to get link name in current language
-  const getLinkName = (link) => {
-    if (!link.link_texts || link.link_texts.length === 0) {
-      return link.category?.texts?.[0]?.name || 'Link';
+  const getLinkName = useCallback((link) => {
+    const texts = link?.texts || link?.link_texts || [];
+    if (!texts.length) {
+      return link?.category?.texts?.[0]?.name || 'Link';
     }
 
     // Get language ID based on current language (1 = English, 2 = Spanish)
     const languageId = language === 'es' ? 2 : 1;
 
     // Find text for current language
-    const text = link.link_texts.find(t => t.language_id === languageId);
+    const text = texts.find((t) => t.language_id === languageId);
 
     // Fallback to first available text or category name
-    return text?.name || link.link_texts[0]?.name || link.category?.texts?.[0]?.name || 'Link';
+    return text?.name || texts[0]?.name || link?.category?.texts?.[0]?.name || 'Link';
+  }, [language]);
+
+  const sortedActiveLinks = useMemo(() => {
+    const active = (portfolioLinks || []).filter((link) => link.is_active);
+    return active.sort((a, b) => {
+      const orderA = a.order ?? a.display_order ?? 0;
+      const orderB = b.order ?? b.display_order ?? 0;
+      return orderA - orderB;
+    });
+  }, [portfolioLinks]);
+
+  // Build social links from database
+  const socialLinks = useMemo(() => {
+    return sortedActiveLinks.map((link) => {
+      const label = getLinkName(link);
+      return {
+        icon: resolveIconComponent(link?.category?.icon_name),
+        href: link.url,
+        label,
+        ariaLabel: label,
+        categoryName: link?.category?.texts?.[0]?.name || label
+      };
+    });
+  }, [sortedActiveLinks, getLinkName]);
+
+  const handleToggleEditor = () => {
+    setIsEditorOpen((prev) => !prev);
   };
 
-  // Build social links from database or use fallback
-  const socialLinks = linksLoading ? [] : (
-    portfolioLinks.length > 0
-      ? portfolioLinks.map(link => ({
-          icon: getIconComponent(link.category?.icon_name),
-          href: link.url,
-          label: getLinkName(link),
-          ariaLabel: getLinkName(link)
-        }))
-      : [
-          // Fallback to hardcoded links if no links in database
-          { icon: FaGithub, href: 'https://github.com/yourusername', label: 'GitHub', ariaLabel: githubLabel.value },
-          { icon: FaLinkedin, href: 'https://linkedin.com/in/yourusername', label: 'LinkedIn', ariaLabel: linkedinLabel.value },
-          { icon: FaXTwitter, href: 'https://x.com/yourusername', label: 'Twitter', ariaLabel: twitterLabel.value }
-        ]
-  );
+  const handleAddLinkClick = () => {
+    setIsCreateDialogOpen(true);
+  };
+
+  const handleCloseCreateDialog = () => {
+    setIsCreateDialogOpen(false);
+  };
+
+  const handleLinkCreated = () => {
+    refreshPortfolioLinks();
+  };
 
   // Validation function
   const validateField = (name, value) => {
@@ -278,7 +279,8 @@ const ContactPage = () => {
   };
 
   return (
-    <main className="pt-20 bg-[#03060a] min-h-screen">
+    <>
+      <main className="pt-20 bg-[#03060a] min-h-screen">
       <section className="relative py-20 bg-[#03060a] border-t border-white/5">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/30 to-transparent" />
@@ -448,9 +450,32 @@ const ContactPage = () => {
             <h3 className="text-2xl font-bold text-white text-center mb-8">
               {connectLabel.renderEditable('text-2xl font-bold text-white text-center mb-8')}
             </h3>
-            <div className="flex justify-center items-center gap-8 flex-wrap">
+            {isEditMode && portfolioData?.id && (
+              <div className="mb-6 flex justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleToggleEditor}
+                  className="inline-flex items-center gap-2 rounded-lg border border-[#14C800]/40 bg-[#14C800]/10 px-4 py-2 text-sm font-medium text-[#14C800] transition hover:bg-[#14C800]/20"
+                >
+                  <FaPen />
+                  {isEditorOpen ? 'Close Editor' : 'Edit Links'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddLinkClick}
+                  className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-sm font-medium text-white/80 transition hover:border-white/40 hover:bg-white/10 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-white/40"
+                  disabled={!portfolioData?.id}
+                >
+                  <FaPlus />
+                  Add Link
+                </button>
+              </div>
+            )}
+            <div className="flex flex-wrap justify-center gap-6">
               {linksLoading ? (
-                <p className="text-white/70">Loading links...</p>
+                <div className="flex justify-center">
+                  <p className="text-white/70">Loading links...</p>
+                </div>
               ) : socialLinks.length > 0 ? (
                 socialLinks.map((social, index) => {
                   const Icon = social.icon;
@@ -460,21 +485,45 @@ const ContactPage = () => {
                       href={social.href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="btn-flat btn-flat-icon"
+                      className={`flex h-14 w-14 items-center justify-center rounded-lg text-white transition ${
+                        isEditMode
+                          ? 'border border-[#14C800]/60 bg-black/40 hover:bg-black/60'
+                          : 'border border-white/10 bg-white/5 hover:border-[#14C800]/60 hover:bg-[#14C800]/10'
+                      }`}
                       aria-label={social.ariaLabel || social.label}
+                      title={social.label}
+                      onClick={isEditMode ? (event) => event.preventDefault() : undefined}
                     >
-                      <Icon />
+                      <Icon className="text-2xl text-white/90" />
                     </a>
                   );
                 })
               ) : (
-                <p className="text-white/70">No social links available</p>
+                <div className="flex justify-center">
+                  <p className="text-white/70">No social links available</p>
+                </div>
               )}
             </div>
+            {isEditMode && isEditorOpen && portfolioData?.id && (
+              <div className="mt-8">
+                <ContactLinksEditor
+                  portfolioId={portfolioData?.id}
+                  links={portfolioLinks}
+                  onRefresh={refreshPortfolioLinks}
+                />
+              </div>
+            )}
           </div>
         </div>
       </section>
-    </main>
+      </main>
+      <ContactLinkCreateDialog
+        isOpen={isEditMode && isCreateDialogOpen && Boolean(portfolioData?.id)}
+        onClose={handleCloseCreateDialog}
+        portfolioId={portfolioData?.id}
+        onCreated={handleLinkCreated}
+      />
+    </>
   );
 };
 

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File
-from sqlalchemy.orm import Session, selectinload, joinedload
+from sqlalchemy.orm import Session, selectinload, joinedload, object_session
 from typing import Any, List, Optional, Dict
 import os
 import uuid
@@ -323,68 +323,74 @@ def process_portfolios_for_response(
                             proj_dict["skills"].append(skill_dict)
 
                     # Include project sections if they exist
-                    if hasattr(project, 'sections') and project.sections:
-                        for section in project.sections:
-                            sect_dict = {
-                                "id": section.id,
-                                "code": section.code,
-                                "display_order": section.display_order if hasattr(section, 'display_order') else 0,
-                                "display_style": section.display_style if hasattr(section, 'display_style') else "bordered",  # Add display_style
-                                "section_texts": [],
-                                "images": [],
-                                "attachments": []
-                            }
+                    # IMPORTANT: Load sections with display_order from association table
+                    from app.crud import section as section_crud
+                    if hasattr(project, 'id'):
+                        # Get the database session from the project object's session
+                        db_session = object_session(project)
+                        if db_session:
+                            sections_with_order = section_crud.get_project_sections(db_session, project.id)
+                            for section in sections_with_order:
+                                sect_dict = {
+                                    "id": section.id,
+                                    "code": section.code,
+                                    "display_order": section.display_order if hasattr(section, 'display_order') else 0,
+                                    "display_style": section.display_style if hasattr(section, 'display_style') else "bordered",
+                                    "section_texts": [],
+                                    "images": [],
+                                    "attachments": []
+                                }
 
-                            # Include section texts if they exist
-                            if hasattr(section, 'section_texts') and section.section_texts:
-                                for text in section.section_texts:
-                                    text_dict = {
-                                        "id": text.id,
-                                        "language_id": text.language_id,
-                                        "text": text.text
-                                    }
-
-                                    # Include language if it exists
-                                    if hasattr(text, "language") and text.language is not None:
-                                        language = text.language
-                                        text_dict["language"] = {
-                                            "id": language.id,
-                                            "code": language.code,
-                                            "name": language.name
+                                # Include section texts if they exist
+                                if hasattr(section, 'section_texts') and section.section_texts:
+                                    for text in section.section_texts:
+                                        text_dict = {
+                                            "id": text.id,
+                                            "language_id": text.language_id,
+                                            "text": text.text
                                         }
 
-                                    sect_dict["section_texts"].append(text_dict)
+                                        # Include language if it exists
+                                        if hasattr(text, "language") and text.language is not None:
+                                            language = text.language
+                                            text_dict["language"] = {
+                                                "id": language.id,
+                                                "code": language.code,
+                                                "name": language.name
+                                            }
 
-                            # Include section images if they exist
-                            if hasattr(section, 'images') and section.images:
-                                for image in section.images:
-                                    img_dict = {
-                                        "id": image.id,
-                                        "section_id": image.section_id,
-                                        "image_path": image.image_path,
-                                        "display_order": image.display_order if hasattr(image, 'display_order') else 0,
-                                        "language_id": image.language_id if hasattr(image, 'language_id') else None,
-                                        "created_at": image.created_at if hasattr(image, 'created_at') else None,
-                                        "updated_at": image.updated_at if hasattr(image, 'updated_at') else None
-                                    }
-                                    sect_dict["images"].append(img_dict)
+                                        sect_dict["section_texts"].append(text_dict)
 
-                            # Include section attachments if they exist
-                            if hasattr(section, 'attachments') and section.attachments:
-                                for attachment in section.attachments:
-                                    att_dict = {
-                                        "id": attachment.id,
-                                        "section_id": attachment.section_id,
-                                        "file_name": attachment.file_name,
-                                        "file_path": attachment.file_path,
-                                        "display_order": attachment.display_order if hasattr(attachment, 'display_order') else 0,
-                                        "language_id": attachment.language_id if hasattr(attachment, 'language_id') else None,
-                                        "created_at": attachment.created_at if hasattr(attachment, 'created_at') else None,
-                                        "updated_at": attachment.updated_at if hasattr(attachment, 'updated_at') else None
-                                    }
-                                    sect_dict["attachments"].append(att_dict)
+                                # Include section images if they exist
+                                if hasattr(section, 'images') and section.images:
+                                    for image in section.images:
+                                        img_dict = {
+                                            "id": image.id,
+                                            "section_id": image.section_id,
+                                            "image_path": image.image_path,
+                                            "display_order": image.display_order if hasattr(image, 'display_order') else 0,
+                                            "language_id": image.language_id if hasattr(image, 'language_id') else None,
+                                            "created_at": image.created_at if hasattr(image, 'created_at') else None,
+                                            "updated_at": image.updated_at if hasattr(image, 'updated_at') else None
+                                        }
+                                        sect_dict["images"].append(img_dict)
 
-                            proj_dict["sections"].append(sect_dict)
+                                # Include section attachments if they exist
+                                if hasattr(section, 'attachments') and section.attachments:
+                                    for attachment in section.attachments:
+                                        att_dict = {
+                                            "id": attachment.id,
+                                            "section_id": attachment.section_id,
+                                            "file_name": attachment.file_name,
+                                            "file_path": attachment.file_path,
+                                            "display_order": attachment.display_order if hasattr(attachment, 'display_order') else 0,
+                                            "language_id": attachment.language_id if hasattr(attachment, 'language_id') else None,
+                                            "created_at": attachment.created_at if hasattr(attachment, 'created_at') else None,
+                                            "updated_at": attachment.updated_at if hasattr(attachment, 'updated_at') else None
+                                        }
+                                        sect_dict["attachments"].append(att_dict)
+
+                                proj_dict["sections"].append(sect_dict)
 
                     portfolio_dict["projects"].append(proj_dict)
             

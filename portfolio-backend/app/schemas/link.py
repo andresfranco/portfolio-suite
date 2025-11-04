@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field, field_validator, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, field_validator, HttpUrl, computed_field, AliasChoices
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
@@ -194,7 +194,8 @@ class PortfolioLinkTextOut(PortfolioLinkTextBase):
 class PortfolioLinkBase(BaseModel):
     """Base schema for portfolio link data"""
     category_id: int = Field(..., ge=1, description="ID of the link category")
-    url: str = Field(..., min_length=1, max_length=500, description="URL of the link")
+    url: str = Field(..., min_length=1, max_length=500, description="URL of the link or internal route path")
+    is_route: bool = Field(False, description="True if this is an internal route, False if external URL")
     image_path: Optional[str] = Field(None, max_length=500, description="Optional custom image/icon path")
     order: int = Field(0, ge=0, description="Display order of the link")
     is_active: bool = Field(True, description="Whether the link is currently active/visible")
@@ -220,7 +221,8 @@ class PortfolioLinkCreate(PortfolioLinkBase):
 class PortfolioLinkUpdate(BaseModel):
     """Schema for updating an existing portfolio link. All fields are optional."""
     category_id: Optional[int] = Field(None, ge=1, description="ID of the link category")
-    url: Optional[str] = Field(None, min_length=1, max_length=500, description="URL of the link")
+    url: Optional[str] = Field(None, min_length=1, max_length=500, description="URL of the link or internal route path")
+    is_route: Optional[bool] = Field(None, description="True if this is an internal route, False if external URL")
     image_path: Optional[str] = Field(None, max_length=500, description="Optional custom image/icon path")
     order: Optional[int] = Field(None, ge=0, description="Display order of the link")
     is_active: Optional[bool] = Field(None, description="Whether the link is currently active/visible")
@@ -243,11 +245,36 @@ class PortfolioLinkOut(PortfolioLinkBase):
     id: int
     portfolio_id: int
     category: Optional[LinkCategoryOut] = None
-    texts: List[PortfolioLinkTextOut] = Field(default_factory=list, description="Multilingual text content")
+    texts: List[PortfolioLinkTextOut] = Field(
+        default_factory=list,
+        description="Multilingual text content",
+        validation_alias=AliasChoices("texts", "link_texts"),
+        serialization_alias="texts"
+    )
     created_at: datetime
     updated_at: datetime
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    @computed_field
+    def image_url(self) -> Optional[str]:
+        """Return absolute URL for the stored image path if available."""
+        if not self.image_path:
+            return None
+        try:
+            from app.utils.file_utils import get_file_url
+            return get_file_url(self.image_path)
+        except Exception:
+            # Fallback to stored path if conversion fails
+            return self.image_path
+
+    @computed_field
+    def link_texts(self) -> List[PortfolioLinkTextOut]:
+        """
+        Maintain backwards compatibility for consumers expecting `link_texts`
+        while ensuring the schema serialises `texts`.
+        """
+        return self.texts
 
 
 # --- Bulk Operations ---

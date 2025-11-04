@@ -155,13 +155,14 @@ class PortfolioLink(Base):
     """
     Model representing links associated with a portfolio.
 
-    Links can be social media profiles, blog links, project repositories, etc.
+    Links can be social media profiles, blog links, project repositories, or internal website routes.
 
     Attributes:
         id (int): Primary key
         portfolio_id (int): Foreign key to portfolios.id
         category_id (int): Foreign key to link_categories.id
-        url (str): The actual URL of the link
+        url (str): The actual URL of the link or internal route path
+        is_route (bool): Whether this is an internal route (True) or external URL (False)
         image_path (str): Optional path to custom image/icon
         order (int): Display order of the link
         is_active (bool): Whether the link is currently active/visible
@@ -184,6 +185,7 @@ class PortfolioLink(Base):
 
     # Content fields
     url = Column(String(500), nullable=False)
+    is_route = Column(Boolean, default=False, nullable=False)  # True for internal routes, False for external URLs
     image_path = Column(String(500))  # Optional custom image/icon path
     order = Column(Integer, nullable=False, default=0)
     is_active = Column(Boolean, default=True, nullable=False)
