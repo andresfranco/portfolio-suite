@@ -435,10 +435,10 @@ const Hero = () => {
         className="relative overflow-hidden bg-[#050b13] min-h-[70vh] md:min-h-[65vh] lg:min-h-[75vh] xl:min-h-[80vh] pt-28 md:pt-36 pb-20 w-full max-w-[100vw]"
       >
         <div
-          className={`absolute top-0 bottom-0 right-0 w-full lg:w-[55%] overflow-hidden transition-opacity duration-300 ${isEditMode ? "" : "pointer-events-none"}`}
+          className={`absolute top-0 bottom-0 right-0 w-full lg:w-[55%] overflow-hidden transition-opacity duration-300 z-0 ${isEditMode ? "" : "pointer-events-none"}`}
         >
           {/* Background image layer */}
-          <div className="absolute inset-0 z-0">
+          <div className="absolute inset-0">
             <img
               src={heroImage}
               alt="Hero visual"
@@ -447,7 +447,7 @@ const Hero = () => {
           </div>
           
           {/* Overlay effects - only block pointer events when NOT in edit mode */}
-          <div className={`absolute inset-0 z-10 ${isEditMode ? 'pointer-events-none' : ''}`}>
+          <div className={`absolute inset-0 z-[1] ${isEditMode ? 'pointer-events-none' : ''}`}>
             <div className="absolute inset-0 bg-gradient-to-l from-[#03060a]/10 via-[#03060a]/40 lg:via-[#03060a]/50 to-[#03060a]/80 lg:to-transparent mix-blend-soft-light" />
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/15 to-black/40" />
             <div className="absolute top-[-10%] right-[-5%] w-[70%] h-[60%] bg-[#03060a]/55 blur-3xl" />
@@ -456,20 +456,9 @@ const Hero = () => {
             <div className="absolute bottom-[-15%] left-[-15%] w-[60%] h-[65%] bg-[#03060a]/55 blur-[120px]" />
           </div>
           
-          {/* Edit mode: Interactive image uploader overlay - highest z-index */}
+          {/* Edit mode: Interactive image uploader overlay */}
           {isEditMode && portfolio?.id && (
-            <div className="absolute inset-0 z-20 group cursor-pointer">
-              {/* Visible edit indicator badge */}
-              <div className="absolute top-4 right-4 z-30 bg-[#14C800] text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 opacity-90 group-hover:opacity-100 transition-opacity">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <span className="font-medium text-sm">Click or drag to change hero image</span>
-              </div>
-              
-              {/* Hover overlay */}
-              <div className="absolute inset-0 bg-[#14C800]/0 group-hover:bg-[#14C800]/10 transition-colors duration-200 border-2 border-transparent group-hover:border-[#14C800] group-hover:border-dashed"></div>
-              
+            <div className="absolute inset-0 z-[2]">
               <ImageUploader
                 currentImage={heroImage}
                 entityType="portfolio"
@@ -482,11 +471,11 @@ const Hero = () => {
           )}
         </div>
 
-        <div className="absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-black/60 to-transparent pointer-events-none" />
-        <div className="absolute -left-24 top-1/3 w-72 h-72 rounded-full bg-[#14C800]/10 blur-3xl pointer-events-none" />
-        <div className="absolute -right-28 top-1/2 w-80 h-80 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
+        <div className="absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-black/60 to-transparent pointer-events-none z-[5]" />
+        <div className="absolute -left-24 top-1/3 w-72 h-72 rounded-full bg-[#14C800]/10 blur-3xl pointer-events-none z-[5]" />
+        <div className="absolute -right-28 top-1/2 w-80 h-80 rounded-full bg-blue-500/10 blur-3xl pointer-events-none z-[5]" />
 
-        <div className="relative z-10 w-full px-6 md:px-12 lg:px-[7vw] xl:px-[5vw] 2xl:px-[10vw] py-16">
+        <div className="relative z-20 w-full px-6 md:px-12 lg:px-[7vw] xl:px-[5vw] 2xl:px-[10vw] py-16">
           <div className="flex flex-col gap-8 max-w-full lg:max-w-[50%] xl:max-w-[55%] 2xl:max-w-[60%] items-start">
             {/* Editable person name in edit mode */}
             <h1 className="text-4xl md:text-6xl xl:text-7xl 2xl:text-8xl font-extrabold text-white drop-shadow-lg">

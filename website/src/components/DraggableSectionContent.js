@@ -1,6 +1,7 @@
 import React from 'react';
 import { Draggable } from '@hello-pangea/dnd';
 import { FaDownload } from 'react-icons/fa6';
+import './RichTextContent.css';
 
 /**
  * DraggableSectionContent Component
@@ -83,9 +84,10 @@ export const DraggableTextContent = ({ text, index, isEditMode, sectionId, isBor
     sectionId={sectionId}
     isBordered={isBordered}
   >
-    <div className="prose prose-lg prose-invert max-w-none">
-      <p className="text-gray-300 whitespace-pre-wrap leading-relaxed">{text}</p>
-    </div>
+    <div 
+      className="rich-text-content"
+      dangerouslySetInnerHTML={{ __html: text }}
+    />
   </DraggableSectionContent>
 );
 

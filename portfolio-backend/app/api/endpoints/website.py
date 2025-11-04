@@ -4,10 +4,11 @@ No authentication required for viewing content.
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from typing import Any, Optional
+from typing import Any, Optional, List
 from app.api import deps
-from app.crud import portfolio as portfolio_crud
+from app.crud import portfolio as portfolio_crud, experience as experience_crud
 from app.schemas.portfolio import PortfolioOut
+from app.schemas.experience import Experience as ExperienceSchema
 from app.api.endpoints.portfolios import process_portfolios_for_response
 from app.core.logging import setup_logger
 
@@ -16,6 +17,68 @@ logger = setup_logger("app.api.endpoints.website")
 
 # Define router
 router = APIRouter()
+
+
+@router.get("/experiences", response_model=List[ExperienceSchema])
+def get_public_experiences(
+    language_code: Optional[str] = Query(None, description="Filter by language code (en, es, etc.)"),
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(100, ge=1, le=200, description="Number of items per page (max 200)"),
+    db: Session = Depends(deps.get_db),
+) -> Any:
+    """
+    Get all experiences for public website display.
+    This endpoint is public and does not require authentication.
+    Used in edit mode to select experiences to add to portfolio.
+    
+    Returns:
+        List of experiences with their texts for all or specified language.
+    """
+    logger.info(f"Fetching public experiences - page: {page}, page_size: {page_size}, language: {language_code}")
+    
+    try:
+        # Get experiences with pagination
+        experiences, total = experience_crud.get_experiences_paginated(
+            db=db,
+            page=page,
+            page_size=page_size,
+            filters=None,
+            sort_field="code",
+            sort_order="asc"
+        )
+        
+        # Filter by language if specified
+        if language_code:
+            filtered_experiences = []
+            for exp in experiences:
+                # Keep experience but filter its texts
+                exp_dict = {
+                    "id": exp.id,
+                    "code": exp.code,
+                    "years": exp.years,
+                    "created_at": exp.created_at,
+                    "updated_at": exp.updated_at,
+                    "experience_texts": [
+                        text for text in exp.experience_texts
+                        if text.language and text.language.code == language_code
+                    ]
+                }
+                # Only include if has texts for this language (or include all if filtering by language is not strict)
+                if exp_dict["experience_texts"]:
+                    filtered_experiences.append(exp_dict)
+            
+            logger.info(f"Retrieved {len(filtered_experiences)} experiences (filtered by language {language_code}) out of {total} total")
+            return filtered_experiences
+        
+        logger.info(f"Retrieved {len(experiences)} experiences out of {total} total")
+        return experiences
+        
+    except Exception as e:
+        logger.error(f"Error retrieving public experiences: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving experiences: {str(e)}"
+        )
 
 
 @router.get("/default", response_model=PortfolioOut)

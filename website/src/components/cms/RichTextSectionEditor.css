@@ -1,0 +1,194 @@
+/* TipTap Rich Text Editor Styles */
+
+/* Editor Content Styles */
+.ProseMirror {
+  min-height: 300px;
+  outline: none;
+  color: #e5e7eb;
+}
+
+.ProseMirror p {
+  margin: 0.75rem 0;
+}
+
+.ProseMirror p:first-child {
+  margin-top: 0;
+}
+
+.ProseMirror p:last-child {
+  margin-bottom: 0;
+}
+
+/* Headings */
+.ProseMirror h1,
+.ProseMirror h2,
+.ProseMirror h3,
+.ProseMirror h4 {
+  font-weight: 700;
+  color: #ffffff;
+  margin: 1.5rem 0 0.75rem;
+}
+
+.ProseMirror h1:first-child,
+.ProseMirror h2:first-child,
+.ProseMirror h3:first-child,
+.ProseMirror h4:first-child {
+  margin-top: 0;
+}
+
+.ProseMirror h1 {
+  font-size: 2rem;
+  line-height: 1.2;
+}
+
+.ProseMirror h2 {
+  font-size: 1.5rem;
+  line-height: 1.3;
+}
+
+.ProseMirror h3 {
+  font-size: 1.25rem;
+  line-height: 1.4;
+}
+
+.ProseMirror h4 {
+  font-size: 1.1rem;
+  line-height: 1.4;
+}
+
+/* Lists */
+.ProseMirror ul,
+.ProseMirror ol {
+  padding-left: 1.5rem;
+  margin: 0.75rem 0;
+}
+
+.ProseMirror li {
+  margin: 0.25rem 0;
+}
+
+.ProseMirror ul {
+  list-style-type: disc;
+}
+
+.ProseMirror ol {
+  list-style-type: decimal;
+}
+
+/* Blockquote */
+.ProseMirror blockquote {
+  border-left: 4px solid #14C800;
+  padding-left: 1rem;
+  margin: 1rem 0;
+  font-style: italic;
+  color: #9ca3af;
+}
+
+/* Code */
+.ProseMirror code {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #14C800;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.9em;
+}
+
+.ProseMirror pre {
+  background-color: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin: 1rem 0;
+  overflow-x: auto;
+}
+
+.ProseMirror pre code {
+  background-color: transparent;
+  padding: 0;
+  color: #e5e7eb;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* Links */
+.ProseMirror a {
+  color: #14C800;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.ProseMirror a:hover {
+  color: #12b000;
+}
+
+/* Images */
+.ProseMirror img.tiptap-image {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+  display: block;
+}
+
+/* Image selection */
+.ProseMirror img.ProseMirror-selectednode {
+  outline: 2px solid #14C800;
+  outline-offset: 2px;
+}
+
+/* Horizontal Rule */
+.ProseMirror hr {
+  border: none;
+  border-top: 2px solid rgba(255, 255, 255, 0.1);
+  margin: 2rem 0;
+}
+
+/* Placeholder */
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #6b7280;
+  pointer-events: none;
+  height: 0;
+}
+
+/* Focus state */
+.ProseMirror:focus {
+  outline: none;
+}
+
+/* Selection */
+.ProseMirror ::selection {
+  background-color: rgba(20, 200, 0, 0.3);
+}
+
+/* Text alignment */
+.ProseMirror [style*="text-align: left"] {
+  text-align: left;
+}
+
+.ProseMirror [style*="text-align: center"] {
+  text-align: center;
+}
+
+.ProseMirror [style*="text-align: right"] {
+  text-align: right;
+}
+
+.ProseMirror [style*="text-align: justify"] {
+  text-align: justify;
+}
+
+/* Dragging placeholder */
+.ProseMirror .is-dragging {
+  opacity: 0.5;
+}
+
+/* Empty editor state */
+.ProseMirror.is-empty::before {
+  content: attr(data-placeholder);
+  color: #6b7280;
+  pointer-events: none;
+  position: absolute;
+}

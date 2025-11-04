@@ -130,7 +130,8 @@ def process_portfolios_for_response(
                         "id": experience.id,
                         "code": experience.code,
                         "years": experience.years,
-                        "experience_texts": []
+                        "experience_texts": [],
+                        "images": []
                     }
                     
                     # Include experience texts if they exist
@@ -157,6 +158,23 @@ def process_portfolios_for_response(
                             
                             exp_dict["experience_texts"].append(text_dict)
                     
+                    # Include experience images if present and already loaded (avoid lazy load when table unavailable)
+                    images_collection = getattr(experience, "__dict__", {}).get("images")
+                    if images_collection:
+                        for image in images_collection:
+                            exp_dict["images"].append({
+                                "id": image.id,
+                                "experience_id": image.experience_id,
+                                "experience_text_id": getattr(image, "experience_text_id", None),
+                                "image_path": image.image_path,
+                                "image_url": get_file_url(image.image_path),
+                                "file_name": getattr(image, "file_name", None),
+                                "category": getattr(image, "category", None),
+                                "language_id": getattr(image, "language_id", None),
+                                "created_at": getattr(image, "created_at", None),
+                                "updated_at": getattr(image, "updated_at", None)
+                            })
+
                     portfolio_dict["experiences"].append(exp_dict)
             
             # Process projects
@@ -1944,7 +1962,4 @@ def remove_portfolio_section(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error removing section from portfolio: {str(e)}"
         )
-
-
-
 

@@ -171,31 +171,38 @@ export const portfolioApi = {
   },
 
   /**
-   * Get all experiences with pagination
+   * Get all experiences (for edit mode - selecting experiences to add)
+   * Uses public website endpoint that doesn't require authentication
    * @param {number} page - Page number (default 1)
    * @param {number} pageSize - Page size (default 100)
-   * @param {string} token - Authentication token (optional for public access)
-   * @returns {Promise<Object>} - Paginated experiences list
+   * @param {string} token - Authentication token (optional, not used for public endpoint)
+   * @returns {Promise<Object>} - List of experiences
    */
   getAllExperiences: async (page = 1, pageSize = 100, token = null) => {
     try {
-      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
       const response = await fetch(
-        `${API_BASE_URL}/api/experiences/?page=${page}&page_size=${pageSize}`,
+        `${API_BASE_URL}/api/website/experiences?page=${page}&page_size=${pageSize}`,
         {
           method: 'GET',
-          headers: headers,
+          headers: {
+            'Content-Type': 'application/json',
+          },
           credentials: 'include',
         }
       );
-      return await handleResponse(response);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      // Return in expected format (the endpoint returns array directly)
+      return { items: Array.isArray(data) ? data : [] };
     } catch (error) {
       console.error('Error fetching experiences:', error);
       throw error;
     }
-  },
-
-  /**
+  },  /**
    * Public API Methods
    */
 
@@ -378,6 +385,54 @@ export const portfolioApi = {
       return await handleResponse(response);
     } catch (error) {
       console.error('Error uploading image:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Fetch existing images for a content entity (portfolio, project, experience, section)
+   * @param {string} entityType - Entity type
+   * @param {number|string} entityId - Entity identifier (experience text ID allowed)
+   * @param {Object} options - Optional filters (category, languageCode, languageId)
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object|Array>} - Image list response
+   */
+  getContentImages: async (entityType, entityId, options = {}, token) => {
+    try {
+      if (!entityType || entityId === undefined || entityId === null) {
+        throw new Error('Entity type and entity ID are required to fetch images');
+      }
+
+      const queryParams = new URLSearchParams({
+        entity_type: entityType,
+        entity_id: entityId
+      });
+
+      if (options.category) {
+        queryParams.append('category', options.category);
+      }
+
+      let languageId = options.languageId;
+      if (!languageId && options.languageCode) {
+        languageId = getLanguageId(options.languageCode);
+      }
+
+      if (languageId) {
+        queryParams.append('language_id', languageId);
+      }
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/cms/content/images?${queryParams.toString()}`,
+        {
+          method: 'GET',
+          headers: getHeaders(token),
+          credentials: 'include',
+        }
+      );
+
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error fetching content images:', error);
       throw error;
     }
   },
@@ -947,7 +1002,7 @@ export const portfolioApi = {
    * @param {string} token - Authentication token (optional for public access)
    * @returns {Promise<Object>} - Skills list
    */
-  getSkills: async (token = null) => {
+  getAllSkills: async (token = null) => {
     try {
       const headers = token ? getHeaders(token) : { 'Content-Type': 'application/json' };
       const response = await fetch(
@@ -961,6 +1016,54 @@ export const portfolioApi = {
       return await handleResponse(response);
     } catch (error) {
       console.error('Error fetching skills:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Add a skill to a project
+   * @param {number} projectId - Project ID
+   * @param {number} skillId - Skill ID
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - Success message
+   */
+  addSkillToProject: async (projectId, skillId, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/projects/${projectId}/skills/${skillId}`,
+        {
+          method: 'POST',
+          headers: getHeaders(token, false),
+          credentials: 'include',
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error adding skill to project:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Remove a skill from a project
+   * @param {number} projectId - Project ID
+   * @param {number} skillId - Skill ID
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - Success message
+   */
+  removeSkillFromProject: async (projectId, skillId, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/projects/${projectId}/skills/${skillId}`,
+        {
+          method: 'DELETE',
+          headers: getHeaders(token),
+          credentials: 'include',
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error removing skill from project:', error);
       throw error;
     }
   },
