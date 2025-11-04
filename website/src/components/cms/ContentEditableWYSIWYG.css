@@ -184,9 +184,14 @@
 .wysiwyg-content-editor blockquote {
   border-left: 4px solid #14C800;
   padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 8px;
+  padding-bottom: 8px;
   margin: 1em 0;
   color: rgba(255, 255, 255, 0.8);
   font-style: italic;
+  background: rgba(20, 200, 0, 0.05);
+  border-radius: 0 4px 4px 0;
 }
 
 /* Code */
@@ -207,9 +212,503 @@
   padding: 12px;
   overflow-x: auto;
   margin: 1em 0;
+  position: relative;
 }
 
 .wysiwyg-content-editor pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #14C800;
+}
+
+/* Code block with language indicator */
+.wysiwyg-content-editor pre.code-block {
+  padding-top: 36px;
+  display: block;
+  clear: both;
+  margin: 1.5em 0;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* All code blocks are editable in edit mode - clickable styling */
+/* Apply to ALL pre elements, not just .code-block */
+.wysiwyg-content-editor pre {
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.wysiwyg-content-editor pre * {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  pointer-events: none;
+}
+
+.wysiwyg-content-editor pre:hover {
+  border-color: #14C800;
+  box-shadow: 0 0 0 2px rgba(20, 200, 0, 0.1);
+}
+
+.wysiwyg-content-editor pre:hover::after {
+  content: 'Click to edit';
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  font-size: 10px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 600;
+  color: #14C800;
+  background: rgba(20, 200, 0, 0.1);
+  padding: 2px 8px;
+  border-radius: 3px;
+  border: 1px solid rgba(20, 200, 0, 0.3);
+  z-index: 2;
+}
+
+/* Delete button for code blocks */
+.code-block-delete-btn {
+  position: absolute;
+  top: 8px;
+  right: 120px;
+  width: 24px;
+  height: 24px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 3px;
+  color: #ef4444;
+  font-size: 18px;
+  font-weight: bold;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  opacity: 0;
+  pointer-events: auto !important;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.wysiwyg-content-editor pre:hover .code-block-delete-btn {
+  opacity: 1;
+}
+
+.code-block-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: #ef4444;
+  color: #fff;
+  transform: scale(1.1);
+}
+
+.code-block-delete-btn:active {
+  transform: scale(0.95);
+}
+
+/* Language badge for ALL pre elements with language class */
+.wysiwyg-content-editor pre[class*="language-"]::before {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 11px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(20, 200, 0, 0.15);
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(20, 200, 0, 0.3);
+  z-index: 1;
+}
+
+/* Ensure code blocks are visible and not collapsed */
+.wysiwyg-content-editor pre.code-block code {
+  display: block;
+  white-space: pre;
+  overflow-x: auto;
+  min-height: 1.5em;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+/* Language-specific styling for content editor */
+.wysiwyg-content-editor pre.language-javascript::before,
+.wysiwyg-content-editor pre[class*="language-javascript"]::before {
+  content: 'JavaScript';
+  background: rgba(240, 219, 79, 0.15);
+  border-color: rgba(240, 219, 79, 0.3);
+  color: #f0db4f;
+}
+
+.wysiwyg-content-editor pre.language-typescript::before {
+  content: 'TypeScript';
+  background: rgba(49, 120, 198, 0.15);
+  border-color: rgba(49, 120, 198, 0.3);
+  color: #3178c6;
+}
+
+.wysiwyg-content-editor pre.language-python::before {
+  content: 'Python';
+  background: rgba(55, 118, 171, 0.15);
+  border-color: rgba(55, 118, 171, 0.3);
+  color: #3776ab;
+}
+
+.wysiwyg-content-editor pre.language-java::before {
+  content: 'Java';
+  background: rgba(240, 82, 54, 0.15);
+  border-color: rgba(240, 82, 54, 0.3);
+  color: #f05236;
+}
+
+.wysiwyg-content-editor pre.language-csharp::before {
+  content: 'C#';
+  background: rgba(154, 82, 163, 0.15);
+  border-color: rgba(154, 82, 163, 0.3);
+  color: #9a52a3;
+}
+
+.wysiwyg-content-editor pre.language-cpp::before {
+  content: 'C++';
+  background: rgba(0, 89, 156, 0.15);
+  border-color: rgba(0, 89, 156, 0.3);
+  color: #00599c;
+}
+
+.wysiwyg-content-editor pre.language-php::before {
+  content: 'PHP';
+  background: rgba(119, 123, 180, 0.15);
+  border-color: rgba(119, 123, 180, 0.3);
+  color: #777bb4;
+}
+
+.wysiwyg-content-editor pre.language-ruby::before {
+  content: 'Ruby';
+  background: rgba(204, 52, 45, 0.15);
+  border-color: rgba(204, 52, 45, 0.3);
+  color: #cc342d;
+}
+
+.wysiwyg-content-editor pre.language-go::before {
+  content: 'Go';
+  background: rgba(0, 173, 216, 0.15);
+  border-color: rgba(0, 173, 216, 0.3);
+  color: #00add8;
+}
+
+.wysiwyg-content-editor pre.language-rust::before {
+  content: 'Rust';
+  background: rgba(206, 73, 0, 0.15);
+  border-color: rgba(206, 73, 0, 0.3);
+  color: #ce4900;
+}
+
+.wysiwyg-content-editor pre.language-swift::before {
+  content: 'Swift';
+  background: rgba(240, 81, 56, 0.15);
+  border-color: rgba(240, 81, 56, 0.3);
+  color: #f05138;
+}
+
+.wysiwyg-content-editor pre.language-kotlin::before {
+  content: 'Kotlin';
+  background: rgba(124, 77, 255, 0.15);
+  border-color: rgba(124, 77, 255, 0.3);
+  color: #7c4dff;
+}
+
+.wysiwyg-content-editor pre.language-sql::before {
+  content: 'SQL';
+  background: rgba(204, 102, 0, 0.15);
+  border-color: rgba(204, 102, 0, 0.3);
+  color: #cc6600;
+}
+
+.wysiwyg-content-editor pre.language-html::before {
+  content: 'HTML';
+  background: rgba(227, 79, 38, 0.15);
+  border-color: rgba(227, 79, 38, 0.3);
+  color: #e34f26;
+}
+
+.wysiwyg-content-editor pre.language-css::before {
+  content: 'CSS';
+  background: rgba(38, 77, 228, 0.15);
+  border-color: rgba(38, 77, 228, 0.3);
+  color: #264de4;
+}
+
+.wysiwyg-content-editor pre.language-scss::before {
+  content: 'SCSS';
+  background: rgba(207, 100, 154, 0.15);
+  border-color: rgba(207, 100, 154, 0.3);
+  color: #cf649a;
+}
+
+.wysiwyg-content-editor pre.language-json::before {
+  content: 'JSON';
+  background: rgba(41, 128, 185, 0.15);
+  border-color: rgba(41, 128, 185, 0.3);
+  color: #2980b9;
+}
+
+.wysiwyg-content-editor pre.language-yaml::before {
+  content: 'YAML';
+  background: rgba(203, 56, 55, 0.15);
+  border-color: rgba(203, 56, 55, 0.3);
+  color: #cb3837;
+}
+
+.wysiwyg-content-editor pre.language-bash::before {
+  content: 'Bash';
+  background: rgba(76, 175, 80, 0.15);
+  border-color: rgba(76, 175, 80, 0.3);
+  color: #4caf50;
+}
+
+.wysiwyg-content-editor pre.language-shell::before {
+  content: 'Shell';
+  background: rgba(76, 175, 80, 0.15);
+  border-color: rgba(76, 175, 80, 0.3);
+  color: #4caf50;
+}
+
+.wysiwyg-content-editor pre.language-markdown::before {
+  content: 'Markdown';
+  background: rgba(156, 39, 176, 0.15);
+  border-color: rgba(156, 39, 176, 0.3);
+  color: #9c27b0;
+}
+
+.wysiwyg-content-editor pre.language-plaintext::before {
+  content: 'Plain Text';
+  background: rgba(158, 158, 158, 0.15);
+  border-color: rgba(158, 158, 158, 0.3);
+  color: #9e9e9e;
+}
+
+.wysiwyg-display-content pre.code-block {
+  padding-top: 36px;
+  display: block;
+  clear: both;
+  margin: 1.5em 0;
+}
+
+.wysiwyg-display-content pre.code-block::before {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 11px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(20, 200, 0, 0.15);
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(20, 200, 0, 0.3);
+  z-index: 1;
+}
+
+/* Ensure code blocks are visible and not collapsed */
+.wysiwyg-display-content pre.code-block code {
+  display: block;
+  white-space: pre;
+  overflow-x: auto;
+  min-height: 1.5em;
+}
+
+/* Language badges for display content */
+.wysiwyg-display-content pre.language-javascript::before {
+  content: 'JavaScript';
+  background: rgba(240, 219, 79, 0.15);
+  border-color: rgba(240, 219, 79, 0.3);
+  color: #f0db4f;
+}
+
+.wysiwyg-display-content pre.language-typescript::before {
+  content: 'TypeScript';
+  background: rgba(49, 120, 198, 0.15);
+  border-color: rgba(49, 120, 198, 0.3);
+  color: #3178c6;
+}
+
+.wysiwyg-display-content pre.language-python::before {
+  content: 'Python';
+  background: rgba(55, 118, 171, 0.15);
+  border-color: rgba(55, 118, 171, 0.3);
+  color: #3776ab;
+}
+
+.wysiwyg-display-content pre.language-java::before {
+  content: 'Java';
+  background: rgba(240, 82, 54, 0.15);
+  border-color: rgba(240, 82, 54, 0.3);
+  color: #f05236;
+}
+
+.wysiwyg-display-content pre.language-csharp::before {
+  content: 'C#';
+  background: rgba(154, 82, 163, 0.15);
+  border-color: rgba(154, 82, 163, 0.3);
+  color: #9a52a3;
+}
+
+.wysiwyg-display-content pre.language-cpp::before {
+  content: 'C++';
+  background: rgba(0, 89, 156, 0.15);
+  border-color: rgba(0, 89, 156, 0.3);
+  color: #00599c;
+}
+
+.wysiwyg-display-content pre.language-php::before {
+  content: 'PHP';
+  background: rgba(119, 123, 180, 0.15);
+  border-color: rgba(119, 123, 180, 0.3);
+  color: #777bb4;
+}
+
+.wysiwyg-display-content pre.language-ruby::before {
+  content: 'Ruby';
+  background: rgba(204, 52, 45, 0.15);
+  border-color: rgba(204, 52, 45, 0.3);
+  color: #cc342d;
+}
+
+.wysiwyg-display-content pre.language-go::before {
+  content: 'Go';
+  background: rgba(0, 173, 216, 0.15);
+  border-color: rgba(0, 173, 216, 0.3);
+  color: #00add8;
+}
+
+.wysiwyg-display-content pre.language-rust::before {
+  content: 'Rust';
+  background: rgba(206, 73, 0, 0.15);
+  border-color: rgba(206, 73, 0, 0.3);
+  color: #ce4900;
+}
+
+.wysiwyg-display-content pre.language-swift::before {
+  content: 'Swift';
+  background: rgba(240, 81, 56, 0.15);
+  border-color: rgba(240, 81, 56, 0.3);
+  color: #f05138;
+}
+
+.wysiwyg-display-content pre.language-kotlin::before {
+  content: 'Kotlin';
+  background: rgba(124, 77, 255, 0.15);
+  border-color: rgba(124, 77, 255, 0.3);
+  color: #7c4dff;
+}
+
+.wysiwyg-display-content pre.language-sql::before {
+  content: 'SQL';
+  background: rgba(204, 102, 0, 0.15);
+  border-color: rgba(204, 102, 0, 0.3);
+  color: #cc6600;
+}
+
+.wysiwyg-display-content pre.language-html::before {
+  content: 'HTML';
+  background: rgba(227, 79, 38, 0.15);
+  border-color: rgba(227, 79, 38, 0.3);
+  color: #e34f26;
+}
+
+.wysiwyg-display-content pre.language-css::before {
+  content: 'CSS';
+  background: rgba(38, 77, 228, 0.15);
+  border-color: rgba(38, 77, 228, 0.3);
+  color: #264de4;
+}
+
+.wysiwyg-display-content pre.language-scss::before {
+  content: 'SCSS';
+  background: rgba(207, 100, 154, 0.15);
+  border-color: rgba(207, 100, 154, 0.3);
+  color: #cf649a;
+}
+
+.wysiwyg-display-content pre.language-json::before {
+  content: 'JSON';
+  background: rgba(41, 128, 185, 0.15);
+  border-color: rgba(41, 128, 185, 0.3);
+  color: #2980b9;
+}
+
+.wysiwyg-display-content pre.language-yaml::before {
+  content: 'YAML';
+  background: rgba(203, 56, 55, 0.15);
+  border-color: rgba(203, 56, 55, 0.3);
+  color: #cb3837;
+}
+
+.wysiwyg-display-content pre.language-bash::before {
+  content: 'Bash';
+  background: rgba(76, 175, 80, 0.15);
+  border-color: rgba(76, 175, 80, 0.3);
+  color: #4caf50;
+}
+
+.wysiwyg-display-content pre.language-shell::before {
+  content: 'Shell';
+  background: rgba(76, 175, 80, 0.15);
+  border-color: rgba(76, 175, 80, 0.3);
+  color: #4caf50;
+}
+
+.wysiwyg-display-content pre.language-markdown::before {
+  content: 'Markdown';
+  background: rgba(156, 39, 176, 0.15);
+  border-color: rgba(156, 39, 176, 0.3);
+  color: #9c27b0;
+}
+
+.wysiwyg-display-content pre.language-plaintext::before {
+  content: 'Plain Text';
+  background: rgba(158, 158, 158, 0.15);
+  border-color: rgba(158, 158, 158, 0.3);
+  color: #9e9e9e;
+}
+
+.wysiwyg-display-content code {
+  background: #0f1117;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  padding: 2px 6px;
+  color: #14C800;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+}
+
+.wysiwyg-display-content pre {
+  background: #0f1117;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 12px;
+  overflow-x: auto;
+  margin: 1em 0;
+  position: relative;
+}
+
+.wysiwyg-display-content pre code {
   background: none;
   border: none;
   padding: 0;
@@ -393,9 +892,14 @@
 .wysiwyg-display-content blockquote {
   border-left: 4px solid #14C800;
   padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 8px;
+  padding-bottom: 8px;
   margin: 1em 0;
   color: rgba(255, 255, 255, 0.8);
   font-style: italic;
+  background: rgba(20, 200, 0, 0.05);
+  border-radius: 0 4px 4px 0;
 }
 
 /* Responsive adjustments */
@@ -420,4 +924,167 @@
   .wysiwyg-display-content h2 {
     font-size: 1.25em;
   }
+}
+
+/* Enhanced Prism.js code highlighting - VS Code Dark+ theme (matches Monaco Editor) */
+.wysiwyg-content-editor pre[class*="language-"],
+.wysiwyg-display-content pre[class*="language-"] {
+  background: #1e1e1e !important;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 16px;
+  padding-top: 44px;
+  margin: 1.5em 0;
+  overflow-x: auto;
+  font-size: 14px;
+  line-height: 1.6;
+  position: relative;
+}
+
+.wysiwyg-content-editor code[class*="language-"],
+.wysiwyg-display-content code[class*="language-"] {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 14px;
+  color: #d4d4d4 !important;
+  text-shadow: none;
+  background: transparent !important;
+}
+
+/* GitHub-like scrollbar for code blocks */
+.wysiwyg-content-editor pre[class*="language-"]::-webkit-scrollbar,
+.wysiwyg-display-content pre[class*="language-"]::-webkit-scrollbar {
+  height: 8px;
+}
+
+.wysiwyg-content-editor pre[class*="language-"]::-webkit-scrollbar-track,
+.wysiwyg-display-content pre[class*="language-"]::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.wysiwyg-content-editor pre[class*="language-"]::-webkit-scrollbar-thumb,
+.wysiwyg-display-content pre[class*="language-"]::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.wysiwyg-content-editor pre[class*="language-"]::-webkit-scrollbar-thumb:hover,
+.wysiwyg-display-content pre[class*="language-"]::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Inline code styling */
+.wysiwyg-content-editor :not(pre) > code[class*="language-"],
+.wysiwyg-display-content :not(pre) > code[class*="language-"] {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.9em;
+  color: #14C800;
+}
+
+/* Syntax highlighting tokens - VS Code Dark+ theme colors (matches Monaco Editor vs-dark) */
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: #6a9955 !important;
+  font-style: italic;
+}
+
+.token.punctuation,
+.token.bracket,
+.token.brace,
+.token.paren {
+  color: #ffd700 !important;
+}
+
+.token.property,
+.token.tag,
+.token.boolean,
+.token.number,
+.token.constant,
+.token.symbol,
+.token.deleted {
+  color: #b5cea8 !important;
+}
+
+.token.selector,
+.token.attr-name,
+.token.string,
+.token.char,
+.token.builtin,
+.token.inserted {
+  color: #ce9178 !important;
+}
+
+.token.operator,
+.token.entity,
+.token.url,
+.language-css .token.string,
+.style .token.string {
+  color: #d4d4d4 !important;
+}
+
+.token.atrule,
+.token.attr-value,
+.token.keyword {
+  color: #c586c0 !important;
+}
+
+.token.function,
+.token.function-variable {
+  color: #dcdcaa !important;
+}
+
+/* Using attribute selector to avoid webpack parse issues with hyphenated class names */
+.token[class~="class-name"] {
+  color: #4ec9b0 !important;
+}
+
+.token.regex,
+.token.important,
+.token.variable {
+  color: #d16969 !important;
+}
+
+/* Python specific tokens */
+.language-python .token.keyword {
+  color: #569cd6 !important;
+}
+
+.language-python .token.builtin {
+  color: #dcdcaa !important;
+}
+
+.language-python .token.function {
+  color: #dcdcaa !important;
+}
+
+.language-python .token.decorator {
+  color: #dcdcaa !important;
+}
+
+/* JavaScript/TypeScript specific */
+.language-javascript .token.keyword,
+.language-typescript .token.keyword {
+  color: #569cd6 !important;
+}
+
+.language-javascript .token.class-name,
+.language-typescript .token.class-name {
+  color: #4ec9b0 !important;
+}
+
+.token.important,
+.token.bold {
+  font-weight: bold;
+}
+
+.token.italic {
+  font-style: italic;
+}
+
+.token.entity {
+  cursor: help;
 }
