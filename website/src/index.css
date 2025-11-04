@@ -20,13 +20,37 @@
   animation: fadeIn 0.3s ease-out;
 }
 
-html, body {
+html {
   background-color: #03060a;
   color: #ffffff;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #03060a;
+  color: #ffffff;
+  position: relative;
+  width: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 .btn-flat {
   @apply inline-flex items-center justify-center px-5 py-2 text-sm sm:text-base bg-white/5 text-white/80 border border-[#14C800]/50 rounded-none transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#14C800]/60;
+}
+
+/* Responsive text sizing for larger screens */
+@media (min-width: 1280px) {
+  .btn-flat {
+    @apply px-6 py-2.5;
+  }
+}
+
+@media (min-width: 1536px) {
+  .btn-flat {
+    @apply px-8 py-3;
+  }
 }
 
 .btn-flat:hover {
@@ -47,6 +71,19 @@ html, body {
 
 .btn-flat-lg {
   @apply px-6 sm:px-8 py-3 text-base sm:text-lg;
+}
+
+/* Responsive button scaling for larger screens */
+@media (min-width: 1280px) {
+  .btn-flat-lg {
+    @apply px-10 py-4;
+  }
+}
+
+@media (min-width: 1536px) {
+  .btn-flat-lg {
+    @apply px-12 py-5;
+  }
 }
 
 .btn-flat-sm {

@@ -260,12 +260,12 @@ const Projects = () => {
       <main>
         <section className="relative bg-[#03060a] pt-20 pb-24 border-t border-white/5">
           <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/30 to-transparent pointer-events-none" />
-          <div className="relative w-full px-6 md:px-12 lg:px-[7vw] text-left">
-            <div className="w-full max-w-[1200px]">
-            <h2 className="text-4xl font-bold text-white mb-4">
-              {projectsTitle.renderEditable('text-4xl font-bold text-white')}
+          <div className="relative w-full px-6 md:px-12 lg:px-[7vw] xl:px-[5vw] 2xl:px-[10vw] text-left">
+            <div className="w-full">
+            <h2 className="text-4xl xl:text-5xl 2xl:text-6xl font-bold text-white mb-4">
+              {projectsTitle.renderEditable('text-4xl xl:text-5xl 2xl:text-6xl font-bold text-white')}
             </h2>
-            <p className="text-white/60 max-w-2xl">
+            <p className="text-white/60 text-base xl:text-lg 2xl:text-xl max-w-3xl">
               {translations[language]?.projects_intro ||
                 'Showcasing selected engagements that blend strategy, data, and engineering craftsmanship.'}
             </p>
@@ -282,7 +282,7 @@ const Projects = () => {
                   <div
                     ref={provided.innerRef}
                     {...provided.droppableProps}
-                    className={`space-y-10 mt-12 transition-all duration-300 droppable-container ${
+                    className={`grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8 xl:gap-10 mt-12 transition-all duration-300 droppable-container ${
                       snapshot.isDraggingOver && isEditMode 
                         ? 'gap-12 is-dragging-over' 
                         : ''
