@@ -1,11 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Path, Body, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Path, Body, status, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import Any, List, Optional
+from pathlib import Path as PathLib
 from app import schemas, models
 from app.api import deps
 from app.crud import link as link_crud
 from app.core.logging import setup_logger
 from app.core.security_decorators import require_permission
+from app.core.config import settings
+from app.api.utils import file_utils
 from app.schemas.link import (
     LinkCategoryTypeCreate, LinkCategoryTypeUpdate, LinkCategoryTypeOut,
     LinkCategoryCreate, LinkCategoryUpdate, LinkCategoryOut,
@@ -475,6 +478,121 @@ def update_portfolio_link(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update portfolio link: {str(e)}"
+        )
+
+
+@router.post(
+    "/portfolios/links/{link_id}/image",
+    response_model=PortfolioLinkOut,
+    summary="Upload or replace a portfolio link image",
+    description="Uploads an image for a portfolio link, replacing the existing one if present."
+)
+@require_permission("MANAGE_PORTFOLIOS")
+async def upload_portfolio_link_image(
+    link_id: int = Path(..., ge=1, description="The portfolio link ID"),
+    file: UploadFile = File(..., description="Image file to upload"),
+    db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_user)
+) -> Any:
+    """Upload or replace the image for a portfolio link."""
+    logger.info(f"User {current_user.username} uploading image for portfolio link {link_id}")
+
+    link = link_crud.get_portfolio_link(db, link_id=link_id)
+    if not link:
+        logger.warning(f"Portfolio link not found for image upload: {link_id}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Portfolio link with ID {link_id} not found"
+        )
+
+    if not file.content_type or not file.content_type.startswith("image/"):
+        logger.warning(f"Invalid file type for portfolio link image upload: {file.content_type}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only image files are allowed"
+        )
+
+    try:
+        upload_dir = PathLib(settings.UPLOADS_DIR) / "portfolio_links" / str(link_id)
+        saved_path = await file_utils.save_upload_file(file, directory=upload_dir)
+        file_url = file_utils.get_file_url(saved_path)
+
+        old_image_path = link.image_path
+        updated_link = link_crud.set_portfolio_link_image(db, link_id=link_id, image_path=file_url)
+
+        if old_image_path and old_image_path != file_url:
+            try:
+                if old_image_path.startswith("/uploads/"):
+                    absolute_old_path = PathLib(settings.UPLOADS_DIR).parent / old_image_path.lstrip("/")
+                else:
+                    absolute_old_path = PathLib(old_image_path)
+                file_utils.delete_file(str(absolute_old_path))
+                logger.debug(f"Deleted old portfolio link image: {absolute_old_path}")
+            except Exception as delete_error:
+                logger.warning(f"Unable to delete old portfolio link image {old_image_path}: {delete_error}")
+
+        logger.info(f"Successfully uploaded image for portfolio link {link_id}")
+        return updated_link
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error uploading portfolio link image: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload portfolio link image: {str(e)}"
+        )
+
+
+@router.delete(
+    "/portfolios/links/{link_id}/image",
+    response_model=PortfolioLinkOut,
+    summary="Remove a portfolio link image",
+    description="Removes the image associated with a portfolio link."
+)
+@require_permission("MANAGE_PORTFOLIOS")
+def delete_portfolio_link_image(
+    link_id: int = Path(..., ge=1, description="The portfolio link ID"),
+    db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_user)
+) -> Any:
+    """Remove the image attached to a portfolio link."""
+    logger.info(f"User {current_user.username} removing image for portfolio link {link_id}")
+
+    link = link_crud.get_portfolio_link(db, link_id=link_id)
+    if not link:
+        logger.warning(f"Portfolio link not found when removing image: {link_id}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Portfolio link with ID {link_id} not found"
+        )
+
+    old_image_path = link.image_path
+    if not old_image_path:
+        logger.info(f"No image to remove for portfolio link {link_id}")
+        return link
+
+    try:
+        updated_link = link_crud.set_portfolio_link_image(db, link_id=link_id, image_path=None)
+
+        try:
+            if old_image_path.startswith("/uploads/"):
+                absolute_old_path = PathLib(settings.UPLOADS_DIR).parent / old_image_path.lstrip("/")
+            else:
+                absolute_old_path = PathLib(old_image_path)
+            file_utils.delete_file(str(absolute_old_path))
+            logger.debug(f"Deleted portfolio link image file: {absolute_old_path}")
+        except Exception as delete_error:
+            logger.warning(f"Unable to delete portfolio link image {old_image_path}: {delete_error}")
+
+        logger.info(f"Removed image for portfolio link {link_id}")
+        return updated_link
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error removing portfolio link image: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to remove portfolio link image: {str(e)}"
         )
 
 

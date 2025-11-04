@@ -72,9 +72,11 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         
         # Skip CSRF validation if using Bearer token authentication (API clients)
         # Cookie-based auth requires CSRF, but Bearer token auth doesn't need it
-        auth_header = request.headers.get("Authorization", "")
+        # Note: Starlette/FastAPI normalizes header names to lowercase
+        auth_header = request.headers.get("authorization", "")
         if auth_header.startswith("Bearer "):
             # This is API authentication via Bearer token, skip CSRF
+            logger.debug(f"Skipping CSRF validation for Bearer token request to {request_path}")
             return await call_next(request)
         
         # Verify CSRF token for cookie-based authentication
