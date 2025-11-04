@@ -48,6 +48,16 @@ class ContentOrderResponse(BaseModel):
     reordered_count: int
 
 
+class ProjectSectionsOrderRequest(BaseModel):
+    """Request model for reordering project sections."""
+    section_ids: List[int]  # New order of section IDs for this project
+
+
+class SectionContentOrderRequest(BaseModel):
+    """Request model for reordering content within a section."""
+    content_items: List[dict]  # List of {type, id, display_order}
+
+
 @router.patch("/content/project-text/{text_id}", status_code=status.HTTP_200_OK)
 @require_permission("EDIT_CONTENT")
 def update_project_text(
@@ -628,3 +638,262 @@ def update_project_metadata(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error updating project metadata: {str(e)}"
         )
+
+
+@router.patch("/content/project/{project_id}/sections/order", response_model=ContentOrderResponse)
+@require_permission("EDIT_CONTENT")
+def reorder_project_sections(
+    project_id: int,
+    reorder_request: ProjectSectionsOrderRequest,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+) -> Any:
+    """
+    Reorder sections within a specific project.
+    Updates the display_order in the project_sections association table.
+    Requires EDIT_CONTENT permission.
+    
+    Args:
+        project_id: ID of the project
+        reorder_request: List of section IDs in new order
+    
+    Returns:
+        Confirmation of reorder operation
+    """
+    logger.info(
+        f"User {current_user.username} reordering sections for project {project_id}"
+    )
+    logger.info(f"Received section IDs for reordering: {reorder_request.section_ids}")
+    
+    try:
+        # Validate project exists
+        project = project_crud.get_project(db, project_id=project_id)
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Project with ID {project_id} not found"
+            )
+        
+        logger.info(f"Project found: {project.id}, current sections: {[s.id for s in project.sections]}")
+        
+        # Update the display_order for each section in the project
+        from app.models.section import project_sections
+        
+        updated_count = 0
+        for new_order, section_id in enumerate(reorder_request.section_ids, start=0):
+            logger.debug(f"Updating section {section_id} to display_order {new_order}")
+            stmt = (
+                project_sections.update()
+                .where(project_sections.c.project_id == project_id)
+                .where(project_sections.c.section_id == section_id)
+                .values(display_order=new_order)
+            )
+            result = db.execute(stmt)
+            updated_count += result.rowcount
+            logger.debug(f"Update affected {result.rowcount} row(s)")
+        
+        db.commit()
+        
+        logger.info(
+            f"Successfully reordered {updated_count} section(s) for project {project_id}"
+        )
+        
+        return ContentOrderResponse(
+            message=f"Successfully reordered {updated_count} section(s)",
+            reordered_count=updated_count
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error reordering project sections: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error reordering project sections: {str(e)}"
+        )
+
+
+@router.patch("/content/project/{project_id}/section/{section_id}/order")
+@require_permission("EDIT_CONTENT")
+def update_section_display_order_in_project(
+    project_id: int,
+    section_id: int,
+    request_body: dict,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+) -> Any:
+    """
+    Update display_order for a specific section within a project.
+    This updates the project_sections association table.
+    Requires EDIT_CONTENT permission.
+    
+    Args:
+        project_id: ID of the project
+        section_id: ID of the section
+        request_body: JSON body with display_order field
+    
+    Returns:
+        Confirmation of update
+    """
+    display_order = request_body.get("display_order")
+    if display_order is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="display_order is required in request body"
+        )
+    
+    logger.info(
+        f"User {current_user.username} updating display_order for section {section_id} "
+        f"in project {project_id} to {display_order}"
+    )
+    
+    try:
+        # Validate project exists
+        project = project_crud.get_project(db, project_id=project_id)
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Project with ID {project_id} not found"
+            )
+        
+        # Validate section exists and is associated with the project
+        from app.models.section import project_sections
+        existing = db.execute(
+            project_sections.select().where(
+                project_sections.c.project_id == project_id,
+                project_sections.c.section_id == section_id
+            )
+        ).first()
+        
+        if not existing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Section {section_id} is not associated with project {project_id}"
+            )
+        
+        # Update display_order
+        stmt = (
+            project_sections.update()
+            .where(project_sections.c.project_id == project_id)
+            .where(project_sections.c.section_id == section_id)
+            .values(display_order=display_order)
+        )
+        result = db.execute(stmt)
+        db.commit()
+        
+        logger.info(
+            f"Successfully updated display_order to {display_order} for section {section_id} "
+            f"in project {project_id}"
+        )
+        
+        return {
+            "message": f"Successfully updated display order to {display_order}",
+            "project_id": project_id,
+            "section_id": section_id,
+            "display_order": display_order
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error updating section display order: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating section display order: {str(e)}"
+        )
+
+
+@router.patch("/content/section/{section_id}/content/order", response_model=ContentOrderResponse)
+@require_permission("EDIT_CONTENT")
+def reorder_section_content(
+    section_id: int,
+    reorder_request: SectionContentOrderRequest,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+) -> Any:
+    """
+    Reorder content within a specific section (images and attachments).
+    Updates the display_order for section images and attachments.
+    Requires EDIT_CONTENT permission.
+    
+    Note: Section text always has display_order 0 and appears first.
+    
+    Args:
+        section_id: ID of the section
+        reorder_request: List of content items with type, id, and display_order
+    
+    Returns:
+        Confirmation of reorder operation
+    """
+    logger.info(
+        f"User {current_user.username} reordering content for section {section_id}"
+    )
+    
+    try:
+        # Validate section exists
+        from app.models.section import Section, SectionImage, SectionAttachment
+        
+        section = db.query(Section).filter(Section.id == section_id).first()
+        if not section:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Section with ID {section_id} not found"
+            )
+        
+        # Update display_order for each content item
+        updated_count = 0
+        
+        for item in reorder_request.content_items:
+            content_type = item.get('type')
+            content_id = item.get('id')
+            display_order = item.get('display_order', 0)
+            
+            # Skip text items (they're not reorderable in the same way)
+            if content_type == 'text':
+                continue
+            
+            if content_type == 'image':
+                # Update section image
+                stmt = (
+                    SectionImage.__table__.update()
+                    .where(SectionImage.id == content_id)
+                    .where(SectionImage.section_id == section_id)
+                    .values(display_order=display_order, updated_by=current_user.id)
+                )
+                result = db.execute(stmt)
+                updated_count += result.rowcount
+                
+            elif content_type == 'file':
+                # Update section attachment
+                stmt = (
+                    SectionAttachment.__table__.update()
+                    .where(SectionAttachment.id == content_id)
+                    .where(SectionAttachment.section_id == section_id)
+                    .values(display_order=display_order, updated_by=current_user.id)
+                )
+                result = db.execute(stmt)
+                updated_count += result.rowcount
+        
+        db.commit()
+        
+        logger.info(
+            f"Successfully reordered {updated_count} content item(s) for section {section_id}"
+        )
+        
+        return ContentOrderResponse(
+            message=f"Successfully reordered {updated_count} content item(s)",
+            reordered_count=updated_count
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error reordering section content: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error reordering section content: {str(e)}"
+        )
+

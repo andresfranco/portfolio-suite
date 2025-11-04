@@ -434,7 +434,13 @@ const linksApi = {
   updatePortfolioLink: (linkId, data) => api.put(`/api/links/portfolios/links/${linkId}`, data),
   deletePortfolioLink: (linkId) => api.delete(`/api/links/portfolios/links/${linkId}`),
   updatePortfolioLinksOrder: (portfolioId, data) => api.put(`/api/links/portfolios/${portfolioId}/links/order`, data),
-  createPortfolioLinkText: (linkId, data) => api.post(`/api/links/portfolios/links/${linkId}/texts`, data)
+  createPortfolioLinkText: (linkId, data) => api.post(`/api/links/portfolios/links/${linkId}/texts`, data),
+  uploadPortfolioLinkImage: (linkId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/api/links/portfolios/links/${linkId}/image`, formData);
+  },
+  deletePortfolioLinkImage: (linkId) => api.delete(`/api/links/portfolios/links/${linkId}/image`)
 };
 
 export {

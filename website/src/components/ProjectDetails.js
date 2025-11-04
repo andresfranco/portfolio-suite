@@ -1,23 +1,274 @@
-import React, { useContext, useState } from 'react';
-import { FaGithub, FaGlobe, FaCalendar, FaFolder, FaArrowLeft, FaArrowRight, FaPencil, FaDownload } from 'react-icons/fa6';
+import React, { useContext, useState, useEffect, useRef } from 'react';
+import { FaGithub, FaGlobe, FaCalendar, FaFolder, FaArrowLeft, FaArrowRight, FaPencil, FaDownload, FaPlus } from 'react-icons/fa6';
 import { translations } from '../data/translations';
 import { LanguageContext } from '../context/LanguageContext';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useEditMode } from '../context/EditModeContext';
 import { useSectionLabel } from '../hooks/useSectionLabel';
-import { InlineTextEditor, ProjectImageSelector, ProjectMetadataEditor, ProjectSectionManager } from './cms';
+import { DragDropContext, Droppable } from '@hello-pangea/dnd';
+import DraggableProjectSection from './DraggableProjectSection';
+import DraggableProjectSectionWrapper from './DraggableProjectSectionWrapper';
+import EditableProjectSection from './EditableProjectSection';
+import './DragAndDrop.css';
+import { InlineTextEditor, ProjectImageSelector, ProjectMetadataEditor } from './cms';
+import { SectionEditorDialog } from './cms/ProjectSectionManager';
+import portfolioApi from '../services/portfolioApi';
 
 const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) => {
   const { language } = useContext(LanguageContext);
   const { getProjectText, refreshPortfolio } = usePortfolio();
-  const { isEditMode } = useEditMode();
+  const { isEditMode, authToken, showNotification } = useEditMode();
   const [isMetadataEditorOpen, setIsMetadataEditorOpen] = useState(false);
+  const [editingSection, setEditingSection] = useState(null);
+  const [showAddSectionDialog, setShowAddSectionDialog] = useState(false);
+  const [confirmDeleteSection, setConfirmDeleteSection] = useState(null);
+
+  // State for main section ordering (UI layout)
+  const defaultSectionOrder = ['title', 'image', 'description', 'skills', 'sections'];
+  const [sectionOrder, setSectionOrder] = useState(defaultSectionOrder);
+  const isReorderingRef = useRef(false);
+
+  // State for project sections ordering (actual database sections)
+  const [projectSections, setProjectSections] = useState([]);
+  const isReorderingSectionsRef = useRef(false);
+
+  // Update project sections when project data changes
+  useEffect(() => {
+    if (project?.sections) {
+      console.log('[PROJECT SECTIONS] Project data updated, sorting sections by display_order');
+      console.log('[PROJECT SECTIONS] Raw sections:', project.sections.map(s => ({ id: s.id, display_order: s.display_order })));
+      
+      const sortedSections = [...project.sections].sort(
+        (a, b) => (a.display_order || 0) - (b.display_order || 0)
+      );
+      
+      console.log('[PROJECT SECTIONS] Sorted sections:', sortedSections.map(s => ({ id: s.id, display_order: s.display_order })));
+      setProjectSections(sortedSections);
+    }
+  }, [project]);
+
+  /**
+   * Handle drag end event for main sections
+   */
+  const handleMainSectionDragEnd = (result) => {
+    console.log('Main section drag end:', result);
+    
+    if (!result.destination) {
+      console.log('No destination - dropped outside');
+      return;
+    }
+    
+    if (result.destination.index === result.source.index) {
+      console.log('No movement - same position');
+      return;
+    }
+
+    console.log(`Moving section from index ${result.source.index} to ${result.destination.index}`);
+
+    // Reorder the sections array
+    const reorderedSections = Array.from(sectionOrder);
+    const [movedSection] = reorderedSections.splice(result.source.index, 1);
+    reorderedSections.splice(result.destination.index, 0, movedSection);
+    
+    console.log('New section order:', reorderedSections);
+    
+    // Update local state immediately for instant feedback
+    setSectionOrder(reorderedSections);
+    
+    // Save UI layout preference to localStorage
+    // (Note: Main sections are UI layout, not database entities)
+    try {
+      localStorage.setItem(`project-${project.id}-section-order`, JSON.stringify(reorderedSections));
+    } catch (error) {
+      console.error('Failed to save section order:', error);
+    }
+  };
+
+  // Load saved section order from localStorage on mount
+  useEffect(() => {
+    if (project?.id) {
+      try {
+        const saved = localStorage.getItem(`project-${project.id}-section-order`);
+        if (saved) {
+          setSectionOrder(JSON.parse(saved));
+        }
+      } catch (error) {
+        console.error('Failed to load section order:', error);
+      }
+    }
+  }, [project?.id]);
+
+  /**
+   * Handle drag end event for project sections (database entities)
+   */
+  const handleProjectSectionsDragEnd = async (result) => {
+    console.log('🎯 === PROJECT SECTION DRAG END TRIGGERED ===');
+    console.log('🔍 Context:', {
+      isEditMode,
+      hasToken: !!authToken,
+      tokenPreview: authToken ? `${authToken.substring(0, 20)}...` : 'null',
+      projectId: project?.id,
+      projectName: project?.name,
+      result
+    });
+    
+    if (!result.destination) {
+      console.log('❌ No destination - dropped outside');
+      return;
+    }
+    
+    if (result.destination.index === result.source.index) {
+      console.log('❌ No movement - same position');
+      return;
+    }
+
+    // Prevent concurrent reordering operations
+    if (isReorderingSectionsRef.current) {
+      console.log('⚠️ Reordering already in progress, skipping...');
+      return;
+    }
+
+    isReorderingSectionsRef.current = true;
+
+    console.log(`📍 Moving project section from index ${result.source.index} to ${result.destination.index}`);
+
+    // Reorder the sections array
+    const reorderedSections = Array.from(projectSections);
+    const [movedSection] = reorderedSections.splice(result.source.index, 1);
+    reorderedSections.splice(result.destination.index, 0, movedSection);
+    
+    console.log('📋 New project sections order:', reorderedSections.map(s => ({ id: s.id, code: s.code })));
+    
+    // Update local state immediately for instant feedback
+    setProjectSections(reorderedSections);
+    
+    // Check conditions for backend save
+    console.log('🔐 Checking save conditions:', {
+      isEditMode,
+      hasToken: !!authToken,
+      hasProjectId: !!project?.id,
+      willSave: isEditMode && !!authToken && !!project?.id
+    });
+    
+    // Persist to backend API
+    if (isEditMode && authToken && project?.id) {
+      try {
+        const sectionIds = reorderedSections.map(section => section.id);
+        console.log('[REORDER] Sending request to backend:', {
+          projectId: project.id,
+          sectionIds,
+          hasToken: !!authToken,
+          apiUrl: `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/cms/content/project/${project.id}/sections/order`
+        });
+        
+        const response = await portfolioApi.reorderProjectSections(project.id, sectionIds, authToken);
+        console.log('[REORDER] Backend response:', response);
+        console.log('Successfully saved project sections order to backend');
+        
+        // Show success notification
+        if (showNotification) {
+          showNotification(
+            'Section Order Updated',
+            'The section order has been saved successfully.',
+            'success'
+          );
+        }
+        
+        // Refresh portfolio data to sync with backend
+        console.log('[REORDER] Refreshing portfolio data...');
+        await refreshPortfolio();
+        console.log('[REORDER] Portfolio data refreshed after reorder');
+      } catch (error) {
+        console.error('[REORDER] Failed to save project sections order:', error);
+        console.error('[REORDER] Error details:', {
+          message: error.message,
+          stack: error.stack
+        });
+        
+        // Show error notification
+        if (showNotification) {
+          showNotification(
+            'Save Failed',
+            `Failed to save section order: ${error.message || 'Unknown error'}`,
+            'error'
+          );
+        }
+        
+        // Revert to original order on error
+        if (project?.sections) {
+          const originalSections = [...project.sections].sort(
+            (a, b) => (a.display_order || 0) - (b.display_order || 0)
+          );
+          setProjectSections(originalSections);
+        }
+      }
+    } else {
+      console.warn('⚠️ === BACKEND SAVE SKIPPED ===');
+      console.warn('❌ One or more conditions failed:', {
+        isEditMode: isEditMode ? '✅' : '❌ FALSE',
+        hasToken: authToken ? '✅' : '❌ NULL/UNDEFINED',
+        hasProjectId: project?.id ? '✅' : '❌ NULL/UNDEFINED',
+      });
+      console.warn('💡 To fix:');
+      console.warn('  1. Make sure you are in Edit Mode (activate via backend admin)');
+      console.warn('  2. Check localStorage for cms_auth_token');
+      console.warn('  3. Verify project data is loaded');
+      
+      // Show warning notification
+      if (showNotification) {
+        const reasons = [];
+        if (!isEditMode) reasons.push('Not in edit mode');
+        if (!authToken) reasons.push('No auth token');
+        if (!project?.id) reasons.push('No project loaded');
+        
+        showNotification(
+          'Cannot Save Order',
+          `Changes not saved to backend: ${reasons.join(', ')}. ${!isEditMode ? 'Activate Edit Mode first.' : ''}`,
+          'warning'
+        );
+      }
+    }
+
+    // Small delay before allowing next reorder
+    setTimeout(() => {
+      isReorderingSectionsRef.current = false;
+    }, 500);
+  };
 
   /**
    * Handle metadata update - refresh portfolio data
    */
   const handleMetadataUpdate = async () => {
     await refreshPortfolio();
+  };
+
+  /**
+   * Handle section edit
+   */
+  const handleEditSection = (section) => {
+    setEditingSection(section);
+  };
+
+  /**
+   * Handle section delete
+   */
+  const handleDeleteSection = (sectionId) => {
+    setConfirmDeleteSection(sectionId);
+  };
+
+  /**
+   * Confirm section deletion
+   */
+  const confirmSectionDeletion = async () => {
+    if (!confirmDeleteSection) return;
+
+    try {
+      await portfolioApi.removeSectionFromProject(project.id, confirmDeleteSection, authToken);
+      await refreshPortfolio();
+      setConfirmDeleteSection(null);
+    } catch (error) {
+      console.error('Failed to delete section:', error);
+    }
   };
 
   // Get editable section labels
@@ -213,174 +464,217 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
 
         {/* Project Content Grid - Reordered for mobile */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-12 mb-20"> {/* Reduced gap on mobile */}
-          <div className="lg:col-span-2 space-y-6 md:space-y-8 order-2 lg:order-1"> {/* Reduced spacing on mobile */}
-            
-            {/* 1. Project Name/Title - First */}
-            <div>
-              <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">
-                {isEditMode && projectText.id ? (
-                  <InlineTextEditor
-                    value={title}
-                    entityType="project"
-                    entityId={projectText.id}
-                    fieldName="name"
-                    className="text-3xl md:text-4xl font-bold text-white"
-                    placeholder="Enter project name..."
-                  />
-                ) : (
-                  title
-                )}
-              </h1>
-            </div>
-            
-            {/* 2. Project Image/Logo - Second */}
-            <div className="rounded-xl overflow-hidden bg-gray-800 shadow-lg relative">
-              {/* Project Logo/Main Image with Edit Capability */}
-              <ProjectImageSelector
-                project={project}
-                category="logo"
-                currentImagePath={projectImage}
-                alt={title}
-                className="w-full h-auto"
-              />
-            </div>
-            
-            {/* 3. Project Description - Third */}
-            <div className="prose prose-lg prose-invert max-w-none">
-              <div className="text-gray-300 text-lg leading-relaxed">
-                {isEditMode && projectText.id ? (
-                  <InlineTextEditor
-                    value={description}
-                    entityType="project"
-                    entityId={projectText.id}
-                    fieldName="description"
-                    className="text-gray-300 text-lg leading-relaxed"
-                    placeholder="Enter project description..."
-                    multiline={true}
-                  />
-                ) : (
-                  <p>{description}</p>
-                )}
-              </div>
-            </div>
-
-            {/* Skills Section - Added extra bottom margin */}
-            {project.skills && project.skills.length > 0 && (
-              <div className="mt-8 mb-12">
-                <h2 className="text-2xl font-bold text-white mb-6">
-                  {skillsTechLabel.renderEditable('text-2xl font-bold text-white mb-6')}
-                </h2>
-                <div className="flex flex-wrap gap-3">
-                  {project.skills.map((skill, index) => {
-                    const skillName = getSkillName(skill);
-
-                    if (!skillName) return null;
-
-                    return (
-                      <span
-                        key={skill.id || index}
-                        className="chip chip-lg"
-                      >
-                        {skillName}
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Project Sections - Display Mode (below skills) */}
-            {!isEditMode && project.sections && project.sections.length > 0 && (
-              <div className="mt-8 space-y-8">
-                {project.sections
-                  .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-                  .map((section, index) => {
-                  // Get section text in current language
-                  const sectionText = section.section_texts?.find(
-                    text => text.language?.code === language
-                  ) || section.section_texts?.[0];
-
-                  if (!sectionText) return null;
-
-                  // Determine if section should have borders
-                  const isBordered = section.display_style !== 'borderless';
-
-                  return (
-                    <div key={section.id} className={isBordered ? "bg-gray-800/50 rounded-xl p-6 border border-gray-700/50" : ""}>
-                      {/* Section Content */}
-                      <div className="prose prose-lg prose-invert max-w-none">
-                        <p className="text-gray-300 whitespace-pre-wrap leading-relaxed">{sectionText.text}</p>
-                      </div>
-
-                      {/* Section Images */}
-                      {section.images && section.images.length > 0 && (
-                        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {section.images
-                            .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-                            .map((image) => {
-                              // Remove leading slash to avoid double slashes
-                              const cleanPath = image.image_path.startsWith('/') 
-                                ? image.image_path.substring(1) 
-                                : image.image_path;
-                              const imageUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${cleanPath}`;
-                              
-                              return (
-                                <img
-                                  key={image.id}
-                                  src={imageUrl}
-                                  alt="Section diagram"
-                                  className={isBordered ? "w-full rounded-lg border border-gray-700/50" : "w-full"}
-                                  onError={(e) => {
-                                    console.error('Failed to load section image:', image.image_path, 'URL:', imageUrl);
-                                  }}
+          
+          {/* Main Content Column with Drag and Drop */}
+          <DragDropContext onDragEnd={handleMainSectionDragEnd}>
+            <Droppable droppableId="project-main-sections" isDropDisabled={!isEditMode}>
+              {(provided, snapshot) => (
+                <div
+                  ref={provided.innerRef}
+                  {...provided.droppableProps}
+                  className={`lg:col-span-2 space-y-6 md:space-y-8 order-2 lg:order-1 transition-all duration-300 ${
+                    snapshot.isDraggingOver && isEditMode 
+                      ? 'droppable-container is-dragging-over' 
+                      : ''
+                  }`}
+                  style={{
+                    minHeight: snapshot.isDraggingOver ? '500px' : 'auto',
+                    padding: snapshot.isDraggingOver ? '1rem' : '0',
+                  }}
+                >
+                  {sectionOrder.map((sectionType, index) => {
+                    // Render section based on type
+                    switch (sectionType) {
+                      case 'title':
+                        return (
+                          <DraggableProjectSection
+                            key="title"
+                            sectionType="title"
+                            index={index}
+                            isEditMode={isEditMode}
+                          >
+                            <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">
+                              {isEditMode && projectText.id ? (
+                                <InlineTextEditor
+                                  value={title}
+                                  entityType="project"
+                                  entityId={projectText.id}
+                                  fieldName="name"
+                                  className="text-3xl md:text-4xl font-bold text-white"
+                                  placeholder="Enter project name..."
                                 />
-                              );
-                            })}
-                        </div>
-                      )}
-
-                      {/* Section Attachments */}
-                      {section.attachments && section.attachments.length > 0 && (
-                        <div className="mt-6">
-                          <div className="flex flex-wrap gap-3">
-                            {section.attachments
-                              .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-                              .map((attachment) => {
-                                // Remove leading slash to avoid double slashes
-                                const cleanPath = attachment.file_path.startsWith('/') 
-                                  ? attachment.file_path.substring(1) 
-                                  : attachment.file_path;
-                                const fileUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${cleanPath}`;
-                                
+                              ) : (
+                                title
+                              )}
+                            </h1>
+                          </DraggableProjectSection>
+                        );
+                      
+                      case 'image':
+                        return (
+                          <DraggableProjectSection
+                            key="image"
+                            sectionType="image"
+                            index={index}
+                            isEditMode={isEditMode}
+                            className="rounded-xl overflow-hidden bg-gray-800 shadow-lg"
+                          >
+                            <ProjectImageSelector
+                              project={project}
+                              category="logo"
+                              currentImagePath={projectImage}
+                              alt={title}
+                              className="w-full h-auto"
+                            />
+                          </DraggableProjectSection>
+                        );
+                      
+                      case 'description':
+                        return (
+                          <DraggableProjectSection
+                            key="description"
+                            sectionType="description"
+                            index={index}
+                            isEditMode={isEditMode}
+                            className="prose prose-lg prose-invert max-w-none"
+                          >
+                            <div className="text-gray-300 text-lg leading-relaxed">
+                              {isEditMode && projectText.id ? (
+                                <InlineTextEditor
+                                  value={description}
+                                  entityType="project"
+                                  entityId={projectText.id}
+                                  fieldName="description"
+                                  className="text-gray-300 text-lg leading-relaxed"
+                                  placeholder="Enter project description..."
+                                  multiline={true}
+                                />
+                              ) : (
+                                <p>{description}</p>
+                              )}
+                            </div>
+                          </DraggableProjectSection>
+                        );
+                      
+                      case 'skills':
+                        return project.skills && project.skills.length > 0 ? (
+                          <DraggableProjectSection
+                            key="skills"
+                            sectionType="skills"
+                            index={index}
+                            isEditMode={isEditMode}
+                            className="mt-8 mb-12"
+                          >
+                            <h2 className="text-2xl font-bold text-white mb-6">
+                              {skillsTechLabel.renderEditable('text-2xl font-bold text-white mb-6')}
+                            </h2>
+                            <div className="flex flex-wrap gap-3">
+                              {project.skills.map((skill, skillIndex) => {
+                                const skillName = getSkillName(skill);
+                                if (!skillName) return null;
                                 return (
-                                  <a
-                                    key={attachment.id}
-                                    href={fileUrl}
-                                    download={attachment.file_name}
-                                    className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700/50 hover:bg-gray-700 border border-[#14C800]/30 hover:border-[#14C800]/60 rounded text-[#14C800] hover:text-white transition-all duration-200"
+                                  <span
+                                    key={skill.id || skillIndex}
+                                    className="chip chip-lg"
                                   >
-                                    <FaDownload size={14} />
-                                    <span className="text-sm">{attachment.file_name}</span>
-                                  </a>
+                                    {skillName}
+                                  </span>
                                 );
                               })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                            </div>
+                          </DraggableProjectSection>
+                        ) : null;
+                      
+                      case 'sections':
+                        return project.sections && project.sections.length > 0 ? (
+                          <DraggableProjectSection
+                            key="sections"
+                            sectionType="sections"
+                            index={index}
+                            isEditMode={isEditMode}
+                          >
+                            {/* Project Sections with Individual Drag and Drop */}
+                            <div className="mt-8">
+                              <DragDropContext onDragEnd={handleProjectSectionsDragEnd}>
+                                <Droppable droppableId="project-sections-list" isDropDisabled={!isEditMode}>
+                                  {(provided, snapshot) => (
+                                    <div
+                                      ref={provided.innerRef}
+                                      {...provided.droppableProps}
+                                      className={`space-y-8 transition-all duration-300 ${
+                                        snapshot.isDraggingOver && isEditMode 
+                                          ? 'droppable-container is-dragging-over bg-[#14C800]/5 ring-1 ring-[#14C800]/30 ring-inset p-4 rounded-lg' 
+                                          : ''
+                                      }`}
+                                      style={{
+                                        minHeight: snapshot.isDraggingOver ? '200px' : 'auto',
+                                      }}
+                                    >
+                                      {projectSections.map((section, sectionIndex) => (
+                                        <DraggableProjectSectionWrapper
+                                          key={section.id}
+                                          section={section}
+                                          index={sectionIndex}
+                                          language={language}
+                                          isEditMode={isEditMode}
+                                          onContentReorder={(sectionId, reorderedItems) => {
+                                            console.log(`Section ${sectionId} content reordered:`, reorderedItems);
+                                            // Content reordering is handled by EditableProjectSection via API
+                                          }}
+                                          onEdit={handleEditSection}
+                                          onDelete={handleDeleteSection}
+                                        />
+                                      ))}
+                                      {provided.placeholder}
+                                    </div>
+                                  )}
+                                </Droppable>
+                              </DragDropContext>
 
-            {/* Project Section Management - Edit Mode Only (below skills) */}
-            {isEditMode && (
-              <ProjectSectionManager
-                project={project}
-                onUpdate={handleMetadataUpdate}
-              />
-            )}
-          </div>
+                              {/* Add Section Button - Edit Mode Only */}
+                              {isEditMode && (
+                                <div className="mt-6 flex justify-center">
+                                  <button
+                                    onClick={() => setShowAddSectionDialog(true)}
+                                    className="btn-flat flex items-center gap-2 px-6 py-3 text-lg"
+                                  >
+                                    <FaPlus />
+                                    <span>Add New Section</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </DraggableProjectSection>
+                        ) : isEditMode ? (
+                          <DraggableProjectSection
+                            key="sections"
+                            sectionType="sections"
+                            index={index}
+                            isEditMode={isEditMode}
+                          >
+                            {/* No sections yet - Show add button */}
+                            <div className="mt-8 text-center">
+                              <p className="text-gray-400 mb-4">No sections yet. Add your first section!</p>
+                              <button
+                                onClick={() => setShowAddSectionDialog(true)}
+                                className="btn-flat flex items-center gap-2 px-6 py-3 mx-auto"
+                              >
+                                <FaPlus />
+                                <span>Add First Section</span>
+                              </button>
+                            </div>
+                          </DraggableProjectSection>
+                        ) : null;
+                      
+                      default:
+                        return null;
+                    }
+                  })}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          </DragDropContext>
 
           {/* Project Info Sidebar - Moved to top on mobile */}
           <aside className="lg:col-span-1 order-1 lg:order-2">
@@ -455,6 +749,58 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
         project={project}
         onUpdate={handleMetadataUpdate}
       />
+
+      {/* Section Management Dialogs */}
+      {showAddSectionDialog && (
+        <SectionEditorDialog
+          projectId={project.id}
+          authToken={authToken}
+          onClose={() => setShowAddSectionDialog(false)}
+          onSuccess={async () => {
+            setShowAddSectionDialog(false);
+            await refreshPortfolio();
+          }}
+        />
+      )}
+      
+      {editingSection && (
+        <SectionEditorDialog
+          projectId={project.id}
+          section={editingSection}
+          authToken={authToken}
+          onClose={() => setEditingSection(null)}
+          onSuccess={async () => {
+            setEditingSection(null);
+            await refreshPortfolio();
+          }}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {confirmDeleteSection && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4">
+          <div className="bg-gray-800 rounded-xl p-6 max-w-md w-full border border-gray-700">
+            <h3 className="text-xl font-bold text-white mb-4">Confirm Delete</h3>
+            <p className="text-gray-300 mb-6">
+              Are you sure you want to remove this section from the project? This will not delete the section itself, only remove it from this project.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setConfirmDeleteSection(null)}
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmSectionDeletion}
+                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

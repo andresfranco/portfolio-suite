@@ -413,6 +413,71 @@ export const portfolioApi = {
   },
 
   /**
+   * Reorder sections within a specific project
+   * @param {number} projectId - Project ID
+   * @param {Array<number>} sectionIds - Array of section IDs in new order
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - Reorder confirmation
+   */
+  reorderProjectSections: async (projectId, sectionIds, token) => {
+    console.log('[API] reorderProjectSections called with:', { projectId, sectionIds, token: token ? 'present' : 'missing' });
+    
+    try {
+      const url = `${API_BASE_URL}/api/cms/content/project/${projectId}/sections/order`;
+      const body = JSON.stringify({ section_ids: sectionIds });
+      
+      console.log('[API] Making PATCH request to:', url);
+      console.log('[API] Request body:', body);
+      console.log('[API] Headers:', getHeaders(token));
+      
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: getHeaders(token),
+        credentials: 'include',
+        body: body,
+      });
+      
+      console.log('[API] Response status:', response.status);
+      console.log('[API] Response headers:', Object.fromEntries(response.headers.entries()));
+      
+      const result = await handleResponse(response);
+      console.log('[API] Reorder successful, result:', result);
+      return result;
+    } catch (error) {
+      console.error('[API] Error reordering project sections:', error);
+      console.error('[API] Error stack:', error.stack);
+      throw error;
+    }
+  },
+
+  /**
+   * Reorder content within a specific section (images, attachments)
+   * @param {number} sectionId - Section ID
+   * @param {Array<Object>} contentItems - Array of content items with type, id, display_order
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - Reorder confirmation
+   */
+  reorderSectionContent: async (sectionId, contentItems, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/cms/content/section/${sectionId}/content/order`,
+        {
+          method: 'PATCH',
+          headers: getHeaders(token),
+          credentials: 'include',
+          body: JSON.stringify({
+            content_items: contentItems,
+          }),
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error reordering section content:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Update portfolio metadata (name, etc.)
    * @param {number} portfolioId - Portfolio ID
    * @param {Object} data - Data to update (name, description, etc.)
@@ -857,6 +922,27 @@ export const portfolioApi = {
   },
 
   /**
+   * Update a portfolio link category
+   */
+  updateLinkCategory: async (categoryId, updateData, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/links/categories/${categoryId}`,
+        {
+          method: 'PUT',
+          headers: getHeaders(token),
+          credentials: 'include',
+          body: JSON.stringify(updateData),
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error(`Error updating link category ${categoryId}:`, error);
+      throw error;
+    }
+  },
+
+  /**
    * Get all skills
    * @param {string} token - Authentication token (optional for public access)
    * @returns {Promise<Object>} - Skills list
@@ -1148,6 +1234,34 @@ export const portfolioApi = {
   },
 
   /**
+   * Update display_order for a section within a specific project
+   * @param {number} projectId - Project ID
+   * @param {number} sectionId - Section ID
+   * @param {number} displayOrder - New display order
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - Update confirmation
+   */
+  updateSectionDisplayOrder: async (projectId, sectionId, displayOrder, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/cms/content/project/${projectId}/section/${sectionId}/order`,
+        {
+          method: 'PATCH',
+          headers: getHeaders(token),
+          credentials: 'include',
+          body: JSON.stringify({
+            display_order: displayOrder,
+          }),
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error updating section display order:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Add an image to a section
    * @param {number} sectionId - Section ID
    * @param {Object} imageData - Image data {image_path, language_id, display_order}
@@ -1273,21 +1387,182 @@ export const portfolioApi = {
    * @param {boolean} activeOnly - Only fetch active links (default: true)
    * @returns {Promise<Array>} - Array of portfolio links
    */
-  getPortfolioLinks: async (portfolioId, activeOnly = true) => {
+  getPortfolioLinks: async (portfolioId, options = {}) => {
     try {
+      let activeOnly = true;
+      let token = null;
+
+      if (typeof options === 'boolean') {
+        activeOnly = options;
+      } else if (options && typeof options === 'object') {
+        if (options.activeOnly !== undefined) {
+          activeOnly = options.activeOnly;
+        }
+        if (options.token) {
+          token = options.token;
+        }
+      }
+
       const params = activeOnly ? '?is_active=true' : '';
+      const headers = token ? getHeaders(token) : { 'Content-Type': 'application/json' };
+
       const response = await fetch(
         `${API_BASE_URL}/api/links/portfolios/${portfolioId}/links${params}`,
         {
           method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers,
+          credentials: 'include',
         }
       );
       return await handleResponse(response);
     } catch (error) {
       console.error('Error fetching portfolio links:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get portfolio link categories
+   */
+  getLinkCategories: async (token = null) => {
+    try {
+      const headers = token ? getHeaders(token) : { 'Content-Type': 'application/json' };
+      const response = await fetch(
+        `${API_BASE_URL}/api/links/categories`,
+        {
+          method: 'GET',
+          headers,
+          credentials: 'include',
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error fetching link categories:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get portfolio link category types
+   */
+  getLinkCategoryTypes: async (token = null) => {
+    try {
+      const headers = token ? getHeaders(token) : { 'Content-Type': 'application/json' };
+      const response = await fetch(
+        `${API_BASE_URL}/api/links/category-types`,
+        {
+          method: 'GET',
+          headers,
+          credentials: 'include',
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error fetching link category types:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Create a new portfolio link
+   */
+  createPortfolioLink: async (linkData, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/links/portfolios/links`,
+        {
+          method: 'POST',
+          headers: getHeaders(token),
+          credentials: 'include',
+          body: JSON.stringify(linkData),
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error creating portfolio link:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Update an existing portfolio link
+   */
+  updatePortfolioLink: async (linkId, updateData, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/links/portfolios/links/${linkId}`,
+        {
+          method: 'PUT',
+          headers: getHeaders(token),
+          credentials: 'include',
+          body: JSON.stringify(updateData),
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error(`Error updating portfolio link ${linkId}:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Delete a portfolio link
+   */
+  deletePortfolioLink: async (linkId, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/links/portfolios/links/${linkId}`,
+        {
+          method: 'DELETE',
+          headers: getHeaders(token),
+          credentials: 'include',
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error(`Error deleting portfolio link ${linkId}:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Update the display order of portfolio links
+   */
+  updatePortfolioLinksOrder: async (portfolioId, linkOrders, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/links/portfolios/${portfolioId}/links/order`,
+        {
+          method: 'PUT',
+          headers: getHeaders(token),
+          credentials: 'include',
+          body: JSON.stringify({ link_orders: linkOrders }),
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error updating portfolio link order:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Create or update a portfolio link text (language-specific name/description)
+   */
+  createPortfolioLinkText: async (linkId, textData, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/links/portfolios/links/${linkId}/texts`,
+        {
+          method: 'POST',
+          headers: getHeaders(token),
+          credentials: 'include',
+          body: JSON.stringify(textData),
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error(`Error updating portfolio link text for link ${linkId}:`, error);
       throw error;
     }
   },
