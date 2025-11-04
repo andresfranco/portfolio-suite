@@ -305,7 +305,7 @@ function PortfolioIndexContent() {
           <PermissionGate permission="EDIT_CONTENT">
             <Tooltip title="Edit Portfolio Website">
               <IconButton 
-                onClick={() => handleEditWebsiteClick(params.row)} 
+                onClick={(e) => handleEditWebsiteClick(params.row, e)} 
                 size="small"
                 sx={{ 
                   color: '#4caf50',
@@ -395,7 +395,15 @@ function PortfolioIndexContent() {
   };
 
   // Handle edit website button click - opens website in edit mode
-  const handleEditWebsiteClick = async (portfolio) => {
+  const handleEditWebsiteClick = async (portfolio, event) => {
+    // Prevent default behavior and stop propagation
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
+    console.log('🌐 Opening portfolio in website edit mode:', portfolio);
+    
     try {
       // Call backend API to generate a JWT token from the cookie session
       const response = await fetch(`${SERVER_URL}/api/auth/generate-website-token`, {
@@ -405,6 +413,8 @@ function PortfolioIndexContent() {
           'Content-Type': 'application/json',
         }
       });
+
+      console.log('🌐 Token generation response:', response.status);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ detail: 'Failed to generate token' }));
@@ -419,6 +429,8 @@ function PortfolioIndexContent() {
       const data = await response.json();
       const token = data.access_token;
 
+      console.log('🌐 Token received:', token ? 'Yes' : 'No');
+
       if (!token) {
         setErrorDialog({
           open: true,
@@ -431,6 +443,8 @@ function PortfolioIndexContent() {
       // Construct website URL with edit mode parameters
       const websiteUrl = process.env.REACT_APP_WEBSITE_URL || 'http://localhost:3000';
       const editUrl = `${websiteUrl}?edit=true&token=${encodeURIComponent(token)}&portfolio_id=${portfolio.id}`;
+
+      console.log('🌐 Opening URL:', editUrl);
 
       // Open in new tab
       window.open(editUrl, '_blank');
