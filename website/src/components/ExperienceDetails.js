@@ -134,15 +134,15 @@ const ExperienceDetails = ({ experience, onBackClick, onPreviousClick, onNextCli
       </div>
 
       {/* Main Content - Adjusted spacing */}
-      <article className="max-w-7xl mx-auto px-4">
-        <div className="max-w-4xl mx-auto">
+      <article className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-5xl mx-auto">
           {/* Experience Header - Moved down and added padding */}
           <header className="pt-32 pb-12">
-            <div className="mt-16 flex items-start gap-6"> {/* Changed to items-start for better alignment */}
-              <div className="text-[#14C800] text-5xl flex-shrink-0">
+            <div className="mt-16 flex items-start gap-6 lg:gap-8"> {/* Changed to items-start for better alignment */}
+              <div className="text-[#14C800] text-4xl sm:text-5xl lg:text-6xl flex-shrink-0">
                 <Icon />
               </div>
-              <div className="flex-1 space-y-6"> {/* Added space-y-6 for vertical spacing */}
+              <div className="flex-1 space-y-6 lg:space-y-8"> {/* Added space-y-6 for vertical spacing */}
                 {/* Experience Name */}
                 <div>
                   {isEditMode ? (
@@ -185,22 +185,19 @@ const ExperienceDetails = ({ experience, onBackClick, onPreviousClick, onNextCli
           </header>
 
           {/* Experience Content */}
-          <div className="prose prose-lg prose-invert max-w-none">
-            <div className="bg-gray-800 rounded-xl p-8 shadow-lg space-y-8">
+          <div className="prose prose-lg lg:prose-xl prose-invert max-w-none pb-16">
+            <div className="space-y-10 lg:space-y-12">
               <EditableSectionWrapper
                 label="Experience Overview"
                 isVisible={isEditMode}
               >
-                <div>
-                  <h2 className="text-2xl font-bold text-white mb-6">
-                    {translations[language].experience_overview}
-                  </h2>
+                <div className="text-gray-300 text-base sm:text-lg lg:text-xl leading-relaxed lg:leading-loose">
                   <ContentEditableWYSIWYG
                     value={experienceText.description}
                     entityType="experience"
                     entityId={experience.experience_texts?.find(t => t.language_id === (language === 'en' ? 1 : 2))?.id}
                     fieldName="description"
-                    className="text-gray-300 text-lg leading-relaxed prose prose-invert max-w-none"
+                    className="text-gray-300 text-base sm:text-lg lg:text-xl leading-relaxed lg:leading-loose prose prose-lg lg:prose-xl prose-invert max-w-none"
                     minHeight={400}
                     label="Experience Overview"
                     placeholder="Enter experience overview with rich formatting..."
@@ -211,40 +208,42 @@ const ExperienceDetails = ({ experience, onBackClick, onPreviousClick, onNextCli
 
               {/* Skills Section */}
               {experience.skills && experience.skills.length > 0 && (
-                <EditableSectionWrapper
-                  label="Skills & Technologies"
-                  isVisible={isEditMode}
-                >
-                  <div>
-                    <h2 className="text-2xl font-bold text-white mb-6">
-                      {translations[language].skills_technologies}
-                    </h2>
-                    <div className="flex flex-wrap gap-3">
-                      {experience.skills.map((skill, index) => {
-                        // Get skill name - handle both old and new API structure
-                        const skillName = skill.skill_texts && skill.skill_texts.length > 0
-                          ? skill.skill_texts[0].name
-                          : skill.name?.[language] || skill.name || 'Skill';
+                <div className="bg-gray-800 rounded-xl p-6 sm:p-8 lg:p-10 shadow-lg">
+                  <EditableSectionWrapper
+                    label="Skills & Technologies"
+                    isVisible={isEditMode}
+                  >
+                    <div>
+                      <h2 className="text-2xl lg:text-3xl font-bold text-white mb-6 lg:mb-8">
+                        {translations[language].skills_technologies}
+                      </h2>
+                      <div className="flex flex-wrap gap-3 lg:gap-4">
+                        {experience.skills.map((skill, index) => {
+                          // Get skill name - handle both old and new API structure
+                          const skillName = skill.skill_texts && skill.skill_texts.length > 0
+                            ? skill.skill_texts[0].name
+                            : skill.name?.[language] || skill.name || 'Skill';
 
-                      return (
-                        <span
-                          key={skill.id || index}
-                          className="chip chip-lg"
-                        >
-                          {skillName}
-                        </span>
-                      );
-                    })}
-                    </div>
-                    {isEditMode && (
-                      <div className="mt-4">
-                        <p className="text-sm text-gray-400 italic">
-                          Note: Skills are managed through the Skills section. This view shows skills associated with this experience.
-                        </p>
+                        return (
+                          <span
+                            key={skill.id || index}
+                            className="chip chip-lg"
+                          >
+                            {skillName}
+                          </span>
+                        );
+                      })}
                       </div>
-                    )}
-                  </div>
-                </EditableSectionWrapper>
+                      {isEditMode && (
+                        <div className="mt-4">
+                          <p className="text-sm text-gray-400 italic">
+                            Note: Skills are managed through the Skills section. This view shows skills associated with this experience.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </EditableSectionWrapper>
+                </div>
               )}
             </div>
           </div>
