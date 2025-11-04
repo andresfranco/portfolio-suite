@@ -391,23 +391,17 @@ const Hero = () => {
         <div
           className={`absolute inset-y-0 right-0 w-full lg:w-1/2 overflow-hidden transition-opacity duration-300 ${isEditMode ? "" : "pointer-events-none"}`}
         >
-          <div className="absolute inset-0">
-            {isEditMode && portfolio?.id ? (
-              <ImageUploader
-                currentImage={heroImage}
-                entityType="portfolio"
-                entityId={portfolio.id}
-                category="main"
-                alt="Hero visual"
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-            ) : (
-              <img
-                src={heroImage}
-                alt="Hero visual"
-                className="absolute inset-0 w-full h-full object-cover opacity-80"
-              />
-            )}
+          {/* Background image layer */}
+          <div className="absolute inset-0 z-0">
+            <img
+              src={heroImage}
+              alt="Hero visual"
+              className="absolute inset-0 w-full h-full object-cover opacity-80"
+            />
+          </div>
+          
+          {/* Overlay effects - only block pointer events when NOT in edit mode */}
+          <div className={`absolute inset-0 z-10 ${isEditMode ? 'pointer-events-none' : ''}`}>
             <div className="absolute inset-0 bg-gradient-to-l from-[#03060a]/20 via-[#03060a]/45 to-transparent mix-blend-soft-light" />
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/20 to-black/45" />
             <div className="absolute top-[-10%] right-[-5%] w-[70%] h-[60%] bg-[#03060a]/55 blur-3xl" />
@@ -415,6 +409,31 @@ const Hero = () => {
             <div className="absolute top-[-10%] left-[-20%] w-[50%] h-[55%] bg-[#03060a]/65 blur-[110px]" />
             <div className="absolute bottom-[-15%] left-[-15%] w-[60%] h-[65%] bg-[#03060a]/55 blur-[120px]" />
           </div>
+          
+          {/* Edit mode: Interactive image uploader overlay - highest z-index */}
+          {isEditMode && portfolio?.id && (
+            <div className="absolute inset-0 z-20 group cursor-pointer">
+              {/* Visible edit indicator badge */}
+              <div className="absolute top-4 right-4 z-30 bg-[#14C800] text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 opacity-90 group-hover:opacity-100 transition-opacity">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span className="font-medium text-sm">Click or drag to change hero image</span>
+              </div>
+              
+              {/* Hover overlay */}
+              <div className="absolute inset-0 bg-[#14C800]/0 group-hover:bg-[#14C800]/10 transition-colors duration-200 border-2 border-transparent group-hover:border-[#14C800] group-hover:border-dashed"></div>
+              
+              <ImageUploader
+                currentImage={heroImage}
+                entityType="portfolio"
+                entityId={portfolio.id}
+                category="main"
+                alt="Hero visual"
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
         </div>
 
         <div className="absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-black/60 to-transparent pointer-events-none" />

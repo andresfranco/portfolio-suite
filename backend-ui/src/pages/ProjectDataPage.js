@@ -57,7 +57,8 @@ import {
   Visibility as VisibilityIcon,
   Language as LanguageIcon,
   ArrowBack as ArrowBackIcon,
-  Category as CategoryIcon
+  Category as CategoryIcon,
+  OpenInNew as OpenInNewIcon
 } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
 import { api, projectsApi, sectionsApi, languagesApi } from '../services/api';
@@ -436,6 +437,32 @@ function ProjectDataPage() {
   // Back handler
   const handleBack = () => {
     navigate('/projects');
+  };
+
+  // Open in CMS handler
+  const handleViewInCMS = async () => {
+    try {
+      // Generate website token from backend
+      const response = await api.get('/auth/generate-website-token');
+      
+      // Backend returns 'access_token', not 'token'
+      const token = response.data?.access_token || response.data?.token;
+      
+      if (token) {
+        const websiteUrl = process.env.REACT_APP_WEBSITE_URL || 'http://localhost:3000';
+        const projectUrl = `${websiteUrl}/en/projects/${projectData.slug || projectId}?token=${token}&edit=true`;
+        
+        // Open in new tab
+        window.open(projectUrl, '_blank');
+        enqueueSnackbar('Opening project in CMS edit mode...', { variant: 'info' });
+      } else {
+        enqueueSnackbar('Failed to generate authentication token', { variant: 'error' });
+      }
+    } catch (err) {
+      console.error('Error generating website token:', err);
+      const errorMessage = err.response?.data?.detail || 'Failed to open in CMS';
+      enqueueSnackbar(`Error: ${errorMessage}`, { variant: 'error' });
+    }
   };
 
   // Helper to get category display name
@@ -877,13 +904,24 @@ function ProjectDataPage() {
           <Typography variant="h6" component="div">
             {getProjectTitle()}
           </Typography>
-          <Button
-            variant="outlined"
-            startIcon={<ArrowBackIcon />}
-            onClick={handleBack}
-          >
-            Back to Projects
-          </Button>
+          <Stack direction="row" spacing={2}>
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<OpenInNewIcon />}
+              onClick={handleViewInCMS}
+              disabled={!projectData}
+            >
+              View in CMS
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<ArrowBackIcon />}
+              onClick={handleBack}
+            >
+              Back to Projects
+            </Button>
+          </Stack>
         </Box>
 
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>

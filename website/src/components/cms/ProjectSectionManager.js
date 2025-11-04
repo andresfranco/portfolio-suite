@@ -364,6 +364,12 @@ const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess
       if (isEditing) {
         // Update existing section
         await portfolioApi.updateSection(section.id, formData, authToken);
+        
+        // If display_order changed and we have a projectId, update the order separately
+        if (projectId && formData.display_order !== section.display_order) {
+          console.log(`[SECTION EDIT] Updating display_order for section ${section.id} in project ${projectId} to ${formData.display_order}`);
+          await portfolioApi.updateSectionDisplayOrder(projectId, section.id, formData.display_order, authToken);
+        }
       } else {
         // Create new section
         await portfolioApi.createProjectSection(projectId, formData, authToken);
@@ -813,4 +819,5 @@ const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess
   );
 };
 
+export { SectionEditorDialog };
 export default ProjectSectionManager;

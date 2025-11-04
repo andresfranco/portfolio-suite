@@ -10,6 +10,7 @@ from app.schemas.section import (
 from typing import List, Optional, Tuple
 from app.core.logging import setup_logger
 from app.core.db import db_transaction
+import time
 
 # Set up logger using centralized logging
 logger = setup_logger("app.crud.section")
@@ -54,9 +55,30 @@ def create_section(db: Session, section: SectionCreate):
     logger.debug(f"Starting section creation for {section.code}")
     
     try:
+        # Generate unique code if the provided code already exists
+        original_code = section.code
+        code = original_code
+        
+        # Check if code exists
+        if db.query(Section).filter(Section.code == code).first():
+            # Try with timestamp suffix first
+            timestamp = int(time.time() * 1000) % 100000  # Last 5 digits of timestamp
+            code = f"{original_code}_{timestamp}"
+            logger.debug(f"Code {original_code} already exists, trying {code}")
+            
+            # If still exists, use incremental counter
+            counter = 1
+            while db.query(Section).filter(Section.code == code).first():
+                code = f"{original_code}_{timestamp}_{counter}"
+                counter += 1
+                logger.debug(f"Code still exists, trying {code}")
+        
+        if code != original_code:
+            logger.info(f"Generated unique code: {code} (original: {original_code})")
+        
         # Create the section
         db_section = Section(
-            code=section.code,
+            code=code,
             display_style=section.display_style,  # Add display_style
             # Set default values for user tracking fields
             created_by=1,  # Default user ID
@@ -65,7 +87,7 @@ def create_section(db: Session, section: SectionCreate):
         db.add(db_section)
         db.flush()  # Flush to get the section ID
         
-        logger.debug(f"Created section with ID {db_section.id}, display_style={section.display_style}")
+        logger.debug(f"Created section with ID {db_section.id}, code={code}, display_style={section.display_style}")
         
         # Create section texts
         for text_data in section.section_texts:

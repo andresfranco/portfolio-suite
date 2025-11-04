@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -26,7 +26,8 @@ import {
   Switch,
   FormControlLabel,
   Divider,
-  Tooltip
+  Tooltip,
+  ListSubheader
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -34,15 +35,20 @@ import {
   Delete as DeleteIcon,
   Link as LinkIcon,
   ArrowUpward as ArrowUpIcon,
-  ArrowDownward as ArrowDownIcon
+  ArrowDownward as ArrowDownIcon,
+  Close as CloseIcon,
+  UploadFile as UploadFileIcon,
+  Image as ImageIcon
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
-import { linksApi } from '../../services/api';
+import { linksApi, languagesApi } from '../../services/api';
 
 export default function PortfolioLinks({ portfolioId }) {
   const { enqueueSnackbar } = useSnackbar();
   const [links, setLinks] = useState([]);
   const [linkCategories, setLinkCategories] = useState([]);
+  const [linkCategoryTypes, setLinkCategoryTypes] = useState([]);
+  const [languages, setLanguages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingLink, setEditingLink] = useState(null);
@@ -50,16 +56,44 @@ export default function PortfolioLinks({ portfolioId }) {
     category_id: '',
     url: '',
     is_active: true,
-    texts: [
-      { language_id: 1, name: '', description: '' }, // English
-      { language_id: 2, name: '', description: '' }  // Spanish
-    ]
+    texts: [],
+    image_path: null
   });
+  const [imagePreview, setImagePreview] = useState('');
+  const [selectedImageFile, setSelectedImageFile] = useState(null);
+  const [removeImage, setRemoveImage] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [linkPendingDelete, setLinkPendingDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const fileInputRef = useRef(null);
+  const apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
   useEffect(() => {
     fetchLinks();
     fetchLinkCategories();
+    fetchLinkCategoryTypes();
+    fetchLanguages();
   }, [portfolioId]);
+
+  useEffect(() => {
+    if (!dialogOpen) {
+      if (imagePreview && imagePreview.startsWith('blob:')) {
+        URL.revokeObjectURL(imagePreview);
+      }
+      if (imagePreview) {
+        setImagePreview('');
+      }
+      if (selectedImageFile) {
+        setSelectedImageFile(null);
+      }
+      if (removeImage) {
+        setRemoveImage(false);
+      }
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  }, [dialogOpen, imagePreview, selectedImageFile, removeImage]);
 
   const fetchLinks = async () => {
     try {
@@ -83,69 +117,258 @@ export default function PortfolioLinks({ portfolioId }) {
     }
   };
 
-  const handleOpenDialog = (link = null) => {
+  const fetchLinkCategoryTypes = async () => {
+    try {
+      const response = await linksApi.getLinkCategoryTypes();
+      setLinkCategoryTypes(response.data || []);
+    } catch (error) {
+      console.error('Error fetching link category types:', error);
+    }
+  };
+
+  const fetchLanguages = async () => {
+    try {
+      const response = await languagesApi.getLanguages();
+      console.log('Languages API response:', response);
+      console.log('response.data type:', typeof response.data, 'isArray:', Array.isArray(response.data));
+
+      // Handle the various response shapes returned by languages endpoints
+      const data = response.data;
+      let languagesData = [];
+
+      if (Array.isArray(data)) {
+        languagesData = data;
+      } else if (Array.isArray(data?.items)) {
+        languagesData = data.items;
+      } else if (Array.isArray(data?.data)) {
+        languagesData = data.data;
+      } else if (Array.isArray(data?.data?.items)) {
+        languagesData = data.data.items;
+      } else if (Array.isArray(data?.results)) {
+        languagesData = data.results;
+      }
+
+      console.log('Processed languages data:', languagesData);
+      setLanguages(languagesData);
+    } catch (error) {
+      console.error('Error fetching languages:', error);
+      setLanguages([]); // Ensure it's always an array
+    }
+  };
+
+  const buildImageUrl = (path) => {
+    if (!path) return '';
+    if (typeof path !== 'string') return '';
+    if (path.startsWith('blob:') || path.startsWith('data:')) {
+      return path;
+    }
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return path;
+    }
+    const normalizedPath = path.startsWith('/') ? path : `/uploads/${path}`;
+    return `${apiBaseUrl}${normalizedPath}`;
+  };
+
+  const normalizeLinkTexts = (linkData) => {
+    const rawTexts = linkData?.link_texts ?? linkData?.texts ?? [];
+    if (!Array.isArray(rawTexts)) {
+      return [];
+    }
+    return rawTexts
+      .filter((text) => text && text.language_id != null)
+      .map((text) => ({
+        language_id: text.language_id,
+        name: text.name || '',
+        description: text.description || ''
+      }));
+  };
+
+  const ensureTextEntries = (texts) => {
+    if (Array.isArray(texts) && texts.length > 0) {
+      return texts;
+    }
+    if (Array.isArray(languages) && languages.length > 0) {
+      return [{
+        language_id: languages[0].id,
+        name: '',
+        description: ''
+      }];
+    }
+    return [];
+  };
+
+  const clearImagePreview = () => {
+    if (imagePreview && imagePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(imagePreview);
+    }
+    if (imagePreview) {
+      setImagePreview('');
+    }
+  };
+
+  const handleOpenDialog = async (link = null) => {
+    clearImagePreview();
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    setSelectedImageFile(null);
+    setRemoveImage(false);
+    setDialogOpen(true);
+
     if (link) {
-      setEditingLink(link);
-      setFormData({
-        category_id: link.category_id,
-        url: link.url,
-        is_active: link.is_active,
-        texts: link.link_texts?.length > 0 ? link.link_texts : [
-          { language_id: 1, name: '', description: '' },
-          { language_id: 2, name: '', description: '' }
-        ]
-      });
+      try {
+        const response = await linksApi.getPortfolioLink(link.id);
+        const linkData = response.data || link;
+        setEditingLink(linkData);
+
+        const normalizedTexts = ensureTextEntries(normalizeLinkTexts(linkData));
+        setFormData({
+          category_id: linkData?.category_id ?? '',
+          url: linkData?.url ?? '',
+          is_active: linkData?.is_active ?? true,
+          texts: normalizedTexts,
+          image_path: linkData?.image_path ?? null
+        });
+
+        const previewUrl = buildImageUrl(linkData?.image_url || linkData?.image_path);
+        setImagePreview(previewUrl);
+      } catch (error) {
+        console.error('Error loading link details:', error);
+        enqueueSnackbar('Failed to load latest link details. Showing cached data.', { variant: 'warning' });
+
+        const fallbackTexts = ensureTextEntries(normalizeLinkTexts(link));
+        setEditingLink(link);
+        setFormData({
+          category_id: link?.category_id ?? '',
+          url: link?.url ?? '',
+          is_active: link?.is_active ?? true,
+          texts: fallbackTexts,
+          image_path: link?.image_path ?? null
+        });
+        setImagePreview(buildImageUrl(link?.image_url || link?.image_path));
+      }
     } else {
       setEditingLink(null);
       setFormData({
         category_id: '',
         url: '',
         is_active: true,
-        texts: [
-          { language_id: 1, name: '', description: '' },
-          { language_id: 2, name: '', description: '' }
-        ]
+        texts: ensureTextEntries([]),
+        image_path: null
       });
     }
-    setDialogOpen(true);
   };
 
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setEditingLink(null);
+    setFormData({
+      category_id: '',
+      url: '',
+      is_active: true,
+      texts: ensureTextEntries([]),
+      image_path: null
+    });
+  };
+
+  const handleImageChange = (event) => {
+    const file = event.target.files ? event.target.files[0] : null;
+    if (!file) {
+      return;
+    }
+
+    if (imagePreview && imagePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(imagePreview);
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setSelectedImageFile(file);
+    setImagePreview(previewUrl);
+    setRemoveImage(false);
+  };
+
+  const handleRemoveImage = () => {
+    if (imagePreview && imagePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(imagePreview);
+    }
+    setImagePreview('');
+    setSelectedImageFile(null);
+    setRemoveImage(true);
+    setFormData((prev) => ({
+      ...prev,
+      image_path: null
+    }));
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handleSave = async () => {
     try {
+      const categoryId = Number(formData.category_id);
+      const sanitizedUrl = formData.url ? formData.url.trim() : '';
+      const sanitizedTexts = (formData.texts || [])
+        .map((text) => ({
+          ...text,
+          language_id: Number(text.language_id),
+          name: (text.name || '').trim(),
+          description: text.description
+        }))
+        .filter((text) => text.language_id && text.name);
+
+      if (!categoryId || Number.isNaN(categoryId)) {
+        enqueueSnackbar('Please select a link category before saving.', { variant: 'warning' });
+        return;
+      }
+
+      if (!sanitizedUrl) {
+        enqueueSnackbar('Please provide a valid link URL.', { variant: 'warning' });
+        return;
+      }
+
       if (editingLink) {
         await linksApi.updatePortfolioLink(editingLink.id, {
-          category_id: formData.category_id,
-          url: formData.url,
+          category_id: categoryId,
+          url: sanitizedUrl,
           is_active: formData.is_active
         });
 
-        // Update texts
-        for (const text of formData.texts) {
-          if (text.name) {
-            await linksApi.createPortfolioLinkText(editingLink.id, text);
-          }
+        if (sanitizedTexts.length > 0) {
+          await Promise.all(
+            sanitizedTexts.map((text) => linksApi.createPortfolioLinkText(editingLink.id, text))
+          );
+        }
+
+        if (removeImage && !selectedImageFile && editingLink?.image_path) {
+          await linksApi.deletePortfolioLinkImage(editingLink.id);
+        }
+
+        if (selectedImageFile) {
+          await linksApi.uploadPortfolioLinkImage(editingLink.id, selectedImageFile);
         }
 
         enqueueSnackbar('Link updated successfully', { variant: 'success' });
       } else {
         const createData = {
           portfolio_id: parseInt(portfolioId),
-          category_id: formData.category_id,
-          url: formData.url,
+          category_id: categoryId,
+          url: sanitizedUrl,
           is_active: formData.is_active,
           order: links.length,
-          texts: formData.texts.filter(t => t.name)
+          texts: sanitizedTexts
         };
-        await linksApi.createPortfolioLink(createData);
+
+        const response = await linksApi.createPortfolioLink(createData);
+        const createdLink = response?.data;
+
+        if (createdLink?.id && selectedImageFile) {
+          await linksApi.uploadPortfolioLinkImage(createdLink.id, selectedImageFile);
+        }
+
         enqueueSnackbar('Link created successfully', { variant: 'success' });
       }
 
-      fetchLinks();
+      await fetchLinks();
       handleCloseDialog();
     } catch (error) {
       console.error('Error saving link:', error);
@@ -153,18 +376,31 @@ export default function PortfolioLinks({ portfolioId }) {
     }
   };
 
-  const handleDelete = async (linkId) => {
-    if (!window.confirm('Are you sure you want to delete this link?')) {
-      return;
-    }
+  const openDeleteDialog = (link) => {
+    setLinkPendingDelete(link);
+    setConfirmDeleteOpen(true);
+  };
 
+  const handleCloseDeleteDialog = () => {
+    if (isDeleting) return;
+    setConfirmDeleteOpen(false);
+    setLinkPendingDelete(null);
+  };
+
+  const handleDelete = async () => {
+    if (!linkPendingDelete) return;
+
+    setIsDeleting(true);
     try {
-      await linksApi.deletePortfolioLink(linkId);
+      await linksApi.deletePortfolioLink(linkPendingDelete.id);
       enqueueSnackbar('Link deleted successfully', { variant: 'success' });
-      fetchLinks();
+      await fetchLinks();
+      handleCloseDeleteDialog();
     } catch (error) {
       console.error('Error deleting link:', error);
       enqueueSnackbar('Failed to delete link', { variant: 'error' });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -200,10 +436,83 @@ export default function PortfolioLinks({ portfolioId }) {
     await updateLinksOrder(newLinks);
   };
 
+  const handleAddLanguage = () => {
+    // Ensure languages is an array
+    if (!Array.isArray(languages) || languages.length === 0) {
+      enqueueSnackbar('No languages available', { variant: 'warning' });
+      return;
+    }
+
+    // Find languages not yet added
+    const usedLanguageIds = formData.texts.map(t => t.language_id);
+    const availableLanguage = languages.find(lang => !usedLanguageIds.includes(lang.id));
+
+    if (availableLanguage) {
+      setFormData((prev) => ({
+        ...prev,
+        texts: [...prev.texts, { language_id: availableLanguage.id, name: '', description: '' }]
+      }));
+    } else {
+      enqueueSnackbar('All languages have been added', { variant: 'info' });
+    }
+  };
+
+  const handleRemoveLanguage = (index) => {
+    setFormData((prev) => {
+      const newTexts = prev.texts.filter((_, i) => i !== index);
+      return { ...prev, texts: newTexts };
+    });
+  };
+
+  const handleTextChange = (index, field, value) => {
+    setFormData((prev) => {
+      const newTexts = [...prev.texts];
+      const parsedValue = field === 'language_id' ? Number(value) : value;
+      newTexts[index] = { ...newTexts[index], [field]: parsedValue };
+      return { ...prev, texts: newTexts };
+    });
+  };
+
+  const getLanguageName = (languageId) => {
+    const language = languages.find(l => l.id === languageId);
+    return language?.name || `Language ${languageId}`;
+  };
+
   const getCategoryName = (categoryId) => {
     const category = linkCategories.find(c => c.id === categoryId);
     return category?.texts?.[0]?.name || category?.code || 'Unknown';
   };
+
+  const getLinkDisplayName = (link) => {
+    if (!link) return '';
+    const texts = Array.isArray(link.link_texts)
+      ? link.link_texts
+      : (Array.isArray(link.texts) ? link.texts : []);
+    return texts?.[0]?.name || '';
+  };
+
+  let groupedCategories = [];
+  if (Array.isArray(linkCategoryTypes) && linkCategoryTypes.length > 0) {
+    groupedCategories = linkCategoryTypes
+      .map((type) => ({
+        type: type.code,
+        typeName: type.name,
+        categories: linkCategories.filter((cat) => cat.type_code === type.code)
+      }))
+      .filter((group) => group.categories.length > 0);
+  }
+
+  if ((!groupedCategories || groupedCategories.length === 0) && linkCategories.length > 0) {
+    groupedCategories = [{
+      type: 'ALL',
+      typeName: 'All Categories',
+      categories: linkCategories
+    }];
+  }
+
+  const hasCategoryOptions = groupedCategories.some(
+    (group) => Array.isArray(group.categories) && group.categories.length > 0
+  );
 
   if (loading) {
     return (
@@ -270,11 +579,27 @@ export default function PortfolioLinks({ portfolioId }) {
                     </span>
                   </Tooltip>
                 </Box>
+                {(link.image_url || link.image_path) && (
+                  <Box
+                    component="img"
+                    src={buildImageUrl(link.image_url || link.image_path)}
+                    alt={getLinkDisplayName(link) || 'Link image'}
+                    sx={{
+                      width: 48,
+                      height: 48,
+                      objectFit: 'cover',
+                      borderRadius: 1,
+                      border: (theme) => `1px solid ${theme.palette.divider}`,
+                      backgroundColor: 'background.paper',
+                      mr: 2
+                    }}
+                  />
+                )}
                 <ListItemText
                   primary={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Typography variant="body1">
-                        {link.link_texts?.[0]?.name || link.url}
+                        {getLinkDisplayName(link) || link.url}
                       </Typography>
                       <Chip
                         label={getCategoryName(link.category_id)}
@@ -282,9 +607,12 @@ export default function PortfolioLinks({ portfolioId }) {
                         color="primary"
                         variant="outlined"
                       />
-                      {!link.is_active && (
-                        <Chip label="Inactive" size="small" color="warning" />
-                      )}
+                      <Chip
+                        label={link.is_active ? 'Active' : 'Inactive'}
+                        size="small"
+                        color={link.is_active ? 'success' : 'warning'}
+                        variant={link.is_active ? 'outlined' : 'filled'}
+                      />
                     </Box>
                   }
                   secondary={link.url}
@@ -296,7 +624,12 @@ export default function PortfolioLinks({ portfolioId }) {
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="Delete">
-                    <IconButton onClick={() => handleDelete(link.id)} size="small" color="error">
+                    <IconButton
+                      onClick={() => openDeleteDialog(link)}
+                      size="small"
+                      color="error"
+                      disabled={isDeleting && linkPendingDelete?.id === link.id}
+                    >
                       <DeleteIcon />
                     </IconButton>
                   </Tooltip>
@@ -318,14 +651,23 @@ export default function PortfolioLinks({ portfolioId }) {
               <InputLabel>Link Category</InputLabel>
               <Select
                 value={formData.category_id}
-                onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                onChange={(e) => setFormData((prev) => ({ ...prev, category_id: e.target.value }))}
                 label="Link Category"
               >
-                {linkCategories.map((category) => (
-                  <MenuItem key={category.id} value={category.id}>
-                    {category.texts?.[0]?.name || category.code}
+                {hasCategoryOptions ? (
+                  groupedCategories.map((group) => [
+                    <ListSubheader key={group.type}>{group.typeName}</ListSubheader>,
+                    ...group.categories.map((category) => (
+                      <MenuItem key={category.id} value={category.id} sx={{ pl: 4 }}>
+                        {category.texts?.[0]?.name || category.code}
+                      </MenuItem>
+                    ))
+                  ])
+                ) : (
+                  <MenuItem value="" disabled>
+                    No link categories available
                   </MenuItem>
-                ))}
+                )}
               </Select>
             </FormControl>
 
@@ -333,7 +675,7 @@ export default function PortfolioLinks({ portfolioId }) {
               fullWidth
               label="URL"
               value={formData.url}
-              onChange={(e) => setFormData({ ...formData, url: e.target.value })}
+              onChange={(e) => setFormData((prev) => ({ ...prev, url: e.target.value }))}
               placeholder="https://..."
             />
 
@@ -341,48 +683,213 @@ export default function PortfolioLinks({ portfolioId }) {
               control={
                 <Switch
                   checked={formData.is_active}
-                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, is_active: e.target.checked }))}
                 />
               }
               label="Active"
             />
 
             <Divider sx={{ my: 2 }} />
-            <Typography variant="subtitle2">Link Text (Multilingual)</Typography>
 
-            {/* English */}
-            <Typography variant="caption" color="text.secondary">English</Typography>
-            <TextField
-              fullWidth
-              label="Name (English)"
-              value={formData.texts[0]?.name || ''}
-              onChange={(e) => {
-                const newTexts = [...formData.texts];
-                newTexts[0] = { ...newTexts[0], name: e.target.value };
-                setFormData({ ...formData, texts: newTexts });
-              }}
-              size="small"
-            />
+            <Stack spacing={1}>
+              <Typography variant="subtitle2" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <ImageIcon fontSize="small" />
+                Link Image (Optional)
+              </Typography>
 
-            {/* Spanish */}
-            <Typography variant="caption" color="text.secondary">Spanish</Typography>
-            <TextField
-              fullWidth
-              label="Name (Spanish)"
-              value={formData.texts[1]?.name || ''}
-              onChange={(e) => {
-                const newTexts = [...formData.texts];
-                newTexts[1] = { ...newTexts[1], name: e.target.value };
-                setFormData({ ...formData, texts: newTexts });
-              }}
-              size="small"
-            />
+              <input
+                id="portfolio-link-image-upload"
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={handleImageChange}
+              />
+
+              {imagePreview ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                  <Box
+                    component="img"
+                    src={imagePreview}
+                    alt="Link preview"
+                    sx={{
+                      width: 96,
+                      height: 96,
+                      objectFit: 'cover',
+                      borderRadius: 2,
+                      border: (theme) => `1px solid ${theme.palette.divider}`,
+                      backgroundColor: 'background.paper',
+                      boxShadow: 1
+                    }}
+                  />
+                  <Stack direction="row" spacing={1}>
+                    <label htmlFor="portfolio-link-image-upload">
+                      <Button
+                        component="span"
+                        size="small"
+                        variant="outlined"
+                        startIcon={<UploadFileIcon />}
+                      >
+                        Replace Image
+                      </Button>
+                    </label>
+                    <Button
+                      size="small"
+                      color="error"
+                      startIcon={<DeleteIcon />}
+                      onClick={handleRemoveImage}
+                    >
+                      Remove Image
+                    </Button>
+                  </Stack>
+                </Box>
+              ) : (
+                <Stack spacing={1}>
+                  <Alert severity={removeImage ? 'warning' : 'info'}>
+                    {removeImage
+                      ? 'The existing image will be removed when you save this link.'
+                      : 'No image has been uploaded for this link yet.'}
+                  </Alert>
+                  <label htmlFor="portfolio-link-image-upload">
+                    <Button
+                      component="span"
+                      size="small"
+                      variant="outlined"
+                      startIcon={<UploadFileIcon />}
+                    >
+                      Upload Image
+                    </Button>
+                  </label>
+                </Stack>
+              )}
+            </Stack>
+
+            <Divider sx={{ my: 2 }} />
+
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="subtitle2">Link Names (Multilingual)</Typography>
+              <Button
+                size="small"
+                startIcon={<AddIcon />}
+                onClick={handleAddLanguage}
+                disabled={!Array.isArray(languages) || formData.texts.length >= languages.length}
+              >
+                Add Language
+              </Button>
+            </Box>
+
+            {formData.texts.length === 0 && (
+              <Alert severity="info" sx={{ mt: 1 }}>
+                Click "Add Language" to add link names in different languages. At least one language is recommended.
+              </Alert>
+            )}
+
+            {formData.texts.map((text, index) => (
+              <Card key={index} variant="outlined" sx={{ p: 2 }}>
+                <Stack spacing={2}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="caption" color="text.secondary" fontWeight="bold">
+                      {getLanguageName(text.language_id)}
+                    </Typography>
+                    {formData.texts.length > 1 && (
+                      <Tooltip title="Remove this language">
+                        <IconButton
+                          size="small"
+                          onClick={() => handleRemoveLanguage(index)}
+                          color="error"
+                        >
+                          <CloseIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                  </Box>
+
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Language</InputLabel>
+                    <Select
+                      value={text.language_id}
+                      onChange={(e) => handleTextChange(index, 'language_id', e.target.value)}
+                      label="Language"
+                    >
+                      {Array.isArray(languages) && languages.map((lang) => (
+                        <MenuItem
+                          key={lang.id}
+                          value={lang.id}
+                          disabled={formData.texts.some((t, i) => i !== index && t.language_id === lang.id)}
+                        >
+                          {lang.name} ({lang.code})
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+
+                  <TextField
+                    fullWidth
+                    label="Link Name"
+                    value={text.name}
+                    onChange={(e) => handleTextChange(index, 'name', e.target.value)}
+                    size="small"
+                    placeholder={`Enter link name in ${getLanguageName(text.language_id)}`}
+                  />
+                </Stack>
+              </Card>
+            ))}
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseDialog}>Cancel</Button>
-          <Button onClick={handleSave} variant="contained" disabled={!formData.category_id || !formData.url}>
+          <Button
+            onClick={handleSave}
+            variant="contained"
+            disabled={
+              !formData.category_id ||
+              !((formData.url || '').trim())
+            }
+          >
             Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={confirmDeleteOpen}
+        onClose={handleCloseDeleteDialog}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Delete Portfolio Link</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2}>
+            <Alert severity="warning">
+              This action cannot be undone. The selected link will be permanently removed.
+            </Alert>
+            {linkPendingDelete && (
+              <Box>
+                <Typography variant="subtitle2" color="text.secondary">
+                  Link
+                </Typography>
+                <Typography variant="body1" fontWeight="bold">
+                  {getLinkDisplayName(linkPendingDelete) || linkPendingDelete.url}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {linkPendingDelete.url}
+                </Typography>
+              </Box>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDeleteDialog} disabled={isDeleting}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleDelete}
+            color="error"
+            variant="contained"
+            disabled={isDeleting}
+          >
+            {isDeleting ? 'Deleting…' : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>
