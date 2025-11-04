@@ -1,0 +1,337 @@
+/* Advanced Rich Text Editor - Dark Theme Customization */
+
+/* Main editor wrapper */
+.wysiwyg-editor-wrapper {
+  background: #1a1d24;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Quill container */
+.wysiwyg-editor-wrapper .quill {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Toolbar styling */
+.wysiwyg-editor-wrapper .ql-toolbar {
+  background: #0f1117;
+  border: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  padding: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* Toolbar buttons */
+.wysiwyg-editor-wrapper .ql-toolbar button,
+.wysiwyg-editor-wrapper .ql-toolbar .ql-picker-label {
+  color: rgba(255, 255, 255, 0.7);
+  padding: 6px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.wysiwyg-editor-wrapper .ql-toolbar button:hover,
+.wysiwyg-editor-wrapper .ql-toolbar .ql-picker-label:hover {
+  background: rgba(20, 200, 0, 0.1);
+  color: #14C800;
+}
+
+.wysiwyg-editor-wrapper .ql-toolbar button.ql-active,
+.wysiwyg-editor-wrapper .ql-toolbar .ql-picker-label.ql-active {
+  background: rgba(20, 200, 0, 0.15);
+  color: #14C800;
+}
+
+/* Toolbar icons */
+.wysiwyg-editor-wrapper .ql-toolbar .ql-stroke {
+  stroke: rgba(255, 255, 255, 0.7);
+}
+
+.wysiwyg-editor-wrapper .ql-toolbar .ql-fill {
+  fill: rgba(255, 255, 255, 0.7);
+}
+
+.wysiwyg-editor-wrapper .ql-toolbar button:hover .ql-stroke,
+.wysiwyg-editor-wrapper .ql-toolbar button.ql-active .ql-stroke {
+  stroke: #14C800;
+}
+
+.wysiwyg-editor-wrapper .ql-toolbar button:hover .ql-fill,
+.wysiwyg-editor-wrapper .ql-toolbar button.ql-active .ql-fill {
+  fill: #14C800;
+}
+
+/* Picker dropdowns */
+.wysiwyg-editor-wrapper .ql-toolbar .ql-picker-options {
+  background: #1a1d24;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.wysiwyg-editor-wrapper .ql-toolbar .ql-picker-item {
+  color: rgba(255, 255, 255, 0.7);
+  padding: 4px 8px;
+  border-radius: 2px;
+}
+
+.wysiwyg-editor-wrapper .ql-toolbar .ql-picker-item:hover {
+  background: rgba(20, 200, 0, 0.1);
+  color: #14C800;
+}
+
+.wysiwyg-editor-wrapper .ql-toolbar .ql-picker-item.ql-selected {
+  color: #14C800;
+}
+
+/* Editor container */
+.wysiwyg-editor-wrapper .ql-container {
+  border: none !important;
+  background: #1a1d24;
+  flex: 1;
+  overflow-y: auto;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+}
+
+/* Editor content area */
+.wysiwyg-editor-wrapper .ql-editor {
+  color: #e5e7eb;
+  font-size: 16px;
+  line-height: 1.75;
+  padding: 20px;
+  min-height: 400px;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+/* Placeholder text */
+.wysiwyg-editor-wrapper .ql-editor.ql-blank::before {
+  color: rgba(255, 255, 255, 0.4);
+  font-style: italic;
+  left: 20px;
+  right: 20px;
+}
+
+/* Text selection */
+.wysiwyg-editor-wrapper .ql-editor ::selection {
+  background: rgba(20, 200, 0, 0.2);
+}
+
+/* Headings */
+.wysiwyg-editor-wrapper .ql-editor h1 {
+  font-size: 2em;
+  font-weight: bold;
+  color: #ffffff;
+  margin-top: 0.67em;
+  margin-bottom: 0.67em;
+}
+
+.wysiwyg-editor-wrapper .ql-editor h2 {
+  font-size: 1.5em;
+  font-weight: bold;
+  color: #ffffff;
+  margin-top: 0.83em;
+  margin-bottom: 0.83em;
+}
+
+.wysiwyg-editor-wrapper .ql-editor h3 {
+  font-size: 1.17em;
+  font-weight: bold;
+  color: #ffffff;
+  margin-top: 1em;
+  margin-bottom: 1em;
+}
+
+/* Links */
+.wysiwyg-editor-wrapper .ql-editor a {
+  color: #14C800;
+  text-decoration: underline;
+}
+
+.wysiwyg-editor-wrapper .ql-editor a:hover {
+  color: #1aeb00;
+}
+
+/* Lists */
+.wysiwyg-editor-wrapper .ql-editor ul,
+.wysiwyg-editor-wrapper .ql-editor ol {
+  padding-left: 1.5em;
+  margin: 1em 0;
+}
+
+.wysiwyg-editor-wrapper .ql-editor li {
+  margin: 0.5em 0;
+}
+
+/* Blockquotes */
+.wysiwyg-editor-wrapper .ql-editor blockquote {
+  border-left: 4px solid #14C800;
+  padding-left: 16px;
+  margin: 1em 0;
+  color: rgba(255, 255, 255, 0.8);
+  font-style: italic;
+}
+
+/* Code blocks */
+.wysiwyg-editor-wrapper .ql-editor pre {
+  background: #0f1117;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 12px;
+  overflow-x: auto;
+  color: #14C800;
+  font-family: 'Courier New', monospace;
+  margin: 1em 0;
+}
+
+.wysiwyg-editor-wrapper .ql-editor code {
+  background: #0f1117;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  padding: 2px 6px;
+  color: #14C800;
+  font-family: 'Courier New', monospace;
+}
+
+/* Images */
+.wysiwyg-editor-wrapper .ql-editor img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin: 1em 0;
+}
+
+/* Tables (if using table module) */
+.wysiwyg-editor-wrapper .ql-editor table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+}
+
+.wysiwyg-editor-wrapper .ql-editor td,
+.wysiwyg-editor-wrapper .ql-editor th {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 8px 12px;
+}
+
+.wysiwyg-editor-wrapper .ql-editor th {
+  background: rgba(20, 200, 0, 0.1);
+  font-weight: bold;
+  color: #ffffff;
+}
+
+/* Horizontal rule */
+.wysiwyg-editor-wrapper .ql-editor hr {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  margin: 1.5em 0;
+}
+
+/* Scrollbar styling for editor */
+.wysiwyg-editor-wrapper .ql-editor::-webkit-scrollbar {
+  width: 8px;
+}
+
+.wysiwyg-editor-wrapper .ql-editor::-webkit-scrollbar-track {
+  background: #0f1117;
+}
+
+.wysiwyg-editor-wrapper .ql-editor::-webkit-scrollbar-thumb {
+  background: rgba(20, 200, 0, 0.3);
+  border-radius: 4px;
+}
+
+.wysiwyg-editor-wrapper .ql-editor::-webkit-scrollbar-thumb:hover {
+  background: rgba(20, 200, 0, 0.5);
+}
+
+/* Tooltip styling */
+.wysiwyg-editor-wrapper .ql-tooltip {
+  background: #1a1d24;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  color: #e5e7eb;
+  padding: 8px 12px;
+}
+
+.wysiwyg-editor-wrapper .ql-tooltip input {
+  background: #0f1117;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e5e7eb;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.wysiwyg-editor-wrapper .ql-tooltip input:focus {
+  border-color: #14C800;
+  outline: none;
+}
+
+.wysiwyg-editor-wrapper .ql-tooltip a {
+  color: #14C800;
+}
+
+.wysiwyg-editor-wrapper .ql-tooltip a:hover {
+  color: #1aeb00;
+}
+
+/* Color picker */
+.wysiwyg-editor-wrapper .ql-color-picker .ql-picker-options {
+  padding: 8px;
+  width: 160px;
+}
+
+.wysiwyg-editor-wrapper .ql-color-picker .ql-picker-item {
+  width: 20px;
+  height: 20px;
+  margin: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Focus state */
+.wysiwyg-editor-wrapper:focus-within {
+  border-color: #14C800;
+  box-shadow: 0 0 0 3px rgba(20, 200, 0, 0.1);
+}
+
+/* Disabled state */
+.wysiwyg-editor-wrapper .ql-editor[contenteditable="false"] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Video embeds */
+.wysiwyg-editor-wrapper .ql-editor .ql-video {
+  width: 100%;
+  max-width: 640px;
+  height: 360px;
+  margin: 1em 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .wysiwyg-editor-wrapper .ql-toolbar {
+    padding: 8px;
+  }
+
+  .wysiwyg-editor-wrapper .ql-editor {
+    padding: 12px;
+    font-size: 14px;
+  }
+
+  .wysiwyg-editor-wrapper .ql-editor h1 {
+    font-size: 1.5em;
+  }
+
+  .wysiwyg-editor-wrapper .ql-editor h2 {
+    font-size: 1.25em;
+  }
+}

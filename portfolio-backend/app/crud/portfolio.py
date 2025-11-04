@@ -11,6 +11,7 @@ from app.schemas.portfolio import PortfolioCreate, PortfolioUpdate, PortfolioIma
 from typing import List, Optional, Tuple
 from app.core.logging import setup_logger
 from app.core.db import db_transaction
+from app.crud import experience as experience_crud
 
 # Set up logger using centralized logging
 logger = setup_logger("app.crud.portfolio")
@@ -20,9 +21,11 @@ def get_portfolio(db: Session, portfolio_id: int, full_details: bool = False) ->
     """Get portfolio by ID, with optional loading of all relationships"""
     logger.debug(f"Fetching portfolio with ID {portfolio_id}, full_details={full_details}")
     try:
+        supports_experience_images = False
         query = db.query(Portfolio)
         if full_details:
-            query = query.options(
+            supports_experience_images = experience_crud.experience_images_supported(db)
+            loader_options = [
                 selectinload(Portfolio.categories).selectinload(Category.category_texts).selectinload(CategoryText.language),
                 selectinload(Portfolio.experiences).selectinload(Experience.experience_texts).selectinload(ExperienceText.language),
                 selectinload(Portfolio.projects).selectinload(Project.project_texts).selectinload(ProjectText.language),
@@ -33,7 +36,10 @@ def get_portfolio(db: Session, portfolio_id: int, full_details: bool = False) ->
                 selectinload(Portfolio.links).selectinload(PortfolioLink.category).selectinload(LinkCategory.category_texts),
                 selectinload(Portfolio.links).selectinload(PortfolioLink.category).selectinload(LinkCategory.category_type),
                 selectinload(Portfolio.links).selectinload(PortfolioLink.link_texts)
-            )
+            ]
+            if supports_experience_images:
+                loader_options.append(selectinload(Portfolio.experiences).selectinload(Experience.images))
+            query = query.options(*loader_options)
         
         portfolio = query.filter(Portfolio.id == portfolio_id).first()
         
@@ -52,6 +58,9 @@ def get_portfolio(db: Session, portfolio_id: int, full_details: bool = False) ->
                 for text in experience.experience_texts:
                     if hasattr(text, 'language'):
                         _ = text.language.id if text.language else None
+                if supports_experience_images:
+                    images_collection = getattr(experience, "__dict__", {}).get("images", [])
+                    _ = len(images_collection)
             
             _ = len(portfolio.projects)
             for project in portfolio.projects:
