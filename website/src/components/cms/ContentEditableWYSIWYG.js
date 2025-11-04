@@ -83,6 +83,7 @@ export const ContentEditableWYSIWYG = ({
   const [error, setError] = useState(null);
   const editorRef = useRef(null);
   const [currentFormat, setCurrentFormat] = useState({});
+  const [selectedImage, setSelectedImage] = useState(null);
 
   // Dialog states
   const [showLinkDialog, setShowLinkDialog] = useState(false);
@@ -103,6 +104,8 @@ export const ContentEditableWYSIWYG = ({
   const [htmlSource, setHtmlSource] = useState('');
   const fileInputRef = useRef(null);
   const savedSelectionRef = useRef(null);
+  const resizeDataRef = useRef(null);
+  const displayContentRef = useRef(null);
 
   const restoreEditorSelection = () => {
     if (savedSelectionRef.current) {
@@ -149,6 +152,29 @@ export const ContentEditableWYSIWYG = ({
       }
     }
   }, [localValue, isEditing]);
+
+  // Highlight code blocks when editor first opens
+  useEffect(() => {
+    if (isEditing && editorRef.current) {
+      setTimeout(() => {
+        const codeBlocks = editorRef.current.querySelectorAll('pre code[class*="language-"]');
+        console.log('[Prism Editor Open] Found code blocks:', codeBlocks.length);
+        codeBlocks.forEach((block) => {
+          try {
+            // Only highlight if not already highlighted
+            if (!block.querySelector('.token')) {
+              console.log('[Prism Editor Open] Highlighting:', block.className);
+              const plainText = block.textContent;
+              block.textContent = plainText;
+              Prism.highlightElement(block);
+            }
+          } catch (e) {
+            console.warn('Failed to highlight code block on editor open:', e);
+          }
+        });
+      }, 100);
+    }
+  }, [isEditing]); // Only run when isEditing changes
 
   // Update format state on selection change
   useEffect(() => {
@@ -201,7 +227,18 @@ export const ContentEditableWYSIWYG = ({
     makeCodeBlocksNonEditable();
 
     // Create a MutationObserver to handle dynamically added code blocks
-    const observer = new MutationObserver(makeCodeBlocksNonEditable);
+    // But disconnect temporarily when we're making changes to avoid infinite loops
+    let isProcessing = false;
+    const observer = new MutationObserver(() => {
+      if (!isProcessing) {
+        isProcessing = true;
+        makeCodeBlocksNonEditable();
+        // Use setTimeout to reset the flag after processing
+        setTimeout(() => {
+          isProcessing = false;
+        }, 100);
+      }
+    });
     observer.observe(editorRef.current, {
       childList: true,
       subtree: true,
@@ -209,6 +246,134 @@ export const ContentEditableWYSIWYG = ({
 
     return () => observer.disconnect();
   }, [isEditing, localValue]);
+
+  // Make images resizable
+  useEffect(() => {
+    if (!isEditing || !editorRef.current) return;
+
+    const handleImageClick = (e) => {
+      const img = e.target;
+      if (img.tagName === 'IMG' && !img.classList.contains('image-resizing')) {
+        // Remove selection from other images
+        editorRef.current.querySelectorAll('img').forEach(i => {
+          i.classList.remove('image-selected');
+        });
+        
+        img.classList.add('image-selected');
+        setSelectedImage(img);
+      }
+    };
+
+    const handleClickOutside = (e) => {
+      if (e.target.tagName !== 'IMG') {
+        editorRef.current.querySelectorAll('img').forEach(i => {
+          i.classList.remove('image-selected');
+        });
+        setSelectedImage(null);
+      }
+    };
+
+    const handleMouseDown = (e) => {
+      const resizeHandle = e.target.closest('.image-resize-handle');
+      if (!resizeHandle) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const img = resizeHandle.parentElement;
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startWidth = img.offsetWidth;
+      const startHeight = img.offsetHeight;
+      const aspectRatio = startWidth / startHeight;
+      const handleType = resizeHandle.dataset.handle;
+
+      img.classList.add('image-resizing');
+
+      resizeDataRef.current = {
+        img,
+        startX,
+        startY,
+        startWidth,
+        startHeight,
+        aspectRatio,
+        handleType
+      };
+
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    };
+
+    const handleMouseMove = (e) => {
+      if (!resizeDataRef.current) return;
+
+      const { img, startX, startY, startWidth, startHeight, aspectRatio, handleType } = resizeDataRef.current;
+      
+      let newWidth, newHeight;
+
+      if (handleType === 'se' || handleType === 'sw') {
+        // Corner handles - maintain aspect ratio
+        const deltaX = handleType === 'se' ? (e.clientX - startX) : (startX - e.clientX);
+        newWidth = Math.max(50, startWidth + deltaX);
+        newHeight = newWidth / aspectRatio;
+      } else if (handleType === 'e' || handleType === 'w') {
+        // Side handles - maintain aspect ratio
+        const deltaX = handleType === 'e' ? (e.clientX - startX) : (startX - e.clientX);
+        newWidth = Math.max(50, startWidth + deltaX);
+        newHeight = newWidth / aspectRatio;
+      }
+
+      img.style.width = `${newWidth}px`;
+      img.style.height = `${newHeight}px`;
+    };
+
+    const handleMouseUp = () => {
+      if (resizeDataRef.current) {
+        resizeDataRef.current.img.classList.remove('image-resizing');
+        resizeDataRef.current = null;
+        handleContentChange();
+      }
+
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    // Add click handler to images
+    editorRef.current.addEventListener('click', handleImageClick);
+    editorRef.current.addEventListener('click', handleClickOutside);
+    editorRef.current.addEventListener('mousedown', handleMouseDown);
+
+    return () => {
+      if (editorRef.current) {
+        editorRef.current.removeEventListener('click', handleImageClick);
+        editorRef.current.removeEventListener('click', handleClickOutside);
+        editorRef.current.removeEventListener('mousedown', handleMouseDown);
+      }
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isEditing]);
+
+  // Add resize handles to selected image
+  useEffect(() => {
+    if (!selectedImage || !editorRef.current) return;
+
+    // Remove existing handles
+    editorRef.current.querySelectorAll('.image-resize-handle').forEach(h => h.remove());
+
+    // Add resize handles
+    const handles = ['se', 'sw', 'e', 'w'];
+    handles.forEach(position => {
+      const handle = document.createElement('div');
+      handle.className = `image-resize-handle image-resize-handle-${position}`;
+      handle.dataset.handle = position;
+      selectedImage.parentElement.appendChild(handle);
+    });
+
+    return () => {
+      editorRef.current?.querySelectorAll('.image-resize-handle').forEach(h => h.remove());
+    };
+  }, [selectedImage]);
 
   /**
    * Fetch existing images that belong to the current entity (experience, project, etc.)
@@ -267,17 +432,32 @@ export const ContentEditableWYSIWYG = ({
     if (!isEditing) {
       // Highlight all code blocks in display mode
       try {
-        Prism.highlightAll();
+        // Use setTimeout to ensure DOM is fully rendered
+        setTimeout(() => {
+          // First try to highlight within the display content ref
+          if (displayContentRef.current) {
+            const codeBlocks = displayContentRef.current.querySelectorAll('pre code[class*="language-"]');
+            console.log('[Prism] Found code blocks in display mode:', codeBlocks.length);
+            codeBlocks.forEach((block) => {
+              try {
+                console.log('[Prism] Highlighting block with class:', block.className);
+                // Only re-highlight if not already highlighted
+                if (!block.querySelector('.token')) {
+                  const plainText = block.textContent;
+                  block.textContent = plainText;
+                  Prism.highlightElement(block);
+                  console.log('[Prism] Block highlighted successfully');
+                }
+              } catch (e) {
+                console.warn('Failed to highlight code block:', e);
+              }
+            });
+          } else {
+            console.log('[Prism] displayContentRef.current is null');
+          }
+        }, 100);
       } catch (error) {
         console.warn('Prism highlighting error:', error);
-        // Fallback: try to highlight specific elements
-        document.querySelectorAll('pre code[class*="language-"]').forEach((block) => {
-          try {
-            Prism.highlightElement(block);
-          } catch (e) {
-            console.warn('Failed to highlight code block:', e);
-          }
-        });
       }
     }
   }, [value, isEditing]);
@@ -457,10 +637,11 @@ export const ContentEditableWYSIWYG = ({
           ? uploadedUrl
           : `${apiBaseUrl}${uploadedUrl}`;
 
-        // Insert image into editor
+        // Insert image into editor wrapped in a container for resize handles
         restoreEditorSelection();
         editorRef.current?.focus();
-        document.execCommand('insertImage', false, imageUrlToInsert);
+        const imageHtml = `<div class="image-container" style="display: inline-block; position: relative;"><img src="${imageUrlToInsert}" style="max-width: 100%; height: auto; display: block;" /></div>`;
+        document.execCommand('insertHTML', false, imageHtml);
         handleContentChange();
 
         showNotification('Success', 'Image uploaded successfully', 'success');
@@ -475,10 +656,11 @@ export const ContentEditableWYSIWYG = ({
     }
 
     if (imageUrl && imageUrl.trim() && imageUrl !== 'https://') {
-      // Insert image from URL
+      // Insert image from URL wrapped in container
       restoreEditorSelection();
       editorRef.current?.focus();
-      document.execCommand('insertImage', false, imageUrl);
+      const imageHtml = `<div class="image-container" style="display: inline-block; position: relative;"><img src="${imageUrl}" style="max-width: 100%; height: auto; display: block;" /></div>`;
+      document.execCommand('insertHTML', false, imageHtml);
       handleContentChange();
       resetImageDialogState();
       return;
@@ -510,7 +692,8 @@ export const ContentEditableWYSIWYG = ({
         ? sourcePath
         : `${apiBaseUrl}${sourcePath}`;
 
-      document.execCommand('insertImage', false, imageUrlToInsert);
+      const imageHtml = `<div class="image-container" style="display: inline-block; position: relative;"><img src="${imageUrlToInsert}" style="max-width: 100%; height: auto; display: block;" /></div>`;
+      document.execCommand('insertHTML', false, imageHtml);
       handleContentChange();
       showNotification('Success', 'Image inserted from library', 'success');
       resetImageDialogState();
@@ -863,6 +1046,7 @@ export const ContentEditableWYSIWYG = ({
 
     return (
       <div
+        ref={displayContentRef}
         className={`wysiwyg-display-content ${className}`}
         dangerouslySetInnerHTML={{ __html: value }}
       />
