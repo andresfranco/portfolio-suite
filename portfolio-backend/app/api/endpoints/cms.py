@@ -3,6 +3,7 @@ CMS API endpoints - Content Management System endpoints for editing website cont
 Requires authentication and EDIT_CONTENT permission.
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import Any, Optional, List
 from pydantic import BaseModel
@@ -80,6 +81,11 @@ def update_project_text(
     logger.info(f"User {current_user.username} updating project text {text_id}")
     
     try:
+        resolved_language_id = language_id
+        resolved_experience_id = None
+        experience_text_id = None
+        storage_entity_id = entity_id
+        experience_obj = None
         # Get the project text
         from app.models.project import ProjectText
         project_text = db.query(ProjectText).filter(ProjectText.id == text_id).first()
@@ -282,11 +288,44 @@ async def upload_content_image(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Only image files are allowed"
             )
-        
+
+        storage_entity_id = entity_id
+        resolved_experience_id = None
+        resolved_language_id = language_id
+        experience_text_id = None
+
+        # Resolve experience metadata before saving so files land under the experience ID
+        if entity_type == "experience":
+            if not experience_crud.experience_images_supported(db):
+                raise HTTPException(
+                    status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                    detail="Experience images are not available until the latest migrations are applied."
+                )
+
+            from app.models.experience import Experience, ExperienceText
+
+            experience_text_row = db.query(ExperienceText).filter(ExperienceText.id == entity_id).first()
+
+            if experience_text_row:
+                resolved_experience_id = experience_text_row.experience_id
+                resolved_language_id = language_id if language_id is not None else experience_text_row.language_id
+                experience_text_id = experience_text_row.id
+            else:
+                resolved_experience_id = entity_id
+
+            experience_obj = db.query(Experience).filter(Experience.id == resolved_experience_id).first()
+            if not experience_obj:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Experience with ID {entity_id} not found"
+                )
+
+            storage_entity_id = resolved_experience_id
+
         # Save the file using existing file utils
         # Construct directory path for the entity
         from app.core.config import settings
-        upload_dir = Path(settings.UPLOADS_DIR) / f"{entity_type}s" / str(entity_id) / category
+        upload_dir = Path(settings.UPLOADS_DIR) / f"{entity_type}s" / str(storage_entity_id) / category
         absolute_file_path = await file_utils.save_upload_file(file, directory=upload_dir)
         
         # Convert absolute path to URL-friendly relative path
@@ -382,11 +421,25 @@ async def upload_content_image(
                 logger.info(f"Created new {category} image for project {entity_id}")
             
         elif entity_type == "experience":
-            # Note: Experience images might not exist in schema yet
-            # This would need to be added to the Experience model
-            raise HTTPException(
-                status_code=status.HTTP_501_NOT_IMPLEMENTED,
-                detail="Experience images not yet implemented"
+            from app.models.experience import ExperienceImage
+
+            image = ExperienceImage(
+                experience_id=resolved_experience_id,
+                experience_text_id=experience_text_id,
+                image_path=file_path,
+                file_name=file.filename,
+                category=category,
+                language_id=resolved_language_id,
+                created_by=current_user.id,
+                updated_by=current_user.id,
+            )
+            db.add(image)
+            logger.info(
+                "Created new %s image for experience %s (experience_text_id=%s, language_id=%s)",
+                category,
+                resolved_experience_id,
+                experience_text_id,
+                resolved_language_id,
             )
 
         elif entity_type == "section":
@@ -407,15 +460,26 @@ async def upload_content_image(
         db.refresh(image)
         
         logger.info(f"Successfully uploaded {category} image for {entity_type} {entity_id}")
-        return {
+        response_payload = {
             "id": image.id,
             "entity_type": entity_type,
             "entity_id": entity_id,
-            "image_path": file_path,
-            "file_name": file.filename,
+            "image_path": image.image_path,
+            "file_path": image.image_path,
+            "image_url": file_utils.get_file_url(image.image_path),
+            "file_name": getattr(image, "file_name", file.filename),
             "category": category,
+            "language_id": getattr(image, "language_id", resolved_language_id),
             "message": f"{entity_type.capitalize()} image uploaded successfully"
         }
+
+        if entity_type == "experience":
+            response_payload.update({
+                "experience_id": resolved_experience_id,
+                "experience_text_id": experience_text_id,
+            })
+
+        return response_payload
         
     except HTTPException:
         raise
@@ -425,6 +489,165 @@ async def upload_content_image(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error uploading image: {str(e)}"
+        )
+
+
+@router.get("/content/images", status_code=status.HTTP_200_OK)
+@require_permission("EDIT_CONTENT")
+def list_content_images(
+    entity_type: str = Query(..., description="Entity type: portfolio, project, experience, section"),
+    entity_id: int = Query(..., description="Entity identifier (ID or text ID for experiences)"),
+    category: Optional[str] = Query(None, description="Optional image category filter"),
+    language_id: Optional[int] = Query(None, description="Optional language filter"),
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+) -> Any:
+    """
+    List previously uploaded content images for supported entities.
+    Allows the CMS editor to reuse existing assets.
+    """
+    logger.info(
+        "User %s listing images for entity %s %s (category=%s, language_id=%s)",
+        current_user.username,
+        entity_type,
+        entity_id,
+        category,
+        language_id,
+    )
+
+    try:
+        from app.models.portfolio import PortfolioImage
+        from app.models.project import ProjectImage
+        from app.models.section import SectionImage
+        from app.models.experience import Experience, ExperienceText, ExperienceImage
+
+        items: List[dict] = []
+
+        if entity_type == "portfolio":
+            query = db.query(PortfolioImage).filter(PortfolioImage.portfolio_id == entity_id)
+            if category:
+                query = query.filter(PortfolioImage.category == category)
+            if language_id is not None:
+                query = query.filter(
+                    or_(
+                        PortfolioImage.language_id == language_id,
+                        PortfolioImage.language_id.is_(None),
+                    )
+                )
+            images = query.order_by(PortfolioImage.created_at.desc()).all()
+            for image in images:
+                items.append({
+                    "id": image.id,
+                    "portfolio_id": image.portfolio_id,
+                    "image_path": image.image_path,
+                    "image_url": file_utils.get_file_url(image.image_path),
+                    "file_name": getattr(image, "file_name", None),
+                    "category": getattr(image, "category", None),
+                    "language_id": getattr(image, "language_id", None),
+                })
+
+        elif entity_type == "project":
+            query = db.query(ProjectImage).filter(ProjectImage.project_id == entity_id)
+            if category:
+                query = query.filter(ProjectImage.category == category)
+            if language_id is not None:
+                query = query.filter(ProjectImage.language_id == language_id)
+            images = query.order_by(ProjectImage.created_at.desc()).all()
+            for image in images:
+                items.append({
+                    "id": image.id,
+                    "project_id": image.project_id,
+                    "image_path": image.image_path,
+                    "image_url": file_utils.get_file_url(image.image_path),
+                    "file_name": getattr(image, "file_name", None),
+                    "category": getattr(image, "category", None),
+                    "language_id": getattr(image, "language_id", None),
+                })
+
+        elif entity_type == "experience":
+            if not experience_crud.experience_images_supported(db):
+                logger.info("Experience images requested but table unavailable; returning empty list")
+                return {"items": []}
+
+            experience_text = db.query(ExperienceText).filter(ExperienceText.id == entity_id).first()
+            if experience_text:
+                resolved_experience_id = experience_text.experience_id
+                resolved_language_id = language_id if language_id is not None else experience_text.language_id
+                resolved_text_id = experience_text.id
+            else:
+                experience_obj = db.query(Experience).filter(Experience.id == entity_id).first()
+                if not experience_obj:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Experience with ID {entity_id} not found"
+                    )
+                resolved_experience_id = experience_obj.id
+                resolved_language_id = language_id
+                resolved_text_id = None
+
+            query = db.query(ExperienceImage).filter(ExperienceImage.experience_id == resolved_experience_id)
+            if category:
+                query = query.filter(ExperienceImage.category == category)
+
+            if resolved_language_id is not None:
+                query = query.filter(
+                    or_(
+                        ExperienceImage.language_id == resolved_language_id,
+                        ExperienceImage.language_id.is_(None),
+                    )
+                )
+
+            if resolved_text_id is not None:
+                query = query.filter(
+                    or_(
+                        ExperienceImage.experience_text_id == resolved_text_id,
+                        ExperienceImage.experience_text_id.is_(None),
+                    )
+                )
+
+            images = query.order_by(ExperienceImage.created_at.desc()).all()
+            for image in images:
+                items.append({
+                    "id": image.id,
+                    "experience_id": image.experience_id,
+                    "experience_text_id": image.experience_text_id,
+                    "image_path": image.image_path,
+                    "image_url": file_utils.get_file_url(image.image_path),
+                    "file_name": getattr(image, "file_name", None),
+                    "category": getattr(image, "category", None),
+                    "language_id": getattr(image, "language_id", None),
+                })
+
+        elif entity_type == "section":
+            query = db.query(SectionImage).filter(SectionImage.section_id == entity_id)
+            if category:
+                query = query.filter(SectionImage.category == category)
+            images = query.order_by(SectionImage.created_at.desc()).all()
+            for image in images:
+                items.append({
+                    "id": image.id,
+                    "section_id": image.section_id,
+                    "image_path": image.image_path,
+                    "image_url": file_utils.get_file_url(image.image_path),
+                    "file_name": getattr(image, "file_name", None),
+                    "category": getattr(image, "category", None),
+                    "language_id": getattr(image, "language_id", None),
+                })
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported entity type: {entity_type}",
+            )
+
+        return {"items": items}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error listing content images: %s", str(e), exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error listing images: {str(e)}",
         )
 
 
@@ -896,4 +1119,3 @@ def reorder_section_content(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error reordering section content: {str(e)}"
         )
-

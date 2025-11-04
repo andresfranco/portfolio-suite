@@ -1839,3 +1839,119 @@ def add_section_attachment(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error adding attachment to section: {str(e)}"
         )
+
+
+# =============================================================================
+# SKILL MANAGEMENT ROUTES
+# =============================================================================
+
+@router.post("/{project_id}/skills/{skill_id}", status_code=status.HTTP_201_CREATED)
+@require_permission("EDIT_PROJECT")
+def add_skill_to_project(
+    *,
+    db: Session = Depends(deps.get_db),
+    project_id: int,
+    skill_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Add a skill to a project
+    """
+    logger.info(f"Adding skill {skill_id} to project {project_id}")
+    try:
+        # Verify project exists
+        project = project_crud.get_project(db, project_id=project_id)
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found"
+            )
+
+        # Verify skill exists
+        from app.crud import skill as skill_crud
+        skill = skill_crud.get_skill(db, skill_id=skill_id)
+        if not skill:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Skill not found"
+            )
+
+        # Check if skill is already associated
+        if skill in project.skills:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Skill is already associated with this project"
+            )
+
+        # Add skill to project
+        project.skills.append(skill)
+        db.commit()
+        db.refresh(project)
+
+        logger.info(f"Successfully added skill {skill_id} to project {project_id}")
+        return {"message": "Skill added to project successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding skill to project: {str(e)}", exc_info=True)
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error adding skill to project: {str(e)}"
+        )
+
+
+@router.delete("/{project_id}/skills/{skill_id}", status_code=status.HTTP_200_OK)
+@require_permission("EDIT_PROJECT")
+def remove_skill_from_project(
+    *,
+    db: Session = Depends(deps.get_db),
+    project_id: int,
+    skill_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Remove a skill from a project
+    """
+    logger.info(f"Removing skill {skill_id} from project {project_id}")
+    try:
+        # Verify project exists
+        project = project_crud.get_project(db, project_id=project_id)
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found"
+            )
+
+        # Verify skill exists
+        from app.crud import skill as skill_crud
+        skill = skill_crud.get_skill(db, skill_id=skill_id)
+        if not skill:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Skill not found"
+            )
+
+        # Check if skill is associated
+        if skill not in project.skills:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Skill is not associated with this project"
+            )
+
+        # Remove skill from project
+        project.skills.remove(skill)
+        db.commit()
+        db.refresh(project)
+
+        logger.info(f"Successfully removed skill {skill_id} from project {project_id}")
+        return {"message": "Skill removed from project successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error removing skill from project: {str(e)}", exc_info=True)
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error removing skill from project: {str(e)}"
+        )

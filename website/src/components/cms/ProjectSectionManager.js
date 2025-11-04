@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { FaPlus, FaTrash, FaTimes, FaImage, FaFile, FaEdit, FaUpload, FaCheck, FaExclamationTriangle } from 'react-icons/fa';
 import { portfolioApi } from '../../services/portfolioApi';
 import { useEditMode } from '../../context/EditModeContext';
+import RichTextSectionEditor from './RichTextSectionEditor';
 
 /**
  * ConfirmDialog Component
@@ -11,7 +12,7 @@ const ConfirmDialog = ({ isOpen, onConfirm, onCancel, title, message, confirmTex
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4">
       <div className="bg-gray-900 border border-gray-700/50 rounded-xl p-6 max-w-md w-full">
         <div className="flex items-center gap-3 mb-4">
           <div className={`p-2 rounded-lg ${isDanger ? 'bg-red-500/20 text-red-400' : 'bg-blue-500/20 text-blue-400'}`}>
@@ -329,21 +330,14 @@ const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess
     code: section?.code || '',
     section_texts: section?.section_texts || [{ language_id: 1, text: '' }],
     display_order: section?.display_order || 0,
-    display_style: section?.display_style || 'bordered', // New field
+    display_style: section?.display_style || 'bordered',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [confirmDelete, setConfirmDelete] = useState(null);
 
-  // Image upload state
+  // Image and attachment state (managed by RichTextSectionEditor)
   const [images, setImages] = useState(section?.images || []);
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const imageInputRef = useRef(null);
-
-  // File upload state
   const [attachments, setAttachments] = useState(section?.attachments || []);
-  const [uploadingFile, setUploadingFile] = useState(false);
-  const fileInputRef = useRef(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -383,164 +377,8 @@ const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess
     }
   };
 
-  const handleImageUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    // Validate file
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-
-    if (!allowedTypes.includes(file.type)) {
-      setError('Invalid image type. Please upload JPEG, PNG, GIF, or WebP images.');
-      return;
-    }
-
-    if (file.size > maxSize) {
-      setError('Image size too large. Maximum size is 5MB.');
-      return;
-    }
-
-    if (!isEditing) {
-      setError('Please create the section first, then add images.');
-      return;
-    }
-
-    try {
-      setUploadingImage(true);
-      setError('');
-
-      // Upload image to section
-      const response = await portfolioApi.uploadImage(
-        file,
-        'section',
-        section.id,
-        'section',
-        authToken
-      );
-
-      // Add image to section
-      const imageData = {
-        image_path: response.image_path || response.path,
-        display_order: images.length
-      };
-
-      const newImage = await portfolioApi.addSectionImage(section.id, imageData, authToken);
-      // Add timestamp to force image refresh on newly uploaded images
-      newImage._uploadTimestamp = Date.now();
-      setImages([...images, newImage]);
-
-      // Clear input
-      if (imageInputRef.current) {
-        imageInputRef.current.value = '';
-      }
-    } catch (err) {
-      console.error('Error uploading image:', err);
-      setError(err.message || 'Failed to upload image');
-    } finally {
-      setUploadingImage(false);
-    }
-  };
-
-  const handleRemoveImage = (imageId) => {
-    setConfirmDelete({
-      type: 'image',
-      id: imageId,
-      title: 'Remove Image',
-      message: 'Are you sure you want to remove this image? This action cannot be undone.',
-    });
-  };
-
-  const confirmRemoveImage = async () => {
-    if (!confirmDelete || confirmDelete.type !== 'image') return;
-
-    try {
-      await portfolioApi.deleteSectionImage(confirmDelete.id, authToken);
-      setImages(images.filter(img => img.id !== confirmDelete.id));
-      setConfirmDelete(null);
-    } catch (err) {
-      console.error('Error removing image:', err);
-      setError('Failed to remove image');
-      setConfirmDelete(null);
-    }
-  };
-
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    // Validate file
-    const maxSize = 10 * 1024 * 1024; // 10MB
-
-    if (file.size > maxSize) {
-      setError('File size too large. Maximum size is 10MB.');
-      return;
-    }
-
-    if (!isEditing) {
-      setError('Please create the section first, then add files.');
-      return;
-    }
-
-    try {
-      setUploadingFile(true);
-      setError('');
-
-      // Upload file
-      const response = await portfolioApi.uploadAttachment(
-        file,
-        'section',
-        section.id,
-        authToken
-      );
-
-      // Add attachment to section
-      const attachmentData = {
-        file_path: response.file_path || response.path,
-        file_name: file.name,
-        display_order: attachments.length
-      };
-
-      const newAttachment = await portfolioApi.addSectionAttachment(section.id, attachmentData, authToken);
-      setAttachments([...attachments, newAttachment]);
-
-      // Clear input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    } catch (err) {
-      console.error('Error uploading file:', err);
-      setError(err.message || 'Failed to upload file');
-    } finally {
-      setUploadingFile(false);
-    }
-  };
-
-  const handleRemoveAttachment = (attachmentId, fileName) => {
-    setConfirmDelete({
-      type: 'attachment',
-      id: attachmentId,
-      title: 'Remove File',
-      message: `Are you sure you want to remove "${fileName}"? This action cannot be undone.`,
-    });
-  };
-
-  const confirmRemoveAttachment = async () => {
-    if (!confirmDelete || confirmDelete.type !== 'attachment') return;
-
-    try {
-      await portfolioApi.deleteSectionAttachment(confirmDelete.id, authToken);
-      setAttachments(attachments.filter(att => att.id !== confirmDelete.id));
-      setConfirmDelete(null);
-    } catch (err) {
-      console.error('Error removing attachment:', err);
-      setError('Failed to remove attachment');
-      setConfirmDelete(null);
-    }
-  };
-
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4">
       <div className="bg-gray-900 border border-[#14C800]/30 rounded-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-white">
@@ -582,25 +420,31 @@ const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess
             )}
           </div>
 
-          {/* Section Content */}
+          {/* Section Content - Rich Text Editor */}
           <div>
-            <label className="block mb-2 font-semibold text-white text-sm uppercase tracking-wide">
+            <label className="block mb-4 font-semibold text-white text-sm uppercase tracking-wide">
               Section Content *
             </label>
-            <textarea
-              value={formData.section_texts[0].text}
-              onChange={(e) =>
+            <RichTextSectionEditor
+              initialContent={formData.section_texts[0].text}
+              initialImages={images}
+              initialAttachments={attachments}
+              sectionId={isEditing ? section.id : null}
+              authToken={authToken}
+              onChange={(html) => {
                 setFormData((prev) => ({
                   ...prev,
-                  section_texts: [{ language_id: 1, text: e.target.value }],
-                }))
-              }
-              rows={8}
-              className="w-full px-4 py-3 bg-white/5 border border-[#14C800]/50 rounded-none focus:outline-none focus:ring-2 focus:ring-[#14C800]/60 text-white placeholder-white/50 font-mono text-sm"
-              placeholder="Enter section content..."
+                  section_texts: [{ language_id: 1, text: html }],
+                }));
+              }}
+              onImagesChange={setImages}
+              onAttachmentsChange={setAttachments}
               disabled={loading}
             />
-            <p className="text-xs text-gray-500 mt-1">Supports line breaks and formatting</p>
+            <p className="text-xs text-gray-500 mt-2">
+              Use the rich text editor to format your content, add images inline, and attach files. 
+              {!isEditing && ' Note: Save the section first before adding file attachments.'}
+            </p>
           </div>
 
           {/* Display Order */}
@@ -667,113 +511,6 @@ const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess
             </p>
           </div>
 
-          {/* Images Section - Only for editing */}
-          {isEditing && (
-            <div className="border-t border-gray-700/50 pt-6">
-              <div className="flex justify-between items-center mb-4">
-                <label className="font-semibold text-white text-sm uppercase tracking-wide">
-                  Images
-                </label>
-                <label className="btn-flat btn-flat-sm flex items-center gap-2 cursor-pointer">
-                  <FaUpload />
-                  <span>{uploadingImage ? 'Uploading...' : 'Upload Image'}</span>
-                  <input
-                    ref={imageInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                    disabled={uploadingImage}
-                  />
-                </label>
-              </div>
-
-              {images.length > 0 ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {images.map((image) => {
-                    // Remove leading slash from image_path if present to avoid double slashes
-                    const cleanPath = image.image_path.startsWith('/') ? image.image_path.substring(1) : image.image_path;
-                    const imageUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${cleanPath}`;
-                    const timestampedUrl = image._uploadTimestamp ? `${imageUrl}?t=${image._uploadTimestamp}` : imageUrl;
-
-                    return (
-                      <div key={image.id} className="relative group">
-                        <img
-                          src={timestampedUrl}
-                          alt="Section image"
-                          className="w-full h-32 object-cover rounded border border-gray-700/50"
-                          onError={(e) => {
-                            console.error('Failed to load image:', image.image_path, 'URL:', timestampedUrl);
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveImage(image.id)}
-                          className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-500 text-white p-2 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <FaTrash size={12} />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500 text-center py-4 bg-gray-800/30 rounded border border-gray-700/50">
-                  No images added yet. Click "Upload Image" to add diagrams or screenshots.
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Files Section - Only for editing */}
-          {isEditing && (
-            <div className="border-t border-gray-700/50 pt-6">
-              <div className="flex justify-between items-center mb-4">
-                <label className="font-semibold text-white text-sm uppercase tracking-wide">
-                  Downloadable Files
-                </label>
-                <label className="btn-flat btn-flat-sm flex items-center gap-2 cursor-pointer">
-                  <FaUpload />
-                  <span>{uploadingFile ? 'Uploading...' : 'Upload File'}</span>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                    disabled={uploadingFile}
-                  />
-                </label>
-              </div>
-
-              {attachments.length > 0 ? (
-                <div className="space-y-2">
-                  {attachments.map((attachment) => (
-                    <div
-                      key={attachment.id}
-                      className="flex justify-between items-center p-3 bg-gray-800/50 rounded border border-gray-700/50"
-                    >
-                      <div className="flex items-center gap-2">
-                        <FaFile className="text-gray-400" />
-                        <span className="text-sm text-white">{attachment.file_name}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveAttachment(attachment.id, attachment.file_name)}
-                        className="text-red-400 hover:text-red-300 p-2"
-                      >
-                        <FaTrash size={12} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500 text-center py-4 bg-gray-800/30 rounded border border-gray-700/50">
-                  No files added yet. Click "Upload File" to add downloadable documents.
-                </p>
-              )}
-            </div>
-          )}
-
           {/* Action Buttons */}
           <div className="flex gap-4 pt-6 border-t border-gray-700/50">
             <button
@@ -798,22 +535,7 @@ const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess
               {isEditing ? 'Close' : 'Cancel'}
             </button>
           </div>
-
-          {!isEditing && (
-            <p className="text-xs text-gray-500 text-center">
-              Note: Images and files can be added after creating the section
-            </p>
-          )}
         </form>
-
-        {/* Confirmation Dialog */}
-        <ConfirmDialog
-          isOpen={!!confirmDelete}
-          onConfirm={confirmDelete?.type === 'image' ? confirmRemoveImage : confirmRemoveAttachment}
-          onCancel={() => setConfirmDelete(null)}
-          title={confirmDelete?.title || 'Confirm'}
-          message={confirmDelete?.message || 'Are you sure?'}
-        />
       </div>
     </div>
   );

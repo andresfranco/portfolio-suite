@@ -1,4 +1,5 @@
-from pydantic import BaseModel, ConfigDict
+from datetime import datetime
+from pydantic import BaseModel, ConfigDict, computed_field
 from typing import List, Optional, Dict, Any, Union, Literal
 
 class LanguageBase(BaseModel):
@@ -28,6 +29,34 @@ class ExperienceTextOut(ExperienceTextBase):
     
     model_config = ConfigDict(from_attributes=True)
 
+
+class ExperienceImageBase(BaseModel):
+    image_path: str
+    category: str = "content"
+    language_id: Optional[int] = None
+    file_name: Optional[str] = None
+
+
+class ExperienceImageOut(ExperienceImageBase):
+    id: int
+    experience_id: int
+    experience_text_id: Optional[int] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    created_by: Optional[int] = None
+    updated_by: Optional[int] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @computed_field
+    @property
+    def image_url(self) -> Optional[str]:
+        """Return a URL-safe path for the stored image."""
+        if not self.image_path:
+            return None
+        from app.utils.file_utils import get_file_url
+        return get_file_url(self.image_path)
+
 class ExperienceBase(BaseModel):
     code: str
     years: int
@@ -44,6 +73,7 @@ class ExperienceUpdate(BaseModel):
 class Experience(ExperienceBase):
     id: int
     experience_texts: List[ExperienceTextOut] = []
+    images: List[ExperienceImageOut] = []
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -68,3 +98,4 @@ class UniqueCheckResponse(BaseModel):
 
 # Alias for backward compatibility
 ExperienceText = ExperienceTextOut
+ExperienceImage = ExperienceImageOut
