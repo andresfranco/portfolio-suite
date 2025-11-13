@@ -250,11 +250,14 @@ const ProjectSectionManager = ({ project, onUpdate }) => {
                     </div>
                   )}
 
-                  {/* Section attachments */}
+                  {/* Section attachments - Elegant Box Design */}
                   {section.attachments && section.attachments.length > 0 && (
-                    <div className="mt-6 space-y-2">
-                      <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Downloads</h4>
-                      <div className="flex flex-wrap gap-3">
+                    <div className="mt-6 space-y-3">
+                      <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-2">
+                        <FaFile className="text-[#14C800]" size={14} />
+                        Downloads
+                      </h4>
+                      <div className="space-y-3">
                         {section.attachments
                           .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
                           .map((attachment) => {
@@ -264,16 +267,60 @@ const ProjectSectionManager = ({ project, onUpdate }) => {
                               : attachment.file_path;
                             const fileUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${cleanPath}`;
                             
+                            // Extract file extension and size
+                            const fileExt = attachment.file_name.split('.').pop().toUpperCase();
+                            const fileSize = attachment.file_size 
+                              ? `${(attachment.file_size / 1024).toFixed(1)} KB`
+                              : 'Unknown size';
+                            
                             return (
-                              <a
+                              <div
                                 key={attachment.id}
-                                href={fileUrl}
-                                download={attachment.file_name}
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700/50 hover:bg-gray-700 border border-[#14C800]/30 hover:border-[#14C800]/60 rounded text-[#14C800] hover:text-white transition-all duration-200"
+                                className="group relative bg-gradient-to-br from-gray-800/60 to-gray-900/60 border border-gray-700/50 hover:border-[#14C800]/50 rounded-lg overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-[#14C800]/10"
                               >
-                                <FaFile size={14} />
-                                <span className="text-sm">{attachment.file_name}</span>
-                              </a>
+                                {/* Top accent line */}
+                                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#14C800]/40 via-[#14C800]/60 to-[#14C800]/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                
+                                <a
+                                  href={fileUrl}
+                                  download={attachment.file_name}
+                                  className="flex items-center gap-4 p-4 no-underline"
+                                >
+                                  {/* File icon with extension badge */}
+                                  <div className="relative flex-shrink-0">
+                                    <div className="w-12 h-12 rounded-lg bg-[#14C800]/10 border border-[#14C800]/30 flex items-center justify-center group-hover:bg-[#14C800]/20 group-hover:border-[#14C800]/50 transition-all duration-300">
+                                      <FaFile className="text-[#14C800] text-xl group-hover:scale-110 transition-transform duration-300" />
+                                    </div>
+                                    {/* Extension badge */}
+                                    <div className="absolute -bottom-1 -right-1 px-1.5 py-0.5 bg-gray-900 border border-[#14C800]/40 rounded text-[9px] font-bold text-[#14C800] uppercase">
+                                      {fileExt}
+                                    </div>
+                                  </div>
+                                  
+                                  {/* File info */}
+                                  <div className="flex-1 min-w-0">
+                                    <h5 className="text-white font-medium text-sm truncate group-hover:text-[#14C800] transition-colors duration-200">
+                                      {attachment.file_name}
+                                    </h5>
+                                    <p className="text-gray-400 text-xs mt-0.5 flex items-center gap-2">
+                                      <span>{fileSize}</span>
+                                      {attachment.description && (
+                                        <>
+                                          <span className="text-gray-600">•</span>
+                                          <span className="truncate">{attachment.description}</span>
+                                        </>
+                                      )}
+                                    </p>
+                                  </div>
+                                  
+                                  {/* Download icon */}
+                                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[#14C800]/10 border border-[#14C800]/30 flex items-center justify-center group-hover:bg-[#14C800] group-hover:border-[#14C800] transition-all duration-300">
+                                    <svg className="w-4 h-4 text-[#14C800] group-hover:text-gray-900 transition-colors duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    </svg>
+                                  </div>
+                                </a>
+                              </div>
                             );
                           })}
                       </div>

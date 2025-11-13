@@ -9,6 +9,7 @@ import Underline from '@tiptap/extension-underline';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import { FontFamily } from '@tiptap/extension-font-family';
+import { Node, mergeAttributes } from '@tiptap/core';
 import Editor from '@monaco-editor/react';
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css'; // GitHub-like dark theme (same as ContentEditableWYSIWYG)
@@ -64,6 +65,168 @@ import {
   FaExclamationTriangle
 } from 'react-icons/fa';
 import portfolioApi from '../../services/portfolioApi';
+
+// Custom Resizable Image Extension for TipTap with manual resize handles
+const ResizableImage = Node.create({
+  name: 'resizableImage',
+  
+  group: 'block',
+  
+  atom: true,
+  
+  draggable: true,
+  
+  addAttributes() {
+    return {
+      src: {
+        default: null,
+      },
+      alt: {
+        default: null,
+      },
+      title: {
+        default: null,
+      },
+      width: {
+        default: null,
+        parseHTML: element => {
+          const width = element.getAttribute('width') || element.style.width;
+          return width ? parseInt(width) : null;
+        },
+        renderHTML: attributes => {
+          if (!attributes.width) return {};
+          return { width: attributes.width, style: `width: ${attributes.width}px;` };
+        },
+      },
+      height: {
+        default: null,
+        parseHTML: element => {
+          const height = element.getAttribute('height') || element.style.height;
+          return height ? parseInt(height) : null;
+        },
+        renderHTML: attributes => {
+          if (!attributes.height) return {};
+          return { height: attributes.height };
+        },
+      },
+    };
+  },
+  
+  parseHTML() {
+    return [
+      {
+        tag: 'img[src]',
+        getAttrs: dom => ({
+          src: dom.getAttribute('src'),
+          alt: dom.getAttribute('alt'),
+          title: dom.getAttribute('title'),
+          width: dom.getAttribute('width') || dom.style.width,
+          height: dom.getAttribute('height') || dom.style.height,
+        }),
+      },
+    ];
+  },
+  
+  renderHTML({ HTMLAttributes }) {
+    return ['img', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
+      class: 'tiptap-image',
+      style: HTMLAttributes.width ? `width: ${HTMLAttributes.width}px; height: auto;` : 'max-width: 100%; height: auto;'
+    })];
+  },
+  
+  addCommands() {
+    return {
+      setImage: options => ({ commands }) => {
+        return commands.insertContent({
+          type: this.name,
+          attrs: options,
+        });
+      },
+      updateImageSize: (src, width, height) => ({ tr, state }) => {
+        const { selection } = state;
+        const node = selection.node;
+        
+        if (node && node.type.name === 'resizableImage') {
+          tr.setNodeMarkup(selection.from, null, {
+            ...node.attrs,
+            width,
+            height,
+          });
+          return true;
+        }
+        return false;
+      },
+    };
+  },
+});
+
+// Custom Code Block extension that preserves Prism highlighting
+const CustomCodeBlock = Node.create({
+  name: 'customCodeBlock',
+  group: 'block',
+  atom: true,
+  
+  addAttributes() {
+    return {
+      language: {
+        default: 'javascript',
+      },
+      code: {
+        default: '',
+      },
+    };
+  },
+  
+  parseHTML() {
+    return [
+      {
+        tag: 'div.code-block-wrapper',
+        getAttrs: dom => ({
+          language: dom.getAttribute('data-language') || 'javascript',
+          code: dom.querySelector('code')?.textContent || '',
+        }),
+      },
+    ];
+  },
+  
+  renderHTML({ node, HTMLAttributes }) {
+    const { language, code } = node.attrs;
+    
+    // Create elements
+    const wrapper = document.createElement('div');
+    wrapper.className = 'code-block-wrapper';
+    wrapper.setAttribute('contenteditable', 'false');
+    wrapper.setAttribute('data-language', language);
+    
+    const pre = document.createElement('pre');
+    pre.className = `code-block language-${language}`;
+    pre.setAttribute('contenteditable', 'false');
+    
+    const codeEl = document.createElement('code');
+    codeEl.className = `language-${language}`;
+    codeEl.textContent = code;
+    
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'code-block-delete-btn';
+    deleteBtn.setAttribute('contenteditable', 'false');
+    deleteBtn.setAttribute('title', 'Delete code block');
+    deleteBtn.textContent = '×';
+    
+    pre.appendChild(codeEl);
+    wrapper.appendChild(pre);
+    wrapper.appendChild(deleteBtn);
+    
+    // Apply Prism highlighting
+    try {
+      Prism.highlightElement(codeEl);
+    } catch (e) {
+      console.warn('Prism highlighting failed:', e);
+    }
+    
+    return wrapper;
+  },
+});
 
 // Custom FontSize extension
 import { Extension } from '@tiptap/core';
@@ -140,8 +303,18 @@ const RichTextSectionEditor = ({
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [error, setError] = useState(null);
+  
+  // Simple notification function (since we don't have access to the context)
+  const showNotification = (title, message, type) => {
+    console.log(`[${type.toUpperCase()}] ${title}: ${message}`);
+    if (type === 'error') {
+      setError(message);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
   const imageInputRef = useRef(null);
   const fileInputRef = useRef(null);
+  const savedSelectionRef = useRef(null); // Track code block being edited
   const [linkUrl, setLinkUrl] = useState('');
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [fontSize, setFontSize] = useState('16px');
@@ -162,11 +335,14 @@ const RichTextSectionEditor = ({
       StarterKit.configure({
         heading: {
           levels: [1, 2, 3, 4]
-        }
+        },
+        // Disable default code block to allow custom HTML code blocks with Prism highlighting
+        codeBlock: false,
+        code: false
       }),
-      Image.configure({
-        inline: true,
-        allowBase64: true,
+      CustomCodeBlock,  // Add our custom code block extension
+      ResizableImage.configure({
+        inline: false,
         HTMLAttributes: {
           class: 'tiptap-image'
         }
@@ -202,22 +378,266 @@ const RichTextSectionEditor = ({
     }
   });
 
-  // Apply Prism syntax highlighting when content changes
+  /**
+   * Handle code block click - for editing or deleting
+   */
+  const handleCodeBlockClick = useCallback((event) => {
+    if (!editor) return;
+
+    // Check if delete button was clicked
+    if (event.target.closest('.code-block-delete-btn')) {
+      event.preventDefault();
+      event.stopPropagation();
+      
+      const wrapper = event.target.closest('.code-block-wrapper');
+      if (wrapper) {
+        // Remove the code block wrapper
+        wrapper.remove();
+        
+        // Trigger content update
+        if (onChange) {
+          onChange(editor.getHTML());
+        }
+        showNotification('Success', 'Code block deleted', 'success');
+      }
+      return;
+    }
+
+    // Look for code block wrapper or pre element
+    const wrapper = event.target.closest('.code-block-wrapper');
+    const codeBlock = wrapper ? wrapper.querySelector('pre') : event.target.closest('pre');
+    
+    if (codeBlock) {
+      // Only handle pre elements that contain code elements (actual code blocks)
+      const codeElement = codeBlock.querySelector('code');
+      if (!codeElement) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      // Get existing code and language
+      const existingCode = codeElement.textContent;
+
+      // Try multiple methods to get the language:
+      // 1. From data-language attribute on wrapper
+      // 2. From data-language attribute on pre
+      // 3. From class on pre (language-*)
+      // 4. From class on code element (language-*)
+      // 5. Default to javascript
+      let language = wrapper?.dataset.language || codeBlock.dataset.language;
+
+      if (!language) {
+        const preClassMatch = codeBlock.className.match(/language-(\w+)/);
+        if (preClassMatch) {
+          language = preClassMatch[1];
+        }
+      }
+
+      if (!language) {
+        const codeClassMatch = codeElement.className.match(/language-(\w+)/);
+        if (codeClassMatch) {
+          language = codeClassMatch[1];
+        }
+      }
+
+      language = language || 'javascript';
+
+      // Store reference to the code block wrapper being edited
+      savedSelectionRef.current = { editingCodeBlock: wrapper || codeBlock };
+
+      // Open dialog with existing content
+      setCodeContent(existingCode);
+      setCodeLanguage(language);
+      setShowCodeDialog(true);
+    }
+  }, [editor, onChange, showNotification]);
+
+  // Apply Prism syntax highlighting when content changes and attach event handlers
   useEffect(() => {
-    if (editor) {
-      // Highlight code blocks whenever content changes
+    if (!editor) return;
+
+    // Highlight code blocks whenever content changes
+    const highlightCodeBlocks = () => {
       setTimeout(() => {
         try {
-          const codeBlocks = document.querySelectorAll('.ProseMirror pre code[class*="language-"]');
+          const editorElement = document.querySelector('.ProseMirror');
+          if (!editorElement) return;
+
+          const codeBlocks = editorElement.querySelectorAll('pre code[class*="language-"]');
           codeBlocks.forEach(block => {
-            Prism.highlightElement(block);
+            // Always re-highlight to ensure proper styling
+            // Get the current text content
+            const text = block.textContent;
+            
+            // Clear and reset to ensure clean highlighting
+            block.textContent = text;
+            
+            // Apply Prism highlighting
+            try {
+              Prism.highlightElement(block);
+            } catch (e) {
+              console.warn('Prism highlight failed for block:', e);
+            }
+          });
+
+          // Make code block wrappers non-editable
+          const wrappers = editorElement.querySelectorAll('.code-block-wrapper');
+          wrappers.forEach(wrapper => {
+            wrapper.setAttribute('contenteditable', 'false');
+            const pre = wrapper.querySelector('pre');
+            if (pre) {
+              pre.setAttribute('contenteditable', 'false');
+            }
           });
         } catch (error) {
           console.warn('Prism highlighting error:', error);
         }
       }, 100);
+    };
+
+    highlightCodeBlocks();
+
+    // Attach click handler for code blocks (editing and deleting)
+    const editorElement = document.querySelector('.ProseMirror');
+    if (editorElement) {
+      editorElement.addEventListener('click', handleCodeBlockClick);
     }
-  }, [editor?.getHTML()]);
+
+    // Handle image resizing
+    const makeImagesResizable = () => {
+      const editorElement = document.querySelector('.ProseMirror');
+      if (!editorElement) return;
+
+      const images = editorElement.querySelectorAll('img.tiptap-image');
+      
+      images.forEach(img => {
+        // Skip if already has resize wrapper
+        if (img.parentElement?.classList.contains('image-resize-wrapper')) return;
+
+        // Wrap image in resize container
+        const wrapper = document.createElement('div');
+        wrapper.className = 'image-resize-wrapper';
+        wrapper.contentEditable = 'false';
+        img.parentNode.insertBefore(wrapper, img);
+        wrapper.appendChild(img);
+
+        // Add resize handles
+        const handles = ['se', 'sw', 'ne', 'nw'];
+        handles.forEach(position => {
+          const handle = document.createElement('div');
+          handle.className = `resize-handle resize-handle-${position}`;
+          handle.dataset.position = position;
+          wrapper.appendChild(handle);
+        });
+
+        // Image click to select
+        img.onclick = (e) => {
+          e.stopPropagation();
+          // Remove selection from other images
+          document.querySelectorAll('.image-resize-wrapper').forEach(w => {
+            w.classList.remove('selected');
+          });
+          wrapper.classList.add('selected');
+        };
+
+        // Handle resize
+        wrapper.querySelectorAll('.resize-handle').forEach(handle => {
+          handle.onmousedown = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const startX = e.clientX;
+            const startY = e.clientY;
+            const startWidth = img.offsetWidth;
+            const startHeight = img.offsetHeight;
+            const aspectRatio = startWidth / startHeight;
+            const position = handle.dataset.position;
+
+            const onMouseMove = (e) => {
+              let newWidth = startWidth;
+              let newHeight = startHeight;
+
+              if (position.includes('e')) {
+                newWidth = startWidth + (e.clientX - startX);
+              } else if (position.includes('w')) {
+                newWidth = startWidth - (e.clientX - startX);
+              }
+
+              if (position.includes('s')) {
+                newHeight = startHeight + (e.clientY - startY);
+              } else if (position.includes('n')) {
+                newHeight = startHeight - (e.clientY - startY);
+              }
+
+              // Maintain aspect ratio - use the larger dimension change
+              const widthChange = Math.abs(newWidth - startWidth);
+              const heightChange = Math.abs(newHeight - startHeight);
+              
+              if (widthChange > heightChange) {
+                newHeight = newWidth / aspectRatio;
+              } else {
+                newWidth = newHeight * aspectRatio;
+              }
+
+              // Minimum size
+              newWidth = Math.max(50, newWidth);
+              newHeight = Math.max(50, newHeight);
+
+              img.style.width = `${newWidth}px`;
+              img.style.height = 'auto';
+
+              // Update TipTap node attributes
+              const pos = editor.view.posAtDOM(img, 0);
+              if (pos !== null && pos !== undefined) {
+                editor.commands.updateImageSize(img.src, Math.round(newWidth), Math.round(newHeight));
+              }
+            };
+
+            const onMouseUp = () => {
+              document.removeEventListener('mousemove', onMouseMove);
+              document.removeEventListener('mouseup', onMouseUp);
+              
+              // Trigger content change
+              if (onChange) {
+                onChange(editor.getHTML());
+              }
+            };
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+          };
+        });
+      });
+
+      // Click outside to deselect
+      editorElement.onclick = (e) => {
+        if (!e.target.closest('img') && !e.target.closest('.resize-handle')) {
+          document.querySelectorAll('.image-resize-wrapper').forEach(w => {
+            w.classList.remove('selected');
+          });
+        }
+      };
+    };
+
+    makeImagesResizable();
+
+    // Re-attach on content updates
+    const updateHandler = editor.on('update', () => {
+      highlightCodeBlocks();
+      makeImagesResizable();
+    });
+
+    return () => {
+      // Clean up event listener
+      if (editorElement) {
+        editorElement.removeEventListener('click', handleCodeBlockClick);
+      }
+      
+      if (updateHandler && typeof updateHandler.off === 'function') {
+        updateHandler.off('update');
+      }
+    };
+  }, [editor, onChange, showNotification, handleCodeBlockClick]);
 
   /**
    * Handle image upload and insert into editor
@@ -404,7 +824,7 @@ const RichTextSectionEditor = ({
   }, []);
 
   /**
-   * Insert code block from dialog
+   * Insert or update code block from dialog
    */
   const insertCodeBlockFromDialog = useCallback(() => {
     if (!editor || !codeContent.trim()) return;
@@ -416,25 +836,78 @@ const RichTextSectionEditor = ({
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
 
-    const codeBlockHtml = `<pre class="code-block language-${codeLanguage}" data-language="${codeLanguage}"><code class="language-${codeLanguage}">${escapedCode}</code></pre>`;
-
-    editor.chain().focus().insertContent(codeBlockHtml).run();
-
-    // Apply syntax highlighting immediately
-    setTimeout(() => {
-      const codeBlocks = document.querySelectorAll('.ProseMirror pre code[class*="language-"]');
-      codeBlocks.forEach(block => {
+    // Check if we're editing an existing code block
+    if (savedSelectionRef.current?.editingCodeBlock) {
+      const existingBlock = savedSelectionRef.current.editingCodeBlock;
+      
+      // Update the existing code block
+      const codeElement = existingBlock.querySelector('code');
+      const preElement = existingBlock.querySelector('pre');
+      
+      if (codeElement && preElement) {
+        // Update language classes
+        preElement.className = `code-block language-${codeLanguage}`;
+        codeElement.className = `language-${codeLanguage}`;
+        
+        // Update content - use textContent to set raw text, then let Prism highlight it
+        codeElement.textContent = codeContent;
+        
+        // Update data-language attribute on wrapper
+        if (existingBlock.classList.contains('code-block-wrapper')) {
+          existingBlock.setAttribute('data-language', codeLanguage);
+        }
+        
+        // Re-apply syntax highlighting
         try {
-          Prism.highlightElement(block);
+          Prism.highlightElement(codeElement);
         } catch (e) {
           console.warn('Failed to highlight code block:', e);
         }
-      });
-    }, 50);
+        
+        // Trigger content update
+        if (onChange) {
+          onChange(editor.getHTML());
+        }
+        
+        showNotification('Success', 'Code block updated', 'success');
+      }
+      
+      // Clear the reference
+      savedSelectionRef.current = null;
+    } else {
+      // Use the custom code block extension to insert
+      editor.chain().focus().insertContent({
+        type: 'customCodeBlock',
+        attrs: {
+          language: codeLanguage,
+          code: codeContent,
+        },
+      }).run();
+
+      // Apply highlighting after TipTap renders
+      setTimeout(() => {
+        const editorElement = document.querySelector('.ProseMirror');
+        if (editorElement) {
+          const codeBlocks = editorElement.querySelectorAll('pre code[class*="language-"]');
+          codeBlocks.forEach(block => {
+            if (!block.querySelector('.token')) {
+              try {
+                Prism.highlightElement(block);
+                console.log('Highlighted code block:', block.className);
+              } catch (e) {
+                console.warn('Prism highlighting failed:', e);
+              }
+            }
+          });
+        }
+      }, 100);
+
+      showNotification('Success', 'Code block inserted', 'success');
+    }
 
     setShowCodeDialog(false);
     setCodeContent('');
-  }, [editor, codeContent, codeLanguage]);
+  }, [editor, codeContent, codeLanguage, onChange, showNotification]);
 
   /**
    * Open HTML source editor
@@ -827,19 +1300,6 @@ const RichTextSectionEditor = ({
           </div>
         </div>
       )}
-
-      {/* Help Text */}
-      <div className="text-xs text-gray-500">
-        <p>💡 Tips:</p>
-        <ul className="list-disc list-inside space-y-1 mt-1">
-          <li>Use the toolbar to format text, add headings, lists, and more</li>
-          <li>Select text and click the <strong>A</strong> icon to change font size</li>
-          <li>Click the image icon to upload and insert images inline</li>
-          <li>Select text and click the link icon to add hyperlinks</li>
-          <li>Click the <strong>&lt;/&gt;</strong> icon to add code blocks with syntax highlighting</li>
-          <li>Click the <strong>&lt;HTML&gt;</strong> icon to edit raw HTML source</li>
-        </ul>
-      </div>
 
       {/* Code Block Dialog */}
       {showCodeDialog && createPortal(
