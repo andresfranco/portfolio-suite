@@ -112,7 +112,8 @@
 }
 
 /* Code Block with Syntax Highlighting - Elegant Box Design */
-.ProseMirror pre.code-block {
+.ProseMirror pre.code-block,
+.ProseMirror .code-block-wrapper pre {
   position: relative;
   background: linear-gradient(135deg, rgba(30, 30, 30, 0.98) 0%, rgba(20, 20, 20, 0.98) 100%);
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -129,8 +130,16 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
+/* Code block wrapper */
+.ProseMirror .code-block-wrapper {
+  position: relative;
+  margin: 20px 0;
+  display: block;
+}
+
 /* Subtle top bar decoration */
-.ProseMirror pre.code-block::after {
+.ProseMirror pre.code-block::after,
+.ProseMirror .code-block-wrapper pre::after {
   content: '';
   position: absolute;
   top: 0;
@@ -142,7 +151,8 @@
   pointer-events: none;
 }
 
-.ProseMirror pre.code-block code {
+.ProseMirror pre.code-block code,
+.ProseMirror .code-block-wrapper pre code {
   display: block;
   white-space: pre;
   overflow-x: auto;
@@ -150,13 +160,58 @@
   font-family: inherit;
   font-size: inherit;
   line-height: inherit;
-  color: #d4d4d4 !important; /* VS Code default text color - force override */
-  background: transparent !important;
-  padding: 0 !important;
+  /* color: #d4d4d4; - Removed to allow Prism.js token colors to display */
+  background: transparent;
+  padding: 0;
+}
+
+/* Ensure Prism.js token colors are visible */
+.ProseMirror pre code .token {
+  color: inherit !important;
+  background: none !important;
+}
+
+/* Force Prism token colors to override any defaults */
+.ProseMirror pre code[class*="language-"] .token {
+  color: inherit;
+}
+
+/* Delete button for code blocks */
+.ProseMirror .code-block-delete-btn {
+  position: absolute;
+  top: 6px;
+  left: 12px;
+  width: 24px;
+  height: 24px;
+  background: rgba(239, 68, 68, 0.8);
+  color: white;
+  border: 1px solid rgba(239, 68, 68, 1);
+  border-radius: 4px;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all 0.2s;
+}
+
+.ProseMirror .code-block-wrapper:hover .code-block-delete-btn,
+.ProseMirror pre.code-block:hover .code-block-delete-btn {
+  opacity: 1;
+}
+
+.ProseMirror .code-block-delete-btn:hover {
+  background: rgba(220, 38, 38, 1);
+  transform: scale(1.1);
 }
 
 /* Language Badge - Elegant Design */
-.ProseMirror pre.code-block::before {
+.ProseMirror pre.code-block::before,
+.ProseMirror .code-block-wrapper::before {
+  content: attr(data-language);
   position: absolute;
   top: 6px;
   right: 12px;
@@ -176,154 +231,176 @@
 }
 
 /* Language-specific badges */
-.ProseMirror pre.language-javascript::before {
+.ProseMirror pre.language-javascript::before,
+.ProseMirror .code-block-wrapper[data-language="javascript"]::before {
   content: 'JavaScript';
   background: rgba(240, 219, 79, 0.15);
   border-color: rgba(240, 219, 79, 0.3);
   color: #f0db4f;
 }
 
-.ProseMirror pre.language-typescript::before {
+.ProseMirror pre.language-typescript::before,
+.ProseMirror .code-block-wrapper[data-language="typescript"]::before {
   content: 'TypeScript';
   background: rgba(49, 120, 198, 0.15);
   border-color: rgba(49, 120, 198, 0.3);
   color: #3178c6;
 }
 
-.ProseMirror pre.language-python::before {
+.ProseMirror pre.language-python::before,
+.ProseMirror .code-block-wrapper[data-language="python"]::before {
   content: 'Python';
   background: rgba(55, 118, 171, 0.15);
   border-color: rgba(55, 118, 171, 0.3);
   color: #3776ab;
 }
 
-.ProseMirror pre.language-java::before {
+.ProseMirror pre.language-java::before,
+.ProseMirror .code-block-wrapper[data-language="java"]::before {
   content: 'Java';
   background: rgba(240, 82, 54, 0.15);
   border-color: rgba(240, 82, 54, 0.3);
   color: #f05236;
 }
 
-.ProseMirror pre.language-csharp::before {
+.ProseMirror pre.language-csharp::before,
+.ProseMirror .code-block-wrapper[data-language="csharp"]::before {
   content: 'C#';
   background: rgba(154, 82, 163, 0.15);
   border-color: rgba(154, 82, 163, 0.3);
   color: #9a52a3;
 }
 
-.ProseMirror pre.language-cpp::before {
+.ProseMirror pre.language-cpp::before,
+.ProseMirror .code-block-wrapper[data-language="cpp"]::before {
   content: 'C++';
   background: rgba(0, 89, 156, 0.15);
   border-color: rgba(0, 89, 156, 0.3);
   color: #00599c;
 }
 
-.ProseMirror pre.language-php::before {
+.ProseMirror pre.language-php::before,
+.ProseMirror .code-block-wrapper[data-language="php"]::before {
   content: 'PHP';
   background: rgba(119, 123, 180, 0.15);
   border-color: rgba(119, 123, 180, 0.3);
   color: #777bb4;
 }
 
-.ProseMirror pre.language-ruby::before {
+.ProseMirror pre.language-ruby::before,
+.ProseMirror .code-block-wrapper[data-language="ruby"]::before {
   content: 'Ruby';
   background: rgba(204, 52, 45, 0.15);
   border-color: rgba(204, 52, 45, 0.3);
   color: #cc342d;
 }
 
-.ProseMirror pre.language-go::before {
+.ProseMirror pre.language-go::before,
+.ProseMirror .code-block-wrapper[data-language="go"]::before {
   content: 'Go';
   background: rgba(0, 173, 216, 0.15);
   border-color: rgba(0, 173, 216, 0.3);
   color: #00add8;
 }
 
-.ProseMirror pre.language-rust::before {
+.ProseMirror pre.language-rust::before,
+.ProseMirror .code-block-wrapper[data-language="rust"]::before {
   content: 'Rust';
   background: rgba(206, 73, 0, 0.15);
   border-color: rgba(206, 73, 0, 0.3);
   color: #ce4900;
 }
 
-.ProseMirror pre.language-swift::before {
+.ProseMirror pre.language-swift::before,
+.ProseMirror .code-block-wrapper[data-language="swift"]::before {
   content: 'Swift';
   background: rgba(240, 81, 56, 0.15);
   border-color: rgba(240, 81, 56, 0.3);
   color: #f05138;
 }
 
-.ProseMirror pre.language-kotlin::before {
+.ProseMirror pre.language-kotlin::before,
+.ProseMirror .code-block-wrapper[data-language="kotlin"]::before {
   content: 'Kotlin';
   background: rgba(124, 77, 255, 0.15);
   border-color: rgba(124, 77, 255, 0.3);
   color: #7c4dff;
 }
 
-.ProseMirror pre.language-sql::before {
+.ProseMirror pre.language-sql::before,
+.ProseMirror .code-block-wrapper[data-language="sql"]::before {
   content: 'SQL';
   background: rgba(204, 102, 0, 0.15);
   border-color: rgba(204, 102, 0, 0.3);
   color: #cc6600;
 }
 
-.ProseMirror pre.language-html::before {
+.ProseMirror pre.language-html::before,
+.ProseMirror .code-block-wrapper[data-language="html"]::before {
   content: 'HTML';
   background: rgba(227, 79, 38, 0.15);
   border-color: rgba(227, 79, 38, 0.3);
   color: #e34f26;
 }
 
-.ProseMirror pre.language-css::before {
+.ProseMirror pre.language-css::before,
+.ProseMirror .code-block-wrapper[data-language="css"]::before {
   content: 'CSS';
   background: rgba(38, 77, 228, 0.15);
   border-color: rgba(38, 77, 228, 0.3);
   color: #264de4;
 }
 
-.ProseMirror pre.language-scss::before {
+.ProseMirror pre.language-scss::before,
+.ProseMirror .code-block-wrapper[data-language="scss"]::before {
   content: 'SCSS';
   background: rgba(207, 100, 154, 0.15);
   border-color: rgba(207, 100, 154, 0.3);
   color: #cf649a;
 }
 
-.ProseMirror pre.language-json::before {
+.ProseMirror pre.language-json::before,
+.ProseMirror .code-block-wrapper[data-language="json"]::before {
   content: 'JSON';
   background: rgba(41, 128, 185, 0.15);
   border-color: rgba(41, 128, 185, 0.3);
   color: #2980b9;
 }
 
-.ProseMirror pre.language-yaml::before {
+.ProseMirror pre.language-yaml::before,
+.ProseMirror .code-block-wrapper[data-language="yaml"]::before {
   content: 'YAML';
   background: rgba(203, 56, 55, 0.15);
   border-color: rgba(203, 56, 55, 0.3);
   color: #cb3837;
 }
 
-.ProseMirror pre.language-bash::before {
+.ProseMirror pre.language-bash::before,
+.ProseMirror .code-block-wrapper[data-language="bash"]::before {
   content: 'Bash';
   background: rgba(76, 175, 80, 0.15);
   border-color: rgba(76, 175, 80, 0.3);
   color: #4caf50;
 }
 
-.ProseMirror pre.language-shell::before {
+.ProseMirror pre.language-shell::before,
+.ProseMirror .code-block-wrapper[data-language="shell"]::before {
   content: 'Shell';
   background: rgba(76, 175, 80, 0.15);
   border-color: rgba(76, 175, 80, 0.3);
   color: #4caf50;
 }
 
-.ProseMirror pre.language-markdown::before {
+.ProseMirror pre.language-markdown::before,
+.ProseMirror .code-block-wrapper[data-language="markdown"]::before {
   content: 'Markdown';
   background: rgba(156, 39, 176, 0.15);
   border-color: rgba(156, 39, 176, 0.3);
   color: #9c27b0;
 }
 
-.ProseMirror pre.language-plaintext::before {
+.ProseMirror pre.language-plaintext::before,
+.ProseMirror .code-block-wrapper[data-language="plaintext"]::before {
   content: 'Plain Text';
   background: rgba(158, 158, 158, 0.15);
   border-color: rgba(158, 158, 158, 0.3);
@@ -331,16 +408,25 @@
 }
 
 /* Prism.js Syntax Highlighting Tokens - VS Code Dark+ Theme */
-/* Using !important to override any default Prism theme */
+.ProseMirror pre.code-block .token,
+.ProseMirror .code-block-wrapper .token {
+  background: none;
+}
+
 .ProseMirror pre.code-block .token.comment,
 .ProseMirror pre.code-block .token.prolog,
 .ProseMirror pre.code-block .token.doctype,
-.ProseMirror pre.code-block .token.cdata {
+.ProseMirror pre.code-block .token.cdata,
+.ProseMirror .code-block-wrapper .token.comment,
+.ProseMirror .code-block-wrapper .token.prolog,
+.ProseMirror .code-block-wrapper .token.doctype,
+.ProseMirror .code-block-wrapper .token.cdata {
   color: #6a9955 !important;
   font-style: italic;
 }
 
-.ProseMirror pre.code-block .token.punctuation {
+.ProseMirror pre.code-block .token.punctuation,
+.ProseMirror .code-block-wrapper .token.punctuation {
   color: #d4d4d4 !important;
 }
 
@@ -350,7 +436,14 @@
 .ProseMirror pre.code-block .token.number,
 .ProseMirror pre.code-block .token.constant,
 .ProseMirror pre.code-block .token.symbol,
-.ProseMirror pre.code-block .token.deleted {
+.ProseMirror pre.code-block .token.deleted,
+.ProseMirror .code-block-wrapper .token.property,
+.ProseMirror .code-block-wrapper .token.tag,
+.ProseMirror .code-block-wrapper .token.boolean,
+.ProseMirror .code-block-wrapper .token.number,
+.ProseMirror .code-block-wrapper .token.constant,
+.ProseMirror .code-block-wrapper .token.symbol,
+.ProseMirror .code-block-wrapper .token.deleted {
   color: #b5cea8 !important;
 }
 
@@ -359,7 +452,13 @@
 .ProseMirror pre.code-block .token.string,
 .ProseMirror pre.code-block .token.char,
 .ProseMirror pre.code-block .token.builtin,
-.ProseMirror pre.code-block .token.inserted {
+.ProseMirror pre.code-block .token.inserted,
+.ProseMirror .code-block-wrapper .token.selector,
+.ProseMirror .code-block-wrapper .token.attr-name,
+.ProseMirror .code-block-wrapper .token.string,
+.ProseMirror .code-block-wrapper .token.char,
+.ProseMirror .code-block-wrapper .token.builtin,
+.ProseMirror .code-block-wrapper .token.inserted {
   color: #ce9178 !important;
 }
 
@@ -367,60 +466,81 @@
 .ProseMirror pre.code-block .token.entity,
 .ProseMirror pre.code-block .token.url,
 .ProseMirror pre.code-block .language-css .token.string,
-.ProseMirror pre.code-block .style .token.string {
+.ProseMirror pre.code-block .style .token.string,
+.ProseMirror .code-block-wrapper .token.operator,
+.ProseMirror .code-block-wrapper .token.entity,
+.ProseMirror .code-block-wrapper .token.url,
+.ProseMirror .code-block-wrapper .language-css .token.string,
+.ProseMirror .code-block-wrapper .style .token.string {
   color: #d4d4d4 !important;
 }
 
 .ProseMirror pre.code-block .token.atrule,
 .ProseMirror pre.code-block .token.attr-value,
-.ProseMirror pre.code-block .token.keyword {
+.ProseMirror pre.code-block .token.keyword,
+.ProseMirror .code-block-wrapper .token.atrule,
+.ProseMirror .code-block-wrapper .token.attr-value,
+.ProseMirror .code-block-wrapper .token.keyword {
   color: #c586c0 !important;
 }
 
 /* Python specific keywords use blue instead of purple */
-.ProseMirror pre.code-block .language-python .token.keyword {
+.ProseMirror pre.code-block .language-python .token.keyword,
+.ProseMirror .code-block-wrapper .language-python .token.keyword {
   color: #569cd6 !important;
 }
 
-.ProseMirror pre.code-block .token.function {
+.ProseMirror pre.code-block .token.function,
+.ProseMirror .code-block-wrapper .token.function {
   color: #dcdcaa !important;
 }
 
-.ProseMirror pre.code-block .token[class~="class-name"] {
+.ProseMirror pre.code-block .token[class~="class-name"],
+.ProseMirror .code-block-wrapper .token[class~="class-name"] {
   color: #4ec9b0 !important;
 }
 
 .ProseMirror pre.code-block .token.regex,
 .ProseMirror pre.code-block .token.important,
-.ProseMirror pre.code-block .token.variable {
+.ProseMirror pre.code-block .token.variable,
+.ProseMirror .code-block-wrapper .token.regex,
+.ProseMirror .code-block-wrapper .token.important,
+.ProseMirror .code-block-wrapper .token.variable {
   color: #d16969 !important;
 }
 
 .ProseMirror pre.code-block .token.important,
-.ProseMirror pre.code-block .token.bold {
+.ProseMirror pre.code-block .token.bold,
+.ProseMirror .code-block-wrapper .token.important,
+.ProseMirror .code-block-wrapper .token.bold {
   font-weight: bold;
 }
 
-.ProseMirror pre.code-block .token.italic {
+.ProseMirror pre.code-block .token.italic,
+.ProseMirror .code-block-wrapper .token.italic {
   font-style: italic;
 }
 
 /* Scrollbar styling for code blocks */
-.ProseMirror pre.code-block code::-webkit-scrollbar {
+.ProseMirror pre.code-block code::-webkit-scrollbar,
+.ProseMirror .code-block-wrapper pre code::-webkit-scrollbar {
   height: 8px;
 }
 
-.ProseMirror pre.code-block code::-webkit-scrollbar-track {
+.ProseMirror pre.code-block code::-webkit-scrollbar-track,
+.ProseMirror .code-block-wrapper pre code::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.05);
   border-radius: 4px;
 }
 
-.ProseMirror pre.code-block code::-webkit-scrollbar-thumb {
+.ProseMirror pre.code-block code::-webkit-scrollbar-thumb,
+.ProseMirror .code-block-wrapper pre code::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2);
   border-radius: 4px;
 }
 
-.ProseMirror pre.code-block code::-webkit-scrollbar-thumb:hover {
+.ProseMirror pre.code-block code::-webkit-scrollbar-thumb:hover,
+.ProseMirror .code-block-wrapper pre code::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
 }
 
@@ -442,12 +562,94 @@
   border-radius: 0.5rem;
   margin: 1rem 0;
   display: block;
+  transition: all 0.2s ease;
 }
 
-/* Image selection */
+/* Image resize wrapper */
+.ProseMirror .image-resize-wrapper {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  margin: 1rem 0;
+}
+
+.ProseMirror .image-resize-wrapper img {
+  display: block;
+  margin: 0;
+}
+
+/* Show resize handles only when selected */
+.ProseMirror .image-resize-wrapper.selected {
+  outline: 2px solid #14C800;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(20, 200, 0, 0.1);
+}
+
+/* Resize handles */
+.ProseMirror .image-resize-wrapper .resize-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: #14C800;
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.ProseMirror .image-resize-wrapper.selected .resize-handle {
+  opacity: 1;
+}
+
+.ProseMirror .image-resize-wrapper .resize-handle:hover {
+  background: #1aeb00;
+  transform: scale(1.3);
+}
+
+/* Resize handle positions */
+.ProseMirror .image-resize-wrapper .resize-handle-se {
+  bottom: -6px;
+  right: -6px;
+  cursor: nwse-resize;
+}
+
+.ProseMirror .image-resize-wrapper .resize-handle-sw {
+  bottom: -6px;
+  left: -6px;
+  cursor: nesw-resize;
+}
+
+.ProseMirror .image-resize-wrapper .resize-handle-ne {
+  top: -6px;
+  right: -6px;
+  cursor: nesw-resize;
+}
+
+.ProseMirror .image-resize-wrapper .resize-handle-nw {
+  top: -6px;
+  left: -6px;
+  cursor: nwse-resize;
+}
+
+/* Image selection with resize handles (legacy support) */
 .ProseMirror img.ProseMirror-selectednode {
   outline: 2px solid #14C800;
   outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(20, 200, 0, 0.1);
+  position: relative;
+}
+
+/* Image resize functionality */
+.ProseMirror img.tiptap-image[width] {
+  width: attr(width);
+  height: auto;
+}
+
+.ProseMirror img.tiptap-image:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 /* Horizontal Rule */
