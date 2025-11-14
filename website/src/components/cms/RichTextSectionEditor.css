@@ -555,6 +555,156 @@
   color: #12b000;
 }
 
+/* File Attachment - Compact Button Style */
+.ProseMirror .file-attachment-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.5rem;
+  background: rgba(20, 200, 0, 0.1);
+  border: 1px solid rgba(20, 200, 0, 0.3);
+  border-radius: 20px;
+  margin: 0.25rem 0;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  max-width: 250px;
+  position: relative;
+  vertical-align: middle;
+}
+
+.ProseMirror .file-attachment-card:hover {
+  background: rgba(20, 200, 0, 0.15);
+  border-color: rgba(20, 200, 0, 0.5);
+  box-shadow: 0 2px 8px rgba(20, 200, 0, 0.2);
+}
+
+/* File attachment link */
+.ProseMirror .file-attachment-card > a {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  text-decoration: none;
+  color: inherit;
+  flex: 1;
+  min-width: 0;
+}
+
+/* File icon */
+.ProseMirror .file-attachment-card .file-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ProseMirror .file-attachment-card .file-icon svg {
+  width: 16px;
+  height: 16px;
+  color: #14C800;
+}
+
+/* File info */
+.ProseMirror .file-attachment-card .file-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.ProseMirror .file-attachment-card .file-name {
+  color: #ffffff;
+  font-weight: 500;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+.ProseMirror .file-attachment-card:hover .file-name {
+  color: #14C800;
+}
+
+.ProseMirror .file-attachment-card .file-ext {
+  flex-shrink: 0;
+  padding: 1px 4px;
+  background: rgba(20, 200, 0, 0.2);
+  border: 1px solid rgba(20, 200, 0, 0.4);
+  border-radius: 3px;
+  font-size: 8px;
+  font-weight: 700;
+  color: #14C800;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.ProseMirror .file-attachment-card .file-size {
+  flex-shrink: 0;
+  color: #9ca3af;
+  font-size: 9px;
+  margin: 0;
+}
+
+/* Delete button - Always visible in editor with trash icon */
+.ProseMirror .file-attachment-card .file-delete-btn {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  background: rgba(220, 38, 38, 0.15);
+  border: 1px solid rgba(220, 38, 38, 0.4);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #dc2626;
+  padding: 0;
+  margin-left: 0.25rem;
+  opacity: 1;
+}
+
+.ProseMirror .file-attachment-card .file-delete-btn svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  pointer-events: none;
+}
+
+.ProseMirror .file-attachment-card .file-delete-btn:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: white;
+  transform: scale(1.15);
+}
+
+.ProseMirror .file-attachment-card:hover .file-delete-btn {
+  background: rgba(220, 38, 38, 0.25);
+  border-color: rgba(220, 38, 38, 0.6);
+}
+
+/* Legacy support - hide old structure elements if they exist */
+.ProseMirror .file-attachment-card .file-icon-container,
+.ProseMirror .file-attachment-card .download-icon-container {
+  display: none;
+}
+
+/* Override any old large card styles */
+.ProseMirror .file-attachment-card[contenteditable="false"] {
+  display: inline-flex !important;
+  max-width: 250px !important;
+  padding: 0.375rem 0.5rem !important;
+  margin: 0.25rem 0 !important;
+}
+
+/* Ensure file cards start on left side */
+.ProseMirror p:has(.file-attachment-card) {
+  text-align: left;
+}
+
 /* Images */
 .ProseMirror img.tiptap-image {
   max-width: 100%;
