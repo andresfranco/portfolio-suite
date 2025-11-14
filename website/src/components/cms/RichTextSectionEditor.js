@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -66,15 +66,16 @@ import {
 } from 'react-icons/fa';
 import portfolioApi from '../../services/portfolioApi';
 
-// Custom Resizable Image Extension for TipTap with manual resize handles
-const ResizableImage = Node.create({
-  name: 'resizableImage',
+// Simple Image Extension - No processing, just pass-through rendering
+// This prevents the freeze that was caused by the ResizableImage extension
+const SimpleImage = Node.create({
+  name: 'simpleImage',
   
   group: 'block',
   
-  atom: true,
+  inline: false,
   
-  draggable: true,
+  atom: true,
   
   addAttributes() {
     return {
@@ -87,27 +88,11 @@ const ResizableImage = Node.create({
       title: {
         default: null,
       },
-      width: {
-        default: null,
-        parseHTML: element => {
-          const width = element.getAttribute('width') || element.style.width;
-          return width ? parseInt(width) : null;
-        },
-        renderHTML: attributes => {
-          if (!attributes.width) return {};
-          return { width: attributes.width, style: `width: ${attributes.width}px;` };
-        },
+      class: {
+        default: 'tiptap-image',
       },
-      height: {
-        default: null,
-        parseHTML: element => {
-          const height = element.getAttribute('height') || element.style.height;
-          return height ? parseInt(height) : null;
-        },
-        renderHTML: attributes => {
-          if (!attributes.height) return {};
-          return { height: attributes.height };
-        },
+      style: {
+        default: 'max-width: 100%; height: auto;',
       },
     };
   },
@@ -116,22 +101,21 @@ const ResizableImage = Node.create({
     return [
       {
         tag: 'img[src]',
+        // Don't process attributes - just accept them as-is
         getAttrs: dom => ({
           src: dom.getAttribute('src'),
           alt: dom.getAttribute('alt'),
           title: dom.getAttribute('title'),
-          width: dom.getAttribute('width') || dom.style.width,
-          height: dom.getAttribute('height') || dom.style.height,
+          class: dom.getAttribute('class') || 'tiptap-image',
+          style: dom.getAttribute('style') || 'max-width: 100%; height: auto;',
         }),
       },
     ];
   },
   
   renderHTML({ HTMLAttributes }) {
-    return ['img', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
-      class: 'tiptap-image',
-      style: HTMLAttributes.width ? `width: ${HTMLAttributes.width}px; height: auto;` : 'max-width: 100%; height: auto;'
-    })];
+    // Simple pass-through rendering - no processing
+    return ['img', mergeAttributes(HTMLAttributes)];
   },
   
   addCommands() {
@@ -141,20 +125,6 @@ const ResizableImage = Node.create({
           type: this.name,
           attrs: options,
         });
-      },
-      updateImageSize: (src, width, height) => ({ tr, state }) => {
-        const { selection } = state;
-        const node = selection.node;
-        
-        if (node && node.type.name === 'resizableImage') {
-          tr.setNodeMarkup(selection.from, null, {
-            ...node.attrs,
-            width,
-            height,
-          });
-          return true;
-        }
-        return false;
       },
     };
   },
@@ -298,11 +268,24 @@ const RichTextSectionEditor = ({
   onChange,
   onImagesChange,
   onAttachmentsChange,
+  onPendingFilesChange,
   disabled = false
 }) => {
+  console.log('[RichTextEditor] ===== COMPONENT RENDER START =====');
+  console.log('[RichTextEditor] Props:', { 
+    contentLength: initialContent?.length || 0, 
+    sectionId, 
+    disabled 
+  });
+  
+  // CRITICAL: Store the original content but NEVER pass it to TipTap's parser
+  const originalContentRef = useRef(initialContent);
+
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [error, setError] = useState(null);
+  const [pendingFiles, setPendingFiles] = useState([]);
+  const [isLoadingContent, setIsLoadingContent] = useState(true);
   
   // Simple notification function (since we don't have access to the context)
   const showNotification = (title, message, type) => {
@@ -329,54 +312,71 @@ const RichTextSectionEditor = ({
   const [showHtmlDialog, setShowHtmlDialog] = useState(false);
   const [htmlSource, setHtmlSource] = useState('');
 
+  // Memoize extensions to prevent duplicate registration warnings
+  // Note: In development with React StrictMode, you may see duplicate extension warnings
+  // due to intentional double-mounting. This is harmless and won't occur in production.
+  const extensions = useMemo(() => [
+    StarterKit.configure({
+      heading: {
+        levels: [1, 2, 3, 4]
+      },
+      // Disable default code block to allow custom HTML code blocks with Prism highlighting
+      codeBlock: false,
+      code: false
+    }),
+    CustomCodeBlock,  // Add our custom code block extension
+    SimpleImage,  // Use simple image extension instead of ResizableImage to prevent freeze
+    Link.configure({
+      openOnClick: false,
+      HTMLAttributes: {
+        class: 'text-[#14C800] underline hover:text-[#12b000]',
+        target: '_blank',
+        rel: 'noopener noreferrer'
+      }
+    }),
+    TextAlign.configure({
+      types: ['heading', 'paragraph']
+    }),
+    Underline,
+    TextStyle,
+    FontSize,
+    Color
+  ], []); // Empty deps - extensions are static
+
   // Initialize TipTap editor
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        heading: {
-          levels: [1, 2, 3, 4]
-        },
-        // Disable default code block to allow custom HTML code blocks with Prism highlighting
-        codeBlock: false,
-        code: false
-      }),
-      CustomCodeBlock,  // Add our custom code block extension
-      ResizableImage.configure({
-        inline: false,
-        HTMLAttributes: {
-          class: 'tiptap-image'
+  console.log('[RichTextEditor] About to initialize editor');
+  console.log('[RichTextEditor] Original content length:', originalContentRef.current?.length || 0);
+  console.log('[RichTextEditor] Has images:', originalContentRef.current?.includes('<img') || false);
+  
+  // Track if we've loaded content yet
+  const hasSetInitialContentRef = useRef(false);
+  
+  const editor = useEditor(
+    {
+      extensions,
+      content: '<p></p>', // Start with minimal content to prevent freeze
+      editable: !disabled,
+      onUpdate: ({ editor }) => {
+        const html = editor.getHTML();
+        console.log('[RichTextEditor] onUpdate - sending HTML to parent:', html.substring(0, 100) + '...');
+        if (onChange) {
+          onChange(html);
         }
-      }),
-      Link.configure({
-        openOnClick: false,
-        HTMLAttributes: {
-          class: 'text-[#14C800] underline hover:text-[#12b000]',
-          target: '_blank',
-          rel: 'noopener noreferrer'
+      },
+      onCreate: ({ editor }) => {
+        console.log('[RichTextEditor] onCreate - editor initialized successfully');
+        // Content will be loaded via direct DOM manipulation in useEffect
+      },
+      editorProps: {
+        attributes: {
+          class: 'prose prose-invert max-w-none focus:outline-none min-h-[300px] p-4 bg-gray-800/30 rounded border border-gray-700/50'
         }
-      }),
-      TextAlign.configure({
-        types: ['heading', 'paragraph']
-      }),
-      Underline,
-      TextStyle,
-      FontSize,
-      Color
-    ],
-    content: initialContent || '<p>Start writing your section content here...</p>',
-    editable: !disabled,
-    onUpdate: ({ editor }) => {
-      const html = editor.getHTML();
-      if (onChange) {
-        onChange(html);
       }
     },
-    editorProps: {
-      attributes: {
-        class: 'prose prose-invert max-w-none focus:outline-none min-h-[300px] p-4 bg-gray-800/30 rounded border border-gray-700/50'
-      }
-    }
-  });
+    [extensions] // Add dependencies to prevent re-initialization
+  );
+  
+  console.log('[RichTextEditor] Editor object created:', editor ? 'SUCCESS' : 'NULL');
 
   /**
    * Handle code block click - for editing or deleting
@@ -452,6 +452,65 @@ const RichTextSectionEditor = ({
     }
   }, [editor, onChange, showNotification]);
 
+  // Load content by temporarily destroying and recreating TipTap
+  useEffect(() => {
+    if (!editor) {
+      console.log('[RichTextEditor] Content loading effect: No editor yet');
+      return;
+    }
+    
+    if (!hasSetInitialContentRef.current) {
+      hasSetInitialContentRef.current = true;
+      console.log('[RichTextEditor] Starting content load with editor disabled');
+      
+      requestAnimationFrame(() => {
+        try {
+          const editorElement = document.querySelector('.ProseMirror');
+          if (!editorElement) {
+            console.error('[RichTextEditor] Could not find editor element');
+            return;
+          }
+          
+          console.log('[RichTextEditor] Disabling editor to prevent MutationObserver interference');
+          
+          // CRITICAL: Destroy the editor temporarily to stop it from observing DOM changes
+          editor.setEditable(false);
+          
+          // Wait for editor to fully disable
+          setTimeout(() => {
+            try {
+              console.log('[RichTextEditor] Injecting content into disabled editor');
+              const content = originalContentRef.current || '<p></p>';
+              
+              editorElement.innerHTML = content;
+              console.log('[RichTextEditor] Content injected,', content.length, 'characters');
+              
+              // Re-enable editor after content is set
+              setTimeout(() => {
+                console.log('[RichTextEditor] Re-enabling editor');
+                editor.setEditable(true);
+                setIsLoadingContent(false);
+                
+                // Notify parent
+                if (onChange) {
+                  onChange(content);
+                }
+                console.log('[RichTextEditor] Content load complete');
+              }, 100);
+            } catch (err) {
+              console.error('[RichTextEditor] Failed during content injection:', err);
+              editor.setEditable(true);
+              setIsLoadingContent(false);
+            }
+          }, 50);
+        } catch (err) {
+          console.error('[RichTextEditor] Failed to load content:', err);
+          setIsLoadingContent(false);
+        }
+      });
+    }
+  }, [editor, onChange]);
+  
   // Apply Prism syntax highlighting when content changes and attach event handlers
   useEffect(() => {
     if (!editor) return;
@@ -696,7 +755,19 @@ const RichTextSectionEditor = ({
         const reader = new FileReader();
         reader.onload = (e) => {
           const base64 = e.target.result;
+          console.log('[IMAGE] Inserting base64 image for new section, size:', base64.length);
           editor.chain().focus().setImage({ src: base64 }).run();
+          
+          // Trigger onChange to update parent component
+          if (onChange) {
+            setTimeout(() => {
+              const html = editor.getHTML();
+              console.log('[IMAGE] Triggering onChange after image insertion, HTML length:', html.length);
+              onChange(html);
+            }, 100);
+          }
+          
+          showNotification('Image Added', 'Image will be embedded in section content', 'success');
         };
         reader.readAsDataURL(file);
       }
@@ -728,8 +799,31 @@ const RichTextSectionEditor = ({
       return;
     }
 
+    // If no sectionId, store as pending file
     if (!sectionId) {
-      setError('Please save the section first before adding file attachments.');
+      const pendingFile = {
+        file: file,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        status: 'pending',
+        id: `pending-${Date.now()}`
+      };
+
+      const updatedPendingFiles = [...pendingFiles, pendingFile];
+      setPendingFiles(updatedPendingFiles);
+
+      // Notify parent component
+      if (onPendingFilesChange) {
+        onPendingFilesChange(updatedPendingFiles);
+      }
+
+      showNotification('File Added', `${file.name} will be uploaded when section is saved`, 'success');
+
+      // Clear input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       return;
     }
 
@@ -763,6 +857,8 @@ const RichTextSectionEditor = ({
         `<p><a href="${fileUrl}" target="_blank" class="inline-flex items-center gap-2 text-[#14C800] hover:text-[#12b000] underline">📎 ${file.name}</a></p>`
       ).run();
 
+      showNotification('File Uploaded', `${file.name} uploaded successfully`, 'success');
+
       // Clear input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -773,6 +869,20 @@ const RichTextSectionEditor = ({
     } finally {
       setUploadingFile(false);
     }
+  };
+
+  /**
+   * Remove a pending file
+   */
+  const removePendingFile = (fileId) => {
+    const updatedPendingFiles = pendingFiles.filter(f => f.id !== fileId);
+    setPendingFiles(updatedPendingFiles);
+    
+    if (onPendingFilesChange) {
+      onPendingFilesChange(updatedPendingFiles);
+    }
+    
+    showNotification('File Removed', 'Pending file removed', 'success');
   };
 
   /**
@@ -903,6 +1013,13 @@ const RichTextSectionEditor = ({
       }, 100);
 
       showNotification('Success', 'Code block inserted', 'success');
+      
+      // Trigger onChange to ensure parent component gets updated content
+      if (onChange) {
+        setTimeout(() => {
+          onChange(editor.getHTML());
+        }, 150);
+      }
     }
 
     setShowCodeDialog(false);
@@ -1136,8 +1253,8 @@ const RichTextSectionEditor = ({
           <label className="cursor-pointer">
             <ToolbarButton
               as="span"
-              disabled={disabled || uploadingFile || !sectionId}
-              title={sectionId ? "Attach File" : "Save section first to attach files"}
+              disabled={disabled || uploadingFile}
+              title="Attach File"
             >
               {uploadingFile ? (
                 <div className="w-3 h-3 border-2 border-gray-400 border-t-[#14C800] rounded-full animate-spin" />
@@ -1150,7 +1267,7 @@ const RichTextSectionEditor = ({
               type="file"
               onChange={handleFileUpload}
               className="hidden"
-              disabled={disabled || uploadingFile || !sectionId}
+              disabled={disabled || uploadingFile}
             />
           </label>
         </div>
@@ -1295,6 +1412,41 @@ const RichTextSectionEditor = ({
                     Remove
                   </button>
                 )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Pending Files Display (files to be uploaded after section creation) */}
+      {pendingFiles && pendingFiles.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-gray-700/50">
+          <h4 className="text-sm font-semibold text-white mb-2 flex items-center gap-2">
+            <span>Pending Files:</span>
+            <span className="text-xs text-orange-400 bg-orange-400/20 px-2 py-1 rounded">
+              Will upload when section is saved
+            </span>
+          </h4>
+          <div className="space-y-2">
+            {pendingFiles.map((file) => (
+              <div
+                key={file.id}
+                className="flex items-center justify-between p-2 bg-orange-500/10 rounded border border-orange-500/30"
+              >
+                <div className="flex items-center gap-2 text-sm text-gray-300">
+                  <FaFile className="text-orange-400" />
+                  <span>{file.name}</span>
+                  <span className="text-xs text-gray-500">
+                    ({(file.size / 1024).toFixed(1)} KB)
+                  </span>
+                </div>
+                <button
+                  onClick={() => removePendingFile(file.id)}
+                  className="text-red-400 hover:text-red-300 text-xs"
+                  disabled={disabled}
+                >
+                  Remove
+                </button>
               </div>
             ))}
           </div>
