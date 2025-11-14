@@ -385,6 +385,7 @@ const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess
   // Image and attachment state (managed by RichTextSectionEditor)
   const [images, setImages] = useState(section?.images || []);
   const [attachments, setAttachments] = useState(section?.attachments || []);
+  const [pendingFiles, setPendingFiles] = useState([]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -395,16 +396,69 @@ const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess
       return;
     }
 
-    if (!formData.section_texts[0].text.trim()) {
+    // Get the latest HTML directly from the editor ref if available
+    // This ensures we capture any recent changes including images
+    const editorElement = document.querySelector('.ProseMirror');
+    let currentHtml = formData.section_texts[0].text;
+    
+    if (editorElement) {
+      // Extract HTML from the editor DOM
+      currentHtml = editorElement.innerHTML;
+      console.log('[SUBMIT] Captured HTML directly from editor, length:', currentHtml.length);
+      console.log('[SUBMIT] HTML contains base64:', currentHtml.includes('data:image'));
+      
+      // Log a sample of the HTML to see structure
+      if (currentHtml.includes('data:image')) {
+        const imgMatch = currentHtml.match(/<img[^>]*data:image[^>]*>/i);
+        if (imgMatch) {
+          console.log('[SUBMIT] Sample img tag:', imgMatch[0].substring(0, 200) + '...');
+        }
+      }
+    }
+
+    // Check if section has meaningful content (not just empty HTML tags or placeholder)
+    const textContent = currentHtml;
+    
+    console.log('[VALIDATION] Raw text content:', textContent);
+    
+    // Remove placeholder text for validation
+    const contentWithoutPlaceholder = textContent.replace('Start writing your section content here...', '');
+    
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = contentWithoutPlaceholder;
+    const plainText = tempDiv.textContent || tempDiv.innerText || '';
+    
+    console.log('[VALIDATION] Plain text extracted:', plainText);
+    console.log('[VALIDATION] Plain text trimmed length:', plainText.trim().length);
+    
+    // Also check if there are any images or code blocks (even if no plain text)
+    const hasImages = contentWithoutPlaceholder.includes('<img') || images.length > 0;
+    const hasCodeBlocks = contentWithoutPlaceholder.includes('code-block-wrapper') || contentWithoutPlaceholder.includes('<pre');
+    const hasFiles = pendingFiles.length > 0 || attachments.length > 0;
+    
+    console.log('[VALIDATION] Has images:', hasImages, 'Has code blocks:', hasCodeBlocks, 'Has files:', hasFiles);
+    
+    if (!plainText.trim() && !hasImages && !hasCodeBlocks && !hasFiles) {
+      console.log('[VALIDATION] Failed - no content detected');
       setError('Section text is required');
       return;
     }
+    
+    console.log('[VALIDATION] Passed - content is valid');
 
     try {
       setLoading(true);
       if (isEditing) {
-        // Update existing section
-        await portfolioApi.updateSection(section.id, formData, authToken);
+        // Update existing section - only send expected fields
+        // Use currentHtml which was captured from the editor
+        const sectionData = {
+          code: formData.code,
+          section_texts: [{ language_id: 1, text: currentHtml }],
+          display_order: formData.display_order,
+          display_style: formData.display_style
+        };
+        console.log('[UPDATE SECTION] Sending data:', sectionData);
+        await portfolioApi.updateSection(section.id, sectionData, authToken);
         
         // If display_order changed and we have a projectId, update the order separately
         if (projectId && formData.display_order !== section.display_order) {
@@ -412,8 +466,137 @@ const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess
           await portfolioApi.updateSectionDisplayOrder(projectId, section.id, formData.display_order, authToken);
         }
       } else {
-        // Create new section
-        await portfolioApi.createProjectSection(projectId, formData, authToken);
+        // Create new section - only send fields expected by backend
+        // Use currentHtml which was captured from the editor
+        const sectionData = {
+          code: formData.code,
+          section_texts: [{ language_id: 1, text: currentHtml }],
+          display_order: formData.display_order,
+          display_style: formData.display_style
+        };
+        console.log('[CREATE SECTION] Sending data:', sectionData);
+        const response = await portfolioApi.createProjectSection(projectId, sectionData, authToken);
+        const newSectionId = response.id || response.section_id;
+        console.log('[CREATE SECTION] Created section with ID:', newSectionId);
+        
+        // Extract and upload base64 images from HTML
+        let updatedHtml = currentHtml;
+        console.log('[IMAGE UPLOAD] Checking HTML for base64 images, HTML length:', updatedHtml.length);
+        console.log('[IMAGE UPLOAD] HTML preview:', updatedHtml.substring(0, 500));
+        
+        // Check if HTML contains base64 images
+        const hasBase64 = updatedHtml.includes('data:image');
+        console.log('[IMAGE UPLOAD] Contains "data:image":', hasBase64);
+        
+        // More flexible regex to match base64 images with any attribute order
+        // This matches: src="data:image/TYPE;base64,DATA" or src='data:image/TYPE;base64,DATA'
+        const base64ImageRegex = /src\s*=\s*["']data:image\/([^;]+);base64,([^"']+)["']/gi;
+        const base64Images = [];
+        let match;
+        
+        console.log('[IMAGE UPLOAD] Testing regex on HTML...');
+        
+        while ((match = base64ImageRegex.exec(updatedHtml)) !== null) {
+          console.log('[IMAGE UPLOAD] Found base64 image match:', match[1], 'data length:', match[2].length);
+          base64Images.push({
+            fullMatch: match[0],
+            format: match[1],
+            data: match[2]
+          });
+        }
+        
+        console.log('[IMAGE UPLOAD] Total base64 images found:', base64Images.length);
+        
+        if (base64Images.length > 0 && newSectionId) {
+          console.log(`[IMAGE UPLOAD] Starting upload of ${base64Images.length} base64 image(s)`);
+          
+          for (const img of base64Images) {
+            try {
+              // Convert base64 to blob
+              const byteString = atob(img.data);
+              const ab = new ArrayBuffer(byteString.length);
+              const ia = new Uint8Array(ab);
+              for (let i = 0; i < byteString.length; i++) {
+                ia[i] = byteString.charCodeAt(i);
+              }
+              const blob = new Blob([ab], { type: `image/${img.format}` });
+              const file = new File([blob], `image-${Date.now()}.${img.format}`, { type: `image/${img.format}` });
+              
+              // Upload the image
+              const uploadResponse = await portfolioApi.uploadImage(
+                file,
+                'section',
+                newSectionId,
+                'section',
+                authToken
+              );
+              
+              const cleanPath = uploadResponse.image_path?.startsWith('/') 
+                ? uploadResponse.image_path.substring(1) 
+                : uploadResponse.image_path;
+              const imageUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${cleanPath}`;
+              
+              // Replace base64 with actual URL in HTML
+              const srcPattern = new RegExp(img.fullMatch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+              updatedHtml = updatedHtml.replace(srcPattern, `src="${imageUrl}"`);
+              
+              console.log(`[IMAGE UPLOAD] Successfully uploaded image, URL: ${imageUrl}`);
+            } catch (uploadErr) {
+              console.error(`[IMAGE UPLOAD] Failed to upload base64 image:`, uploadErr);
+            }
+          }
+          
+          // Update section with new HTML containing real image URLs
+          if (updatedHtml !== formData.section_texts[0].text) {
+            try {
+              await portfolioApi.updateSection(newSectionId, {
+                section_texts: [{ language_id: 1, text: updatedHtml }]
+              }, authToken);
+              console.log('[IMAGE UPLOAD] Updated section HTML with real image URLs');
+            } catch (updateErr) {
+              console.error('[IMAGE UPLOAD] Failed to update section HTML:', updateErr);
+            }
+          }
+        }
+        
+        // Upload pending files if any
+        if (pendingFiles && pendingFiles.length > 0 && newSectionId) {
+          console.log(`[FILE UPLOAD] Uploading ${pendingFiles.length} pending file(s) for new section ${newSectionId}`);
+          
+          const uploadResults = [];
+          const uploadErrors = [];
+          
+          for (const pendingFile of pendingFiles) {
+            try {
+              const uploadResponse = await portfolioApi.uploadAttachment(
+                pendingFile.file,
+                'section',
+                newSectionId,
+                authToken
+              );
+              uploadResults.push({
+                name: pendingFile.name,
+                success: true,
+                response: uploadResponse
+              });
+            } catch (uploadErr) {
+              console.error(`Failed to upload ${pendingFile.name}:`, uploadErr);
+              uploadErrors.push({
+                name: pendingFile.name,
+                error: uploadErr.message || 'Upload failed'
+              });
+            }
+          }
+          
+          // Show results
+          if (uploadErrors.length > 0) {
+            const errorMessage = `Section created, but ${uploadErrors.length} file(s) failed to upload: ${uploadErrors.map(e => e.name).join(', ')}`;
+            setError(errorMessage);
+            console.warn('File upload errors:', uploadErrors);
+          } else {
+            console.log(`All ${uploadResults.length} file(s) uploaded successfully`);
+          }
+        }
       }
       onSuccess();
     } catch (err) {
@@ -479,6 +662,7 @@ const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess
               sectionId={isEditing ? section.id : null}
               authToken={authToken}
               onChange={(html) => {
+                console.log('[ProjectSectionManager] Received HTML from editor:', html.substring(0, 100) + '...');
                 setFormData((prev) => ({
                   ...prev,
                   section_texts: [{ language_id: 1, text: html }],
@@ -486,11 +670,12 @@ const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess
               }}
               onImagesChange={setImages}
               onAttachmentsChange={setAttachments}
+              onPendingFilesChange={setPendingFiles}
               disabled={loading}
             />
             <p className="text-xs text-gray-500 mt-2">
-              Use the rich text editor to format your content, add images inline, and attach files. 
-              {!isEditing && ' Note: Save the section first before adding file attachments.'}
+              Use the rich text editor to format your content, add images inline, and attach files.
+              {!isEditing && pendingFiles.length > 0 && ` ${pendingFiles.length} file(s) will be uploaded when section is saved.`}
             </p>
           </div>
 

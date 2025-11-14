@@ -43,6 +43,7 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
       console.log('[PROJECT SECTIONS] Project data updated, sorting sections by display_order');
       console.log('[PROJECT SECTIONS] Raw sections:', project.sections.map(s => ({ id: s.id, display_order: s.display_order })));
       
+      // Sort sections directly without cleanup (cleanup already done in backend script)
       const sortedSections = [...project.sections].sort(
         (a, b) => (a.display_order || 0) - (b.display_order || 0)
       );
@@ -349,6 +350,8 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
    * Handle section edit
    */
   const handleEditSection = (section) => {
+    // Simply set the section - cleanup already happened in useEffect
+    console.log('[EDIT SECTION] Opening section:', section.id, section.code);
     setEditingSection(section);
   };
 
