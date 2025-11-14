@@ -286,6 +286,115 @@
   color: #12b000;
 }
 
+/* File Attachment - Compact Button Style */
+.rich-text-content .file-attachment-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.5rem;
+  background: rgba(20, 200, 0, 0.1);
+  border: 1px solid rgba(20, 200, 0, 0.3);
+  border-radius: 20px;
+  margin: 0.25rem 0.25rem;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  max-width: 250px;
+}
+
+.rich-text-content .file-attachment-card:hover {
+  background: rgba(20, 200, 0, 0.15);
+  border-color: rgba(20, 200, 0, 0.5);
+  box-shadow: 0 2px 8px rgba(20, 200, 0, 0.2);
+}
+
+/* File attachment link */
+.rich-text-content .file-attachment-card > a {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  text-decoration: none;
+  color: inherit;
+  flex: 1;
+  min-width: 0;
+}
+
+/* File icon */
+.rich-text-content .file-attachment-card .file-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rich-text-content .file-attachment-card .file-icon svg {
+  width: 16px;
+  height: 16px;
+  color: #14C800;
+}
+
+/* File info */
+.rich-text-content .file-attachment-card .file-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.rich-text-content .file-attachment-card .file-name {
+  color: #ffffff;
+  font-weight: 500;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+.rich-text-content .file-attachment-card:hover .file-name {
+  color: #14C800;
+}
+
+.rich-text-content .file-attachment-card .file-ext {
+  flex-shrink: 0;
+  padding: 1px 4px;
+  background: rgba(20, 200, 0, 0.2);
+  border: 1px solid rgba(20, 200, 0, 0.4);
+  border-radius: 3px;
+  font-size: 8px;
+  font-weight: 700;
+  color: #14C800;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.rich-text-content .file-attachment-card .file-size {
+  flex-shrink: 0;
+  color: #9ca3af;
+  font-size: 9px;
+  margin: 0;
+}
+
+/* Hide delete button in public view */
+.rich-text-content .file-attachment-card .file-delete-btn {
+  display: none;
+}
+
+/* Legacy support - hide old structure elements if they exist */
+.rich-text-content .file-attachment-card .file-icon-container,
+.rich-text-content .file-attachment-card .download-icon-container {
+  display: none;
+}
+
+/* Override any old large card styles */
+.rich-text-content .file-attachment-card[contenteditable="false"] {
+  display: inline-flex !important;
+  max-width: 250px !important;
+  padding: 0.375rem 0.5rem !important;
+}
+
 /* Images */
 .rich-text-content img,
 .rich-text-content img.tiptap-image {
