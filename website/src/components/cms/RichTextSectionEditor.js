@@ -66,8 +66,8 @@ import {
 } from 'react-icons/fa';
 import portfolioApi from '../../services/portfolioApi';
 
-// Simple Image Extension - No processing, just pass-through rendering
-// This prevents the freeze that was caused by the ResizableImage extension
+// Resizable Image Extension with Custom NodeView
+// This uses TipTap's NodeView API for proper integration
 const SimpleImage = Node.create({
   name: 'simpleImage',
   
@@ -91,6 +91,12 @@ const SimpleImage = Node.create({
       class: {
         default: 'tiptap-image',
       },
+      width: {
+        default: null,
+      },
+      height: {
+        default: null,
+      },
       style: {
         default: 'max-width: 100%; height: auto;',
       },
@@ -101,12 +107,13 @@ const SimpleImage = Node.create({
     return [
       {
         tag: 'img[src]',
-        // Don't process attributes - just accept them as-is
         getAttrs: dom => ({
           src: dom.getAttribute('src'),
           alt: dom.getAttribute('alt'),
           title: dom.getAttribute('title'),
           class: dom.getAttribute('class') || 'tiptap-image',
+          width: dom.getAttribute('width') || dom.style.width,
+          height: dom.getAttribute('height') || dom.style.height,
           style: dom.getAttribute('style') || 'max-width: 100%; height: auto;',
         }),
       },
@@ -114,8 +121,107 @@ const SimpleImage = Node.create({
   },
   
   renderHTML({ HTMLAttributes }) {
-    // Simple pass-through rendering - no processing
     return ['img', mergeAttributes(HTMLAttributes)];
+  },
+  
+  addNodeView() {
+    return ({ node, getPos, editor }) => {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'image-resize-wrapper';
+      wrapper.contentEditable = 'false';
+      
+      const img = document.createElement('img');
+      img.src = node.attrs.src;
+      img.alt = node.attrs.alt || '';
+      img.title = node.attrs.title || '';
+      img.className = 'tiptap-image';
+      
+      if (node.attrs.width) {
+        img.style.width = node.attrs.width;
+      }
+      if (node.attrs.style) {
+        img.setAttribute('style', node.attrs.style);
+      }
+      
+      wrapper.appendChild(img);
+      
+      // Add resize handles
+      const positions = ['se', 'sw', 'ne', 'nw'];
+      const handles = [];
+      
+      positions.forEach(position => {
+        const handle = document.createElement('div');
+        handle.className = `resize-handle resize-handle-${position}`;
+        handle.contentEditable = 'false';
+        handle.dataset.position = position;
+        wrapper.appendChild(handle);
+        handles.push(handle);
+        
+        // Handle resize
+        handle.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          const startX = e.clientX;
+          const startY = e.clientY;
+          const startWidth = img.offsetWidth;
+          const startHeight = img.offsetHeight;
+          const aspectRatio = startWidth / startHeight;
+          
+          const onMouseMove = (moveEvent) => {
+            let newWidth = startWidth;
+            
+            if (position.includes('e')) {
+              newWidth = startWidth + (moveEvent.clientX - startX);
+            } else if (position.includes('w')) {
+              newWidth = startWidth - (moveEvent.clientX - startX);
+            }
+            
+            newWidth = Math.max(50, newWidth);
+            const newHeight = newWidth / aspectRatio;
+            
+            img.style.width = `${newWidth}px`;
+            img.style.height = 'auto';
+          };
+          
+          const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            
+            // Update node attributes
+            const newWidth = parseInt(img.style.width);
+            if (typeof getPos === 'function') {
+              const pos = getPos();
+              editor.view.dispatch(
+                editor.view.state.tr.setNodeMarkup(pos, null, {
+                  ...node.attrs,
+                  width: `${newWidth}px`,
+                  style: `width: ${newWidth}px; height: auto;`,
+                })
+              );
+            }
+          };
+          
+          document.addEventListener('mousemove', onMouseMove);
+          document.addEventListener('mouseup', onMouseUp);
+        });
+      });
+      
+      // Click to select
+      wrapper.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('.image-resize-wrapper').forEach(w => {
+          w.classList.remove('selected');
+        });
+        wrapper.classList.add('selected');
+      });
+      
+      return {
+        dom: wrapper,
+        contentDOM: null,
+        ignoreMutation: () => true,
+      };
+    };
   },
   
   addCommands() {
@@ -562,6 +668,17 @@ const RichTextSectionEditor = ({
                 editor.setEditable(true);
                 setIsLoadingContent(false);
                 
+                // Setup resize functionality for any images in loaded content
+                console.log('[RESIZE] Triggering resize setup for loaded content');
+                setTimeout(() => {
+                  const images = editorElement.querySelectorAll('img');
+                  console.log('[RESIZE] Found', images.length, 'images after content load');
+                  if (images.length > 0) {
+                    // Trigger a fake update to activate makeImagesResizable
+                    editor.commands.focus();
+                  }
+                }, 200);
+                
                 // Notify parent
                 if (onChange) {
                   onChange(content);
@@ -696,128 +813,21 @@ const RichTextSectionEditor = ({
       editorElement.addEventListener('click', handleFileDelete);
     }
 
-    // Handle image resizing
-    const makeImagesResizable = () => {
-      const editorElement = document.querySelector('.ProseMirror');
-      if (!editorElement) return;
-
-      const images = editorElement.querySelectorAll('img.tiptap-image');
-      
-      images.forEach(img => {
-        // Skip if already has resize wrapper
-        if (img.parentElement?.classList.contains('image-resize-wrapper')) return;
-
-        // Wrap image in resize container
-        const wrapper = document.createElement('div');
-        wrapper.className = 'image-resize-wrapper';
-        wrapper.contentEditable = 'false';
-        img.parentNode.insertBefore(wrapper, img);
-        wrapper.appendChild(img);
-
-        // Add resize handles
-        const handles = ['se', 'sw', 'ne', 'nw'];
-        handles.forEach(position => {
-          const handle = document.createElement('div');
-          handle.className = `resize-handle resize-handle-${position}`;
-          handle.dataset.position = position;
-          wrapper.appendChild(handle);
-        });
-
-        // Image click to select
-        img.onclick = (e) => {
-          e.stopPropagation();
-          // Remove selection from other images
-          document.querySelectorAll('.image-resize-wrapper').forEach(w => {
-            w.classList.remove('selected');
-          });
-          wrapper.classList.add('selected');
-        };
-
-        // Handle resize
-        wrapper.querySelectorAll('.resize-handle').forEach(handle => {
-          handle.onmousedown = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-
-            const startX = e.clientX;
-            const startY = e.clientY;
-            const startWidth = img.offsetWidth;
-            const startHeight = img.offsetHeight;
-            const aspectRatio = startWidth / startHeight;
-            const position = handle.dataset.position;
-
-            const onMouseMove = (e) => {
-              let newWidth = startWidth;
-              let newHeight = startHeight;
-
-              if (position.includes('e')) {
-                newWidth = startWidth + (e.clientX - startX);
-              } else if (position.includes('w')) {
-                newWidth = startWidth - (e.clientX - startX);
-              }
-
-              if (position.includes('s')) {
-                newHeight = startHeight + (e.clientY - startY);
-              } else if (position.includes('n')) {
-                newHeight = startHeight - (e.clientY - startY);
-              }
-
-              // Maintain aspect ratio - use the larger dimension change
-              const widthChange = Math.abs(newWidth - startWidth);
-              const heightChange = Math.abs(newHeight - startHeight);
-              
-              if (widthChange > heightChange) {
-                newHeight = newWidth / aspectRatio;
-              } else {
-                newWidth = newHeight * aspectRatio;
-              }
-
-              // Minimum size
-              newWidth = Math.max(50, newWidth);
-              newHeight = Math.max(50, newHeight);
-
-              img.style.width = `${newWidth}px`;
-              img.style.height = 'auto';
-
-              // Update TipTap node attributes
-              const pos = editor.view.posAtDOM(img, 0);
-              if (pos !== null && pos !== undefined) {
-                editor.commands.updateImageSize(img.src, Math.round(newWidth), Math.round(newHeight));
-              }
-            };
-
-            const onMouseUp = () => {
-              document.removeEventListener('mousemove', onMouseMove);
-              document.removeEventListener('mouseup', onMouseUp);
-              
-              // Trigger content change
-              if (onChange) {
-                onChange(editor.getHTML());
-              }
-            };
-
-            document.addEventListener('mousemove', onMouseMove);
-            document.addEventListener('mouseup', onMouseUp);
-          };
-        });
-      });
-
-      // Click outside to deselect
-      editorElement.onclick = (e) => {
-        if (!e.target.closest('img') && !e.target.closest('.resize-handle')) {
+    // Click outside to deselect images
+    const editorEl = document.querySelector('.ProseMirror');
+    if (editorEl) {
+      editorEl.addEventListener('click', (e) => {
+        if (!e.target.closest('.image-resize-wrapper')) {
           document.querySelectorAll('.image-resize-wrapper').forEach(w => {
             w.classList.remove('selected');
           });
         }
-      };
-    };
+      });
+    }
 
-    makeImagesResizable();
-
-    // Re-attach on content updates
+    // Re-attach handlers on content updates
     const updateHandler = editor.on('update', () => {
       highlightCodeBlocks();
-      makeImagesResizable();
     });
 
     return () => {
