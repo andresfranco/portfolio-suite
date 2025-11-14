@@ -745,13 +745,16 @@
   border-radius: 50%;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   cursor: pointer;
-  z-index: 10;
-  opacity: 0;
+  z-index: 1000;
+  opacity: 1; /* Always visible for debugging */
   transition: opacity 0.2s, transform 0.2s;
+  pointer-events: auto;
+  user-select: none;
 }
 
 .ProseMirror .image-resize-wrapper.selected .resize-handle {
   opacity: 1;
+  background: #1aeb00;
 }
 
 .ProseMirror .image-resize-wrapper .resize-handle:hover {
