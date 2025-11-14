@@ -131,6 +131,76 @@ const SimpleImage = Node.create({
 });
 
 // Custom Code Block extension that preserves Prism highlighting
+// Custom File Attachment Extension - Makes file cards isolated nodes
+const FileAttachment = Node.create({
+  name: 'fileAttachment',
+  group: 'block',
+  atom: true,
+  
+  addAttributes() {
+    return {
+      filename: { default: '' },
+      fileurl: { default: '' },
+      fileext: { default: '' },
+      filesize: { default: '' },
+    };
+  },
+  
+  parseHTML() {
+    return [
+      {
+        tag: 'span.file-attachment-card',
+        getAttrs: dom => ({
+          filename: dom.getAttribute('data-filename') || '',
+          fileurl: dom.getAttribute('data-fileurl') || '',
+          fileext: dom.getAttribute('data-fileext') || '',
+          filesize: dom.getAttribute('data-filesize') || '',
+        }),
+      },
+    ];
+  },
+  
+  renderHTML({ node }) {
+    const { filename, fileurl, fileext, filesize } = node.attrs;
+    
+    // Use DOM manipulation instead of nested arrays for complex HTML
+    const span = document.createElement('span');
+    span.className = 'file-attachment-card';
+    span.contentEditable = 'false';
+    span.setAttribute('data-filename', filename);
+    span.setAttribute('data-fileurl', fileurl);
+    span.setAttribute('data-fileext', fileext);
+    span.setAttribute('data-filesize', filesize);
+    
+    // Build the inner HTML
+    span.innerHTML = `
+      <a href="${fileurl}" download="${filename}" target="_blank">
+        <span class="file-icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+          </svg>
+        </span>
+        <span class="file-info">
+          <span class="file-name">${filename}</span>
+          <span class="file-ext">${fileext}</span>
+          <span class="file-size">${filesize} KB</span>
+        </span>
+      </a>
+      <button class="file-delete-btn" type="button" title="Remove file">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="12" height="12">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+        </svg>
+      </button>
+    `;
+    
+    // Return as DOM element spec
+    return {
+      dom: span,
+      contentDOM: null,
+    };
+  },
+});
+
 const CustomCodeBlock = Node.create({
   name: 'customCodeBlock',
   group: 'block',
@@ -325,6 +395,7 @@ const RichTextSectionEditor = ({
       code: false
     }),
     CustomCodeBlock,  // Add our custom code block extension
+    FileAttachment,   // Add our custom file attachment extension
     SimpleImage,  // Use simple image extension instead of ResizableImage to prevent freeze
     Link.configure({
       openOnClick: false,
@@ -560,6 +631,69 @@ const RichTextSectionEditor = ({
     const editorElement = document.querySelector('.ProseMirror');
     if (editorElement) {
       editorElement.addEventListener('click', handleCodeBlockClick);
+      
+      // Add delete buttons to existing file attachments that don't have them
+      const addDeleteButtonsToExistingFiles = () => {
+        const fileCards = editorElement.querySelectorAll('.file-attachment-card');
+        console.log('[FILE DELETE] Found', fileCards.length, 'file cards');
+        
+        fileCards.forEach(card => {
+          // Check if delete button already exists
+          if (!card.querySelector('.file-delete-btn')) {
+            console.log('[FILE DELETE] Adding delete button to existing file card');
+            
+            // Create delete button
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'file-delete-btn';
+            deleteBtn.type = 'button';
+            deleteBtn.title = 'Remove file';
+            deleteBtn.innerHTML = `
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="12" height="12">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+              </svg>
+            `;
+            
+            // Append to card
+            card.appendChild(deleteBtn);
+          }
+        });
+      };
+      
+      // Run immediately
+      addDeleteButtonsToExistingFiles();
+      
+      // Run after editor updates
+      if (editor) {
+        editor.on('update', () => {
+          setTimeout(addDeleteButtonsToExistingFiles, 100);
+        });
+      }
+      
+      // Handle file attachment card delete button clicks
+      const handleFileDelete = (e) => {
+        const deleteBtn = e.target.closest('.file-delete-btn');
+        if (deleteBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          const fileCard = deleteBtn.closest('.file-attachment-card');
+          if (fileCard) {
+            console.log('[FILE DELETE] Removing file attachment card');
+            fileCard.remove();
+            
+            // Trigger content update
+            if (onChange) {
+              const updatedHtml = editor.getHTML();
+              console.log('[FILE DELETE] Updated HTML:', updatedHtml.substring(0, 100));
+              onChange(updatedHtml);
+            }
+            
+            showNotification('File Removed', 'File attachment removed from content', 'success');
+          }
+        }
+      };
+      
+      editorElement.addEventListener('click', handleFileDelete);
     }
 
     // Handle image resizing
@@ -839,23 +973,28 @@ const RichTextSectionEditor = ({
         authToken
       );
 
-      // Add attachment to list
-      const newAttachment = {
-        id: response.id || Date.now(),
-        file_path: response.file_path || response.path,
-        file_name: file.name,
-        display_order: initialAttachments.length
-      };
+      // Build file URL
+      const cleanPath = (response.file_path || response.path).startsWith('/') 
+        ? (response.file_path || response.path).substring(1) 
+        : (response.file_path || response.path);
+      const fileUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${cleanPath}`;
+      
+      // Get file extension
+      const fileExt = file.name.split('.').pop().toUpperCase();
+      const fileSize = (file.size / 1024).toFixed(1);
 
-      if (onAttachmentsChange) {
-        onAttachmentsChange([...initialAttachments, newAttachment]);
-      }
-
-      // Optionally insert a link to the file in the editor
-      const fileUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${newAttachment.file_path}`;
-      editor.chain().focus().insertContent(
-        `<p><a href="${fileUrl}" target="_blank" class="inline-flex items-center gap-2 text-[#14C800] hover:text-[#12b000] underline">📎 ${file.name}</a></p>`
-      ).run();
+      // Insert a compact button-style file attachment using the custom extension
+      editor.chain().focus().insertContent({
+        type: 'fileAttachment',
+        attrs: {
+          filename: file.name,
+          fileurl: fileUrl,
+          fileext: fileExt,
+          filesize: fileSize,
+        },
+      }).run();
+      
+      console.log('[FILE UPLOAD] Inserted file attachment node');
 
       showNotification('File Uploaded', `${file.name} uploaded successfully`, 'success');
 
@@ -1385,38 +1524,6 @@ const RichTextSectionEditor = ({
 
       {/* Editor Content */}
       <EditorContent editor={editor} />
-
-      {/* File Attachments Display (if any) */}
-      {initialAttachments && initialAttachments.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-gray-700/50">
-          <h4 className="text-sm font-semibold text-white mb-2">Attached Files:</h4>
-          <div className="space-y-2">
-            {initialAttachments.map((attachment) => (
-              <div
-                key={attachment.id}
-                className="flex items-center justify-between p-2 bg-gray-800/30 rounded border border-gray-700/50"
-              >
-                <div className="flex items-center gap-2 text-sm text-gray-300">
-                  <FaFile className="text-gray-400" />
-                  <span>{attachment.file_name}</span>
-                </div>
-                {onAttachmentsChange && (
-                  <button
-                    onClick={() => {
-                      const updated = initialAttachments.filter(a => a.id !== attachment.id);
-                      onAttachmentsChange(updated);
-                    }}
-                    className="text-red-400 hover:text-red-300 text-xs"
-                    disabled={disabled}
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Pending Files Display (files to be uploaded after section creation) */}
       {pendingFiles && pendingFiles.length > 0 && (
