@@ -577,7 +577,8 @@ const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess
               uploadResults.push({
                 name: pendingFile.name,
                 success: true,
-                response: uploadResponse
+                response: uploadResponse,
+                originalSize: pendingFile.size // Store original file size
               });
             } catch (uploadErr) {
               console.error(`Failed to upload ${pendingFile.name}:`, uploadErr);
@@ -585,6 +586,43 @@ const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess
                 name: pendingFile.name,
                 error: uploadErr.message || 'Upload failed'
               });
+            }
+          }
+          
+          // Insert file links into the section HTML for successfully uploaded files
+          if (uploadResults.length > 0) {
+            try {
+              // Build HTML for elegant file links
+              const fileLinksHtml = uploadResults.map(result => {
+                const cleanPath = result.response.file_path?.startsWith('/') 
+                  ? result.response.file_path.substring(1) 
+                  : result.response.file_path;
+                const fileUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${cleanPath}`;
+                
+                // Get file info
+                const fileExt = result.name.split('.').pop().toUpperCase();
+                // Try to get file size from response, or calculate from original file if available
+                let fileSize = 'Unknown';
+                if (result.response.file_size) {
+                  fileSize = (result.response.file_size / 1024).toFixed(1);
+                } else if (result.originalSize) {
+                  fileSize = (result.originalSize / 1024).toFixed(1);
+                }
+                
+                return `<span class="file-attachment-card" contenteditable="false" data-filename="${result.name}" data-fileurl="${fileUrl}" data-fileext="${fileExt}" data-filesize="${fileSize}"><a href="${fileUrl}" download="${result.name}" target="_blank"><span class="file-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg></span><span class="file-info"><span class="file-name">${result.name}</span><span class="file-ext">${fileExt}</span><span class="file-size">${fileSize} KB</span></span></a><button class="file-delete-btn" type="button" title="Remove file"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="12" height="12"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button></span>`;
+              }).join('');
+              
+              // Append file links to the existing HTML
+              const updatedHtmlWithFiles = updatedHtml + fileLinksHtml;
+              
+              // Update section with HTML including file links
+              await portfolioApi.updateSection(newSectionId, {
+                section_texts: [{ language_id: 1, text: updatedHtmlWithFiles }]
+              }, authToken);
+              
+              console.log(`[FILE UPLOAD] Added ${uploadResults.length} elegant file link(s) to section HTML`);
+            } catch (updateErr) {
+              console.error('[FILE UPLOAD] Failed to update section HTML with file links:', updateErr);
             }
           }
           
