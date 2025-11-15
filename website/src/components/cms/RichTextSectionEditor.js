@@ -554,7 +554,9 @@ const DraggableTableCell = TableCell.extend({
           },
           handleClick(view, pos, event) {
             const target = event.target;
-            
+
+            console.log('[HANDLE CLICK] pos:', pos, 'target:', target, 'target.tagName:', target?.tagName);
+
             // CRITICAL: Ignore clicks on interactive elements that have their own handlers
             // This includes delete buttons, resize handles, links, etc.
             if (target) {
@@ -671,11 +673,15 @@ const DraggableTableCell = TableCell.extend({
             
             const { state, dispatch } = view;
             const $pos = state.doc.resolve(pos);
-            
+
+            console.log('[HANDLE CLICK] $pos.depth:', $pos.depth);
+
             // Check if click is on a table cell
             for (let depth = $pos.depth; depth > 0; depth--) {
               const node = $pos.node(depth);
+              console.log('[HANDLE CLICK] depth:', depth, 'node.type.name:', node.type.name);
               if (node.type.name === 'tableCell' || node.type.name === 'tableHeader') {
+                console.log('[HANDLE CLICK] Found table cell at depth:', depth);
                 const cellPos = $pos.before(depth);
                 const cellNode = state.doc.nodeAt(cellPos);
                 
@@ -713,17 +719,30 @@ const DraggableTableCell = TableCell.extend({
                     }, 0);
                     return true; // Handled
                   }
-                  
-                  // Cell has content - ensure cursor is positioned and editor is focused
-                  // Don't change selection if user clicked on specific content
-                  setTimeout(() => {
-                    view.focus();
-                  }, 0);
+
+                  // Cell has content - let ProseMirror handle focus and selection normally
+                  // Don't interfere with default behavior
                 }
                 break;
               }
             }
-            return false; // Let other handlers process
+
+            console.log('[HANDLE CLICK] Not in table cell - manually updating selection');
+            console.log('[HANDLE CLICK] Current selection:', state.selection.from, '-', state.selection.to);
+            console.log('[HANDLE CLICK] Target position:', pos);
+
+            // CRITICAL: Manually update selection since ProseMirror isn't doing it
+            // This fixes the issue where clicks outside table cells don't update cursor position
+            try {
+              const newSelection = TextSelection.create(state.doc, pos);
+              const tr = state.tr.setSelection(newSelection);
+              dispatch(tr);
+              console.log('[HANDLE CLICK] ✅ Selection manually updated to:', pos);
+              return true; // We handled it
+            } catch (e) {
+              console.error('[HANDLE CLICK] ❌ Error updating selection:', e);
+              return false;
+            }
           },
         },
       }),
@@ -1788,10 +1807,75 @@ const RichTextSectionEditor = ({
             key: new PluginKey('preventTableDeletionOnEnter'),
             props: {
               handleKeyDown(view, event) {
+                const { state, dispatch } = view;
+                const { selection } = state;
+
+                // Handle arrow keys manually since ProseMirror isn't updating selection outside tables
+                if (event.key.startsWith('Arrow')) {
+                  console.log('[KEY DOWN] Arrow key pressed:', event.key, 'Selection:', selection.from, '-', selection.to);
+
+                  // Check if we're in a table cell
+                  let inTableCell = false;
+                  for (let depth = selection.$anchor.depth; depth > 0; depth--) {
+                    const node = selection.$anchor.node(depth);
+                    if (node.type.name === 'tableCell' || node.type.name === 'tableHeader') {
+                      inTableCell = true;
+                      break;
+                    }
+                  }
+
+                  // If NOT in table cell, manually handle arrow keys
+                  if (!inTableCell) {
+                    console.log('[KEY DOWN] Outside table cell - manually handling arrow key');
+
+                    try {
+                      let newPos = selection.from;
+
+                      if (event.key === 'ArrowLeft') {
+                        newPos = Math.max(0, selection.from - 1);
+                      } else if (event.key === 'ArrowRight') {
+                        newPos = Math.min(state.doc.content.size, selection.from + 1);
+                      } else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                        // For up/down, find the previous/next block (paragraph)
+                        const $pos = selection.$anchor;
+                        const currentDepth = $pos.depth;
+                        const currentNode = $pos.node(currentDepth);
+
+                        if (event.key === 'ArrowUp') {
+                          // Try to move to previous block
+                          const before = $pos.before(currentDepth);
+                          if (before > 0) {
+                            newPos = before;
+                          } else {
+                            newPos = 0;
+                          }
+                        } else if (event.key === 'ArrowDown') {
+                          // Try to move to next block
+                          const after = $pos.after(currentDepth);
+                          if (after < state.doc.content.size) {
+                            newPos = after + 1;
+                          } else {
+                            newPos = state.doc.content.size;
+                          }
+                        }
+                      }
+
+                      if (newPos !== selection.from) {
+                        const newSelection = TextSelection.create(state.doc, newPos);
+                        const tr = state.tr.setSelection(newSelection);
+                        dispatch(tr);
+                        console.log('[KEY DOWN] ✅ Selection manually updated to:', newPos);
+                        return true; // We handled it
+                      }
+                    } catch (e) {
+                      console.error('[KEY DOWN] ❌ Error updating selection:', e);
+                      return false;
+                    }
+                  }
+                }
+
                 // Prevent Enter key from deleting tables
                 if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
-                  const { state } = view;
-                  const { selection } = state;
                   
                   // Check if we're in a table cell
                   let inTableCell = false;
@@ -2109,6 +2193,10 @@ const RichTextSectionEditor = ({
       extensions,
       content: '<p></p>', // Start with minimal content to prevent freeze
       editable: !disabled,
+      onSelectionUpdate: ({ editor }) => {
+        const { from, to } = editor.state.selection;
+        console.log('[SELECTION UPDATE] Selection changed to:', from, '-', to);
+      },
       onUpdate: ({ editor }) => {
         // Block onUpdate during content loading to prevent infinite loops
         if (isLoadingContentRef.current) {
@@ -2615,12 +2703,21 @@ const RichTextSectionEditor = ({
    * Handle code block click - for editing or deleting
    */
   const handleCodeBlockClick = useCallback((event) => {
-    console.log('[CODE BLOCK EDIT] handleCodeBlockClick called, target:', event.target);
-
     if (!editor) {
-      console.log('[CODE BLOCK EDIT] No editor available');
       return;
     }
+
+    // Early exit: Only process if click is related to a code block
+    // Check if target is inside a code block wrapper or is a pre element
+    const wrapper = event.target.closest('.code-block-wrapper');
+    const preElement = event.target.closest('pre');
+
+    if (!wrapper && !preElement) {
+      // Not a code block click, exit silently
+      return;
+    }
+
+    console.log('[CODE BLOCK EDIT] handleCodeBlockClick called, target:', event.target);
 
     // Check if delete button was clicked
     if (event.target.closest('.code-block-delete-btn')) {
@@ -2628,7 +2725,6 @@ const RichTextSectionEditor = ({
       event.preventDefault();
       event.stopPropagation();
 
-      const wrapper = event.target.closest('.code-block-wrapper');
       if (wrapper) {
         // Remove the code block wrapper
         wrapper.remove();
@@ -2641,8 +2737,7 @@ const RichTextSectionEditor = ({
     }
 
     // Look for code block wrapper or pre element
-    const wrapper = event.target.closest('.code-block-wrapper');
-    const codeBlock = wrapper ? wrapper.querySelector('pre') : event.target.closest('pre');
+    const codeBlock = wrapper ? wrapper.querySelector('pre') : preElement;
 
     console.log('[CODE BLOCK EDIT] Found wrapper:', wrapper);
     console.log('[CODE BLOCK EDIT] Found codeBlock:', codeBlock);
