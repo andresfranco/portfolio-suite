@@ -194,7 +194,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0;
+  opacity: 0.7; /* Changed from 0 to 0.7 to make it always visible */
   transition: all 0.2s;
 }
 
