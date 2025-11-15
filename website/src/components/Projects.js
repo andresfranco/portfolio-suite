@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect, useRef } from 'react';
+import React, { useState, useContext, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { LanguageContext } from '../context/LanguageContext';
 import { usePortfolio } from '../context/PortfolioContext';
@@ -117,8 +117,8 @@ const Projects = () => {
   const loadingText = useSectionLabel('MSG_LOADING_PROJECTS', 'loading_projects');
   const viewProjectLabel = useSectionLabel('BTN_VIEW_PROJECT', 'view_project');
 
-  // Get projects from portfolio context
-  const apiProjects = getProjects();
+  // Get projects from portfolio context - memoize to prevent infinite loops
+  const apiProjects = useMemo(() => getProjects(), [portfolio?.projects]);
   
   // Local state for optimistic UI updates during drag and drop
   const [projects, setProjects] = useState([]);
@@ -126,14 +126,28 @@ const Projects = () => {
   // Track if we're currently reordering to prevent sync conflicts
   const isReorderingRef = useRef(false);
   
+  // Track previous API projects to detect actual changes
+  const prevApiProjectsRef = useRef([]);
+  
   // Content editor hook for projects reordering
   const { reorderItems } = useContentEditor('project');
   
   // Sync local state with API data (but not during reordering)
   useEffect(() => {
     if (!isReorderingRef.current) {
-      console.log('Syncing projects from API:', apiProjects);
-      setProjects(apiProjects);
+      // Only update if the array contents actually changed
+      const hasChanged = 
+        apiProjects.length !== prevApiProjectsRef.current.length ||
+        apiProjects.some((proj, index) => {
+          const prevProj = prevApiProjectsRef.current[index];
+          return !prevProj || proj.id !== prevProj.id;
+        });
+      
+      if (hasChanged) {
+        console.log('Syncing projects from API:', apiProjects);
+        setProjects(apiProjects);
+        prevApiProjectsRef.current = apiProjects;
+      }
     }
   }, [apiProjects]);
 

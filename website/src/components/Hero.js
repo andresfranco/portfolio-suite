@@ -130,8 +130,8 @@ const Hero = () => {
   const [experienceToDelete, setExperienceToDelete] = useState(null);
   const [showAddMenu, setShowAddMenu] = useState(false);
 
-  // Get experiences from API
-  const apiExperiences = getExperiences();
+  // Get experiences from API - memoize to prevent infinite loops
+  const apiExperiences = useMemo(() => getExperiences(), [portfolio?.experiences]);
   
   // Local state for optimistic UI updates during drag and drop
   const [experiences, setExperiences] = useState([]);
@@ -139,11 +139,25 @@ const Hero = () => {
   // Track if we're currently reordering to prevent sync conflicts
   const isReorderingRef = useRef(false);
   
+  // Track previous API experiences to detect actual changes
+  const prevApiExperiencesRef = useRef([]);
+  
   // Sync local state with API data (but not during reordering)
   useEffect(() => {
     if (!isReorderingRef.current) {
-      console.log('Syncing experiences from API:', apiExperiences);
-      setExperiences(apiExperiences);
+      // Only update if the array contents actually changed
+      const hasChanged = 
+        apiExperiences.length !== prevApiExperiencesRef.current.length ||
+        apiExperiences.some((exp, index) => {
+          const prevExp = prevApiExperiencesRef.current[index];
+          return !prevExp || exp.id !== prevExp.id;
+        });
+      
+      if (hasChanged) {
+        console.log('Syncing experiences from API:', apiExperiences);
+        setExperiences(apiExperiences);
+        prevApiExperiencesRef.current = apiExperiences;
+      }
     }
   }, [apiExperiences]);
   
