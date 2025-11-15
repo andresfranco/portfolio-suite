@@ -576,7 +576,70 @@ const DraggableTableCell = TableCell.extend({
                 // Return true to tell ProseMirror we handled it
                 return true;
               }
-              
+
+              // Check if click is on a code block delete button
+              if (target.classList.contains('code-block-delete-btn') ||
+                  target.closest('.code-block-delete-btn') !== null) {
+                console.log('[CELL CLICK] handleClick: Code block delete button clicked - handling directly');
+
+                // Find the code block wrapper
+                const wrapper = target.closest('.code-block-wrapper');
+                if (wrapper) {
+                  console.log('[CODE BLOCK DELETE] Found wrapper, deleting code block');
+
+                  // Find and delete the customCodeBlock node in ProseMirror
+                  const { state } = view;
+                  const codeBlockId = wrapper.getAttribute('data-component-id');
+
+                  console.log('[CODE BLOCK DELETE] Looking for code block with ID:', codeBlockId);
+
+                  // Search for the customCodeBlock node
+                  let nodePos = null;
+                  state.doc.descendants((node, pos) => {
+                    if (node.type.name === 'customCodeBlock') {
+                      const nodeId = node.attrs['data-component-id'];
+                      console.log('[CODE BLOCK DELETE] Found customCodeBlock at pos', pos, 'with ID:', nodeId);
+
+                      if (codeBlockId && nodeId === codeBlockId) {
+                        nodePos = pos;
+                        console.log('[CODE BLOCK DELETE] Match found at position:', pos);
+                        return false; // Stop searching
+                      }
+                    }
+                  });
+
+                  if (nodePos !== null) {
+                    console.log('[CODE BLOCK DELETE] Deleting node at position:', nodePos);
+                    const tr = state.tr.delete(nodePos, nodePos + 1);
+                    view.dispatch(tr);
+                    console.log('[CODE BLOCK DELETE] ✅ Code block deleted successfully');
+                  } else {
+                    console.error('[CODE BLOCK DELETE] ❌ Could not find code block node');
+                  }
+                }
+
+                // Return true to tell ProseMirror we handled it
+                return true;
+              }
+
+              // Check if click is on a code block wrapper (for editing) but NOT on delete button
+              const codeBlockWrapper = target.closest('.code-block-wrapper');
+              if (codeBlockWrapper && !target.closest('.code-block-delete-btn')) {
+                console.log('[CELL CLICK] handleClick: Code block clicked - calling handler directly for editing');
+
+                // CRITICAL: Since event propagation doesn't work reliably from inside cells,
+                // call the handler directly from our global reference
+                if (window._codeBlockClickHandler) {
+                  console.log('[CELL CLICK] Invoking window._codeBlockClickHandler directly');
+                  window._codeBlockClickHandler(event);
+                } else {
+                  console.error('[CELL CLICK] ❌ window._codeBlockClickHandler not found!');
+                }
+
+                // Return true to tell ProseMirror we handled it
+                return true;
+              }
+
               // Check if click is on a link
               if (target.tagName === 'A' || target.closest('a') !== null) {
                 // Only ignore if it's not the file link (file links should work)
@@ -1476,12 +1539,13 @@ const CustomCodeBlock = Node.create({
   
   renderHTML({ node, HTMLAttributes }) {
     const { language, code } = node.attrs;
-    
+
     // Create elements
     const wrapper = document.createElement('div');
     wrapper.className = 'code-block-wrapper';
     wrapper.setAttribute('contenteditable', 'false');
     wrapper.setAttribute('data-language', language);
+    wrapper.setAttribute('data-component-id', node.attrs['data-component-id'] || `code-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
     wrapper.draggable = true;
     wrapper.setAttribute('data-drag-handle', 'true');
     
@@ -2551,18 +2615,24 @@ const RichTextSectionEditor = ({
    * Handle code block click - for editing or deleting
    */
   const handleCodeBlockClick = useCallback((event) => {
-    if (!editor) return;
+    console.log('[CODE BLOCK EDIT] handleCodeBlockClick called, target:', event.target);
+
+    if (!editor) {
+      console.log('[CODE BLOCK EDIT] No editor available');
+      return;
+    }
 
     // Check if delete button was clicked
     if (event.target.closest('.code-block-delete-btn')) {
+      console.log('[CODE BLOCK EDIT] Delete button clicked, ignoring for edit');
       event.preventDefault();
       event.stopPropagation();
-      
+
       const wrapper = event.target.closest('.code-block-wrapper');
       if (wrapper) {
         // Remove the code block wrapper
         wrapper.remove();
-        
+
         // Trigger content update
         safeOnChange(editor.getHTML());
         showNotification('Success', 'Code block deleted', 'success');
@@ -2573,12 +2643,21 @@ const RichTextSectionEditor = ({
     // Look for code block wrapper or pre element
     const wrapper = event.target.closest('.code-block-wrapper');
     const codeBlock = wrapper ? wrapper.querySelector('pre') : event.target.closest('pre');
-    
+
+    console.log('[CODE BLOCK EDIT] Found wrapper:', wrapper);
+    console.log('[CODE BLOCK EDIT] Found codeBlock:', codeBlock);
+
     if (codeBlock) {
+      console.log('[CODE BLOCK EDIT] Code block found, processing...');
+
       // Only handle pre elements that contain code elements (actual code blocks)
       const codeElement = codeBlock.querySelector('code');
-      if (!codeElement) return;
+      if (!codeElement) {
+        console.log('[CODE BLOCK EDIT] No code element found inside pre');
+        return;
+      }
 
+      console.log('[CODE BLOCK EDIT] Code element found, preventing default and opening dialog');
       event.preventDefault();
       event.stopPropagation();
 
@@ -2608,6 +2687,8 @@ const RichTextSectionEditor = ({
       }
 
       language = language || 'javascript';
+
+      console.log('[CODE BLOCK EDIT] Opening dialog with code:', existingCode, 'language:', language);
 
       // Store reference to the code block wrapper being edited
       savedSelectionRef.current = { editingCodeBlock: wrapper || codeBlock };
@@ -3578,6 +3659,8 @@ const RichTextSectionEditor = ({
     // Attach click handler for code blocks (editing and deleting)
     const editorElement = document.querySelector('.ProseMirror');
     if (editorElement) {
+      // Store reference globally so it can be called from ProseMirror's handleClick
+      window._codeBlockClickHandler = handleCodeBlockClick;
       editorElement.addEventListener('click', handleCodeBlockClick);
 
       // NOTE: File delete handler is now set up in separate one-time useEffect
@@ -4627,10 +4710,48 @@ const RichTextSectionEditor = ({
    * Open code block dialog
    */
   const openCodeDialog = useCallback(() => {
+    // Note: Selection is captured in onMouseDown handler on the toolbar button
+    // This happens BEFORE the editor loses focus, ensuring we get the correct position
+    console.log('[CODE BLOCK] Opening dialog - using selection from onMouseDown:', savedSelectionRef.current);
+
     setCodeContent('');
     setCodeLanguage('javascript');
     setShowCodeDialog(true);
   }, []);
+
+  /**
+   * Helper function to update code block DOM (fallback for blocks without component ID)
+   */
+  const updateCodeBlockDOM = useCallback((existingBlock) => {
+    const codeElement = existingBlock.querySelector('code');
+    const preElement = existingBlock.querySelector('pre');
+
+    if (codeElement && preElement) {
+      // Update language classes
+      preElement.className = `code-block language-${codeLanguage}`;
+      codeElement.className = `language-${codeLanguage}`;
+
+      // Update content - use textContent to set raw text, then let Prism highlight it
+      codeElement.textContent = codeContent;
+
+      // Update data-language attribute on wrapper
+      if (existingBlock.classList.contains('code-block-wrapper')) {
+        existingBlock.setAttribute('data-language', codeLanguage);
+      }
+
+      // Re-apply syntax highlighting
+      try {
+        Prism.highlightElement(codeElement);
+      } catch (e) {
+        console.warn('Failed to highlight code block:', e);
+      }
+
+      // Trigger content update
+      safeOnChange(editor.getHTML());
+
+      showNotification('Success', 'Code block updated', 'success');
+    }
+  }, [editor, codeContent, codeLanguage, showNotification]);
 
   /**
    * Insert or update code block from dialog
@@ -4648,48 +4769,112 @@ const RichTextSectionEditor = ({
     // Check if we're editing an existing code block
     if (savedSelectionRef.current?.editingCodeBlock) {
       const existingBlock = savedSelectionRef.current.editingCodeBlock;
-      
-      // Update the existing code block
-      const codeElement = existingBlock.querySelector('code');
-      const preElement = existingBlock.querySelector('pre');
-      
-      if (codeElement && preElement) {
-        // Update language classes
-        preElement.className = `code-block language-${codeLanguage}`;
-        codeElement.className = `language-${codeLanguage}`;
-        
-        // Update content - use textContent to set raw text, then let Prism highlight it
-        codeElement.textContent = codeContent;
-        
-        // Update data-language attribute on wrapper
-        if (existingBlock.classList.contains('code-block-wrapper')) {
-          existingBlock.setAttribute('data-language', codeLanguage);
+
+      console.log('[CODE BLOCK UPDATE] Editing existing block:', existingBlock);
+
+      // Try to find the code block in ProseMirror document by data-component-id
+      const wrapper = existingBlock.classList?.contains('code-block-wrapper')
+        ? existingBlock
+        : existingBlock.closest('.code-block-wrapper');
+
+      if (wrapper) {
+        const codeBlockId = wrapper.getAttribute('data-component-id');
+        console.log('[CODE BLOCK UPDATE] Looking for code block with ID:', codeBlockId);
+
+        if (codeBlockId && editor) {
+          const { state } = editor;
+          let nodePos = null;
+
+          // Search for the customCodeBlock node
+          state.doc.descendants((node, pos) => {
+            if (node.type.name === 'customCodeBlock') {
+              const nodeId = node.attrs['data-component-id'];
+              console.log('[CODE BLOCK UPDATE] Found customCodeBlock at pos', pos, 'with ID:', nodeId);
+
+              if (nodeId === codeBlockId) {
+                nodePos = pos;
+                console.log('[CODE BLOCK UPDATE] Match found at position:', pos);
+                return false; // Stop searching
+              }
+            }
+          });
+
+          if (nodePos !== null) {
+            console.log('[CODE BLOCK UPDATE] Updating node at position:', nodePos, 'with new content');
+
+            // Update the node's attributes using ProseMirror transaction
+            const tr = state.tr.setNodeMarkup(nodePos, null, {
+              language: codeLanguage,
+              code: codeContent,
+              'data-component-id': codeBlockId
+            });
+
+            editor.view.dispatch(tr);
+            console.log('[CODE BLOCK UPDATE] ✅ Code block updated via ProseMirror transaction');
+            showNotification('Success', 'Code block updated', 'success');
+          } else {
+            console.error('[CODE BLOCK UPDATE] ❌ Could not find code block node in document');
+            // Fallback to DOM manipulation
+            updateCodeBlockDOM(existingBlock);
+          }
+        } else {
+          console.log('[CODE BLOCK UPDATE] No component ID found, using DOM manipulation');
+          updateCodeBlockDOM(existingBlock);
         }
-        
-        // Re-apply syntax highlighting
-        try {
-          Prism.highlightElement(codeElement);
-        } catch (e) {
-          console.warn('Failed to highlight code block:', e);
-        }
-        
-        // Trigger content update
-        safeOnChange(editor.getHTML());
-        
-        showNotification('Success', 'Code block updated', 'success');
+      } else {
+        console.log('[CODE BLOCK UPDATE] No wrapper found, using DOM manipulation on block directly');
+        updateCodeBlockDOM(existingBlock);
       }
-      
+
       // Clear the reference
       savedSelectionRef.current = null;
     } else {
-      // Use the custom code block extension to insert
-      editor.chain().focus().insertContent({
-        type: 'customCodeBlock',
-        attrs: {
-          language: codeLanguage,
-          code: codeContent,
-        },
-      }).run();
+      // CRITICAL: Restore cursor position before inserting
+      // This ensures the code block is inserted at the correct location (e.g., inside table cells)
+      const savedSelection = savedSelectionRef.current;
+
+      if (savedSelection && savedSelection.from !== undefined && savedSelection.to !== undefined) {
+        console.log('[CODE BLOCK] Restoring saved selection:', savedSelection);
+
+        // Use the pre-calculated cell position if we were in a table cell when dialog opened
+        let insertPos = savedSelection.from;
+
+        if (savedSelection.inTableCell && savedSelection.cellPos !== null) {
+          insertPos = savedSelection.cellPos;
+          console.log('[CODE BLOCK] Was in table cell - using saved cell position:', insertPos);
+        } else {
+          console.log('[CODE BLOCK] Was NOT in table cell - using saved cursor position:', insertPos);
+        }
+
+        console.log('[CODE BLOCK] Final insert position:', insertPos);
+
+        // Insert at the calculated position
+        editor
+          .chain()
+          .focus()
+          .insertContentAt(insertPos, {
+            type: 'customCodeBlock',
+            attrs: {
+              language: codeLanguage,
+              code: codeContent,
+              'data-component-id': `code-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            },
+          })
+          .run();
+
+        // Clear the saved selection
+        savedSelectionRef.current = null;
+      } else {
+        // No saved selection - insert at current cursor position
+        console.log('[CODE BLOCK] No saved position, inserting at current cursor');
+        editor.chain().focus().insertContent({
+          type: 'customCodeBlock',
+          attrs: {
+            language: codeLanguage,
+            code: codeContent,
+          },
+        }).run();
+      }
 
       // Apply highlighting after TipTap renders
       setTimeout(() => {
@@ -4719,7 +4904,7 @@ const RichTextSectionEditor = ({
 
     setShowCodeDialog(false);
     setCodeContent('');
-  }, [editor, codeContent, codeLanguage, showNotification]); // safeOnChange is stable
+  }, [editor, codeContent, codeLanguage, showNotification, updateCodeBlockDOM]); // safeOnChange is stable
 
   /**
    * Open HTML source editor
@@ -5213,6 +5398,43 @@ const RichTextSectionEditor = ({
             <FaQuoteLeft />
           </ToolbarButton>
           <ToolbarButton
+            onMouseDown={(e) => {
+              // CRITICAL: Capture selection BEFORE onClick fires and editor loses focus
+              // This ensures we save the correct cursor position (e.g., inside table cells)
+              if (editor) {
+                const { from, to } = editor.state.selection;
+                const $pos = editor.state.doc.resolve(from);
+
+                console.log('[CODE BLOCK] onMouseDown - capturing selection:', { from, to });
+                console.log('[CODE BLOCK] onMouseDown - $pos.depth:', $pos.depth);
+
+                // Walk up tree to find if we're in a table cell
+                let inTableCell = false;
+                let cellPos = null;
+
+                for (let depth = $pos.depth; depth > 0; depth--) {
+                  const node = $pos.node(depth);
+                  console.log('[CODE BLOCK] onMouseDown - depth', depth, 'node type:', node.type.name);
+
+                  if (node.type.name === 'tableCell' || node.type.name === 'tableHeader') {
+                    inTableCell = true;
+                    cellPos = $pos.before(depth);
+                    console.log('[CODE BLOCK] onMouseDown - found table cell at depth', depth, 'cellPos:', cellPos);
+                    break;
+                  }
+                }
+
+                // Save both the selection position and whether we're in a cell
+                savedSelectionRef.current = {
+                  from,
+                  to,
+                  inTableCell,
+                  cellPos: inTableCell ? cellPos + 1 : null  // Position after cell opening tag
+                };
+
+                console.log('[CODE BLOCK] onMouseDown - saved selection data:', savedSelectionRef.current);
+              }
+            }}
             onClick={openCodeDialog}
             active={editor.isActive('codeBlock')}
             disabled={disabled}
@@ -6303,21 +6525,22 @@ const RichTextSectionEditor = ({
 /**
  * Toolbar Button Component
  */
-const ToolbarButton = ({ 
-  onClick, 
-  active = false, 
-  disabled = false, 
-  title = '', 
+const ToolbarButton = ({
+  onClick,
+  onMouseDown,
+  active = false,
+  disabled = false,
+  title = '',
   children,
   as = 'button'
 }) => {
   const Component = as;
   const baseClasses = "p-2 rounded transition-colors flex items-center justify-center";
-  const activeClasses = active 
-    ? "bg-[#14C800] text-white" 
+  const activeClasses = active
+    ? "bg-[#14C800] text-white"
     : "bg-gray-700/50 text-gray-300 hover:bg-gray-600/50 hover:text-white";
-  const disabledClasses = disabled 
-    ? "opacity-50 cursor-not-allowed" 
+  const disabledClasses = disabled
+    ? "opacity-50 cursor-not-allowed"
     : "cursor-pointer";
 
   const className = `${baseClasses} ${activeClasses} ${disabledClasses}`;
@@ -6334,6 +6557,7 @@ const ToolbarButton = ({
     <button
       type="button"
       onClick={onClick}
+      onMouseDown={onMouseDown}
       disabled={disabled}
       className={className}
       title={title}
