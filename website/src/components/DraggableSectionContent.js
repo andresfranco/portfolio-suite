@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import { Draggable } from '@hello-pangea/dnd';
 import { FaDownload } from 'react-icons/fa6';
 import ResizableImage from './ResizableImage';
 import './RichTextContent.css';
+// Import editor CSS to ensure borderless table styles are available in display mode
+import './cms/RichTextSectionEditor.css';
 
 /**
  * DraggableSectionContent Component
@@ -76,21 +78,165 @@ const DraggableSectionContent = ({
  */
 
 // Text Content Renderer
-export const DraggableTextContent = ({ text, index, isEditMode, sectionId, isBordered }) => (
-  <DraggableSectionContent
-    contentType="text"
-    contentItem={{ id: 'text' }}
-    index={index}
-    isEditMode={isEditMode}
-    sectionId={sectionId}
-    isBordered={isBordered}
-  >
-    <div 
-      className="rich-text-content"
-      dangerouslySetInnerHTML={{ __html: text }}
-    />
-  </DraggableSectionContent>
-);
+export const DraggableTextContent = ({ text, index, isEditMode, sectionId, isBordered }) => {
+  const contentRef = useRef(null);
+  
+  // Clean HTML string before rendering to remove border/background styles
+  // This ensures clean HTML even if the database contains old data
+  const cleanedHtml = useMemo(() => {
+    if (!text || isEditMode) return text;
+    
+    // Check if HTML contains border styles
+    const hasBorderStyles = text.includes('border: 1px dashed') || 
+                           text.includes('rgba(148, 163, 184, 0.5)') ||
+                           text.includes('background-color: rgba(30, 41, 59');
+    
+    if (!hasBorderStyles) return text;
+    
+    let cleaned = text;
+    
+    // Remove data-borderless-cell attribute
+    cleaned = cleaned.replace(/\s+data-borderless-cell="[^"]*"/gi, '');
+    cleaned = cleaned.replace(/\s+data-borderless-cell='[^']*'/gi, '');
+    
+    // Remove table-cell-droppable class
+    cleaned = cleaned.replace(/\s+class="[^"]*table-cell-droppable[^"]*"/gi, (match) => {
+      const cleaned = match.replace(/\s*table-cell-droppable\s*/gi, ' ').trim();
+      return cleaned === 'class=""' ? '' : cleaned;
+    });
+    cleaned = cleaned.replace(/\s+class='[^']*table-cell-droppable[^']*'/gi, (match) => {
+      const cleaned = match.replace(/\s*table-cell-droppable\s*/gi, ' ').trim();
+      return cleaned === "class=''" ? '' : cleaned;
+    });
+    
+    // Clean style attributes - remove border and background properties
+    const cleanStyleString = (styleContent) => {
+      if (!styleContent) return '';
+      const properties = styleContent.split(';')
+        .map(prop => prop.trim())
+        .filter(prop => {
+          if (!prop) return false;
+          const lower = prop.toLowerCase();
+          return !lower.includes('border') && !lower.includes('background');
+        });
+      let cleaned = properties.join(';')
+        .replace(/;;+/g, ';')
+        .replace(/^\s*;\s*|\s*;\s*$/g, '')
+        .trim();
+      return cleaned;
+    };
+    
+    // Clean double-quoted style attributes
+    cleaned = cleaned.replace(/style="([^"]*)"/gi, (match, styleContent) => {
+      const cleanedStyle = cleanStyleString(styleContent);
+      return cleanedStyle ? `style="${cleanedStyle}"` : '';
+    });
+    
+    // Clean single-quoted style attributes
+    cleaned = cleaned.replace(/style='([^']*)'/gi, (match, styleContent) => {
+      const cleanedStyle = cleanStyleString(styleContent);
+      return cleanedStyle ? `style='${cleanedStyle}'` : '';
+    });
+    
+    // Remove empty style attributes
+    cleaned = cleaned.replace(/\s+style="\s*"/gi, '');
+    cleaned = cleaned.replace(/\s+style='\s*'/gi, '');
+    
+    return cleaned;
+  }, [text, isEditMode]);
+  
+  // Remove inline border styles from borderless tables in display mode
+  useEffect(() => {
+    if (!isEditMode && contentRef.current) {
+      const removeBorderStyles = () => {
+        const borderlessTables = contentRef.current.querySelectorAll('table.borderless, table[class*="borderless"]');
+        borderlessTables.forEach(table => {
+          const cells = table.querySelectorAll('td, th');
+          cells.forEach(cell => {
+            // Remove inline border styles (including !important)
+            const style = cell.getAttribute('style') || '';
+            if (style.includes('border') || style.includes('background')) {
+              let cleanedStyle = style
+                .replace(/border[^;]*!important[^;]*;?/gi, '')  // Remove border with !important
+                .replace(/border[^;]*;?/gi, '')  // Remove any remaining border
+                .replace(/border-width[^;]*!important[^;]*;?/gi, '')
+                .replace(/border-width[^;]*;?/gi, '')
+                .replace(/border-style[^;]*!important[^;]*;?/gi, '')
+                .replace(/border-style[^;]*;?/gi, '')
+                .replace(/border-color[^;]*!important[^;]*;?/gi, '')
+                .replace(/border-color[^;]*;?/gi, '')
+                .replace(/background-color[^;]*!important[^;]*;?/gi, '')
+                .replace(/background-color[^;]*;?/gi, '')
+                .replace(/background[^;]*!important[^;]*;?/gi, '')
+                .replace(/background[^;]*;?/gi, '')
+                .replace(/;;+/g, ';')
+                .replace(/^\s*;\s*|\s*;\s*$/g, '')
+                .trim();
+              
+              if (!cleanedStyle || cleanedStyle === '') {
+                cell.removeAttribute('style');
+              } else {
+                cell.setAttribute('style', cleanedStyle);
+              }
+              
+              // Also try direct removal methods
+              try {
+                cell.style.removeProperty('border');
+                cell.style.removeProperty('border-width');
+                cell.style.removeProperty('border-style');
+                cell.style.removeProperty('border-color');
+                cell.style.removeProperty('background-color');
+                cell.style.removeProperty('background');
+              } catch (e) {
+                cell.style.border = '';
+                cell.style.borderWidth = '';
+                cell.style.borderStyle = '';
+                cell.style.borderColor = '';
+                cell.style.backgroundColor = '';
+                cell.style.background = '';
+              }
+            }
+            
+            // Also remove data-borderless-cell attribute and class
+            cell.removeAttribute('data-borderless-cell');
+            cell.classList.remove('table-cell-droppable');
+          });
+        });
+      };
+      
+      // Run immediately
+      removeBorderStyles();
+      
+      // Also watch for changes
+      const observer = new MutationObserver(removeBorderStyles);
+      observer.observe(contentRef.current, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['style', 'class'],
+      });
+      
+      return () => observer.disconnect();
+    }
+  }, [isEditMode, text]);
+  
+  return (
+    <DraggableSectionContent
+      contentType="text"
+      contentItem={{ id: 'text' }}
+      index={index}
+      isEditMode={isEditMode}
+      sectionId={sectionId}
+      isBordered={isBordered}
+    >
+      <div 
+        ref={contentRef}
+        className="rich-text-content"
+        dangerouslySetInnerHTML={{ __html: cleanedHtml }}
+      />
+    </DraggableSectionContent>
+  );
+};
 
 // Image Content Renderer
 export const DraggableImageContent = ({ image, index, isEditMode, sectionId, isBordered }) => {
