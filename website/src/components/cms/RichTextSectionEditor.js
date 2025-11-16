@@ -729,21 +729,9 @@ const DraggableTableCell = TableCell.extend({
               }
             }
 
-            // Not in table cell - manually update cursor position for single clicks
-            // Note: handleClick is only called for actual clicks, not drag-selection
-            // Drag selection is handled by ProseMirror's mousedown/mousemove/mouseup
-            console.log('[HANDLE CLICK] Not in table cell - manually updating cursor position');
-
-            try {
-              const newSelection = TextSelection.create(state.doc, pos);
-              const tr = state.tr.setSelection(newSelection);
-              dispatch(tr);
-              console.log('[HANDLE CLICK] ✅ Cursor position updated to:', pos);
-              return true;
-            } catch (e) {
-              console.error('[HANDLE CLICK] ❌ Error updating cursor:', e);
-              return false;
-            }
+            // Not in table cell - let ProseMirror handle it naturally
+            console.log('[HANDLE CLICK] Not in table cell - letting ProseMirror handle naturally');
+            return false;
           },
         },
       }),
@@ -1825,51 +1813,10 @@ const RichTextSectionEditor = ({
                     }
                   }
 
-                  // If NOT in table cell, handle cursor movement but allow Shift+Arrow for selection
+                  // If NOT in table cell, let ProseMirror handle arrow keys naturally
                   if (!inTableCell) {
-                    // If Shift is pressed, user is trying to select text - let ProseMirror handle it
-                    if (event.shiftKey) {
-                      console.log('[KEY DOWN] Outside table cell with Shift - allowing text selection');
-                      return false;
-                    }
-
-                    // Otherwise, manually handle cursor movement
-                    console.log('[KEY DOWN] Outside table cell - manually handling cursor movement');
-
-                    try {
-                      let newPos = selection.from;
-
-                      if (event.key === 'ArrowLeft') {
-                        newPos = Math.max(0, selection.from - 1);
-                      } else if (event.key === 'ArrowRight') {
-                        newPos = Math.min(state.doc.content.size, selection.from + 1);
-                      } else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-                        // For up/down, find the previous/next block (paragraph)
-                        const $pos = selection.$anchor;
-                        const currentDepth = $pos.depth;
-
-                        if (event.key === 'ArrowUp') {
-                          // Try to move to previous block
-                          const before = $pos.before(currentDepth);
-                          newPos = before > 0 ? before : 0;
-                        } else if (event.key === 'ArrowDown') {
-                          // Try to move to next block
-                          const after = $pos.after(currentDepth);
-                          newPos = after < state.doc.content.size ? after + 1 : state.doc.content.size;
-                        }
-                      }
-
-                      if (newPos !== selection.from) {
-                        const newSelection = TextSelection.create(state.doc, newPos);
-                        const tr = state.tr.setSelection(newSelection);
-                        dispatch(tr);
-                        console.log('[KEY DOWN] ✅ Cursor moved to:', newPos);
-                        return true;
-                      }
-                    } catch (e) {
-                      console.error('[KEY DOWN] ❌ Error moving cursor:', e);
-                      return false;
-                    }
+                    console.log('[KEY DOWN] Outside table cell - letting ProseMirror handle naturally');
+                    return false;
                   }
                 }
 
