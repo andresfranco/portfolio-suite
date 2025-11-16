@@ -722,6 +722,8 @@ const DraggableTableCell = TableCell.extend({
 
                   // Cell has content - let ProseMirror handle focus and selection normally
                   // Don't interfere with default behavior
+                  console.log('[HANDLE CLICK] Cell has content - returning false to let ProseMirror handle selection');
+                  return false;
                 }
                 break;
               }
@@ -5381,7 +5383,14 @@ const RichTextSectionEditor = ({
         {/* Text Formatting */}
         <div className="flex gap-1 pr-2 border-r border-gray-700">
           <ToolbarButton
-            onClick={() => editor.chain().focus().toggleBold().run()}
+            onMouseDown={(e) => {
+              e.preventDefault(); // Prevent focus loss
+            }}
+            onClick={() => {
+              console.log('[TOOLBAR] Bold clicked, selection:', editor.state.selection.from, '-', editor.state.selection.to);
+              const result = editor.chain().toggleBold().run();
+              console.log('[TOOLBAR] Bold result:', result);
+            }}
             active={editor.isActive('bold')}
             disabled={disabled}
             title="Bold"
@@ -5389,7 +5398,8 @@ const RichTextSectionEditor = ({
             <FaBold />
           </ToolbarButton>
           <ToolbarButton
-            onClick={() => editor.chain().focus().toggleItalic().run()}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => editor.chain().toggleItalic().run()}
             active={editor.isActive('italic')}
             disabled={disabled}
             title="Italic"
@@ -5397,7 +5407,8 @@ const RichTextSectionEditor = ({
             <FaItalic />
           </ToolbarButton>
           <ToolbarButton
-            onClick={() => editor.chain().focus().toggleUnderline().run()}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => editor.chain().toggleUnderline().run()}
             active={editor.isActive('underline')}
             disabled={disabled}
             title="Underline"
@@ -5405,7 +5416,8 @@ const RichTextSectionEditor = ({
             <FaUnderline />
           </ToolbarButton>
           <ToolbarButton
-            onClick={() => editor.chain().focus().toggleStrike().run()}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => editor.chain().toggleStrike().run()}
             active={editor.isActive('strike')}
             disabled={disabled}
             title="Strikethrough"
@@ -5417,7 +5429,8 @@ const RichTextSectionEditor = ({
         {/* Headings */}
         <div className="flex gap-1 pr-2 border-r border-gray-700">
           <ToolbarButton
-            onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => editor.chain().toggleHeading({ level: 2 }).run()}
             active={editor.isActive('heading', { level: 2 })}
             disabled={disabled}
             title="Heading 2"
@@ -5425,7 +5438,8 @@ const RichTextSectionEditor = ({
             <FaHeading className="text-lg" />
           </ToolbarButton>
           <ToolbarButton
-            onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => editor.chain().toggleHeading({ level: 3 }).run()}
             active={editor.isActive('heading', { level: 3 })}
             disabled={disabled}
             title="Heading 3"
@@ -5437,7 +5451,8 @@ const RichTextSectionEditor = ({
         {/* Lists */}
         <div className="flex gap-1 pr-2 border-r border-gray-700">
           <ToolbarButton
-            onClick={() => editor.chain().focus().toggleBulletList().run()}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => editor.chain().toggleBulletList().run()}
             active={editor.isActive('bulletList')}
             disabled={disabled}
             title="Bullet List"
@@ -5445,7 +5460,8 @@ const RichTextSectionEditor = ({
             <FaListUl />
           </ToolbarButton>
           <ToolbarButton
-            onClick={() => editor.chain().focus().toggleOrderedList().run()}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => editor.chain().toggleOrderedList().run()}
             active={editor.isActive('orderedList')}
             disabled={disabled}
             title="Numbered List"
@@ -5457,7 +5473,8 @@ const RichTextSectionEditor = ({
         {/* Alignment */}
         <div className="flex gap-1 pr-2 border-r border-gray-700">
           <ToolbarButton
-            onClick={() => editor.chain().focus().setTextAlign('left').run()}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => editor.chain().setTextAlign('left').run()}
             active={editor.isActive({ textAlign: 'left' })}
             disabled={disabled}
             title="Align Left"
@@ -5465,7 +5482,8 @@ const RichTextSectionEditor = ({
             <FaAlignLeft />
           </ToolbarButton>
           <ToolbarButton
-            onClick={() => editor.chain().focus().setTextAlign('center').run()}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => editor.chain().setTextAlign('center').run()}
             active={editor.isActive({ textAlign: 'center' })}
             disabled={disabled}
             title="Align Center"
@@ -5473,7 +5491,8 @@ const RichTextSectionEditor = ({
             <FaAlignCenter />
           </ToolbarButton>
           <ToolbarButton
-            onClick={() => editor.chain().focus().setTextAlign('right').run()}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => editor.chain().setTextAlign('right').run()}
             active={editor.isActive({ textAlign: 'right' })}
             disabled={disabled}
             title="Align Right"
@@ -5485,7 +5504,8 @@ const RichTextSectionEditor = ({
         {/* Blocks */}
         <div className="flex gap-1 pr-2 border-r border-gray-700">
           <ToolbarButton
-            onClick={() => editor.chain().focus().toggleBlockquote().run()}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => editor.chain().toggleBlockquote().run()}
             active={editor.isActive('blockquote')}
             disabled={disabled}
             title="Quote"
@@ -5542,6 +5562,9 @@ const RichTextSectionEditor = ({
         {/* Links */}
         <div className="flex gap-1 pr-2 border-r border-gray-700">
           <ToolbarButton
+            onMouseDown={(e) => {
+              e.preventDefault(); // Prevent focus loss
+            }}
             onClick={() => {
               if (editor.state.selection.empty) {
                 setError('Please select some text first to add a link');
@@ -5557,6 +5580,9 @@ const RichTextSectionEditor = ({
             <FaLink />
           </ToolbarButton>
           <ToolbarButton
+            onMouseDown={(e) => {
+              e.preventDefault(); // Prevent focus loss
+            }}
             onClick={unsetLink}
             disabled={disabled || !editor.isActive('link')}
             title="Remove Link"
@@ -5568,6 +5594,9 @@ const RichTextSectionEditor = ({
         {/* Font Size */}
         <div className="flex gap-1 pr-2 border-r border-gray-700">
           <ToolbarButton
+            onMouseDown={(e) => {
+              e.preventDefault(); // Prevent focus loss
+            }}
             onClick={() => {
               if (editor.state.selection.empty) {
                 setError('Please select some text first to change font size');
@@ -5654,36 +5683,45 @@ const RichTextSectionEditor = ({
           </div>
           
           <ToolbarButton
+            onMouseDown={(e) => {
+              e.preventDefault(); // Prevent focus loss
+            }}
             onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
             disabled={disabled}
             title="Insert Table (3x3)"
           >
             <FaTable />
           </ToolbarButton>
-          
+
           <ToolbarButton
+            onMouseDown={(e) => {
+              e.preventDefault(); // Prevent focus loss
+            }}
             onClick={openCellStyleDialog}
             disabled={disabled}
             title="Cell Styling (Background, Padding)"
           >
             <FaPalette />
           </ToolbarButton>
-          
+
           <ToolbarButton
+            onMouseDown={(e) => {
+              e.preventDefault(); // Prevent focus loss
+            }}
             onClick={() => {
               // Toggle borderless class on current table
               const { state } = editor;
               const { selection } = state;
               const tableNode = selection.$anchor.node(-1);
-              
+
               if (tableNode && tableNode.type.name === 'table') {
                 const tablePos = selection.$anchor.before(-1);
                 const currentAttrs = tableNode.attrs;
                 const currentClass = currentAttrs.class || 'tiptap-table';
-                const newClass = currentClass.includes('borderless') 
+                const newClass = currentClass.includes('borderless')
                   ? currentClass.replace(' borderless', '').replace('borderless', 'tiptap-table')
                   : `${currentClass} borderless`;
-                
+
                 editor.view.dispatch(
                   editor.view.state.tr.setNodeMarkup(tablePos, null, {
                     ...currentAttrs,
@@ -5700,6 +5738,9 @@ const RichTextSectionEditor = ({
           </ToolbarButton>
           
           <ToolbarButton
+            onMouseDown={(e) => {
+              e.preventDefault(); // Prevent focus loss
+            }}
             onClick={() => {
               console.log('[TABLE] Adding row after');
               console.log('[TABLE] Can add row:', editor.can().addRowAfter());
@@ -5777,7 +5818,7 @@ const RichTextSectionEditor = ({
               
               try {
                 // Try to add row using TipTap command
-                const result = editor.chain().focus().addRowAfter().run();
+                const result = editor.chain().addRowAfter().run();
                 console.log('[TABLE] Row added, result:', result);
                 
                 if (!result) {
@@ -5813,6 +5854,9 @@ const RichTextSectionEditor = ({
           </ToolbarButton>
           
           <ToolbarButton
+            onMouseDown={(e) => {
+              e.preventDefault(); // Prevent focus loss
+            }}
             onClick={() => {
               console.log('[TABLE] Deleting row');
               console.log('[TABLE] Can delete row:', editor.can().deleteRow());
@@ -5870,7 +5914,7 @@ const RichTextSectionEditor = ({
               }
               
               try {
-                const result = editor.chain().focus().deleteRow().run();
+                const result = editor.chain().deleteRow().run();
                 console.log('[TABLE] Row deleted, result:', result);
                 if (!result) {
                   console.warn('[TABLE] deleteRow returned false');
@@ -5886,6 +5930,9 @@ const RichTextSectionEditor = ({
           </ToolbarButton>
           
           <ToolbarButton
+            onMouseDown={(e) => {
+              e.preventDefault(); // Prevent focus loss
+            }}
             onClick={() => {
               console.log('[TABLE] Adding column after');
               console.log('[TABLE] Can add column:', editor.can().addColumnAfter());
@@ -5962,7 +6009,7 @@ const RichTextSectionEditor = ({
               
               try {
                 // Try to add column using TipTap command
-                const result = editor.chain().focus().addColumnAfter().run();
+                const result = editor.chain().addColumnAfter().run();
                 console.log('[TABLE] Column added, result:', result);
                 
                 if (!result) {
@@ -5997,6 +6044,9 @@ const RichTextSectionEditor = ({
           </ToolbarButton>
           
           <ToolbarButton
+            onMouseDown={(e) => {
+              e.preventDefault(); // Prevent focus loss
+            }}
             onClick={() => {
               console.log('[TABLE] Deleting column');
               console.log('[TABLE] Can delete column:', editor.can().deleteColumn());
@@ -6054,7 +6104,7 @@ const RichTextSectionEditor = ({
               }
               
               try {
-                const result = editor.chain().focus().deleteColumn().run();
+                const result = editor.chain().deleteColumn().run();
                 console.log('[TABLE] Column deleted, result:', result);
                 if (!result) {
                   console.warn('[TABLE] deleteColumn returned false');
@@ -6070,6 +6120,9 @@ const RichTextSectionEditor = ({
           </ToolbarButton>
           
           <ToolbarButton
+            onMouseDown={(e) => {
+              e.preventDefault(); // Prevent focus loss
+            }}
             onClick={() => {
               console.log('[TABLE] Deleting table');
               console.log('[TABLE] Can delete table:', editor.can().deleteTable());
@@ -6157,7 +6210,7 @@ const RichTextSectionEditor = ({
                 window._draggedElement = null;
                 
                 // Delete the table
-                const result = editor.chain().focus().deleteTable().run();
+                const result = editor.chain().deleteTable().run();
                 console.log('[TABLE] Table deleted, result:', result);
                 if (!result) {
                   console.warn('[TABLE] deleteTable returned false');
@@ -6182,14 +6235,20 @@ const RichTextSectionEditor = ({
         {/* Undo/Redo */}
         <div className="flex gap-1 pr-2 border-r border-gray-700">
           <ToolbarButton
-            onClick={() => editor.chain().focus().undo().run()}
+            onMouseDown={(e) => {
+              e.preventDefault(); // Prevent focus loss
+            }}
+            onClick={() => editor.chain().undo().run()}
             disabled={disabled || !editor.can().undo()}
             title="Undo"
           >
             <FaUndo />
           </ToolbarButton>
           <ToolbarButton
-            onClick={() => editor.chain().focus().redo().run()}
+            onMouseDown={(e) => {
+              e.preventDefault(); // Prevent focus loss
+            }}
+            onClick={() => editor.chain().redo().run()}
             disabled={disabled || !editor.can().redo()}
             title="Redo"
           >
@@ -6200,6 +6259,9 @@ const RichTextSectionEditor = ({
         {/* HTML Source */}
         <div className="flex gap-1">
           <ToolbarButton
+            onMouseDown={(e) => {
+              e.preventDefault(); // Prevent focus loss
+            }}
             onClick={openHtmlEditor}
             disabled={disabled}
             title="Edit HTML Source"
