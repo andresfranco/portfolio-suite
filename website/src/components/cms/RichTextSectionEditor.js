@@ -548,6 +548,33 @@ const DraggableTableCell = TableCell.extend({
                 return false;
               }
 
+              // Fix Issue #3: Deselect text when clicking within an active selection
+              const { state } = view;
+              const { selection } = state;
+
+              // Check if there's an active text selection (not just cursor)
+              if (!selection.empty && event.detail === 1) {
+                // There's a selection - check if click is within it
+                const clickPos = view.posAtCoords({
+                  left: event.clientX,
+                  top: event.clientY
+                });
+
+                if (clickPos && clickPos.pos >= selection.from && clickPos.pos <= selection.to) {
+                  // Clicked within the selection - collapse to clicked position
+                  console.log('[HANDLE CLICK] Click within selection - collapsing to position:', clickPos.pos);
+
+                  const tr = state.tr.setSelection(
+                    TextSelection.create(state.doc, clickPos.pos)
+                  );
+                  view.dispatch(tr);
+
+                  // Let ProseMirror handle focus - don't call view.focus() manually
+                  // Return false to allow ProseMirror's default focus handling
+                  return false;
+                }
+              }
+
               // For other clicks, let handleClick process them
               return false;
             }
@@ -698,11 +725,9 @@ const DraggableTableCell = TableCell.extend({
                     const newSelection = TextSelection.create(tr.doc, paragraphStart);
                     tr.setSelection(newSelection);
                     dispatch(tr);
-                    // Small delay to ensure DOM is updated
-                    setTimeout(() => {
-                      view.focus();
-                    }, 0);
-                    return true; // Handled
+                    // Let ProseMirror handle focus - don't call view.focus() manually
+                    // This prevents focus issues when clicking outside cells after editing
+                    return false; // Let ProseMirror handle the rest
                   }
                   
                   // If cell only has empty paragraph, position cursor inside it
@@ -713,15 +738,77 @@ const DraggableTableCell = TableCell.extend({
                     const paragraphStart = cellStart + 1; // After the paragraph opening tag
                     const tr = state.tr.setSelection(TextSelection.create(state.doc, paragraphStart));
                     dispatch(tr);
-                    // Small delay to ensure DOM is updated
-                    setTimeout(() => {
-                      view.focus();
-                    }, 0);
-                    return true; // Handled
+                    // Let ProseMirror handle focus - don't call view.focus() manually
+                    // This prevents focus issues when clicking outside cells after editing
+                    return false; // Let ProseMirror handle the rest
                   }
 
-                  // Cell has content - let ProseMirror handle focus and selection normally
-                  // Don't interfere with default behavior
+                  // Cell has content - check if we need special paragraph-level handling
+                  // Fix Issue #1: When clicking on a specific paragraph in a multi-paragraph cell
+                  if (cellContent.childCount > 1) {
+                    // Multiple children in cell - check if click is on a specific paragraph
+                    const clickedElement = event.target;
+                    const clickedParagraph = clickedElement.closest('p');
+
+                    if (clickedParagraph) {
+                      console.log('[HANDLE CLICK] Multi-paragraph cell: clicked on specific paragraph');
+
+                      // Find which paragraph was clicked by traversing cell content
+                      let currentPos = cellPos + 1; // Start after cell opening
+                      let foundParagraph = false;
+
+                      cellContent.forEach((childNode, offset, index) => {
+                        if (!foundParagraph && childNode.type.name === 'paragraph') {
+                          // Get the DOM node for this paragraph
+                          const paragraphDOMPos = currentPos;
+                          const paragraphDOM = view.nodeDOM(paragraphDOMPos);
+
+                          // Check if this is the clicked paragraph
+                          if (paragraphDOM === clickedParagraph || paragraphDOM?.contains(clickedParagraph)) {
+                            console.log('[HANDLE CLICK] Found clicked paragraph at pos:', paragraphDOMPos);
+
+                            // Position cursor inside this specific paragraph
+                            // Calculate the exact click position within the paragraph
+                            const clickPos = view.posAtCoords({
+                              left: event.clientX,
+                              top: event.clientY
+                            });
+
+                            if (clickPos && clickPos.pos >= paragraphDOMPos &&
+                                clickPos.pos < paragraphDOMPos + childNode.nodeSize) {
+                              // Click is within this paragraph - use exact position
+                              const tr = state.tr.setSelection(
+                                TextSelection.create(state.doc, clickPos.pos)
+                              );
+                              dispatch(tr);
+                              console.log('[HANDLE CLICK] ✅ Positioned cursor at exact click position:', clickPos.pos);
+                            } else {
+                              // Fallback: position at start of paragraph
+                              const paragraphStart = paragraphDOMPos + 1;
+                              const tr = state.tr.setSelection(
+                                TextSelection.create(state.doc, paragraphStart)
+                              );
+                              dispatch(tr);
+                              console.log('[HANDLE CLICK] ✅ Positioned cursor at paragraph start:', paragraphStart);
+                            }
+
+                            foundParagraph = true;
+                            // Return true to indicate we handled this click completely
+                            // This prevents double-handling of the same click
+                            return true;
+                          }
+                        }
+                        currentPos += childNode.nodeSize;
+                      });
+
+                      if (foundParagraph) {
+                        // We manually positioned cursor - don't let ProseMirror also handle it
+                        return true;
+                      }
+                    }
+                  }
+
+                  // Single paragraph or no specific paragraph clicked - let ProseMirror handle normally
                   console.log('[HANDLE CLICK] Cell has content - returning false to let ProseMirror handle selection');
                   return false;
                 }
@@ -729,9 +816,11 @@ const DraggableTableCell = TableCell.extend({
               }
             }
 
-            // Not in table cell - let ProseMirror handle it naturally
+            // Not in table cell - let ProseMirror handle normally
+            // Previously, this code manually positioned cursor for ALL single clicks outside cells,
+            // which prevented drag-to-select from working (blocked the mousedown that starts selection)
             console.log('[HANDLE CLICK] Not in table cell - letting ProseMirror handle naturally');
-            return false;
+            return false; // Let ProseMirror handle all clicks/selection outside cells
           },
         },
       }),
@@ -746,25 +835,32 @@ const DraggableTableCell = TableCell.extend({
           
           const handleDragOver = (event) => {
             dragOverCount++;
-            const cell = event.target.closest('td, th');
-            const table = event.target.closest('table');
-            
-            // Always prevent default on tables
+
+            // Only prevent default if we're dragging a component (not text selection)
+            // Check if we have stored dragged content
+            if (!window._draggedContent) {
+              // No component being dragged - likely text selection, don't interfere
+              return;
+            }
+
+            // We're dragging a component, prevent default to allow drop
+            // Handle text nodes (which don't have closest method)
+            const element = event.target.nodeType === Node.ELEMENT_NODE ? event.target : event.target.parentElement;
+            const cell = element?.closest('td, th');
+            const table = element?.closest('table');
+
+            event.preventDefault();
             if (table) {
-              event.preventDefault();
               event.stopPropagation();
-              
-              if (dragOverCount === 1 || dragOverCount % 50 === 0) {
-                console.log('[DRAG-NATIVE] ✅ dragover #' + dragOverCount, {
-                  hasCell: !!cell,
-                  hasTable: !!table,
-                  target: event.target.tagName,
-                  cellTag: cell ? cell.tagName : 'none'
-                });
-              }
-            } else {
-              // Even if not over table, prevent default to allow drops
-              event.preventDefault();
+            }
+
+            if (dragOverCount === 1 || dragOverCount % 50 === 0) {
+              console.log('[DRAG-NATIVE] ✅ dragover #' + dragOverCount + ' (component drag)', {
+                hasCell: !!cell,
+                hasTable: !!table,
+                target: event.target.tagName,
+                cellTag: cell ? cell.tagName : 'none'
+              });
             }
           };
 
@@ -773,8 +869,10 @@ const DraggableTableCell = TableCell.extend({
               target: event.target.tagName,
               targetClass: event.target.className
             });
-            
-            const cell = event.target.closest('td, th');
+
+            // Handle text nodes (which don't have closest method)
+            const element = event.target.nodeType === Node.ELEMENT_NODE ? event.target : event.target.parentElement;
+            const cell = element?.closest('td, th');
             if (cell) {
               console.log('[DRAG-NATIVE] Drop in cell, letting TipTap handle it');
               
@@ -805,15 +903,24 @@ const DraggableTableCell = TableCell.extend({
           const handleDragStart = (event) => {
             dragOverCount = 0;
             const target = event.target;
-            
-            // Set global flag to prevent editor onChange during drag
-            window._tiptapDragging = true;
-            
-            console.log('[DRAG-NATIVE] 🎯 Drag started, onChange will be BLOCKED');
-            console.log('[DRAG-NATIVE] From:', {
-              tag: target.tagName,
-              class: target.className
-            });
+
+            // Only set the flag if we're dragging an actual component (not text selection)
+            // Check if the drag is from a draggable element (img, code block, file, etc.)
+            const element = target.nodeType === Node.ELEMENT_NODE ? target : target.parentElement;
+            const isDraggableComponent = element?.closest('[data-component-type], img, .code-block-wrapper, .file-attachment');
+
+            if (isDraggableComponent) {
+              // Set global flag to prevent editor onChange during component drag
+              window._tiptapDragging = true;
+              console.log('[DRAG-NATIVE] 🎯 Component drag started, onChange will be BLOCKED');
+              console.log('[DRAG-NATIVE] From:', {
+                tag: target.tagName,
+                class: target.className
+              });
+            } else {
+              // This is likely text selection, don't interfere
+              console.log('[DRAG-NATIVE] Text selection drag detected, not blocking');
+            }
           };
 
           const handleDragEnd = (event) => {
@@ -855,28 +962,35 @@ const DraggableTableCell = TableCell.extend({
               // Reset logging flags for this drag operation
               window._dragOverLogged = false;
               window._dragOverNoCell = false;
-              
+
               // Store the dragged element for manual drop handling
-              const draggedElement = target.closest('[data-component-type], img, .code-block-wrapper');
+              // Handle text nodes (which don't have closest method)
+              const element = target.nodeType === Node.ELEMENT_NODE ? target : target.parentElement;
+              const draggedElement = element?.closest('[data-component-type], img, .code-block-wrapper, .file-attachment');
               if (draggedElement) {
                 // Get the HTML of what's being dragged
                 window._draggedContent = draggedElement.outerHTML;
                 window._draggedElement = draggedElement;
-                console.log('[DRAG] Starting drag from:', target.tagName, target.className, 'Content stored:', window._draggedContent.substring(0, 100));
+                console.log('[DRAG] Starting component drag from:', target.tagName, target.className, 'Content stored:', window._draggedContent.substring(0, 100));
+
+                // Set the global flag to block onChange (only for component drags)
+                window._tiptapDragging = true;
               } else {
+                // No component being dragged - this is text selection
                 window._draggedContent = null;
                 window._draggedElement = null;
-                console.log('[DRAG] Starting drag from:', target.tagName, target.className, '(no content to store)');
+                console.log('[DRAG] Text selection drag from:', target.tagName, target.className, '(allowing normal selection)');
+                // Don't set window._tiptapDragging for text selection
               }
-              
-              // Set the global flag to block onChange
-              window._tiptapDragging = true;
-              return false; // Don't interfere
+
+              return false; // Don't interfere with either type
             },
             
             // When entering a cell while dragging, highlight it
             dragenter: (view, event) => {
-              const cell = event.target.closest('td, th');
+              // Handle text nodes (which don't have closest method)
+              const element = event.target.nodeType === Node.ELEMENT_NODE ? event.target : event.target.parentElement;
+              const cell = element?.closest('td, th');
               if (cell && cell.classList.contains('table-cell-droppable')) {
                 cell.classList.add('drag-over');
                 console.log('[DRAG] Entered cell');
@@ -886,7 +1000,9 @@ const DraggableTableCell = TableCell.extend({
             
             // When leaving a cell while dragging, remove highlight
             dragleave: (view, event) => {
-              const cell = event.target.closest('td, th');
+              // Handle text nodes (which don't have closest method)
+              const element = event.target.nodeType === Node.ELEMENT_NODE ? event.target : event.target.parentElement;
+              const cell = element?.closest('td, th');
               if (cell && cell.classList.contains('table-cell-droppable')) {
                 const relatedTarget = event.relatedTarget;
                 if (!relatedTarget || !cell.contains(relatedTarget)) {
@@ -899,9 +1015,11 @@ const DraggableTableCell = TableCell.extend({
             
             // CRITICAL: Allow drops by preventing default
             dragover: (view, event) => {
+              // Handle text nodes (which don't have closest method)
+              const element = event.target.nodeType === Node.ELEMENT_NODE ? event.target : event.target.parentElement;
               // Check if we're over a table cell (any table cell) - check parent chain
-              const cell = event.target.closest('td, th');
-              const table = event.target.closest('table');
+              const cell = element?.closest('td, th');
+              const table = element?.closest('table');
               
               // CRITICAL: ALWAYS preventDefault if we have stored content - this is REQUIRED for drop to fire
               if (window._draggedContent) {
@@ -936,23 +1054,23 @@ const DraggableTableCell = TableCell.extend({
                 }
                 
                 return true; // Handled - prevent other handlers
-              } else if (cell || table) {
-                // Also preventDefault for any table/cell to allow normal TipTap drops
-                event.preventDefault();
-                return false; // Let TipTap handle it
               } else {
-                // Remove drag-over class when not over a cell
+                // No stored content and over cell/table - this is likely text selection
+                // Don't call preventDefault to allow normal text selection
+                // Remove drag-over class when not dragging a component
                 document.querySelectorAll('.ProseMirror td.drag-over, .ProseMirror th.drag-over').forEach(c => {
                   c.classList.remove('drag-over');
                 });
-                return false;
+                return false; // Don't interfere with text selection
               }
             },
             
             // Manual drop handler - use TipTap commands to move content
             drop: (view, event) => {
               console.log('[DRAG-PLUGIN] 🔵🔵🔵 DROP event in ProseMirror plugin!');
-              const cell = event.target.closest('td, th');
+              // Handle text nodes (which don't have closest method)
+              const element = event.target.nodeType === Node.ELEMENT_NODE ? event.target : event.target.parentElement;
+              const cell = element?.closest('td, th');
               console.log('[DRAG-PLUGIN] Cell:', cell ? 'found (' + cell.tagName + ')' : 'not found', 'hasContent:', !!window._draggedContent);
               
               // Check if we have stored content to move
@@ -1374,26 +1492,14 @@ const ResizableTable = Table.extend({
               const selectionPos = selection.$anchor.pos;
               const cellStart = cellPos + 1;
               
-              // Check if we're at the end of the cell or in an empty paragraph
-              const cellContent = cellNode.content;
-              const isAtEnd = selectionPos >= cellPos + cellNode.nodeSize - 3;
-              const isEmptyParagraph = cellContent.childCount === 1 && 
-                                       cellContent.firstChild.type.name === 'paragraph' && 
-                                       cellContent.firstChild.content.size === 0;
-              
-              if (isAtEnd || isEmptyParagraph) {
-                // At end or in empty paragraph - create new paragraph
-                editor.chain()
-                  .focus()
-                  .insertContent('<p></p>')
-                  .run();
-              } else {
-                // In middle of content - insert hard break
-                editor.chain()
-                  .focus()
-                  .insertContent('<br>')
-                  .run();
-              }
+              // ALWAYS create a new paragraph when Enter is pressed in a table cell
+              // This ensures each line is a separate paragraph, allowing proper text selection
+              // Previously, we inserted <br> in the middle of content, which caused all lines
+              // to be in the same paragraph, making it impossible to select individual lines
+              editor.chain()
+                .focus()
+                .insertContent('<p></p>')
+                .run();
               return true; // CRITICAL: Always return true to prevent default behavior
             }
           }
@@ -2142,6 +2248,23 @@ const RichTextSectionEditor = ({
       onSelectionUpdate: ({ editor }) => {
         const { from, to } = editor.state.selection;
         console.log('[SELECTION UPDATE] Selection changed to:', from, '-', to);
+
+        // Debug: Log the selected content structure
+        if (from !== to) {
+          const { state } = editor;
+          const selectedText = state.doc.textBetween(from, to);
+          console.log('[SELECTION UPDATE] Selected text:', selectedText);
+
+          // Log the node structure in the selection
+          state.doc.nodesBetween(from, to, (node, pos) => {
+            console.log('[SELECTION UPDATE] Node:', {
+              type: node.type.name,
+              pos,
+              size: node.nodeSize,
+              textContent: node.textContent.substring(0, 50)
+            });
+          });
+        }
       },
       onUpdate: ({ editor }) => {
         // Block onUpdate during content loading to prevent infinite loops
@@ -2297,28 +2420,42 @@ const RichTextSectionEditor = ({
 
     const handleDragStart = (event) => {
       // Only handle drags from editor content
-      if (!event.target.closest('.ProseMirror')) {
+      // Handle text nodes (which don't have closest method)
+      const element = event.target.nodeType === Node.ELEMENT_NODE ? event.target : event.target.parentElement;
+      if (!element?.closest('.ProseMirror')) {
         return;
       }
-      dragOverCount = 0;
-      window._tiptapDragging = true;
-      console.log('[DRAG-DIRECT] 🎯 Drag started,onChange BLOCKED');
+
+      // Only set the flag if we're dragging an actual component (not text selection)
+      const isDraggableComponent = element?.closest('[data-component-type], img, .code-block-wrapper, .file-attachment');
+
+      if (isDraggableComponent) {
+        dragOverCount = 0;
+        window._tiptapDragging = true;
+        console.log('[DRAG-DIRECT] 🎯 Component drag started, onChange BLOCKED');
+      } else {
+        // This is text selection, don't interfere
+        console.log('[DRAG-DIRECT] Text selection drag detected, allowing normal selection');
+      }
     };
 
     const handleDragOver = (event) => {
       // Log EVERY dragover to see if handler is being called
       dragOverCount++;
-      
+
       // CRITICAL: If we have stored content, ALWAYS preventDefault to allow drop
       // This must happen on EVERY dragover event, not just when over editor
       if (window._draggedContent) {
         event.preventDefault();
         event.dataTransfer.dropEffect = 'move'; // Set drop effect to allow drop
-        
+
+        // Handle text nodes (which don't have closest method)
+        const element = event.target.nodeType === Node.ELEMENT_NODE ? event.target : event.target.parentElement;
+
         // Check if we're over editor
-        const isOverEditor = event.target.closest('.ProseMirror');
-        const cell = event.target.closest('td, th');
-        const table = event.target.closest('table');
+        const isOverEditor = element?.closest('.ProseMirror');
+        const cell = element?.closest('td, th');
+        const table = element?.closest('table');
         
         // Log first 10, then every 20th
         if (dragOverCount <= 10 || dragOverCount % 20 === 0) {
@@ -2326,41 +2463,35 @@ const RichTextSectionEditor = ({
         }
         return; // Handled
       }
-      
-      // Check if we're over editor (for normal drops without stored content)
-      const isOverEditor = event.target.closest('.ProseMirror');
-      if (isOverEditor) {
-        // Also preventDefault for any editor content to allow normal drops
-        event.preventDefault();
-        if (dragOverCount <= 3) {
-          console.log('[DRAG-DIRECT] dragover #' + dragOverCount + ' over editor but no stored content');
-        }
-      } else {
-        // Log when NOT over editor (first few times only)
-        if (dragOverCount <= 3) {
-          console.log('[DRAG-DIRECT] ⚠️ dragover #' + dragOverCount + ' NOT over editor, target:', event.target.tagName, event.target.className);
-        }
+
+      // No stored content - this might be text selection, don't interfere
+      // Don't call preventDefault as it would block text selection
+      if (dragOverCount <= 3) {
+        console.log('[DRAG-DIRECT] dragover #' + dragOverCount + ' without stored content (likely text selection), not blocking');
       }
     };
 
     const handleDrop = (event) => {
       console.log('[DRAG-DIRECT] 🔵 DROP event fired, target:', event.target.tagName, 'hasContent:', !!window._draggedContent);
-      
+
+      // Handle text nodes (which don't have closest method)
+      const element = event.target.nodeType === Node.ELEMENT_NODE ? event.target : event.target.parentElement;
+
       // Only handle drops in editor content
-      const isOverEditor = event.target.closest('.ProseMirror');
+      const isOverEditor = element?.closest('.ProseMirror');
       if (!isOverEditor) {
         console.log('[DRAG-DIRECT] ⚠️ Drop not over editor, ignoring');
         return;
       }
-      
+
       // Check if we have stored content to move
       if (!window._draggedContent) {
         console.log('[DRAG-DIRECT] ⚠️ No stored content, letting TipTap handle');
         // No stored content, let TipTap handle it normally
         return;
       }
-      
-      const cell = event.target.closest('td, th');
+
+      const cell = element?.closest('td, th');
       if (!cell) {
         console.log('[DRAG-DIRECT] ⚠️ Not dropping in a cell, letting TipTap handle');
         // Not dropping in a cell, let TipTap handle it
@@ -2845,20 +2976,15 @@ const RichTextSectionEditor = ({
                       cell.style.setProperty('border-style', 'dashed', 'important');
                       cell.style.setProperty('border-color', 'rgba(148, 163, 184, 0.5)', 'important');
                       cell.style.setProperty('background-color', 'rgba(30, 41, 59, 0.1)', 'important');
-                      
-                      // Ensure cell is editable
-                      cell.setAttribute('contenteditable', 'true');
-                      
+
                       // Ensure cell has a paragraph for content
                       if (!cell.querySelector('p')) {
                         const p = document.createElement('p');
                         cell.appendChild(p);
                       }
-                      // Ensure paragraph is editable
-                      const p = cell.querySelector('p');
-                      if (p) {
-                        p.setAttribute('contenteditable', 'true');
-                      }
+                      // DON'T set contenteditable on cells or paragraphs - ProseMirror manages this
+                      // Setting nested contenteditable regions causes focus/click issues
+                      // when moving between cells and outside content
                     });
                   });
                 }
@@ -5087,18 +5213,14 @@ const RichTextSectionEditor = ({
             cell.style.setProperty('border-color', 'rgba(148, 163, 184, 0.5)', 'important');
             cell.style.setProperty('background-color', 'rgba(30, 41, 59, 0.1)', 'important');
             
-            // Ensure cells have a paragraph for content and are editable
+            // Ensure cells have a paragraph for content
             if (!cell.querySelector('p')) {
               const p = document.createElement('p');
               cell.appendChild(p);
             }
-            // Ensure cell is editable
-            cell.setAttribute('contenteditable', 'true');
-            // Ensure the paragraph inside is also editable
-            const p = cell.querySelector('p');
-            if (p) {
-              p.setAttribute('contenteditable', 'true');
-            }
+            // DON'T set contenteditable on cells - ProseMirror manages this
+            // Setting nested contenteditable regions causes focus/click issues
+            // when moving between cells and outside content
           });
           
           console.log('[LAYOUT] ✅ Layout insertion complete with', cols, 'columns');
