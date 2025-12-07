@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+// DISABLED: Drag and drop functionality temporarily disabled for UX improvements
+// import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
@@ -15,7 +16,7 @@ import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
 import { Node, mergeAttributes, Extension } from '@tiptap/core';
-import { Plugin, PluginKey, TextSelection } from 'prosemirror-state';
+import { Plugin, PluginKey, TextSelection, NodeSelection } from 'prosemirror-state';
 import Editor from '@monaco-editor/react';
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css'; // GitHub-like dark theme (same as ContentEditableWYSIWYG)
@@ -90,7 +91,7 @@ const SimpleImage = Node.create({
   
   atom: true,
   
-  draggable: true,
+  draggable: false, // DISABLED for UX improvements
   
   addAttributes() {
     return {
@@ -158,8 +159,8 @@ const SimpleImage = Node.create({
       const wrapper = document.createElement('div');
       wrapper.className = 'image-resize-wrapper';
       wrapper.contentEditable = 'false';
-      wrapper.draggable = true;
-      wrapper.setAttribute('data-drag-handle', 'true');
+      wrapper.draggable = false; // DISABLED for UX improvements
+      // wrapper.setAttribute('data-drag-handle', 'true'); // DISABLED
       
       const img = document.createElement('img');
       img.src = node.attrs.src;
@@ -316,8 +317,26 @@ const SimpleImage = Node.create({
       });
       
       // Click to select
+      // Add click handler to make image selectable
       wrapper.addEventListener('click', (e) => {
-        e.stopPropagation();
+        // Don't stop propagation - let ProseMirror handle selection
+        // This allows the image node to be selected properly
+        if (typeof getPos === 'function') {
+          try {
+            const pos = getPos();
+            if (pos !== null && pos !== undefined) {
+              // Select the image node using NodeSelection
+              const { state, dispatch } = editor.view;
+              const tr = state.tr.setSelection(NodeSelection.create(state.doc, pos));
+              dispatch(tr);
+              console.log('[IMAGE] Image selected at position:', pos);
+            }
+          } catch (err) {
+            console.warn('[IMAGE] Error selecting image:', err);
+          }
+        }
+        
+        // Visual feedback
         document.querySelectorAll('.image-resize-wrapper').forEach(w => {
           w.classList.remove('selected');
         });
@@ -548,34 +567,7 @@ const DraggableTableCell = TableCell.extend({
                 return false;
               }
 
-              // Fix Issue #3: Deselect text when clicking within an active selection
-              const { state } = view;
-              const { selection } = state;
-
-              // Check if there's an active text selection (not just cursor)
-              if (!selection.empty && event.detail === 1) {
-                // There's a selection - check if click is within it
-                const clickPos = view.posAtCoords({
-                  left: event.clientX,
-                  top: event.clientY
-                });
-
-                if (clickPos && clickPos.pos >= selection.from && clickPos.pos <= selection.to) {
-                  // Clicked within the selection - collapse to clicked position
-                  console.log('[HANDLE CLICK] Click within selection - collapsing to position:', clickPos.pos);
-
-                  const tr = state.tr.setSelection(
-                    TextSelection.create(state.doc, clickPos.pos)
-                  );
-                  view.dispatch(tr);
-
-                  // Let ProseMirror handle focus - don't call view.focus() manually
-                  // Return false to allow ProseMirror's default focus handling
-                  return false;
-                }
-              }
-
-              // For other clicks, let handleClick process them
+              // For all other clicks, let handleClick process them
               return false;
             }
           },
@@ -701,130 +693,49 @@ const DraggableTableCell = TableCell.extend({
             const { state, dispatch } = view;
             const $pos = state.doc.resolve(pos);
 
-            console.log('[HANDLE CLICK] $pos.depth:', $pos.depth);
+            console.log('[HANDLE CLICK] pos:', pos, 'target:', target?.tagName, '$pos.depth:', $pos.depth);
 
             // Check if click is on a table cell
             for (let depth = $pos.depth; depth > 0; depth--) {
               const node = $pos.node(depth);
-              console.log('[HANDLE CLICK] depth:', depth, 'node.type.name:', node.type.name);
               if (node.type.name === 'tableCell' || node.type.name === 'tableHeader') {
-                console.log('[HANDLE CLICK] Found table cell at depth:', depth);
                 const cellPos = $pos.before(depth);
                 const cellNode = state.doc.nodeAt(cellPos);
                 
-                if (cellNode) {
-                  // Ensure cell has content (paragraph)
-                  const cellContent = cellNode.content;
-                  
-                  // If cell is completely empty, insert a paragraph and position cursor
-                  if (cellContent.childCount === 0) {
-                    const cellStart = cellPos + 1;
-                    const paragraph = state.schema.nodes.paragraph.create();
-                    const tr = state.tr.insert(cellStart, paragraph);
-                    const paragraphStart = cellStart + 1; // Position inside the paragraph
-                    const newSelection = TextSelection.create(tr.doc, paragraphStart);
-                    tr.setSelection(newSelection);
-                    dispatch(tr);
-                    // Let ProseMirror handle focus - don't call view.focus() manually
-                    // This prevents focus issues when clicking outside cells after editing
-                    return false; // Let ProseMirror handle the rest
-                  }
-                  
-                  // If cell only has empty paragraph, position cursor inside it
-                  if (cellContent.childCount === 1 && 
-                      cellContent.firstChild.type.name === 'paragraph' && 
-                      cellContent.firstChild.content.size === 0) {
-                    const cellStart = cellPos + 1;
-                    const paragraphStart = cellStart + 1; // After the paragraph opening tag
-                    const tr = state.tr.setSelection(TextSelection.create(state.doc, paragraphStart));
-                    dispatch(tr);
-                    // Let ProseMirror handle focus - don't call view.focus() manually
-                    // This prevents focus issues when clicking outside cells after editing
-                    return false; // Let ProseMirror handle the rest
-                  }
-
-                  // Cell has content - check if we need special paragraph-level handling
-                  // Fix Issue #1: When clicking on a specific paragraph in a multi-paragraph cell
-                  if (cellContent.childCount > 1) {
-                    // Multiple children in cell - check if click is on a specific paragraph
-                    const clickedElement = event.target;
-                    const clickedParagraph = clickedElement.closest('p');
-
-                    if (clickedParagraph) {
-                      console.log('[HANDLE CLICK] Multi-paragraph cell: clicked on specific paragraph');
-
-                      // Find which paragraph was clicked by traversing cell content
-                      let currentPos = cellPos + 1; // Start after cell opening
-                      let foundParagraph = false;
-
-                      cellContent.forEach((childNode, offset, index) => {
-                        if (!foundParagraph && childNode.type.name === 'paragraph') {
-                          // Get the DOM node for this paragraph
-                          const paragraphDOMPos = currentPos;
-                          const paragraphDOM = view.nodeDOM(paragraphDOMPos);
-
-                          // Check if this is the clicked paragraph
-                          if (paragraphDOM === clickedParagraph || paragraphDOM?.contains(clickedParagraph)) {
-                            console.log('[HANDLE CLICK] Found clicked paragraph at pos:', paragraphDOMPos);
-
-                            // Position cursor inside this specific paragraph
-                            // Calculate the exact click position within the paragraph
-                            const clickPos = view.posAtCoords({
-                              left: event.clientX,
-                              top: event.clientY
-                            });
-
-                            if (clickPos && clickPos.pos >= paragraphDOMPos &&
-                                clickPos.pos < paragraphDOMPos + childNode.nodeSize) {
-                              // Click is within this paragraph - use exact position
-                              const tr = state.tr.setSelection(
-                                TextSelection.create(state.doc, clickPos.pos)
-                              );
-                              dispatch(tr);
-                              console.log('[HANDLE CLICK] ✅ Positioned cursor at exact click position:', clickPos.pos);
-                            } else {
-                              // Fallback: position at start of paragraph
-                              const paragraphStart = paragraphDOMPos + 1;
-                              const tr = state.tr.setSelection(
-                                TextSelection.create(state.doc, paragraphStart)
-                              );
-                              dispatch(tr);
-                              console.log('[HANDLE CLICK] ✅ Positioned cursor at paragraph start:', paragraphStart);
-                            }
-
-                            foundParagraph = true;
-                            // Return true to indicate we handled this click completely
-                            // This prevents double-handling of the same click
-                            return true;
-                          }
-                        }
-                        currentPos += childNode.nodeSize;
-                      });
-
-                      if (foundParagraph) {
-                        // We manually positioned cursor - don't let ProseMirror also handle it
-                        return true;
-                      }
-                    }
-                  }
-
-                  // Single paragraph or no specific paragraph clicked - let ProseMirror handle normally
-                  console.log('[HANDLE CLICK] Cell has content - returning false to let ProseMirror handle selection');
-                  return false;
+                if (cellNode && cellNode.content.childCount === 0) {
+                  // ONLY handle completely empty cells - insert a paragraph
+                  const cellStart = cellPos + 1;
+                  const paragraph = state.schema.nodes.paragraph.create();
+                  const tr = state.tr.insert(cellStart, paragraph);
+                  const paragraphStart = cellStart + 1;
+                  const newSelection = TextSelection.create(tr.doc, paragraphStart);
+                  tr.setSelection(newSelection);
+                  dispatch(tr);
+                  view.focus();
+                  console.log('[HANDLE CLICK] Handled empty cell');
+                  return true;
                 }
-                break;
+                
+                // Cell has content - create explicit TextSelection at click position
+                console.log('[HANDLE CLICK] Cell has content - creating TextSelection at pos', pos);
+                const tr = state.tr.setSelection(TextSelection.create(state.doc, pos));
+                dispatch(tr);
+                view.focus();
+                return true;
               }
             }
 
-            // Not in table cell - let ProseMirror handle normally
-            // Previously, this code manually positioned cursor for ALL single clicks outside cells,
-            // which prevented drag-to-select from working (blocked the mousedown that starts selection)
-            console.log('[HANDLE CLICK] Not in table cell - letting ProseMirror handle naturally');
-            return false; // Let ProseMirror handle all clicks/selection outside cells
+            // Not in cell - create explicit TextSelection to prevent node selection
+            console.log('[HANDLE CLICK] Not in cell - creating TextSelection at pos', pos);
+            const tr = state.tr.setSelection(TextSelection.create(state.doc, pos));
+            dispatch(tr);
+            view.focus();
+            return true;
           },
         },
       }),
-      // High-priority plugin to handle drag events
+      // DISABLED: High-priority plugin to handle drag events - disabled for UX improvements
+      /*
       new Plugin({
         key: new PluginKey('cellDragDrop'),
         // Use view.dom to attach native event listeners directly
@@ -1381,6 +1292,8 @@ const DraggableTableCell = TableCell.extend({
           },
         },
       }),
+      */
+      // END DISABLED drag-drop plugin
     ];
   },
 });
@@ -1520,7 +1433,7 @@ const FileAttachment = Node.create({
   name: 'fileAttachment',
   group: 'block',
   atom: true,
-  draggable: true,
+  draggable: false, // DISABLED for UX improvements
   
   addAttributes() {
     return {
@@ -1567,8 +1480,8 @@ const FileAttachment = Node.create({
     const span = document.createElement('span');
     span.className = 'file-attachment-card';
     span.contentEditable = 'false';
-    span.draggable = true;
-    span.setAttribute('data-drag-handle', 'true');
+    span.draggable = false; // DISABLED for UX improvements
+    // span.setAttribute('data-drag-handle', 'true'); // DISABLED
     span.setAttribute('data-component-id', componentId); // CRITICAL: Set component ID for deletion
     span.setAttribute('data-filename', filename);
     span.setAttribute('data-fileurl', fileurl);
@@ -1612,7 +1525,7 @@ const CustomCodeBlock = Node.create({
   name: 'customCodeBlock',
   group: 'block',
   atom: true,
-  draggable: true,
+  draggable: false, // DISABLED for UX improvements
   
   addAttributes() {
     return {
@@ -1660,8 +1573,8 @@ const CustomCodeBlock = Node.create({
     wrapper.setAttribute('contenteditable', 'false');
     wrapper.setAttribute('data-language', language);
     wrapper.setAttribute('data-component-id', node.attrs['data-component-id'] || `code-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
-    wrapper.draggable = true;
-    wrapper.setAttribute('data-drag-handle', 'true');
+    wrapper.draggable = false; // DISABLED for UX improvements
+    // wrapper.setAttribute('data-drag-handle', 'true'); // DISABLED
     
     const pre = document.createElement('pre');
     pre.className = `code-block language-${language}`;
@@ -1727,7 +1640,10 @@ const FontSize = Extension.create({
   
   addCommands() {
     return {
-      setFontSize: fontSize => ({ chain }) => {
+      setFontSize: fontSize => ({ chain, commands }) => {
+        if (!fontSize) {
+          return commands.unsetFontSize();
+        }
         return chain()
           .setMark('textStyle', { fontSize })
           .run();
@@ -2390,8 +2306,9 @@ const RichTextSectionEditor = ({
     };
   }, [editor]);
 
-  // CRITICAL: Attach drag handlers directly to editor DOM (bypass plugin issues)
+  // DISABLED: CRITICAL: Attach drag handlers directly to editor DOM (bypass plugin issues)
   // Use ref to track if handlers are already attached to prevent re-attachment on every render
+  /*
   const dragHandlersAttachedRef = useRef(false);
   
   useEffect(() => {
@@ -2775,6 +2692,8 @@ const RichTextSectionEditor = ({
       console.log('[DRAG-DIRECT] ❌ Drag handlers removed from document');
     };
   }, [editor]);
+  */
+  // END DISABLED drag handler useEffect
 
   /**
    * Handle code block click - for editing or deleting
@@ -4869,7 +4788,23 @@ const RichTextSectionEditor = ({
       return;
     }
 
-    editor.chain().focus().setFontSize(fontSize).run();
+    // Restore the saved selection if available
+    if (savedSelectionRef.current) {
+      const { from, to } = savedSelectionRef.current;
+      console.log('[FONT SIZE] Restoring selection:', from, '-', to);
+      
+      // Set selection, apply font size, then restore focus
+      editor.chain()
+        .setTextSelection({ from, to })
+        .setFontSize(fontSize)
+        .run();
+      
+      savedSelectionRef.current = null; // Clear after use
+    } else {
+      // Fallback: try to apply to current selection
+      editor.chain().focus().setFontSize(fontSize).run();
+    }
+    
     setShowFontSizeInput(false);
   }, [editor, fontSize]);
 
@@ -5465,7 +5400,7 @@ const RichTextSectionEditor = ({
           </ToolbarButton>
           <ToolbarButton
             onMouseDown={(e) => e.preventDefault()}
-            onClick={() => editor.chain().toggleItalic().run()}
+            onClick={() => editor.chain().focus().toggleItalic().run()}
             active={editor.isActive('italic')}
             disabled={disabled}
             title="Italic"
@@ -5474,7 +5409,7 @@ const RichTextSectionEditor = ({
           </ToolbarButton>
           <ToolbarButton
             onMouseDown={(e) => e.preventDefault()}
-            onClick={() => editor.chain().toggleUnderline().run()}
+            onClick={() => editor.chain().focus().toggleUnderline().run()}
             active={editor.isActive('underline')}
             disabled={disabled}
             title="Underline"
@@ -5483,7 +5418,7 @@ const RichTextSectionEditor = ({
           </ToolbarButton>
           <ToolbarButton
             onMouseDown={(e) => e.preventDefault()}
-            onClick={() => editor.chain().toggleStrike().run()}
+            onClick={() => editor.chain().focus().toggleStrike().run()}
             active={editor.isActive('strike')}
             disabled={disabled}
             title="Strikethrough"
@@ -5662,6 +5597,12 @@ const RichTextSectionEditor = ({
           <ToolbarButton
             onMouseDown={(e) => {
               e.preventDefault(); // Prevent focus loss
+              // Save the current selection before showing the dropdown
+              if (editor && !editor.state.selection.empty) {
+                const { from, to } = editor.state.selection;
+                savedSelectionRef.current = { from, to };
+                console.log('[FONT SIZE] Saved selection:', savedSelectionRef.current);
+              }
             }}
             onClick={() => {
               if (editor.state.selection.empty) {
@@ -5913,10 +5854,10 @@ const RichTextSectionEditor = ({
               }
             }}
             disabled={disabled}
-            title="Add Row Below (click inside a table cell first)"
+            title="Add Row Below"
           >
             <FaPlus style={{ fontSize: '10px' }} />
-            <span style={{ fontSize: '10px', fontWeight: 'bold' }}>+</span>
+            <span style={{ fontSize: '9px', marginLeft: '2px' }}>Row</span>
           </ToolbarButton>
           
           <ToolbarButton
@@ -5993,6 +5934,7 @@ const RichTextSectionEditor = ({
             title="Delete Row"
           >
             <FaMinus style={{ fontSize: '10px' }} />
+            <span style={{ fontSize: '9px', marginLeft: '2px' }}>Row</span>
           </ToolbarButton>
           
           <ToolbarButton
@@ -6104,9 +6046,10 @@ const RichTextSectionEditor = ({
               }
             }}
             disabled={disabled}
-            title="Add Column Right (click inside a table cell first)"
+            title="Add Column Right"
           >
-            <span style={{ fontSize: '10px', fontWeight: 'bold' }}>Col+</span>
+            <FaPlus style={{ fontSize: '10px' }} />
+            <span style={{ fontSize: '9px', marginLeft: '2px' }}>Col</span>
           </ToolbarButton>
           
           <ToolbarButton
@@ -6182,7 +6125,8 @@ const RichTextSectionEditor = ({
             disabled={disabled}
             title="Delete Column"
           >
-            <span style={{ fontSize: '10px', fontWeight: 'bold' }}>Col-</span>
+            <FaMinus style={{ fontSize: '10px' }} />
+            <span style={{ fontSize: '9px', marginLeft: '2px' }}>Col</span>
           </ToolbarButton>
           
           <ToolbarButton
@@ -6190,109 +6134,60 @@ const RichTextSectionEditor = ({
               e.preventDefault(); // Prevent focus loss
             }}
             onClick={() => {
-              console.log('[TABLE] Deleting table');
-              console.log('[TABLE] Can delete table:', editor.can().deleteTable());
+              if (!editor) return;
               
-              // Check if we're in a table by checking the selection
-              const { $anchor } = editor.state.selection;
-              let inTable = false;
-              let cellPos = null;
+              console.log('[TABLE DELETE] Attempting to delete table');
+              
+              // Get current selection
+              const { state } = editor;
+              const { $anchor } = state.selection;
+              
+              // Find if we're in a table
+              let tableDepth = null;
               let tablePos = null;
               
-              // Walk up the node tree to find a table cell or table
+              // Walk up the node tree to find the table
               for (let depth = $anchor.depth; depth > 0; depth--) {
                 const node = $anchor.node(depth);
-                if (node.type.name === 'tableCell' || node.type.name === 'tableHeader') {
-                  inTable = true;
-                  cellPos = $anchor.before(depth);
-                  // Find the table
-                  for (let tableDepth = depth - 1; tableDepth > 0; tableDepth--) {
-                    const tableNode = $anchor.node(tableDepth);
-                    if (tableNode.type.name === 'table') {
-                      tablePos = $anchor.before(tableDepth);
-                      break;
-                    }
-                  }
-                  break;
-                } else if (node.type.name === 'table') {
-                  inTable = true;
+                if (node.type.name === 'table') {
+                  tableDepth = depth;
                   tablePos = $anchor.before(depth);
-                  const tableEnd = tablePos + node.nodeSize;
-                  editor.state.doc.nodesBetween(tablePos, tableEnd, (cellNode, pos) => {
-                    if ((cellNode.type.name === 'tableCell' || cellNode.type.name === 'tableHeader') && !cellPos) {
-                      cellPos = pos + 1;
-                    }
-                  });
                   break;
                 }
               }
               
-              if (!inTable) {
-                console.warn('[TABLE] Not in a table! Trying to find a table in the document...');
-                // Try to find any table in the document using nodesBetween (more thorough)
-                let foundTable = false;
-                const docSize = editor.state.doc.content.size;
-                console.log('[TABLE] Document size:', docSize);
+              if (tablePos !== null && tablePos !== undefined) {
+                // We found the table, delete it directly using the transaction
+                const tr = state.tr.delete(tablePos, tablePos + $anchor.node(tableDepth).nodeSize);
+                editor.view.dispatch(tr);
+                console.log('[TABLE DELETE] Table deleted successfully at position', tablePos);
+              } else {
+                // Not in a table, search for any table in the document
+                console.warn('[TABLE DELETE] Not currently in a table, searching document...');
+                let foundTablePos = null;
+                let foundTableSize = null;
                 
-                // Search the entire document
-                editor.state.doc.nodesBetween(0, docSize, (node, pos) => {
-                  if (node.type.name === 'table' && !foundTable) {
-                    foundTable = true;
-                    tablePos = pos;
-                    console.log('[TABLE] Found table at position', pos, 'nodeSize:', node.nodeSize);
-                    // Find first cell in this table
-                    const tableEnd = pos + node.nodeSize;
-                    editor.state.doc.nodesBetween(pos, tableEnd, (cellNode, cellPosInTable) => {
-                      if ((cellNode.type.name === 'tableCell' || cellNode.type.name === 'tableHeader') && !cellPos) {
-                        cellPos = cellPosInTable + 1;
-                        console.log('[TABLE] Found first cell at position', cellPos);
-                        editor.chain().setTextSelection(cellPos).focus().run();
-                        console.log('[TABLE] Moved cursor to table cell at position', cellPos);
-                        return false; // Stop searching for cells
-                      }
-                    });
-                    return false; // Stop searching for tables
+                state.doc.descendants((node, pos) => {
+                  if (node.type.name === 'table' && foundTablePos === null) {
+                    foundTablePos = pos;
+                    foundTableSize = node.nodeSize;
+                    return false; // Stop searching
                   }
                 });
                 
-                if (!foundTable) {
-                  console.error('[TABLE] No table found in document!');
-                  // Debug: log all node types in document
-                  const nodeTypes = new Set();
-                  editor.state.doc.nodesBetween(0, docSize, (node) => {
-                    nodeTypes.add(node.type.name);
-                  });
-                  console.log('[TABLE] Available node types in document:', Array.from(nodeTypes));
-                  return;
-                }
-              } else if (cellPos) {
-                editor.chain().setTextSelection(cellPos).focus().run();
-              }
-              
-              try {
-                // Clear any drag state before deleting
-                window._tiptapDragging = false;
-                window._draggedContent = null;
-                window._draggedElement = null;
-                
-                // Delete the table
-                const result = editor.chain().deleteTable().run();
-                console.log('[TABLE] Table deleted, result:', result);
-                if (!result) {
-                  console.warn('[TABLE] deleteTable returned false');
-                }
-              } catch (error) {
-                console.error('[RichTextEditor] Error deleting table:', error);
-                // Try to recover by clearing selection
-                try {
-                  editor.chain().focus().clearNodes().run();
-                } catch (recoverError) {
-                  console.error('[RichTextEditor] Error recovering from delete:', recoverError);
+                if (foundTablePos !== null) {
+                  const tr = state.tr.delete(foundTablePos, foundTablePos + foundTableSize);
+                  editor.view.dispatch(tr);
+                  console.log('[TABLE DELETE] Table deleted at position', foundTablePos);
+                } else {
+                  console.error('[TABLE DELETE] No table found in document');
+                  setError('No table found to delete');
+                  setTimeout(() => setError(null), 3000);
                 }
               }
             }}
             disabled={disabled}
-            title="Delete Table"
+            title="Delete Table/Layout"
           >
             <FaTrash style={{ fontSize: '10px' }} />
           </ToolbarButton>
