@@ -1,10 +1,30 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import { Draggable } from '@hello-pangea/dnd';
 import { FaDownload } from 'react-icons/fa6';
+import Prism from 'prismjs';
+import 'prismjs/components/prism-markup';
+import 'prismjs/components/prism-javascript';
+import 'prismjs/components/prism-typescript';
+import 'prismjs/components/prism-python';
+import 'prismjs/components/prism-java';
+import 'prismjs/components/prism-sql';
+import 'prismjs/components/prism-css';
+import 'prismjs/components/prism-scss';
+import 'prismjs/components/prism-json';
+import 'prismjs/components/prism-yaml';
+import 'prismjs/components/prism-bash';
 import ResizableImage from './ResizableImage';
 import './RichTextContent.css';
 // Import editor CSS to ensure borderless table styles are available in display mode
 import './cms/RichTextSectionEditor.css';
+
+const normalizePrismLanguage = (value = '') => {
+  const next = value.trim().toLowerCase();
+  if (!next) return 'javascript';
+  if (next === 'html') return 'markup';
+  if (next === 'sh' || next === 'shell') return 'bash';
+  return next;
+};
 
 /**
  * DraggableSectionContent Component
@@ -144,6 +164,39 @@ export const DraggableTextContent = ({ text, index, isEditMode, sectionId, isBor
     
     return cleaned;
   }, [text, isEditMode]);
+
+  // Pre-highlight code blocks in the HTML string to guarantee consistent token colors.
+  // This avoids timing/order issues with post-render highlighting.
+  const highlightedHtml = useMemo(() => {
+    if (!cleanedHtml || typeof document === 'undefined') return cleanedHtml;
+
+    try {
+      const container = document.createElement('div');
+      container.innerHTML = cleanedHtml;
+
+      const codeBlocks = container.querySelectorAll('pre code');
+      codeBlocks.forEach((block) => {
+        const classLanguageMatch = block.className.match(/language-([a-z0-9-]+)/i);
+        const fallbackLanguage = block.closest('[data-language]')?.getAttribute('data-language') || 'javascript';
+        const language = normalizePrismLanguage(classLanguageMatch?.[1] || fallbackLanguage);
+
+        if (!block.className.includes('language-')) {
+          block.classList.add(`language-${language}`);
+        }
+
+        const grammar = Prism.languages[language] || Prism.languages.javascript || Prism.languages.markup;
+        if (!grammar) return;
+
+        const source = block.textContent || '';
+        block.innerHTML = Prism.highlight(source, grammar, language);
+      });
+
+      return container.innerHTML;
+    } catch (error) {
+      console.warn('[DraggableTextContent] Prism pre-highlight failed:', error);
+      return cleanedHtml;
+    }
+  }, [cleanedHtml]);
   
   // Remove inline border styles from borderless tables in display mode
   useEffect(() => {
@@ -219,6 +272,28 @@ export const DraggableTextContent = ({ text, index, isEditMode, sectionId, isBor
       return () => observer.disconnect();
     }
   }, [isEditMode, text]);
+
+  // Fallback highlighting pass for any code blocks added after initial render.
+  // Some sections are rendered in view style while `isEditMode=true`.
+  useEffect(() => {
+    if (!contentRef.current) return;
+
+    try {
+      const codeBlocks = contentRef.current.querySelectorAll('pre code');
+      codeBlocks.forEach((block) => {
+        if (block.querySelector('.token')) return;
+        if (!block.className.includes('language-')) {
+          const fallbackLanguage = normalizePrismLanguage(
+            block.closest('[data-language]')?.getAttribute('data-language') || 'javascript'
+          );
+          block.classList.add(`language-${fallbackLanguage}`);
+        }
+        Prism.highlightElement(block);
+      });
+    } catch (error) {
+      console.warn('[DraggableTextContent] Prism highlight failed:', error);
+    }
+  }, [highlightedHtml, isEditMode]);
   
   return (
     <DraggableSectionContent
@@ -232,7 +307,7 @@ export const DraggableTextContent = ({ text, index, isEditMode, sectionId, isBor
       <div 
         ref={contentRef}
         className="rich-text-content"
-        dangerouslySetInnerHTML={{ __html: cleanedHtml }}
+        dangerouslySetInnerHTML={{ __html: highlightedHtml }}
       />
     </DraggableSectionContent>
   );
