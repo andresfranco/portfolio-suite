@@ -289,11 +289,12 @@
 .rte2-prosemirror .rte2-code-pre code .token.prolog,
 .rte2-prosemirror .rte2-code-pre code .token.doctype,
 .rte2-prosemirror .rte2-code-pre code .token.cdata {
-  color: #7f848e !important;
+  color: #6a9955 !important;
+  font-style: italic !important;
 }
 
 .rte2-prosemirror .rte2-code-pre code .token.punctuation {
-  color: #c5c8c6 !important;
+  color: #d4d4d4 !important;
 }
 
 .rte2-prosemirror .rte2-code-pre code .token.property,
@@ -303,7 +304,7 @@
 .rte2-prosemirror .rte2-code-pre code .token.constant,
 .rte2-prosemirror .rte2-code-pre code .token.symbol,
 .rte2-prosemirror .rte2-code-pre code .token.deleted {
-  color: #f78c6c !important;
+  color: #b5cea8 !important;
 }
 
 .rte2-prosemirror .rte2-code-pre code .token.selector,
@@ -312,30 +313,47 @@
 .rte2-prosemirror .rte2-code-pre code .token.char,
 .rte2-prosemirror .rte2-code-pre code .token.builtin,
 .rte2-prosemirror .rte2-code-pre code .token.inserted {
-  color: #c3e88d !important;
+  color: #ce9178 !important;
 }
 
 .rte2-prosemirror .rte2-code-pre code .token.operator,
 .rte2-prosemirror .rte2-code-pre code .token.entity,
 .rte2-prosemirror .rte2-code-pre code .token.url,
 .rte2-prosemirror .rte2-code-pre code .token.variable {
-  color: #89ddff !important;
+  color: #d4d4d4 !important;
 }
 
 .rte2-prosemirror .rte2-code-pre code .token.atrule,
 .rte2-prosemirror .rte2-code-pre code .token.attr-value,
 .rte2-prosemirror .rte2-code-pre code .token.keyword {
-  color: #c792ea !important;
+  color: #569cd6 !important;
 }
 
 .rte2-prosemirror .rte2-code-pre code .token.function,
 .rte2-prosemirror .rte2-code-pre code .token.class-name {
-  color: #82aaff !important;
+  color: #dcdcaa !important;
 }
 
 .rte2-prosemirror .rte2-code-pre code .token.regex,
 .rte2-prosemirror .rte2-code-pre code .token.important {
-  color: #ffcb6b !important;
+  color: #d16969 !important;
+}
+
+.rte2-prosemirror .rte2-code-pre code .token.class-name {
+  color: #4ec9b0 !important;
+}
+
+.rte2-prosemirror .rte2-code-pre code .token.variable {
+  color: #d16969 !important;
+}
+
+.rte2-prosemirror .rte2-code-pre code .token.important,
+.rte2-prosemirror .rte2-code-pre code .token.bold {
+  font-weight: 700 !important;
+}
+
+.rte2-prosemirror .rte2-code-pre code .token.italic {
+  font-style: italic !important;
 }
 
 /* Defensive reset against legacy editor global selectors */
@@ -385,15 +403,13 @@
 }
 
 .rte2-code-modal-row,
-.rte2-code-modal-editor,
-.rte2-code-modal-preview {
+.rte2-code-modal-editor {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
 }
 
-.rte2-code-modal select,
-.rte2-code-modal textarea {
+.rte2-code-modal select {
   width: 100%;
   border: 1px solid rgba(148, 163, 184, 0.35);
   border-radius: 0.45rem;
@@ -402,14 +418,16 @@
   padding: 0.5rem;
 }
 
-.rte2-code-modal textarea {
-  min-height: 180px;
-  resize: vertical;
-  font-family: Consolas, Monaco, 'Courier New', monospace;
+.rte2-code-monaco {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.45rem;
+  overflow: hidden;
+  background: rgba(15, 23, 42, 0.9);
 }
 
-.rte2-code-modal-preview pre {
-  max-height: 230px;
+.rte2-code-monaco .monaco-editor,
+.rte2-code-monaco .overflow-guard {
+  border-radius: 0.45rem;
 }
 
 .rte2-code-modal-actions {
@@ -539,14 +557,11 @@
   gap: 0.8rem;
 }
 
-.rte2-modal-code-preview {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.rte2-modal-code-preview pre {
-  max-height: 230px;
+.rte2-modal-code-editor {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.45rem;
+  overflow: hidden;
+  background: rgba(15, 23, 42, 0.9);
 }
 
 .rte2-modal-actions {
