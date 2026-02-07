@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { FaPlus, FaTrash, FaTimes, FaImage, FaFile, FaEdit, FaUpload, FaCheck, FaExclamationTriangle } from 'react-icons/fa';
 import { portfolioApi } from '../../services/portfolioApi';
 import { useEditMode } from '../../context/EditModeContext';
-import RichTextSectionEditor from './RichTextSectionEditor';
+import RichTextSectionEditor from './RichTextSectionEditorV2';
 
 /**
  * ConfirmDialog Component
