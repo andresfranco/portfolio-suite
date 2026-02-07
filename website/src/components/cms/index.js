@@ -20,6 +20,7 @@ export { ImageUploader } from './ImageUploader';
 export { ProjectImageSelector } from './ProjectImageSelector';
 export { RichTextEditor } from './RichTextEditor';
 export { default as RichTextSectionEditor } from './RichTextSectionEditor';
+export { default as RichTextSectionEditorV2 } from './RichTextSectionEditorV2';
 export { ContentEditableWYSIWYG } from './ContentEditableWYSIWYG';
 export { ContentEditorModal } from './ContentEditorModal';
 export { TranslationEditor } from './TranslationEditor';
