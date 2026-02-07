@@ -528,212 +528,10 @@ const DraggableTableCell = TableCell.extend({
   // Don't override the default NodeView - it interferes with drag-and-drop
   // The default rendering with renderHTML is sufficient
   
-  // Add custom drag-and-drop handling for cells
+  // REMOVED: Custom selection plugin - it was interfering with natural text selection
+  // Let ProseMirror and browser handle text selection naturally
   addProseMirrorPlugins() {
     return [
-      // Plugin to ensure cells are editable on click
-      new Plugin({
-        key: new PluginKey('cellClickHandler'),
-        props: {
-          // CRITICAL: Use handleDOMEvents to intercept clicks BEFORE handleClick
-          // This ensures we can prevent ProseMirror from processing delete button clicks
-          handleDOMEvents: {
-            click(view, event) {
-              const target = event.target;
-
-              // DEBUG: Log all clicks to see what's happening
-              const isDeleteBtn = target && (
-                  target.classList.contains('file-delete-btn') ||
-                  target.closest('.file-delete-btn') !== null ||
-                  target.closest('button.file-delete-btn') !== null ||
-                  (target.tagName === 'svg' && target.closest('.file-delete-btn') !== null) ||
-                  (target.tagName === 'path' && target.closest('.file-delete-btn') !== null)
-                );
-
-              if (isDeleteBtn) {
-                console.log('[CELL CLICK] handleDOMEvents: Delete button click detected!', {
-                  targetTag: target.tagName,
-                  targetClass: target.className,
-                  isInCell: target.closest('td, th') !== null
-                });
-              }
-
-              // CRITICAL: Check if click is on a delete button or its children
-              if (isDeleteBtn) {
-                console.log('[CELL CLICK] handleDOMEvents: Allowing event to propagate to window handler');
-                // CRITICAL: Return FALSE to allow event to propagate to window handler
-                // The window-level capture handler will process the delete
-                // Returning true would block the event from reaching our handler
-                return false;
-              }
-
-              // For all other clicks, let handleClick process them
-              return false;
-            }
-          },
-          handleClick(view, pos, event) {
-            const target = event.target;
-
-            console.log('[HANDLE CLICK] pos:', pos, 'target:', target, 'target.tagName:', target?.tagName);
-
-            // CRITICAL: Ignore clicks on interactive elements that have their own handlers
-            // This includes delete buttons, resize handles, links, etc.
-            if (target) {
-              // Check if click is on a delete button or its children
-              if (target.classList.contains('file-delete-btn') ||
-                  target.closest('.file-delete-btn') !== null ||
-                  target.closest('button.file-delete-btn') !== null) {
-                console.log('[CELL CLICK] handleClick: Delete button clicked - calling handler directly');
-
-                // CRITICAL: Since event propagation doesn't work reliably from inside cells,
-                // call the handler directly from our global reference
-                if (window._fileDeleteDelegatedHandler) {
-                  console.log('[CELL CLICK] Invoking window._fileDeleteDelegatedHandler directly');
-                  window._fileDeleteDelegatedHandler(event);
-                } else {
-                  console.error('[CELL CLICK] ❌ window._fileDeleteDelegatedHandler not found!');
-                }
-
-                // Return true to tell ProseMirror we handled it
-                return true;
-              }
-
-              // Check if click is on a code block delete button
-              if (target.classList.contains('code-block-delete-btn') ||
-                  target.closest('.code-block-delete-btn') !== null) {
-                console.log('[CELL CLICK] handleClick: Code block delete button clicked - handling directly');
-
-                // Find the code block wrapper
-                const wrapper = target.closest('.code-block-wrapper');
-                if (wrapper) {
-                  console.log('[CODE BLOCK DELETE] Found wrapper, deleting code block');
-
-                  // Find and delete the customCodeBlock node in ProseMirror
-                  const { state } = view;
-                  const codeBlockId = wrapper.getAttribute('data-component-id');
-
-                  console.log('[CODE BLOCK DELETE] Looking for code block with ID:', codeBlockId);
-
-                  // Search for the customCodeBlock node
-                  let nodePos = null;
-                  state.doc.descendants((node, pos) => {
-                    if (node.type.name === 'customCodeBlock') {
-                      const nodeId = node.attrs['data-component-id'];
-                      console.log('[CODE BLOCK DELETE] Found customCodeBlock at pos', pos, 'with ID:', nodeId);
-
-                      if (codeBlockId && nodeId === codeBlockId) {
-                        nodePos = pos;
-                        console.log('[CODE BLOCK DELETE] Match found at position:', pos);
-                        return false; // Stop searching
-                      }
-                    }
-                  });
-
-                  if (nodePos !== null) {
-                    console.log('[CODE BLOCK DELETE] Deleting node at position:', nodePos);
-                    const tr = state.tr.delete(nodePos, nodePos + 1);
-                    view.dispatch(tr);
-                    console.log('[CODE BLOCK DELETE] ✅ Code block deleted successfully');
-                  } else {
-                    console.error('[CODE BLOCK DELETE] ❌ Could not find code block node');
-                  }
-                }
-
-                // Return true to tell ProseMirror we handled it
-                return true;
-              }
-
-              // Check if click is on a code block wrapper (for editing) but NOT on delete button
-              const codeBlockWrapper = target.closest('.code-block-wrapper');
-              if (codeBlockWrapper && !target.closest('.code-block-delete-btn')) {
-                console.log('[CELL CLICK] handleClick: Code block clicked - calling handler directly for editing');
-
-                // CRITICAL: Since event propagation doesn't work reliably from inside cells,
-                // call the handler directly from our global reference
-                if (window._codeBlockClickHandler) {
-                  console.log('[CELL CLICK] Invoking window._codeBlockClickHandler directly');
-                  window._codeBlockClickHandler(event);
-                } else {
-                  console.error('[CELL CLICK] ❌ window._codeBlockClickHandler not found!');
-                }
-
-                // Return true to tell ProseMirror we handled it
-                return true;
-              }
-
-              // Check if click is on a link
-              if (target.tagName === 'A' || target.closest('a') !== null) {
-                // Only ignore if it's not the file link (file links should work)
-                const link = target.closest('a');
-                if (link && link.classList.contains('file-link')) {
-                  // File link - let it handle normally
-                  return false;
-                }
-              }
-              
-              // Ignore clicks on resize handles
-              if (target.classList.contains('resize-handle-cell') || 
-                  target.closest('.resize-handle-cell') !== null ||
-                  target.closest('.table-resize-handles-overlay') !== null) {
-                return false; // Let resize handle handle it
-              }
-              
-              // Ignore clicks on image resize handles
-              if (target.closest('.image-resize-wrapper .resize-handle') !== null) {
-                return false;
-              }
-              
-              // Ignore clicks on code block buttons
-              if (target.closest('.code-block-actions') !== null ||
-                  target.closest('button[data-code-action]') !== null) {
-                return false;
-              }
-            }
-            
-            const { state, dispatch } = view;
-            const $pos = state.doc.resolve(pos);
-
-            console.log('[HANDLE CLICK] pos:', pos, 'target:', target?.tagName, '$pos.depth:', $pos.depth);
-
-            // Check if click is on a table cell
-            for (let depth = $pos.depth; depth > 0; depth--) {
-              const node = $pos.node(depth);
-              if (node.type.name === 'tableCell' || node.type.name === 'tableHeader') {
-                const cellPos = $pos.before(depth);
-                const cellNode = state.doc.nodeAt(cellPos);
-                
-                if (cellNode && cellNode.content.childCount === 0) {
-                  // ONLY handle completely empty cells - insert a paragraph
-                  const cellStart = cellPos + 1;
-                  const paragraph = state.schema.nodes.paragraph.create();
-                  const tr = state.tr.insert(cellStart, paragraph);
-                  const paragraphStart = cellStart + 1;
-                  const newSelection = TextSelection.create(tr.doc, paragraphStart);
-                  tr.setSelection(newSelection);
-                  dispatch(tr);
-                  view.focus();
-                  console.log('[HANDLE CLICK] Handled empty cell');
-                  return true;
-                }
-                
-                // Cell has content - create explicit TextSelection at click position
-                console.log('[HANDLE CLICK] Cell has content - creating TextSelection at pos', pos);
-                const tr = state.tr.setSelection(TextSelection.create(state.doc, pos));
-                dispatch(tr);
-                view.focus();
-                return true;
-              }
-            }
-
-            // Not in cell - create explicit TextSelection to prevent node selection
-            console.log('[HANDLE CLICK] Not in cell - creating TextSelection at pos', pos);
-            const tr = state.tr.setSelection(TextSelection.create(state.doc, pos));
-            dispatch(tr);
-            view.focus();
-            return true;
-          },
-        },
-      }),
       // DISABLED: High-priority plugin to handle drag events - disabled for UX improvements
       /*
       new Plugin({
@@ -1310,6 +1108,12 @@ const ResizableTable = Table.extend({
         class: 'tiptap-table',
         style: 'border: none; background: transparent; background-color: transparent;',
       },
+      // CRITICAL: Configure table editing to allow text selection
+      resizable: false,  // Disable column resizing which can interfere with text selection
+      handleWidth: 5,
+      cellMinWidth: 100,
+      // CRITICAL: Allow TableSelection but prefer TextSelection within cells
+      allowTableNodeSelection: false,  // Don't allow selecting the entire table node
     }
   },
   
@@ -1747,6 +1551,12 @@ const RichTextSectionEditor = ({
   const imageInputRef = useRef(null);
   const fileInputRef = useRef(null);
   const savedSelectionRef = useRef(null); // Track code block being edited
+  const pointerStateRef = useRef({
+    isDown: false,
+    moved: false,
+    startX: 0,
+    startY: 0,
+  });
   const [linkUrl, setLinkUrl] = useState('');
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [fontSize, setFontSize] = useState('16px');
@@ -1777,6 +1587,8 @@ const RichTextSectionEditor = ({
       heading: {
         levels: [1, 2, 3, 4]
       },
+      // Let paragraph use default configuration - custom classes can interfere with selection
+      paragraph: {},
       // Disable default code block to allow custom HTML code blocks with Prism highlighting
       codeBlock: false,
       code: false
@@ -1800,11 +1612,14 @@ const RichTextSectionEditor = ({
     FontSize,
     Color,
     // Enhanced table extensions with drag-drop and resizing
+    // CRITICAL: Configure table to allow text selection
     ResizableTable.configure({
-      resizable: true,
+      resizable: false,  // Disable resizing to avoid interference
       HTMLAttributes: {
         class: 'tiptap-table',
       },
+      // Allow natural text selection in cells
+      allowTableNodeSelection: false,
     }),
     TableRow,
     TableHeader,
@@ -2283,7 +2098,79 @@ const RichTextSectionEditor = ({
       editorProps: {
         attributes: {
           class: 'prose prose-invert max-w-none focus:outline-none min-h-[300px] p-4 bg-gray-800/30 rounded border border-gray-700/50'
-        }
+        },
+        handleDOMEvents: {
+          mousedown(view, event) {
+            if (event.button !== 0) return false;
+            pointerStateRef.current = {
+              isDown: true,
+              moved: false,
+              startX: event.clientX,
+              startY: event.clientY,
+            };
+            return false;
+          },
+          mousemove(view, event) {
+            const state = pointerStateRef.current;
+            if (!state.isDown) return false;
+
+            const dx = Math.abs(event.clientX - state.startX);
+            const dy = Math.abs(event.clientY - state.startY);
+            if (dx > 3 || dy > 3) {
+              pointerStateRef.current.moved = true;
+            }
+            return false;
+          },
+          mouseup(view, event) {
+            pointerStateRef.current.isDown = false;
+            return false;
+          },
+          click(view, event) {
+            const pointerMoved = pointerStateRef.current.moved;
+            pointerStateRef.current.moved = false;
+
+            if (
+              event.button !== 0 ||
+              event.shiftKey ||
+              event.metaKey ||
+              event.ctrlKey ||
+              event.altKey
+            ) {
+              return false;
+            }
+
+            // Keep native behavior for drag selections and double/triple click selections.
+            if (pointerMoved || event.detail !== 1) {
+              return false;
+            }
+
+            const target = event.target;
+            if (target?.closest?.(
+              'button, [contenteditable="false"], .file-attachment-card, .code-block-wrapper, .image-resize-wrapper'
+            )) {
+              return false;
+            }
+
+            const { state } = view;
+            const { selection, doc } = state;
+            if (selection.empty) {
+              return false;
+            }
+
+            // Single click should always place a caret. If selection is unexpectedly a range
+            // (common after table-cell interactions), collapse to the exact click position.
+            const coords = view.posAtCoords({ left: event.clientX, top: event.clientY });
+            if (typeof coords?.pos !== 'number') {
+              return false;
+            }
+
+            const safePos = Math.max(1, Math.min(coords.pos, doc.content.size));
+            const collapsed = TextSelection.create(doc, safePos, safePos);
+            view.dispatch(state.tr.setSelection(collapsed).scrollIntoView());
+            event.preventDefault();
+            return true;
+          },
+        },
       }
     },
     [extensions] // safeOnChange is stable (empty deps), no need to include it
@@ -3290,408 +3177,24 @@ const RichTextSectionEditor = ({
     };
   }, [editor]);
 
-  // Setup column and cell resize handles
+  // Resize handles are disabled. The old implementation accumulated invisible overlays
+  // that could intercept clicks and break caret placement after table interactions.
   useEffect(() => {
-    if (!editor) return;
-    
-    let isSettingUpHandles = false; // Prevent infinite loop
-    
-    const setupResizeHandles = () => {
-      if (isSettingUpHandles) return; // Guard against re-entry
-      isSettingUpHandles = true;
-      
-      try {
-        const editorElement = document.querySelector('.ProseMirror');
-        if (!editorElement) return;
-        
-        // Setup column resize handles
-        const tables = editorElement.querySelectorAll('table');
-        tables.forEach(table => {
-          // Skip if table already has handles
-          if (table.dataset.handlesSetup === 'true') return;
-          table.dataset.handlesSetup = 'true';
-          
-          // Column and row resize handles are now set up in the overlay container (see below)
-          // This ensures they work regardless of edit mode and are never part of content
-          // NOTE: The overlay container is created later in the code, so all handles are set up there
-          
-          // Setup cell resize handles
-          // CRITICAL: Append handles to a container OUTSIDE the table, not to cells
-          // This ensures they're never part of the cell content and won't be serialized
-          const editorElement = document.querySelector('.ProseMirror');
-          if (!editorElement) return;
-          
-          // CRITICAL: First, remove any existing ⋮ characters from cells
-          // These might have been saved as text content previously
-          table.querySelectorAll('td, th').forEach(cell => {
-            // Remove any ⋮ characters that might be in the cell's text content
-            const walker = document.createTreeWalker(
-              cell,
-              NodeFilter.SHOW_TEXT,
-              null
-            );
-            
-            const textNodes = [];
-            let node;
-            while (node = walker.nextNode()) {
-              if (node.textContent.includes('⋮')) {
-                textNodes.push(node);
-              }
-            }
-            
-            // Remove or clean text nodes containing ⋮
-            textNodes.forEach(textNode => {
-              const cleaned = textNode.textContent.replace(/⋮/g, '');
-              if (cleaned.trim() === '') {
-                // If only ⋮ was in the node, remove it
-                textNode.remove();
-              } else {
-                // Otherwise, just remove the ⋮ character
-                textNode.textContent = cleaned;
-              }
-            });
-            
-            // Also remove any resize handle divs that might be direct children of cells
-            cell.querySelectorAll('.resize-handle-cell, [data-resize-handle]').forEach(handle => {
-              handle.remove();
-            });
-          });
-          
-          // CRITICAL: Create overlay OUTSIDE of .ProseMirror to prevent TipTap from reading it
-          // Find the editor's parent container
-          const editorParent = editorElement.parentElement;
-          if (!editorParent) return;
-          
-          // Find or create a container for resize handles OUTSIDE .ProseMirror
-          let handlesContainer = editorParent.querySelector('.table-resize-handles-overlay');
-          if (!handlesContainer) {
-            handlesContainer = document.createElement('div');
-            handlesContainer.className = 'table-resize-handles-overlay';
-            handlesContainer.style.position = 'absolute';
-            handlesContainer.style.top = '0';
-            handlesContainer.style.left = '0';
-            handlesContainer.style.right = '0';
-            handlesContainer.style.bottom = '0';
-            // CRITICAL: pointer-events: none on container allows clicks through to content
-            // Individual handles have pointer-events: auto to be clickable
-            handlesContainer.style.pointerEvents = 'none';
-            handlesContainer.style.zIndex = '5'; // Lower z-index so content is above it
-            editorParent.style.position = 'relative';
-            editorParent.appendChild(handlesContainer);
-          }
-          
-          // Setup column resize handles FIRST (before cell handles)
-          // Setup column resize handles in overlay (not in cells)
-          const columnHandles = [];
-          table.querySelectorAll('td, th').forEach((cell, index) => {
-            // Skip if this is not the first row (only add handles once per column)
-            const row = cell.parentElement;
-            if (row && row !== table.querySelector('tr')) return;
-            
-            // Check if handle already exists in overlay
-            const existingHandle = handlesContainer.querySelector(`.resize-handle-column[data-column-index="${index}"]`);
-            if (existingHandle) return;
-            
-            const handle = document.createElement('div');
-            handle.className = 'resize-handle-column';
-            handle.setAttribute('contenteditable', 'false');
-            handle.setAttribute('data-column-index', index);
-            
-            // Position at the right edge of the column
-            const updateColumnHandlePosition = () => {
-              if (!cell || !handlesContainer || !editorParent) return;
-              const cellRect = cell.getBoundingClientRect();
-              const parentRect = editorParent.getBoundingClientRect();
-              
-              handle.style.position = 'absolute';
-              handle.style.left = `${cellRect.right - parentRect.left - 2}px`;
-              handle.style.top = `${cellRect.top - parentRect.top}px`;
-              handle.style.width = '4px';
-              handle.style.height = `${cellRect.height}px`;
-              handle.style.cursor = 'col-resize';
-              handle.style.zIndex = '6'; // Lower than content (files/images are z-index: 10)
-              handle.style.pointerEvents = 'auto';
-              handle.style.userSelect = 'none';
-              handle.style.opacity = '0';
-              handle.style.transition = 'opacity 0.2s';
-              handle.style.background = 'rgba(20, 200, 0, 0.3)';
-            };
-            
-            // Show on hover
-            const showHandle = () => {
-              handle.style.opacity = '1';
-            };
-            const hideHandle = () => {
-              if (document.activeElement !== handle) {
-                handle.style.opacity = '0';
-              }
-            };
-            
-            cell.addEventListener('mouseenter', showHandle);
-            cell.addEventListener('mouseleave', hideHandle);
-            handle.addEventListener('mouseenter', showHandle);
-            handle.addEventListener('mouseleave', hideHandle);
-            
-            handle.addEventListener('mousedown', (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              
-              const startX = e.clientX;
-              const currentCell = cell;
-              const nextCell = cell.nextElementSibling;
-              const startWidth1 = currentCell.offsetWidth;
-              const startWidth2 = nextCell ? nextCell.offsetWidth : 0;
-              
-              const onMouseMove = (moveEvent) => {
-                const diff = moveEvent.clientX - startX;
-                const newWidth1 = Math.max(50, startWidth1 + diff);
-                const newWidth2 = nextCell ? Math.max(50, startWidth2 - diff) : 0;
-                
-                currentCell.style.width = `${newWidth1}px`;
-                if (nextCell) {
-                  nextCell.style.width = `${newWidth2}px`;
-                  
-                  // Apply to all cells in these columns
-                  const rows = table.querySelectorAll('tr');
-                  rows.forEach(row => {
-                    if (row.children[index]) {
-                      row.children[index].style.width = `${newWidth1}px`;
-                    }
-                    if (row.children[index + 1]) {
-                      row.children[index + 1].style.width = `${newWidth2}px`;
-                    }
-                  });
-                }
-                updateColumnHandlePosition();
-              };
-              
-              const onMouseUp = () => {
-                document.removeEventListener('mousemove', onMouseMove);
-                document.removeEventListener('mouseup', onMouseUp);
-                
-                // Trigger content update only after resize completes
-                safeOnChange(editor.getHTML());
-              };
-              
-              document.addEventListener('mousemove', onMouseMove);
-              document.addEventListener('mouseup', onMouseUp);
-            });
-            
-            // Append to overlay, not to cell
-            handlesContainer.appendChild(handle);
-            updateColumnHandlePosition();
-            columnHandles.push({ handle, cell, updatePosition: updateColumnHandlePosition });
-          });
-          
-          // Setup row resize handles in overlay (not in rows)
-          const rowHandles = [];
-          const rows = Array.from(table.querySelectorAll('tr'));
-          rows.forEach((row, rowIndex) => {
-            if (rowIndex < rows.length - 1) { // Don't add handle after last row
-              // Check if handle already exists in overlay
-              const existingHandle = handlesContainer.querySelector(`.resize-handle-row[data-row-index="${rowIndex}"]`);
-              if (existingHandle) return;
-              
-              const handle = document.createElement('div');
-              handle.className = 'resize-handle-row';
-              handle.setAttribute('contenteditable', 'false');
-              handle.setAttribute('data-row-index', rowIndex);
-              
-              // Position at the bottom edge of the row
-              const updateRowHandlePosition = () => {
-                if (!row || !handlesContainer || !editorParent) return;
-                const rowRect = row.getBoundingClientRect();
-                const parentRect = editorParent.getBoundingClientRect();
-                
-                handle.style.position = 'absolute';
-                handle.style.left = `${rowRect.left - parentRect.left}px`;
-                handle.style.top = `${rowRect.bottom - parentRect.top - 2}px`;
-                handle.style.width = `${rowRect.width}px`;
-                handle.style.height = '4px';
-                handle.style.cursor = 'row-resize';
-                handle.style.zIndex = '6'; // Lower than content (files/images are z-index: 10)
-                handle.style.pointerEvents = 'auto';
-                handle.style.userSelect = 'none';
-                handle.style.opacity = '0';
-                handle.style.transition = 'opacity 0.2s';
-                handle.style.background = 'rgba(20, 200, 0, 0.3)';
-              };
-              
-              // Show on hover
-              const showHandle = () => {
-                handle.style.opacity = '1';
-              };
-              const hideHandle = () => {
-                if (document.activeElement !== handle) {
-                  handle.style.opacity = '0';
-                }
-              };
-              
-              row.addEventListener('mouseenter', showHandle);
-              row.addEventListener('mouseleave', hideHandle);
-              handle.addEventListener('mouseenter', showHandle);
-              handle.addEventListener('mouseleave', hideHandle);
-              
-              handle.addEventListener('mousedown', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                
-                const startY = e.clientY;
-                const currentRow = rows[rowIndex];
-                const nextRow = rows[rowIndex + 1];
-                const startHeight1 = currentRow.offsetHeight;
-                const startHeight2 = nextRow.offsetHeight;
-                
-                const onMouseMove = (moveEvent) => {
-                  const diff = moveEvent.clientY - startY;
-                  const newHeight1 = Math.max(30, startHeight1 + diff);
-                  const newHeight2 = Math.max(30, startHeight2 - diff);
-                  
-                  currentRow.style.height = `${newHeight1}px`;
-                  nextRow.style.height = `${newHeight2}px`;
-                  
-                  // Apply height to all cells in these rows
-                  Array.from(currentRow.children).forEach(cell => {
-                    cell.style.height = `${newHeight1}px`;
-                  });
-                  Array.from(nextRow.children).forEach(cell => {
-                    cell.style.height = `${newHeight2}px`;
-                  });
-                  
-                  updateRowHandlePosition();
-                };
-                
-                const onMouseUp = () => {
-                  document.removeEventListener('mousemove', onMouseMove);
-                  document.removeEventListener('mouseup', onMouseUp);
-                  
-                  safeOnChange(editor.getHTML());
-                };
-                
-                document.addEventListener('mousemove', onMouseMove);
-                document.addEventListener('mouseup', onMouseUp);
-              });
-              
-              // Append to overlay, not to row
-              handlesContainer.appendChild(handle);
-              updateRowHandlePosition();
-              rowHandles.push({ handle, row, updatePosition: updateRowHandlePosition });
-            }
-          });
-          
-          table.querySelectorAll('td, th').forEach((cell, cellIndex) => {
-            // Use a unique identifier for this cell
-            const cellId = `cell-${cellIndex}-${Date.now()}`;
-            cell.setAttribute('data-cell-id', cellId);
-            
-            // Check if handle already exists in the overlay
-            const existingHandle = handlesContainer.querySelector(`.resize-handle-cell[data-cell-id="${cellId}"]`);
-            if (existingHandle) return;
-            
-            const handle = document.createElement('div');
-            handle.className = 'resize-handle-cell';
-            handle.setAttribute('data-cell-id', cellId);
-            handle.setAttribute('contenteditable', 'false');
-            // CRITICAL: Never use innerHTML with ⋮ character - it can be read by TipTap
-            // Instead, use CSS ::before pseudo-element to display the character
-            // The handle itself has NO text content
-            
-            // Position absolutely relative to the cell
-            // CRITICAL: Calculate position relative to editor parent (where overlay is)
-            const updateHandlePosition = () => {
-              if (!cell || !handlesContainer || !editorParent) return;
-              const cellRect = cell.getBoundingClientRect();
-              const parentRect = editorParent.getBoundingClientRect();
-              
-              handle.style.position = 'absolute';
-              handle.style.left = `${cellRect.right - parentRect.left - 16}px`;
-              handle.style.top = `${cellRect.top - parentRect.top}px`;
-              // All other styles are handled by CSS
-            };
-            
-            // Show on hover
-            const showHandle = () => {
-              handle.style.opacity = '1';
-            };
-            const hideHandle = () => {
-              if (document.activeElement !== handle) {
-                handle.style.opacity = '0';
-              }
-            };
-            
-            cell.addEventListener('mouseenter', showHandle);
-            cell.addEventListener('mouseleave', hideHandle);
-            handle.addEventListener('mouseenter', showHandle);
-            handle.addEventListener('mouseleave', hideHandle);
-            
-            handle.addEventListener('mousedown', (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              
-              const startX = e.clientX;
-              const startWidth = cell.offsetWidth;
-              
-              const onMouseMove = (moveEvent) => {
-                const diff = moveEvent.clientX - startX;
-                const newWidth = Math.max(50, startWidth + diff);
-                cell.style.width = `${newWidth}px`;
-                updateHandlePosition();
-              };
-              
-              const onMouseUp = () => {
-                document.removeEventListener('mousemove', onMouseMove);
-                document.removeEventListener('mouseup', onMouseUp);
-                
-                // Trigger content update only after resize completes
-                safeOnChange(editor.getHTML());
-              };
-              
-              document.addEventListener('mousemove', onMouseMove);
-              document.addEventListener('mouseup', onMouseUp);
-            });
-            
-            // Append to overlay container, NOT to cell
-            handlesContainer.appendChild(handle);
-            updateHandlePosition();
-            
-            // Update position when cell resizes or editor scrolls
-            const resizeObserver = new ResizeObserver(() => {
-              updateHandlePosition();
-            });
-            resizeObserver.observe(cell);
-            handle._resizeObserver = resizeObserver;
-            
-            // Also update on scroll
-            const updateOnScroll = () => updateHandlePosition();
-            editorElement.addEventListener('scroll', updateOnScroll);
-            handle._scrollHandler = updateOnScroll;
-          });
-        });
-      } finally {
-        isSettingUpHandles = false;
-      }
-    };
-    
-    // Setup on mount
-    setTimeout(setupResizeHandles, 100);
-    
-    // Setup on content changes, but with debouncing
-    let setupTimeout;
-    const updateHandler = editor.on('update', ({ transaction }) => {
-      // Only setup handles if there was an actual content change, not just a selection change
-      if (transaction.docChanged) {
-        clearTimeout(setupTimeout);
-        setupTimeout = setTimeout(setupResizeHandles, 300);
-      }
+    if (!editor || editor.isDestroyed || !editor.view?.dom) return;
+
+    const editorElement = editor.view.dom;
+    const editorParent = editorElement.parentElement;
+
+    // Remove legacy overlay containers from previous renders/sessions.
+    if (editorParent) {
+      editorParent.querySelectorAll('.table-resize-handles-overlay').forEach((node) => node.remove());
+    }
+
+    // Remove any legacy inline resize handles accidentally left in content DOM.
+    editorElement.querySelectorAll('.resize-handle-cell, .resize-handle-column, .resize-handle-row, [data-resize-handle]').forEach((node) => {
+      node.remove();
     });
-    
-    return () => {
-      clearTimeout(setupTimeout);
-      if (updateHandler && typeof updateHandler.off === 'function') {
-        updateHandler.off('update');
-      }
-    };
-  }, [editor]); // safeOnChange is stable
+  }, [editor]);
   
   // Apply Prism syntax highlighting when content changes and attach event handlers
   useEffect(() => {
@@ -5389,7 +4892,7 @@ const RichTextSectionEditor = ({
             }}
             onClick={() => {
               console.log('[TOOLBAR] Bold clicked, selection:', editor.state.selection.from, '-', editor.state.selection.to);
-              const result = editor.chain().toggleBold().run();
+              const result = editor.chain().focus().toggleBold().run();
               console.log('[TOOLBAR] Bold result:', result);
             }}
             active={editor.isActive('bold')}
