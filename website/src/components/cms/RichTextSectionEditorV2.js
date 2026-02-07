@@ -13,6 +13,7 @@ import { TableHeader } from '@tiptap/extension-table-header';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { Extension, Node, mergeAttributes } from '@tiptap/core';
 import { NodeSelection } from 'prosemirror-state';
+import Editor from '@monaco-editor/react';
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';
 import 'prismjs/components/prism-markup';
@@ -114,6 +115,13 @@ const getCodeLanguageLabel = (language) => {
   return CODE_LANGUAGE_MAP[normalized]?.label || 'JavaScript';
 };
 
+const getMonacoLanguage = (language) => {
+  const normalized = normalizeCodeLanguage(language);
+  if (normalized === 'html') return 'html';
+  if (normalized === 'bash') return 'shell';
+  return normalized;
+};
+
 const highlightCodeHtml = (language, code) => {
   const source = code || '';
   const prismKey = getPrismLanguage(language);
@@ -128,6 +136,44 @@ const highlightCodeHtml = (language, code) => {
   } catch (error) {
     return escapeHtml(source);
   }
+};
+
+const parseCodeBlockAttrs = (element) => {
+  const codeElement = element.querySelector('pre code');
+  const hasCodeMarker = element.getAttribute('data-code-block') === 'cms';
+
+  if (!hasCodeMarker && !codeElement) {
+    return false;
+  }
+
+  const classLanguageMatch = codeElement?.className?.match(/language-([a-z0-9-]+)/i);
+  const language =
+    element.getAttribute('data-language') ||
+    element.querySelector('pre')?.getAttribute('data-language') ||
+    classLanguageMatch?.[1] ||
+    'javascript';
+
+  return {
+    language: normalizeCodeLanguage(language),
+    code: element.getAttribute('data-code') || codeElement?.textContent || ''
+  };
+};
+
+const RTE2_MONACO_THEME = 'rte2-vs-dark';
+
+const configureMonacoTheme = (monaco) => {
+  monaco.editor.defineTheme(RTE2_MONACO_THEME, {
+    base: 'vs-dark',
+    inherit: true,
+    semanticHighlighting: false,
+    rules: [
+      { token: 'delimiter', foreground: 'D4D4D4' },
+      { token: 'delimiter.parenthesis', foreground: 'D4D4D4' },
+      { token: 'delimiter.bracket', foreground: 'D4D4D4' },
+      { token: 'delimiter.curly', foreground: 'D4D4D4' }
+    ],
+    colors: {}
+  });
 };
 
 const FontSize = Extension.create({
@@ -366,11 +412,8 @@ const CmsCodeBlockView = ({ node, updateAttributes, deleteNode, selected }) => {
   const normalizedLanguage = useMemo(() => normalizeCodeLanguage(node.attrs.language), [node.attrs.language]);
   const codeLanguageLabel = useMemo(() => getCodeLanguageLabel(normalizedLanguage), [normalizedLanguage]);
   const prismLanguage = useMemo(() => getPrismLanguage(normalizedLanguage), [normalizedLanguage]);
-  const draftPrismLanguage = useMemo(() => getPrismLanguage(draftLanguage), [draftLanguage]);
 
   const highlightedCode = useMemo(() => highlightCodeHtml(normalizedLanguage, node.attrs.code || ''), [node.attrs.code, normalizedLanguage]);
-
-  const previewHtml = useMemo(() => highlightCodeHtml(draftLanguage, draftCode || ''), [draftCode, draftLanguage]);
 
   const applyChanges = () => {
     const nextLanguage = normalizeCodeLanguage(draftLanguage);
@@ -416,19 +459,30 @@ const CmsCodeBlockView = ({ node, updateAttributes, deleteNode, selected }) => {
               </select>
             </div>
             <div className="rte2-code-modal-editor">
-              <label htmlFor="rte2-code-content">Code</label>
-              <textarea
-                id="rte2-code-content"
-                value={draftCode}
-                onChange={(event) => setDraftCode(event.target.value)}
-                rows={10}
-              />
-            </div>
-            <div className="rte2-code-modal-preview">
-              <span>Preview</span>
-              <pre className="rte2-code-pre" data-language={draftLanguage}>
-                <code className={`language-${draftPrismLanguage}`} dangerouslySetInnerHTML={{ __html: previewHtml }} />
-              </pre>
+              <label>Code</label>
+              <div className="rte2-code-monaco">
+                <Editor
+                  height="320px"
+                  language={getMonacoLanguage(draftLanguage)}
+                  value={draftCode}
+                  onChange={(value) => setDraftCode(value || '')}
+                  beforeMount={configureMonacoTheme}
+                  theme={RTE2_MONACO_THEME}
+                  options={{
+                    minimap: { enabled: false },
+                    fontSize: 13,
+                    lineHeight: 21,
+                    tabSize: 2,
+                    wordWrap: 'off',
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
+                    bracketPairColorization: { enabled: false },
+                    guides: { bracketPairs: false },
+                    matchBrackets: 'never',
+                    'semanticHighlighting.enabled': false
+                  }}
+                />
+              </div>
             </div>
             <div className="rte2-code-modal-actions">
               <button type="button" onClick={() => setShowEditModal(false)}>
@@ -460,17 +514,19 @@ const CmsCodeBlock = Node.create({
     return [
       {
         tag: 'div.rte2-code-block-wrapper[data-code-block="cms"]',
-        getAttrs: (element) => ({
-          language: normalizeCodeLanguage(element.getAttribute('data-language') || 'javascript'),
-          code: element.getAttribute('data-code') || element.querySelector('code')?.textContent || ''
-        })
+        getAttrs: parseCodeBlockAttrs
+      },
+      {
+        tag: 'div.rte2-code-block-wrapper',
+        getAttrs: parseCodeBlockAttrs
       },
       {
         tag: 'div.code-block-wrapper[data-code-block="cms"]',
-        getAttrs: (element) => ({
-          language: normalizeCodeLanguage(element.getAttribute('data-language') || 'javascript'),
-          code: element.getAttribute('data-code') || element.querySelector('code')?.textContent || ''
-        })
+        getAttrs: parseCodeBlockAttrs
+      },
+      {
+        tag: 'div.code-block-wrapper',
+        getAttrs: parseCodeBlockAttrs
       }
     ];
   },
@@ -550,8 +606,6 @@ const RichTextSectionEditorV2 = ({
   const [codeLanguage, setCodeLanguage] = useState(CODE_LANGUAGE_OPTIONS[0].value);
   const [codeContent, setCodeContent] = useState('');
   const [showCodeDialog, setShowCodeDialog] = useState(false);
-  const codeDialogPrismLanguage = useMemo(() => getPrismLanguage(codeLanguage), [codeLanguage]);
-  const codeDialogPreviewHtml = useMemo(() => highlightCodeHtml(codeLanguage, codeContent || ''), [codeContent, codeLanguage]);
 
   useEffect(() => {
     if (onImagesChange) {
@@ -1056,14 +1110,30 @@ const RichTextSectionEditorV2 = ({
               </label>
               <label>
                 Code
-                <textarea value={codeContent} onChange={(event) => setCodeContent(event.target.value)} rows={10} />
+                <div className="rte2-modal-code-editor">
+                  <Editor
+                    height="360px"
+                    language={getMonacoLanguage(codeLanguage)}
+                    value={codeContent}
+                    onChange={(value) => setCodeContent(value || '')}
+                    beforeMount={configureMonacoTheme}
+                    theme={RTE2_MONACO_THEME}
+                    options={{
+                      minimap: { enabled: false },
+                      fontSize: 14,
+                      lineHeight: 22,
+                      tabSize: 2,
+                      wordWrap: 'off',
+                      scrollBeyondLastLine: false,
+                      automaticLayout: true,
+                      bracketPairColorization: { enabled: false },
+                      guides: { bracketPairs: false },
+                      matchBrackets: 'never',
+                      'semanticHighlighting.enabled': false
+                    }}
+                  />
+                </div>
               </label>
-            </div>
-            <div className="rte2-modal-code-preview">
-              <span>Preview</span>
-              <pre className="rte2-code-pre" data-language={codeLanguage}>
-                <code className={`language-${codeDialogPrismLanguage}`} dangerouslySetInnerHTML={{ __html: codeDialogPreviewHtml }} />
-              </pre>
             </div>
             <div className="rte2-modal-actions">
               <button type="button" onClick={() => setShowCodeDialog(false)}>

@@ -759,3 +759,61 @@
     margin: 2rem 0;
   }
 }
+
+/* Consistent code theme with CMS editor (Monaco Dark+ aligned) */
+.rich-text-content .token.comment,
+.rich-text-content .token.prolog,
+.rich-text-content .token.doctype,
+.rich-text-content .token.cdata {
+  color: #6a9955 !important;
+  font-style: italic !important;
+}
+
+.rich-text-content .token.punctuation {
+  color: #d4d4d4 !important;
+}
+
+.rich-text-content .token.property,
+.rich-text-content .token.tag,
+.rich-text-content .token.boolean,
+.rich-text-content .token.number,
+.rich-text-content .token.constant,
+.rich-text-content .token.symbol,
+.rich-text-content .token.deleted {
+  color: #b5cea8 !important;
+}
+
+.rich-text-content .token.selector,
+.rich-text-content .token.attr-name,
+.rich-text-content .token.string,
+.rich-text-content .token.char,
+.rich-text-content .token.builtin,
+.rich-text-content .token.inserted {
+  color: #ce9178 !important;
+}
+
+.rich-text-content .token.operator,
+.rich-text-content .token.entity,
+.rich-text-content .token.url {
+  color: #d4d4d4 !important;
+}
+
+.rich-text-content .token.atrule,
+.rich-text-content .token.attr-value,
+.rich-text-content .token.keyword {
+  color: #569cd6 !important;
+}
+
+.rich-text-content .token.function {
+  color: #dcdcaa !important;
+}
+
+.rich-text-content .token.class-name {
+  color: #4ec9b0 !important;
+}
+
+.rich-text-content .token.regex,
+.rich-text-content .token.important,
+.rich-text-content .token.variable {
+  color: #d16969 !important;
+}
