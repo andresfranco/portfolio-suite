@@ -5,10 +5,34 @@
   min-height: 300px;
   outline: none;
   color: #e5e7eb;
+  /* Ensure natural text selection throughout the editor */
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  cursor: text;
 }
 
 .ProseMirror p {
   margin: 0.75rem 0;
+  /* Ensure text within paragraphs is naturally selectable */
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+}
+
+/* Paragraphs in table cells */
+.ProseMirror table td p,
+.ProseMirror table th p {
+  margin: 0.2em 0;
+  min-height: 1.4em;
+  line-height: 1.5;
+  /* CRITICAL: Ensure text is selectable with proper cursor */
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  cursor: text;
+  /* Prevent interference with ProseMirror selection */
+  position: relative;
 }
 
 .ProseMirror p:first-child {
@@ -990,6 +1014,31 @@
   transition: outline 0.2s ease, background-color 0.2s ease;
 }
 
+/* Ensure text content within table cells is naturally selectable */
+/* Don't force user-select on all descendants - let the browser handle it */
+.ProseMirror table td,
+.ProseMirror table th {
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  /* CRITICAL: Ensure proper cursor for text editing */
+  cursor: text;
+  /* Make sure pointer events work */
+  pointer-events: auto;
+}
+
+/* CRITICAL: Ensure paragraphs in cells are fully selectable */
+.ProseMirror table p {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  cursor: text !important;
+  /* CRITICAL: Allow text selection to work naturally */
+  pointer-events: auto !important;
+  /* Ensure the paragraph can receive mouse events */
+  position: relative;
+}
+
 /* Visual feedback when dragging over a cell */
 .ProseMirror table.borderless td.drag-over,
 .ProseMirror table.borderless th.drag-over,
@@ -1221,6 +1270,34 @@
 /* Selection */
 .ProseMirror ::selection {
   background-color: rgba(20, 200, 0, 0.3);
+}
+
+/* Improve selection visibility in table cells */
+.ProseMirror table td ::selection,
+.ProseMirror table th ::selection {
+  background-color: rgba(20, 200, 0, 0.4);
+}
+
+/* Ensure text is always selectable in cells */
+.ProseMirror table td,
+.ProseMirror table th {
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: text;
+}
+
+/* Prevent contenteditable issues in cells */
+.ProseMirror table td p,
+.ProseMirror table th p {
+  display: block;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Remove conflicting pseudo-elements during selection */
+.ProseMirror table td p:empty::before,
+.ProseMirror table th p:empty::before {
+  pointer-events: none;
 }
 
 /* Text alignment */
