@@ -294,7 +294,7 @@
 }
 
 .rte2-prosemirror .rte2-code-pre code .token.punctuation {
-  color: #d4d4d4 !important;
+  color: #ffd700 !important;
 }
 
 .rte2-prosemirror .rte2-code-pre code .token.property,
