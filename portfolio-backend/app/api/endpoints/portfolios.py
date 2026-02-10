@@ -77,6 +77,8 @@ def process_portfolios_for_response(
                 "id": portfolio.id,
                 "name": portfolio.name,
                 "description": portfolio.description,
+                "default_agent_id": getattr(portfolio, "default_agent_id", None),
+                "default_agent": None,
                 "created_at": portfolio.created_at,
                 "updated_at": portfolio.updated_at,
                 "categories": [],
@@ -86,6 +88,15 @@ def process_portfolios_for_response(
                 "images": [],
                 "attachments": []
             }
+
+            if hasattr(portfolio, "default_agent") and portfolio.default_agent:
+                portfolio_dict["default_agent"] = {
+                    "id": portfolio.default_agent.id,
+                    "name": portfolio.default_agent.name,
+                    "description": portfolio.default_agent.description,
+                    "is_active": portfolio.default_agent.is_active,
+                    "chat_model": portfolio.default_agent.chat_model,
+                }
             
             # Process categories
             if hasattr(portfolio, 'categories') and portfolio.categories:
@@ -537,6 +548,8 @@ def process_portfolios_for_response(
                 "id": portfolio.id if hasattr(portfolio, 'id') else None,
                 "name": portfolio.name if hasattr(portfolio, 'name') else "",
                 "description": portfolio.description if hasattr(portfolio, 'description') else "",
+                "default_agent_id": portfolio.default_agent_id if hasattr(portfolio, 'default_agent_id') else None,
+                "default_agent": None,
                 "created_at": portfolio.created_at if hasattr(portfolio, 'created_at') else None,
                 "updated_at": portfolio.updated_at if hasattr(portfolio, 'updated_at') else None,
                 "categories": [],
@@ -750,6 +763,8 @@ def read_portfolio(
         "id": portfolio.id,
         "name": portfolio.name,
         "description": portfolio.description,
+        "default_agent_id": portfolio.default_agent_id,
+        "default_agent": None,
         "created_at": portfolio.created_at,
         "updated_at": portfolio.updated_at,
         "categories": [],
@@ -1963,3 +1978,81 @@ def remove_portfolio_section(
             detail=f"Error removing section from portfolio: {str(e)}"
         )
 
+
+@router.post("/{portfolio_id}/agent/{agent_id}", status_code=status.HTTP_200_OK)
+@require_permission("EDIT_PORTFOLIO")
+def set_portfolio_default_agent(
+    *,
+    db: Session = Depends(deps.get_db),
+    portfolio_id: int,
+    agent_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Set the default AI agent for a portfolio.
+    """
+    logger.info(f"Setting default agent {agent_id} for portfolio {portfolio_id}")
+    try:
+        portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
+        if not portfolio:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Portfolio not found"
+            )
+
+        result = portfolio_crud.set_portfolio_default_agent(db, portfolio_id=portfolio_id, agent_id=agent_id)
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to set default agent for portfolio"
+            )
+
+        stage_event(db, {"op": "update", "source_table": "portfolios", "source_id": str(portfolio_id), "changed_fields": ["default_agent_id"]})
+        return {"message": "Default agent set successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error setting default agent for portfolio: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error setting default agent for portfolio: {str(e)}"
+        )
+
+
+@router.delete("/{portfolio_id}/agent", status_code=status.HTTP_200_OK)
+@require_permission("EDIT_PORTFOLIO")
+def clear_portfolio_default_agent(
+    *,
+    db: Session = Depends(deps.get_db),
+    portfolio_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Remove the default AI agent for a portfolio.
+    """
+    logger.info(f"Clearing default agent for portfolio {portfolio_id}")
+    try:
+        portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
+        if not portfolio:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Portfolio not found"
+            )
+
+        result = portfolio_crud.clear_portfolio_default_agent(db, portfolio_id=portfolio_id)
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to clear default agent for portfolio"
+            )
+
+        stage_event(db, {"op": "update", "source_table": "portfolios", "source_id": str(portfolio_id), "changed_fields": ["default_agent_id"]})
+        return {"message": "Default agent removed successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error clearing default agent for portfolio: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error clearing default agent for portfolio: {str(e)}"
+        )
