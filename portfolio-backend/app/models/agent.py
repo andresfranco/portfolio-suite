@@ -53,6 +53,7 @@ class Agent(Base):
 
     credential = relationship("AgentCredential", back_populates="agents")
     template = relationship("AgentTemplate", back_populates="agent", uselist=False)
+    portfolios = relationship("Portfolio", back_populates="default_agent")
 
 
 class AgentTemplate(Base):
@@ -105,5 +106,4 @@ class AgentTestRun(Base):
     token_usage = Column(JSONB, nullable=True)
     citations = Column(JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
 

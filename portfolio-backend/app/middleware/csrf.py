@@ -37,6 +37,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         "/api/auth/password-reset-request",
         "/api/auth/mfa/verify-login",
         "/api/email/send",  # Public contact form endpoint
+        "/api/website/chat",  # Public website chat endpoint
         "/docs",
         "/openapi.json",
         "/healthz",
@@ -97,4 +98,3 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         # Token is valid, process request
         response = await call_next(request)
         return response
-
