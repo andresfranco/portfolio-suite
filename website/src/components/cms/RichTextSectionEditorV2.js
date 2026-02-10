@@ -797,6 +797,79 @@ const RichTextSectionEditorV2 = ({
     }
   };
 
+  const focusIntoTableCell = useCallback((tableNode, tablePos) => {
+    if (!editor) return false;
+    if (!tableNode || typeof tablePos !== 'number') {
+      return false;
+    }
+    const tableStart = tablePos + 1;
+    let firstCellPosition = null;
+
+    tableNode.descendants((node, pos) => {
+      if (node.type?.name === 'tableCell' || node.type?.name === 'tableHeader') {
+        firstCellPosition = tableStart + pos + 1;
+        return false;
+      }
+      return true;
+    });
+
+    if (firstCellPosition == null) {
+      return false;
+    }
+
+    return editor.chain().focus().setTextSelection(firstCellPosition).run();
+  }, [editor]);
+
+  const ensureTableSelection = useCallback(() => {
+    if (!editor) return false;
+
+    const selection = editor.state.selection;
+    if (editor.isActive('table')) {
+      return true;
+    }
+
+    if (selection instanceof NodeSelection && selection.node?.type?.name === 'table') {
+      return focusIntoTableCell(selection.node, selection.from);
+    }
+
+    let firstTableNode = null;
+    let firstTablePos = null;
+
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type?.name === 'table') {
+        firstTableNode = node;
+        firstTablePos = pos;
+        return false;
+      }
+      return true;
+    });
+
+    if (!firstTableNode || firstTablePos == null) {
+      return false;
+    }
+
+    return focusIntoTableCell(firstTableNode, firstTablePos);
+  }, [editor, focusIntoTableCell]);
+
+  const runTableCommand = useCallback(
+    (commandName) => {
+      if (!editor) return false;
+
+      const run = () => editor.chain().focus()[commandName]().run();
+
+      if (run()) {
+        return true;
+      }
+
+      if (!ensureTableSelection()) {
+        return false;
+      }
+
+      return run();
+    },
+    [editor, ensureTableSelection]
+  );
+
   const setLink = () => {
     if (!editor) return;
 
@@ -920,6 +993,15 @@ const RichTextSectionEditorV2 = ({
   if (!editor) {
     return <div className="rte2-loading">Loading editor...</div>;
   }
+
+  let hasAnyTable = false;
+  editor.state.doc.descendants((node) => {
+    if (node.type?.name === 'table') {
+      hasAnyTable = true;
+      return false;
+    }
+    return true;
+  });
 
   return (
     <div className="rte2-editor">
@@ -1048,17 +1130,21 @@ const RichTextSectionEditorV2 = ({
             <FaTable />
             <span className="rte2-btn-label">3</span>
           </ToolbarButton>
-          <ToolbarButton title="Add row" onClick={() => editor.chain().focus().addRowAfter().run()} disabled={disabled || !editor.can().addRowAfter()}>
+          <ToolbarButton title="Add row" onClick={() => runTableCommand('addRowAfter')} disabled={disabled || !hasAnyTable}>
             <FaPlus />
+            <span className="rte2-btn-label">Row</span>
           </ToolbarButton>
-          <ToolbarButton title="Delete row" onClick={() => editor.chain().focus().deleteRow().run()} disabled={disabled || !editor.can().deleteRow()}>
+          <ToolbarButton title="Delete row" onClick={() => runTableCommand('deleteRow')} disabled={disabled || !hasAnyTable}>
             <FaMinus />
+            <span className="rte2-btn-label">Row</span>
           </ToolbarButton>
-          <ToolbarButton title="Add column" onClick={() => editor.chain().focus().addColumnAfter().run()} disabled={disabled || !editor.can().addColumnAfter()}>
+          <ToolbarButton title="Add column" onClick={() => runTableCommand('addColumnAfter')} disabled={disabled || !hasAnyTable}>
             <FaPlus />
+            <span className="rte2-btn-label">Column</span>
           </ToolbarButton>
-          <ToolbarButton title="Delete column" onClick={() => editor.chain().focus().deleteColumn().run()} disabled={disabled || !editor.can().deleteColumn()}>
+          <ToolbarButton title="Delete column" onClick={() => runTableCommand('deleteColumn')} disabled={disabled || !hasAnyTable}>
             <FaMinus />
+            <span className="rte2-btn-label">Column</span>
           </ToolbarButton>
         </div>
 
