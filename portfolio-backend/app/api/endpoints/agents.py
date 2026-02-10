@@ -147,7 +147,7 @@ def delete_credential(
 
 
 @router.get("/", response_model=List[AgentOut])
-@require_any_permission(["MANAGE_AGENTS", "SYSTEM_ADMIN"])  # list agents
+@require_any_permission(["MANAGE_AGENTS", "EDIT_PORTFOLIO", "SYSTEM_ADMIN"])  # list agents for admin and portfolio assignment
 def list_agents(
     *,
     db: Session = Depends(deps.get_db),
@@ -328,4 +328,3 @@ async def agent_chat_stream(
             "X-Accel-Buffering": "no",  # Disable nginx buffering
         }
     )
-
