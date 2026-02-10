@@ -44,6 +44,7 @@ class Portfolio(Base):
     name = Column(String, index=True, nullable=False)
     description = Column(Text)
     is_default = Column(Boolean, default=False, nullable=False, index=True)
+    default_agent_id = Column(Integer, ForeignKey("agents.id", ondelete="SET NULL"), nullable=True, index=True)
     
     # Timestamp and user tracking fields
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -74,6 +75,7 @@ class Portfolio(Base):
     images = relationship("PortfolioImage", back_populates="portfolio", cascade="all, delete-orphan")
     attachments = relationship("PortfolioAttachment", back_populates="portfolio", cascade="all, delete-orphan")
     links = relationship("PortfolioLink", back_populates="portfolio", cascade="all, delete-orphan", order_by="PortfolioLink.order")
+    default_agent = relationship("Agent", back_populates="portfolios", foreign_keys=[default_agent_id])
 
 
 class PortfolioImage(Base):
