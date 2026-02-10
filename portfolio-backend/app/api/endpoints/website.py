@@ -5,18 +5,26 @@ No authentication required for viewing content.
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from typing import Any, Optional, List
+from pydantic import BaseModel, Field
 from app.api import deps
 from app.crud import portfolio as portfolio_crud, experience as experience_crud
 from app.schemas.portfolio import PortfolioOut
 from app.schemas.experience import Experience as ExperienceSchema
 from app.api.endpoints.portfolios import process_portfolios_for_response
 from app.core.logging import setup_logger
+from app.services.chat_service import run_agent_chat
 
 # Set up logger
 logger = setup_logger("app.api.endpoints.website")
 
 # Define router
 router = APIRouter()
+
+
+class PublicPortfolioChatRequest(BaseModel):
+    message: str = Field(..., min_length=1)
+    session_id: Optional[int] = None
+    language_id: Optional[int] = None
 
 
 @router.get("/experiences", response_model=List[ExperienceSchema])
@@ -262,3 +270,53 @@ def filter_by_language(portfolio_data: dict, language_code: str) -> dict:
     
     logger.debug(f"Filtered portfolio content for language: {language_code}")
     return portfolio_data
+
+
+@router.post("/chat/portfolios/{portfolio_id}")
+def chat_with_portfolio_agent(
+    portfolio_id: int,
+    payload: PublicPortfolioChatRequest,
+    db: Session = Depends(deps.get_db),
+) -> Any:
+    """
+    Public chat endpoint for website visitors.
+    Uses the portfolio's configured default agent.
+    """
+    logger.info(f"Website chat requested for portfolio {portfolio_id}")
+
+    portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id, full_details=True)
+    if not portfolio:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Portfolio with ID {portfolio_id} not found"
+        )
+
+    if not portfolio.default_agent_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No default AI agent configured for this portfolio"
+        )
+
+    try:
+        result = run_agent_chat(
+            db,
+            agent_id=portfolio.default_agent_id,
+            user_message=payload.message,
+            session_id=payload.session_id,
+            portfolio_id=portfolio_id,
+            language_id=payload.language_id,
+        )
+        result["agent_id"] = portfolio.default_agent_id
+        return result
+    except ValueError as e:
+        logger.warning(f"Website chat rejected for portfolio {portfolio_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Error during website chat for portfolio {portfolio_id}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process chat request"
+        )

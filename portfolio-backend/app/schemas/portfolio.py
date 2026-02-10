@@ -97,6 +97,15 @@ class PortfolioAttachmentOut(PortfolioAttachmentBase):
     
     model_config = ConfigDict(from_attributes=True)
 
+class PortfolioAgentNested(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    is_active: bool = True
+    chat_model: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
 class PortfolioBase(BaseModel):
     name: str
     description: Optional[str] = None
@@ -112,6 +121,7 @@ class PortfolioBase(BaseModel):
         return v.strip()
 
 class PortfolioCreate(PortfolioBase):
+    default_agent_id: Optional[int] = None
     categories: Optional[List[int]] = []
     experiences: Optional[List[int]] = []
     projects: Optional[List[int]] = []
@@ -123,6 +133,7 @@ class PortfolioUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     is_default: Optional[bool] = None
+    default_agent_id: Optional[int] = None
     categories: Optional[List[int]] = None
     experiences: Optional[List[int]] = None
     projects: Optional[List[int]] = None
@@ -142,6 +153,8 @@ class PortfolioUpdate(BaseModel):
 class PortfolioOut(PortfolioBase):
     id: int
     is_default: bool = False
+    default_agent_id: Optional[int] = None
+    default_agent: Optional[PortfolioAgentNested] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     categories: List[Dict[str, Any]] = []

@@ -7,6 +7,7 @@ from app.models.category import Category, CategoryText
 from app.models.experience import Experience, ExperienceText
 from app.models.project import Project, ProjectText
 from app.models.section import Section, SectionText
+from app.models.agent import Agent
 from app.schemas.portfolio import PortfolioCreate, PortfolioUpdate, PortfolioImageCreate, PortfolioImageUpdate, PortfolioAttachmentCreate, Filter
 from typing import List, Optional, Tuple
 from app.core.logging import setup_logger
@@ -22,7 +23,7 @@ def get_portfolio(db: Session, portfolio_id: int, full_details: bool = False) ->
     logger.debug(f"Fetching portfolio with ID {portfolio_id}, full_details={full_details}")
     try:
         supports_experience_images = False
-        query = db.query(Portfolio)
+        query = db.query(Portfolio).options(selectinload(Portfolio.default_agent))
         if full_details:
             supports_experience_images = experience_crud.experience_images_supported(db)
             loader_options = [
@@ -111,6 +112,9 @@ def get_portfolio(db: Session, portfolio_id: int, full_details: bool = False) ->
                 if hasattr(link, 'link_texts'):
                     _ = len(link.link_texts)
 
+            if portfolio.default_agent:
+                _ = portfolio.default_agent.id
+
             logger.debug(f"Portfolio found: {portfolio.name} with {len(portfolio.categories or [])} categories, {len(portfolio.experiences or [])} experiences, {len(portfolio.projects or [])} projects, {len(portfolio.sections or [])} sections, {len(portfolio.links or [])} links")
         elif portfolio:
             logger.debug(f"Portfolio found: {portfolio.name} (basic details only)")
@@ -130,7 +134,8 @@ def create_portfolio(db: Session, portfolio: PortfolioCreate) -> Portfolio:
         # Create the portfolio
         db_portfolio = Portfolio(
             name=portfolio.name,
-            description=portfolio.description
+            description=portfolio.description,
+            default_agent_id=portfolio.default_agent_id,
         )
         db.add(db_portfolio)
         db.flush()  # Flush to get the portfolio ID
@@ -326,7 +331,7 @@ def get_portfolios(db: Session, skip: int = 0, limit: int = 100) -> List[Portfol
     """Get portfolios with basic pagination"""
     logger.debug(f"Fetching portfolios with skip={skip}, limit={limit}")
     try:
-        portfolios = db.query(Portfolio).offset(skip).limit(limit).all()
+        portfolios = db.query(Portfolio).options(selectinload(Portfolio.default_agent)).offset(skip).limit(limit).all()
         logger.debug(f"Retrieved {len(portfolios)} portfolios")
         return portfolios
     except Exception as e:
@@ -345,7 +350,7 @@ def get_portfolios_paginated(
     logger.debug(f"Getting paginated portfolios: page={page}, page_size={page_size}")
     
     try:
-        query = db.query(Portfolio)
+        query = db.query(Portfolio).options(selectinload(Portfolio.default_agent))
         
         # Apply filters
         if filters:
@@ -833,4 +838,47 @@ def remove_portfolio_section(db: Session, portfolio_id: int, section_id: int) ->
         return True
     except Exception as e:
         logger.error(f"Error removing section {section_id} from portfolio {portfolio_id}: {str(e)}", exc_info=True)
+        raise
+
+
+@db_transaction
+def set_portfolio_default_agent(db: Session, portfolio_id: int, agent_id: int) -> bool:
+    """Set the default agent for a portfolio."""
+    logger.debug(f"Setting default agent {agent_id} for portfolio {portfolio_id}")
+
+    try:
+        portfolio = get_portfolio(db, portfolio_id)
+        if not portfolio:
+            logger.warning(f"Portfolio {portfolio_id} not found")
+            return False
+
+        agent = db.query(Agent).filter(Agent.id == agent_id).first()
+        if not agent:
+            logger.warning(f"Agent {agent_id} not found")
+            return False
+
+        portfolio.default_agent_id = agent.id
+        logger.info(f"Default agent for portfolio {portfolio_id} set to agent {agent_id}")
+        return True
+    except Exception as e:
+        logger.error(f"Error setting default agent {agent_id} for portfolio {portfolio_id}: {str(e)}", exc_info=True)
+        raise
+
+
+@db_transaction
+def clear_portfolio_default_agent(db: Session, portfolio_id: int) -> bool:
+    """Remove the default agent assignment for a portfolio."""
+    logger.debug(f"Clearing default agent for portfolio {portfolio_id}")
+
+    try:
+        portfolio = get_portfolio(db, portfolio_id)
+        if not portfolio:
+            logger.warning(f"Portfolio {portfolio_id} not found")
+            return False
+
+        portfolio.default_agent_id = None
+        logger.info(f"Default agent cleared for portfolio {portfolio_id}")
+        return True
+    except Exception as e:
+        logger.error(f"Error clearing default agent for portfolio {portfolio_id}: {str(e)}", exc_info=True)
         raise
