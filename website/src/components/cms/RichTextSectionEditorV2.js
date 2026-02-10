@@ -167,10 +167,10 @@ const configureMonacoTheme = (monaco) => {
     inherit: true,
     semanticHighlighting: false,
     rules: [
-      { token: 'delimiter', foreground: 'D4D4D4' },
-      { token: 'delimiter.parenthesis', foreground: 'D4D4D4' },
-      { token: 'delimiter.bracket', foreground: 'D4D4D4' },
-      { token: 'delimiter.curly', foreground: 'D4D4D4' }
+      { token: 'delimiter', foreground: 'FFD700' },
+      { token: 'delimiter.parenthesis', foreground: 'FFD700' },
+      { token: 'delimiter.bracket', foreground: 'FFD700' },
+      { token: 'delimiter.curly', foreground: 'FFD700' }
     ],
     colors: {}
   });
@@ -468,6 +468,7 @@ const CmsCodeBlockView = ({ node, updateAttributes, deleteNode, selected }) => {
                   onChange={(value) => setDraftCode(value || '')}
                   beforeMount={configureMonacoTheme}
                   theme={RTE2_MONACO_THEME}
+                  onMount={(nextEditor) => nextEditor.focus()}
                   options={{
                     minimap: { enabled: false },
                     fontSize: 13,
@@ -476,6 +477,9 @@ const CmsCodeBlockView = ({ node, updateAttributes, deleteNode, selected }) => {
                     wordWrap: 'off',
                     scrollBeyondLastLine: false,
                     automaticLayout: true,
+                    readOnly: false,
+                    domReadOnly: false,
+                    accessibilitySupport: 'on',
                     bracketPairColorization: { enabled: false },
                     guides: { bracketPairs: false },
                     matchBrackets: 'never',
@@ -1098,18 +1102,22 @@ const RichTextSectionEditorV2 = ({
           <div className="rte2-modal rte2-modal-code">
             <h3>Code Block</h3>
             <div className="rte2-modal-grid">
-              <label>
-                Language
-                <select value={codeLanguage} onChange={(event) => setCodeLanguage(event.target.value)}>
+              <div className="rte2-code-modal-row">
+                <label htmlFor="rte2-insert-code-language">Language</label>
+                <select
+                  id="rte2-insert-code-language"
+                  value={codeLanguage}
+                  onChange={(event) => setCodeLanguage(event.target.value)}
+                >
                   {CODE_LANGUAGE_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
                   ))}
                 </select>
-              </label>
-              <label>
-                Code
+              </div>
+              <div className="rte2-code-modal-editor">
+                <label>Code</label>
                 <div className="rte2-modal-code-editor">
                   <Editor
                     height="360px"
@@ -1118,6 +1126,7 @@ const RichTextSectionEditorV2 = ({
                     onChange={(value) => setCodeContent(value || '')}
                     beforeMount={configureMonacoTheme}
                     theme={RTE2_MONACO_THEME}
+                    onMount={(nextEditor) => nextEditor.focus()}
                     options={{
                       minimap: { enabled: false },
                       fontSize: 14,
@@ -1126,6 +1135,9 @@ const RichTextSectionEditorV2 = ({
                       wordWrap: 'off',
                       scrollBeyondLastLine: false,
                       automaticLayout: true,
+                      readOnly: false,
+                      domReadOnly: false,
+                      accessibilitySupport: 'on',
                       bracketPairColorization: { enabled: false },
                       guides: { bracketPairs: false },
                       matchBrackets: 'never',
@@ -1133,7 +1145,7 @@ const RichTextSectionEditorV2 = ({
                     }}
                   />
                 </div>
-              </label>
+              </div>
             </div>
             <div className="rte2-modal-actions">
               <button type="button" onClick={() => setShowCodeDialog(false)}>
