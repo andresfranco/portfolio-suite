@@ -21,12 +21,12 @@ function App() {
         <EditModeProvider>
           <BrowserRouter>
             <ErrorBoundary>
-              <div className="min-h-screen flex flex-col bg-[#03060a] text-white">
+              <div className="min-h-screen w-full flex flex-col bg-[#03060a] text-white">
                 {/* Edit Mode Indicator - only visible when in edit mode via backend */}
                 <EditModeIndicator />
                 
                 <Header />
-                <main className="flex-grow">
+                <div role="main" className="flex-grow w-full">
                   <Routes>
                     <Route path="/" element={<HomePage />} />
                     {/* Base routes */}
@@ -41,7 +41,7 @@ function App() {
                     <Route path="/:lang/experience/:experienceId" element={<ExperienceDetailsPage />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
-                </main>
+                </div>
                 <Footer />
                 <ChatModal />
               </div>
