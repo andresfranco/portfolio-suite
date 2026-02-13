@@ -13,6 +13,7 @@ from app.schemas.experience import Experience as ExperienceSchema
 from app.api.endpoints.portfolios import process_portfolios_for_response
 from app.core.logging import setup_logger
 from app.services.chat_service import run_agent_chat
+from app.models.agent import Agent
 
 # Set up logger
 logger = setup_logger("app.api.endpoints.website")
@@ -25,6 +26,14 @@ class PublicPortfolioChatRequest(BaseModel):
     message: str = Field(..., min_length=1)
     session_id: Optional[int] = None
     language_id: Optional[int] = None
+
+
+def _get_active_fallback_agent_ids(db: Session, exclude_agent_ids: List[int], limit: int = 3) -> List[int]:
+    query = db.query(Agent.id).filter(Agent.is_active == True)
+    if exclude_agent_ids:
+        query = query.filter(~Agent.id.in_(exclude_agent_ids))
+    rows = query.order_by(Agent.id.asc()).limit(limit).all()
+    return [int(row[0]) for row in rows]
 
 
 @router.get("/experiences", response_model=List[ExperienceSchema])
@@ -291,32 +300,52 @@ def chat_with_portfolio_agent(
             detail=f"Portfolio with ID {portfolio_id} not found"
         )
 
-    if not portfolio.default_agent_id:
+    candidate_agent_ids: List[int] = []
+    if portfolio.default_agent_id:
+        candidate_agent_ids.append(int(portfolio.default_agent_id))
+
+    candidate_agent_ids.extend(
+        _get_active_fallback_agent_ids(db, exclude_agent_ids=candidate_agent_ids, limit=5)
+    )
+
+    if not candidate_agent_ids:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No default AI agent configured for this portfolio"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="No active AI agent is available for this portfolio"
         )
 
-    try:
-        result = run_agent_chat(
-            db,
-            agent_id=portfolio.default_agent_id,
-            user_message=payload.message,
-            session_id=payload.session_id,
-            portfolio_id=portfolio_id,
-            language_id=payload.language_id,
-        )
-        result["agent_id"] = portfolio.default_agent_id
-        return result
-    except ValueError as e:
-        logger.warning(f"Website chat rejected for portfolio {portfolio_id}: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        logger.error(f"Error during website chat for portfolio {portfolio_id}: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to process chat request"
-        )
+    attempt_errors: List[str] = []
+    for attempt_index, candidate_agent_id in enumerate(candidate_agent_ids):
+        try:
+            result = run_agent_chat(
+                db,
+                agent_id=candidate_agent_id,
+                user_message=payload.message,
+                session_id=payload.session_id if attempt_index == 0 else None,
+                portfolio_id=portfolio_id,
+                language_id=payload.language_id,
+                raise_on_provider_error=True,
+            )
+            result["agent_id"] = candidate_agent_id
+            result["used_default_agent"] = bool(portfolio.default_agent_id) and candidate_agent_id == int(portfolio.default_agent_id)
+            result["fallback_agent_used"] = bool(portfolio.default_agent_id) and candidate_agent_id != int(portfolio.default_agent_id)
+            return result
+        except ValueError as exc:
+            err = f"agent={candidate_agent_id} value_error={str(exc)}"
+            attempt_errors.append(err)
+            logger.warning(f"Website chat attempt failed for portfolio {portfolio_id}: {err}")
+            continue
+        except Exception as exc:
+            err = f"agent={candidate_agent_id} runtime_error={str(exc)}"
+            attempt_errors.append(err)
+            logger.warning(f"Website chat attempt failed for portfolio {portfolio_id}: {err}")
+            continue
+
+    logger.error(
+        f"All agent chat attempts failed for portfolio {portfolio_id}. "
+        f"default_agent_id={portfolio.default_agent_id}, attempts={attempt_errors}"
+    )
+    raise HTTPException(
+        status_code=status.HTTP_502_BAD_GATEWAY,
+        detail="AI assistant is temporarily unavailable. Please try again."
+    )
