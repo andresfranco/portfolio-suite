@@ -15,7 +15,8 @@ import {
   FormControl,
   InputLabel,
   Divider,
-  Button
+  Button,
+  Link
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
@@ -26,6 +27,180 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { useAgentAdmin } from '../../contexts/AgentAdminContext';
 import agentAdminApi from '../../services/agentAdminApi';
 import languagesApi from '../../services/languageApi';
+
+const INLINE_TOKEN_REGEX = /(\*\*[^*]+\*\*|`[^`]+`|https?:\/\/[^\s]+)/g;
+const NUMBERED_LIST_REGEX = /^(\d+)\.\s+(.+)$/;
+const BULLET_LIST_REGEX = /^[-*]\s+(.+)$/;
+
+function renderInlineTokens(text, keyPrefix, isUser) {
+  if (!text) return null;
+  const tokens = text.split(INLINE_TOKEN_REGEX);
+
+  return tokens.map((token, index) => {
+    const key = `${keyPrefix}-${index}`;
+
+    if (token.startsWith('**') && token.endsWith('**')) {
+      return (
+        <Box
+          key={key}
+          component="strong"
+          sx={{
+            fontWeight: 700,
+            color: isUser ? 'inherit' : 'success.dark'
+          }}
+        >
+          {token.slice(2, -2)}
+        </Box>
+      );
+    }
+
+    if (token.startsWith('`') && token.endsWith('`')) {
+      return (
+        <Box
+          key={key}
+          component="code"
+          sx={{
+            fontFamily: 'Monaco, Consolas, monospace',
+            fontSize: '0.85em',
+            px: 0.5,
+            py: 0.2,
+            borderRadius: 0.75,
+            bgcolor: isUser ? 'rgba(255,255,255,0.2)' : 'grey.200',
+            border: '1px solid',
+            borderColor: isUser ? 'rgba(255,255,255,0.28)' : 'grey.400'
+          }}
+        >
+          {token.slice(1, -1)}
+        </Box>
+      );
+    }
+
+    if (token.startsWith('http://') || token.startsWith('https://')) {
+      return (
+        <Link
+          key={key}
+          href={token}
+          target="_blank"
+          rel="noreferrer"
+          underline="hover"
+          sx={{
+            color: isUser ? 'rgba(255,255,255,0.92)' : 'info.dark',
+            fontWeight: 500,
+            wordBreak: 'break-all'
+          }}
+        >
+          {token}
+        </Link>
+      );
+    }
+
+    return <React.Fragment key={key}>{token}</React.Fragment>;
+  });
+}
+
+function RichMessageContent({ content, isUser }) {
+  const lines = (content || '').split('\n');
+  const blocks = [];
+  let idx = 0;
+
+  while (idx < lines.length) {
+    const trimmed = lines[idx].trim();
+
+    if (!trimmed) {
+      idx += 1;
+      continue;
+    }
+
+    if (NUMBERED_LIST_REGEX.test(trimmed)) {
+      const items = [];
+      while (idx < lines.length) {
+        const match = lines[idx].trim().match(NUMBERED_LIST_REGEX);
+        if (!match) break;
+        items.push(match[2]);
+        idx += 1;
+      }
+      const blockIndex = idx;
+
+      blocks.push(
+        <Box
+          key={`ol-${blockIndex}`}
+          component="ol"
+          sx={{
+            mt: 0,
+            mb: 0,
+            pl: 3,
+            '& li::marker': {
+              color: isUser ? 'rgba(255,255,255,0.8)' : 'info.main',
+              fontWeight: 700
+            }
+          }}
+        >
+          {items.map((item, itemIndex) => (
+            <Box key={`ol-item-${itemIndex}`} component="li" sx={{ mb: 0.5, lineHeight: 1.55 }}>
+              {renderInlineTokens(item, `ol-${blockIndex}-${itemIndex}`, isUser)}
+            </Box>
+          ))}
+        </Box>
+      );
+      continue;
+    }
+
+    if (BULLET_LIST_REGEX.test(trimmed)) {
+      const items = [];
+      while (idx < lines.length) {
+        const match = lines[idx].trim().match(BULLET_LIST_REGEX);
+        if (!match) break;
+        items.push(match[1]);
+        idx += 1;
+      }
+      const blockIndex = idx;
+
+      blocks.push(
+        <Box
+          key={`ul-${blockIndex}`}
+          component="ul"
+          sx={{
+            mt: 0,
+            mb: 0,
+            pl: 3,
+            '& li::marker': {
+              color: isUser ? 'rgba(255,255,255,0.8)' : 'success.main'
+            }
+          }}
+        >
+          {items.map((item, itemIndex) => (
+            <Box key={`ul-item-${itemIndex}`} component="li" sx={{ mb: 0.5, lineHeight: 1.55 }}>
+              {renderInlineTokens(item, `ul-${blockIndex}-${itemIndex}`, isUser)}
+            </Box>
+          ))}
+        </Box>
+      );
+      continue;
+    }
+
+    const paragraphLines = [];
+    while (idx < lines.length) {
+      const line = lines[idx];
+      const lineTrimmed = line.trim();
+      if (!lineTrimmed) break;
+      if (NUMBERED_LIST_REGEX.test(lineTrimmed) || BULLET_LIST_REGEX.test(lineTrimmed)) break;
+      paragraphLines.push(lineTrimmed);
+      idx += 1;
+    }
+
+    blocks.push(
+      <Typography key={`p-${idx}`} variant="body1" sx={{ lineHeight: 1.6 }}>
+        {renderInlineTokens(paragraphLines.join(' '), `p-${idx}`, isUser)}
+      </Typography>
+    );
+  }
+
+  if (!blocks.length) {
+    return <Typography variant="body1">{content}</Typography>;
+  }
+
+  return <Stack spacing={1}>{blocks}</Stack>;
+}
 
 /**
  * ChatGPT-like interface for Agent conversations
@@ -460,15 +635,9 @@ function MessageBubble({ message, onCopy }) {
           }}
         >
           {/* Message Text */}
-          <Typography 
-            variant="body1" 
-            sx={{ 
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word'
-            }}
-          >
-            {message.content}
-          </Typography>
+          <Box sx={{ wordBreak: 'break-word' }}>
+            <RichMessageContent content={message.content} isUser={isUser} />
+          </Box>
 
           {/* Citations */}
           {!isUser && message.citations && message.citations.length > 0 && (

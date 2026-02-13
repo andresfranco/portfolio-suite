@@ -80,6 +80,263 @@ const createWelcomeMessage = (portfolioName, languageCopy) => {
   );
 };
 
+const INLINE_TOKEN_REGEX = /(\*\*[^*]+\*\*|`[^`]+`|https?:\/\/[^\s]+)/g;
+const NUMBERED_LIST_REGEX = /^(\d+)\.\s+(.+)$/;
+const BULLET_LIST_REGEX = /^[-*]\s+(.+)$/;
+const INLINE_NUMBERED_LIST_REGEX = /(?:^|\s)(\d+)\.\s+([\s\S]+?)(?=(?:\s+\d+\.\s+)|$)/g;
+const INLINE_BULLET_LIST_REGEX = /(?:^|\s)-\s+([\s\S]+?)(?=(?:\s+-\s+)|$)/g;
+
+const splitListItemTitleAndDescription = (itemText) => {
+  const raw = (itemText || '').trim();
+  if (!raw) return { title: '', description: '' };
+
+  const boldTitleMatch = raw.match(/^\*\*([^*]+)\*\*:\s*(.+)$/);
+  if (boldTitleMatch) {
+    return {
+      title: boldTitleMatch[1].trim(),
+      description: boldTitleMatch[2].trim(),
+    };
+  }
+
+  const genericTitleMatch = raw.match(/^([^:]{2,120}):\s*(.+)$/);
+  if (genericTitleMatch) {
+    return {
+      title: genericTitleMatch[1].trim(),
+      description: genericTitleMatch[2].trim(),
+    };
+  }
+
+  return { title: '', description: raw };
+};
+
+const renderListItemContent = (itemText, keyPrefix) => {
+  const { title, description } = splitListItemTitleAndDescription(itemText);
+
+  if (title) {
+    return (
+      <div className="space-y-1">
+        <p className="font-semibold text-[#b8ffb2]">
+          {renderInlineContent(title, `${keyPrefix}-title`)}
+        </p>
+        {description ? (
+          <p className="text-white/92 leading-relaxed">
+            {renderInlineContent(description, `${keyPrefix}-desc`)}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <p className="leading-relaxed text-white/95">
+      {renderInlineContent(description, `${keyPrefix}-plain`)}
+    </p>
+  );
+};
+
+const renderInlineContent = (text, keyPrefix) => {
+  if (!text) return null;
+
+  const tokens = text.split(INLINE_TOKEN_REGEX);
+  return tokens.map((token, index) => {
+    const key = `${keyPrefix}-${index}`;
+
+    if (token.startsWith('**') && token.endsWith('**')) {
+      return (
+        <strong key={key} className="font-semibold text-[#b8ffb2]">
+          {token.slice(2, -2)}
+        </strong>
+      );
+    }
+
+    if (token.startsWith('`') && token.endsWith('`')) {
+      return (
+        <code key={key} className="font-mono text-[12px] bg-[#112034] text-[#8ed8ff] px-1.5 py-0.5 rounded-md border border-[#2a4868]">
+          {token.slice(1, -1)}
+        </code>
+      );
+    }
+
+    if (token.startsWith('http://') || token.startsWith('https://')) {
+      return (
+        <a
+          key={key}
+          href={token}
+          target="_blank"
+          rel="noreferrer"
+          className="text-[#7cd2ff] underline decoration-[#7cd2ff]/50 hover:text-[#9ee0ff]"
+        >
+          {token}
+        </a>
+      );
+    }
+
+    return <React.Fragment key={key}>{token}</React.Fragment>;
+  });
+};
+
+const AssistantMessageBody = ({ text }) => {
+  const lines = (text || '').split('\n');
+  const blocks = [];
+  let idx = 0;
+
+  const extractInlineNumberedItems = (value) => {
+    const normalized = (value || '').replace(/\s+/g, ' ').trim();
+    if (!normalized) return [];
+
+    const items = [];
+    let match;
+    const matcher = new RegExp(INLINE_NUMBERED_LIST_REGEX);
+
+    while ((match = matcher.exec(normalized)) !== null) {
+      const itemText = (match[2] || '').trim();
+      if (itemText) {
+        items.push(itemText);
+      }
+    }
+
+    return items.length >= 2 ? items : [];
+  };
+
+  const extractInlineBulletItems = (value) => {
+    const normalized = (value || '').replace(/\s+/g, ' ').trim();
+    if (!normalized) return [];
+
+    const items = [];
+    let match;
+    const matcher = new RegExp(INLINE_BULLET_LIST_REGEX);
+
+    while ((match = matcher.exec(normalized)) !== null) {
+      const itemText = (match[1] || '').trim();
+      if (itemText) {
+        items.push(itemText);
+      }
+    }
+
+    if (items.length >= 2) return items;
+    if (items.length === 1 && normalized.startsWith('- ')) return items;
+    return [];
+  };
+
+  while (idx < lines.length) {
+    const currentLine = lines[idx];
+    const trimmed = currentLine.trim();
+
+    if (!trimmed) {
+      idx += 1;
+      continue;
+    }
+
+    const numberedMatch = trimmed.match(NUMBERED_LIST_REGEX);
+    if (numberedMatch) {
+      const items = [];
+      while (idx < lines.length) {
+        const match = lines[idx].trim().match(NUMBERED_LIST_REGEX);
+        if (!match) break;
+        items.push(match[2]);
+        idx += 1;
+      }
+
+      blocks.push(
+        <ol key={`ol-${idx}`} className="list-decimal ml-5 space-y-3 marker:text-[#7cd2ff] marker:font-semibold">
+          {items.map((item, itemIndex) => (
+            <li key={`ol-item-${itemIndex}`} className="pl-1 leading-relaxed">
+              {renderListItemContent(item, `ol-${idx}-${itemIndex}`)}
+            </li>
+          ))}
+        </ol>
+      );
+      continue;
+    }
+
+    const bulletMatch = trimmed.match(BULLET_LIST_REGEX);
+    if (bulletMatch) {
+      const items = [];
+      while (idx < lines.length) {
+        const match = lines[idx].trim().match(BULLET_LIST_REGEX);
+        if (!match) break;
+        items.push(match[1]);
+        idx += 1;
+      }
+
+      blocks.push(
+        <ul key={`ul-${idx}`} className="list-disc ml-5 space-y-3 marker:text-[#8df59f]">
+          {items.map((item, itemIndex) => (
+            <li key={`ul-item-${itemIndex}`} className="pl-1 leading-relaxed">
+              {renderListItemContent(item, `ul-${idx}-${itemIndex}`)}
+            </li>
+          ))}
+        </ul>
+      );
+      continue;
+    }
+
+    const paragraphLines = [];
+    while (idx < lines.length) {
+      const line = lines[idx];
+      const lineTrimmed = line.trim();
+      if (!lineTrimmed) break;
+      if (NUMBERED_LIST_REGEX.test(lineTrimmed) || BULLET_LIST_REGEX.test(lineTrimmed)) break;
+      paragraphLines.push(lineTrimmed);
+      idx += 1;
+    }
+
+    const paragraphText = paragraphLines.join(' ');
+    const inlineNumberedItems = extractInlineNumberedItems(paragraphText);
+    if (inlineNumberedItems.length > 0) {
+      blocks.push(
+        <ol key={`ol-inline-${idx}`} className="list-decimal ml-5 space-y-3 marker:text-[#7cd2ff] marker:font-semibold">
+          {inlineNumberedItems.map((item, itemIndex) => (
+            <li key={`ol-inline-item-${itemIndex}`} className="pl-1 leading-relaxed">
+              {renderListItemContent(item, `ol-inline-${idx}-${itemIndex}`)}
+            </li>
+          ))}
+        </ol>
+      );
+      continue;
+    }
+
+    const inlineBulletItems = extractInlineBulletItems(paragraphText);
+    if (inlineBulletItems.length > 0) {
+      blocks.push(
+        <ul key={`ul-inline-${idx}`} className="list-disc ml-5 space-y-3 marker:text-[#8df59f]">
+          {inlineBulletItems.map((item, itemIndex) => (
+            <li key={`ul-inline-item-${itemIndex}`} className="pl-1 leading-relaxed">
+              {renderListItemContent(item, `ul-inline-${idx}-${itemIndex}`)}
+            </li>
+          ))}
+        </ul>
+      );
+      continue;
+    }
+
+    blocks.push(
+      <p key={`p-${idx}`} className="leading-relaxed text-white/95">
+        {renderInlineContent(paragraphText, `p-${idx}`)}
+      </p>
+    );
+  }
+
+  if (!blocks.length) {
+    return <p className="leading-relaxed text-white/95">{text}</p>;
+  }
+
+  return <div className="space-y-2.5">{blocks}</div>;
+};
+
+const getCitationLabel = (citation) => {
+  if (!citation) return '';
+  return (
+    citation.title ||
+    citation?.metadata?.title ||
+    citation.file_name ||
+    citation.type ||
+    (citation.source_table && citation.source_id
+      ? `${citation.source_table} #${citation.source_id}`
+      : 'Source')
+  );
+};
+
 const ChatModal = () => {
   const { language } = useContext(LanguageContext);
   const { portfolio } = usePortfolio();
@@ -274,17 +531,36 @@ const ChatModal = () => {
                   className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[82%] px-3.5 py-2.5 rounded-2xl text-sm whitespace-pre-wrap break-words ${
+                    className={`max-w-[82%] px-3.5 py-2.5 rounded-2xl text-sm break-words ${
                       message.sender === 'user'
                         ? 'bg-[#14C800]/20 border border-[#14C800]/35 text-white'
                         : 'bg-white/5 border border-white/10 text-white/95'
                     }`}
                   >
-                    {message.text}
-                    {message.sender === 'assistant' && message.citations?.length > 0 && (
-                      <p className="mt-2 text-[11px] text-white/60">
-                        {languageCopy.sources}: {message.citations.length}
-                      </p>
+                    {message.sender === 'assistant' ? (
+                      <AssistantMessageBody text={message.text} />
+                    ) : (
+                      <p className="whitespace-pre-wrap leading-relaxed">{message.text}</p>
+                    )}
+                    {isEditMode && message.sender === 'assistant' && message.citations?.length > 0 && (
+                      <div className="mt-3 pt-2 border-t border-white/10">
+                        <p className="text-[11px] uppercase tracking-wide text-white/55">{languageCopy.sources}</p>
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {message.citations.slice(0, 4).map((citation, citationIndex) => (
+                            <span
+                              key={`${message.id}-citation-${citationIndex}`}
+                              className="inline-flex items-center text-[11px] px-2 py-0.5 rounded-full border border-[#2f4f73] bg-[#0f1e33] text-[#b5d7ff]"
+                            >
+                              {getCitationLabel(citation)}
+                            </span>
+                          ))}
+                          {message.citations.length > 4 && (
+                            <span className="inline-flex items-center text-[11px] px-2 py-0.5 rounded-full border border-white/20 bg-white/5 text-white/70">
+                              +{message.citations.length - 4}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
