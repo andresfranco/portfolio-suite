@@ -280,7 +280,7 @@ const ContactPage = () => {
 
   return (
     <>
-      <main className="pt-20 bg-[#03060a] min-h-screen">
+      <div className="pt-20 bg-[#03060a] min-h-screen">
       <section className="relative py-20 bg-[#03060a] border-t border-white/5">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/30 to-transparent" />
@@ -516,7 +516,7 @@ const ContactPage = () => {
           </div>
         </div>
       </section>
-      </main>
+      </div>
       <ContactLinkCreateDialog
         isOpen={isEditMode && isCreateDialogOpen && Boolean(portfolioData?.id)}
         onClose={handleCloseCreateDialog}

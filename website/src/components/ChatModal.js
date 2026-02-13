@@ -456,10 +456,11 @@ const ChatModal = () => {
   return (
     <>
       {isOpen && (
-        <div className="fixed bottom-20 right-3 sm:bottom-24 sm:right-6 z-[120] w-[calc(100vw-1.5rem)] max-w-[420px] h-[min(72vh,680px)] pointer-events-auto">
-          <div className="h-full bg-[#040911]/95 border border-white/10 rounded-2xl shadow-[0_28px_70px_rgba(3,6,10,0.75)] backdrop-blur-xl flex flex-col overflow-hidden">
-            <div className="px-4 py-3 border-b border-white/10 flex items-start justify-between gap-3">
-              <div>
+        <div className="fixed inset-0 z-[120] pointer-events-auto pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] sm:inset-auto sm:top-auto sm:bottom-20 sm:right-[max(0.75rem,env(safe-area-inset-right))] md:bottom-24 md:right-6 sm:pt-0 sm:pb-0">
+          <div className="h-full w-full p-2 sm:p-0 sm:w-[min(92vw,500px)] lg:w-[min(38vw,560px)] sm:h-[min(80dvh,780px)]">
+            <div className="h-full bg-[#040911]/95 border border-white/10 rounded-2xl shadow-[0_28px_70px_rgba(3,6,10,0.75)] backdrop-blur-xl flex flex-col overflow-hidden">
+              <div className="px-3.5 sm:px-4 py-3 border-b border-white/10 flex items-start justify-between gap-2.5 sm:gap-3">
+                <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <h2 className="text-white text-sm font-semibold tracking-wide">{languageCopy.title}</h2>
                   <span
@@ -481,12 +482,12 @@ const ChatModal = () => {
                 <p className="text-xs text-white/60 mt-1">{languageCopy.subtitle}</p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={resetConversation}
                   disabled={!isChatReady || isSending}
-                  className="text-xs px-2.5 py-1 border border-white/15 text-white/70 hover:text-white hover:border-white/40 transition-colors rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="text-xs px-2.5 py-1.5 border border-white/15 text-white/70 hover:text-white hover:border-white/40 transition-colors rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {languageCopy.clear}
                 </button>
@@ -503,7 +504,7 @@ const ChatModal = () => {
               </div>
             </div>
 
-            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4 space-y-3">
+              <div ref={messagesContainerRef} className="flex-1 overflow-y-auto custom-scrollbar px-3.5 sm:px-4 py-3.5 sm:py-4 space-y-3">
               {!isChatReady && (
                 <div className="text-sm text-amber-100 bg-amber-500/15 border border-amber-300/30 rounded-lg px-3 py-2">
                   {languageCopy.unavailableInput}
@@ -517,7 +518,7 @@ const ChatModal = () => {
                       key={prompt}
                       type="button"
                       onClick={() => sendMessage(prompt)}
-                      className="text-xs border border-white/20 text-white/80 hover:text-white hover:border-[#14C800]/80 bg-white/5 hover:bg-[#14C800]/10 transition-colors rounded-full px-3 py-1.5"
+                      className="w-full sm:w-auto text-left text-xs border border-white/20 text-white/80 hover:text-white hover:border-[#14C800]/80 bg-white/5 hover:bg-[#14C800]/10 transition-colors rounded-full px-3 py-2 sm:py-1.5"
                     >
                       {prompt}
                     </button>
@@ -531,7 +532,7 @@ const ChatModal = () => {
                   className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[82%] px-3.5 py-2.5 rounded-2xl text-sm break-words ${
+                    className={`max-w-[95%] sm:max-w-[88%] px-3.5 py-2.5 rounded-2xl text-sm break-words ${
                       message.sender === 'user'
                         ? 'bg-[#14C800]/20 border border-[#14C800]/35 text-white'
                         : 'bg-white/5 border border-white/10 text-white/95'
@@ -575,9 +576,9 @@ const ChatModal = () => {
               {isSending && (
                 <div className="text-xs text-white/70">{languageCopy.thinking}</div>
               )}
-            </div>
+              </div>
 
-            <form onSubmit={handleSubmit} className="px-4 py-3 border-t border-white/10">
+              <form onSubmit={handleSubmit} className="px-3.5 sm:px-4 py-3 border-t border-white/10">
               <div className="flex gap-2 items-end">
                 <textarea
                   ref={textareaRef}
@@ -585,7 +586,7 @@ const ChatModal = () => {
                   value={inputMessage}
                   onChange={(event) => setInputMessage(event.target.value)}
                   placeholder={isChatReady ? languageCopy.placeholder : languageCopy.unavailableInput}
-                  className="flex-1 bg-white/5 text-white rounded-xl px-3 py-2 border border-white/15 focus:outline-none focus:ring-2 focus:ring-[#14C800]/60 focus:border-[#14C800]/40 resize-none min-h-[42px] max-h-[180px] custom-scrollbar"
+                  className="flex-1 bg-white/5 text-white rounded-xl px-3 py-2.5 border border-white/15 focus:outline-none focus:ring-2 focus:ring-[#14C800]/60 focus:border-[#14C800]/40 resize-none min-h-[46px] sm:min-h-[42px] max-h-[180px] custom-scrollbar text-[15px] sm:text-sm"
                   disabled={isSending || !isChatReady}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' && !event.shiftKey) {
@@ -597,18 +598,19 @@ const ChatModal = () => {
                 <button
                   type="submit"
                   disabled={isSending || !inputMessage.trim() || !isChatReady}
-                  className="btn-flat btn-flat-sm !rounded-xl !px-3.5 !py-2.5 self-end"
+                  className="btn-flat btn-flat-sm !rounded-xl !px-3.5 !py-2.5 self-end min-h-[44px]"
                 >
                   {isSending ? languageCopy.sending : languageCopy.send}
                 </button>
               </div>
               <p className="text-[11px] text-white/45 mt-2">{languageCopy.hint}</p>
-            </form>
+              </form>
+            </div>
           </div>
         </div>
       )}
 
-      <div className="fixed bottom-5 right-4 sm:bottom-6 sm:right-6 z-[120] pointer-events-auto">
+      <div className="fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] right-[max(0.75rem,env(safe-area-inset-right))] sm:bottom-6 sm:right-6 z-[120] pointer-events-auto">
         <button
           type="button"
           onClick={() => setIsOpen((prev) => !prev)}

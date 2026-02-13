@@ -126,10 +126,10 @@ const Header = () => {
 
         {/* Mobile Menu Overlay */}
         <div 
-          className={`md:hidden fixed inset-0 bg-gray-900 z-[50] transition-all duration-300 
+          className={`md:hidden fixed inset-0 bg-gray-900 z-[50] transition-opacity duration-300 
             ${isMenuOpen 
-              ? 'opacity-100 translate-x-0' 
-              : 'opacity-0 translate-x-full pointer-events-none'
+              ? 'opacity-100 visible pointer-events-auto' 
+              : 'opacity-0 invisible pointer-events-none'
             }`}
           style={{ backgroundColor: '#111827' }}
         >
