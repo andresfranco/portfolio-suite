@@ -271,7 +271,7 @@ const Projects = () => {
 
   return (
     <div className="flex-grow bg-[#03060a]">
-      <main>
+      <div>
         <section className="relative bg-[#03060a] pt-20 md:pt-24 xl:pt-32 2xl:pt-40 pb-24 border-t border-white/5">
           <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/30 to-transparent pointer-events-none" />
           <div className="relative w-full px-6 md:px-12 lg:px-[7vw] xl:px-[5vw] 2xl:px-[10vw] text-left">
@@ -395,7 +395,7 @@ const Projects = () => {
             </div>
           </div>
         </section>
-      </main>
+      </div>
 
       {showModal && selectedProject && (
         <ProjectModal
