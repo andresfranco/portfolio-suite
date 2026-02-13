@@ -9,8 +9,9 @@ from app.services.rag_service import embed_query, vector_search, assemble_contex
 from app.services.prompt_builder import build_rag_prompt, build_fallback_prompt, extract_conversational_history
 from app.services.citation_service import enrich_citations, deduplicate_citations
 from app.services.cache_service import cache_service
-from app.services.query_complexity import analyze_query_complexity, QueryComplexity
+from app.services.query_complexity import analyze_query_complexity
 import os
+import re
 
 
 # Language-specific translations for common phrases
@@ -19,13 +20,45 @@ TRANSLATIONS = {
         "projects_found": "Projects found in the portfolio:",
         "projects": "Projects:",
         "no_context": "I don't know based on the provided context.",
+        "prompt_injection_blocked": "I can only help with portfolio questions. Please ask about projects, experience, skills, or attached documents.",
+        "assistant_scope": "Hello. I can help with this portfolio's projects, experience, skills, and attached documents. Ask me a specific question and I will answer from available data.",
+        "provider_error": "I couldn't complete the request right now. Please try again in a moment.",
     },
     "es": {
         "projects_found": "Proyectos encontrados en el portafolio:",
         "projects": "Proyectos:",
         "no_context": "No lo sé basado en el contexto proporcionado.",
+        "prompt_injection_blocked": "Solo puedo ayudarte con preguntas del portafolio. Pregunta por proyectos, experiencia, habilidades o documentos adjuntos.",
+        "assistant_scope": "Hola. Puedo ayudarte con proyectos, experiencia, habilidades y documentos adjuntos de este portafolio. Haz una pregunta especifica y respondere con los datos disponibles.",
+        "provider_error": "No pude completar la solicitud en este momento. Intentalo de nuevo en unos segundos.",
     },
 }
+
+PORTFOLIO_CONTENT_KEYWORDS = [
+    "project", "projects", "proyecto", "proyectos",
+    "experience", "experiences", "experiencia", "experiencias",
+    "skill", "skills", "habilidad", "habilidades",
+    "portfolio", "portafolio", "resume", "cv", "document", "documents",
+    "attachment", "attachments", "adjunto", "adjuntos",
+    "trabajo", "trabajos", "education", "educacion", "certificate", "certificado",
+]
+
+PROMPT_INJECTION_PATTERNS = [
+    re.compile(r"ignore\s+(all\s+)?(previous|prior|above)\s+(instructions|prompts?)", re.IGNORECASE),
+    re.compile(r"disregard\s+.*(instructions|rules|system)", re.IGNORECASE),
+    re.compile(r"reveal\s+.*(system|developer)\s+(prompt|instructions?)", re.IGNORECASE),
+    re.compile(r"(jailbreak|dan\s+mode|developer\s+mode|override\s+policy)", re.IGNORECASE),
+    re.compile(r"\bact\s+as\s+(a\s+)?(system|developer|admin|root)\b", re.IGNORECASE),
+    re.compile(r"\byou\s+are\s+now\b", re.IGNORECASE),
+    re.compile(r"prompt\s+injection", re.IGNORECASE),
+    re.compile(r"ignora\s+.*instrucciones", re.IGNORECASE),
+    re.compile(r"revela\s+.*(prompt|instrucciones)", re.IGNORECASE),
+]
+
+SPANISH_HINTS = [
+    "hola", "gracias", "por favor", "proyecto", "experiencia", "habilidad",
+    "portafolio", "adjunto", "curriculum", "que", "como", "cual", "donde",
+]
 
 
 def _get_translation(key: str, language_code: str = "en") -> str:
@@ -46,7 +79,7 @@ def _is_conversational_query(user_message: str) -> bool:
     - General questions about the assistant itself
     - Meta questions (what can you do, how do you work)
     
-    Returns True if the query should proceed to LLM without RAG context.
+    Returns True if the query is a conversational opener.
     """
     lower_msg = user_message.lower().strip()
     
@@ -89,6 +122,436 @@ def _is_conversational_query(user_message: str) -> bool:
             return True
     
     return False
+
+
+def _contains_portfolio_intent(user_message: str) -> bool:
+    lower_msg = (user_message or "").lower()
+    return any(keyword in lower_msg for keyword in PORTFOLIO_CONTENT_KEYWORDS)
+
+
+def _looks_like_prompt_injection(user_message: str) -> bool:
+    text_value = (user_message or "").strip()
+    if not text_value:
+        return False
+    return any(pattern.search(text_value) for pattern in PROMPT_INJECTION_PATTERNS)
+
+
+def _extract_safe_user_query(user_message: str) -> Optional[str]:
+    """
+    Keep only safe, portfolio-focused parts from a potentially malicious prompt.
+    Returns None when the request is purely prompt-injection.
+    """
+    raw = (user_message or "").strip()
+    if not raw:
+        return None
+
+    if not _looks_like_prompt_injection(raw):
+        return raw
+
+    segments = re.split(r"[\n\r.!?;]+", raw)
+    safe_segments: List[str] = []
+    for segment in segments:
+        candidate = segment.strip()
+        if not candidate:
+            continue
+        if _looks_like_prompt_injection(candidate):
+            continue
+        if _contains_portfolio_intent(candidate):
+            safe_segments.append(candidate)
+
+    if not safe_segments:
+        return None
+
+    return " ".join(safe_segments)[:1000]
+
+
+def _infer_language_code(user_message: str, default: str = "en") -> str:
+    lower_msg = (user_message or "").lower()
+    spanish_hits = sum(1 for hint in SPANISH_HINTS if hint in lower_msg)
+    if spanish_hits >= 2:
+        return "es"
+    return default
+
+
+def _tokenize_query_terms(user_message: str) -> List[str]:
+    terms = re.findall(r"[a-zA-Z0-9]{4,}", (user_message or "").lower())
+    stop = {
+        "what", "which", "with", "from", "about", "this", "that", "there",
+        "portfolio", "project", "projects", "experience", "experiences", "skills",
+        "tell", "give", "summary", "list", "have", "has", "andres", "franco",
+    }
+    out: List[str] = []
+    for term in terms:
+        if term in stop:
+            continue
+        if term not in out:
+            out.append(term)
+    return out[:8]
+
+
+def _query_intent_flags(user_message: str) -> Dict[str, bool]:
+    lower_q = (user_message or "").lower()
+    return {
+        "projects": any(k in lower_q for k in ["project", "projects", "proyecto", "proyectos"]),
+        "experience": any(k in lower_q for k in ["experience", "experiences", "experiencia", "experiencias", "work", "trabajo"]),
+        "skills": any(k in lower_q for k in ["skill", "skills", "habilidad", "habilidades", "technology", "technologies", "tecnologia", "tecnologias"]),
+        "attachments": any(k in lower_q for k in ["attachment", "attachments", "document", "documents", "resume", "cv", "adjunto", "adjuntos", "documento"]),
+        "sections": any(k in lower_q for k in ["section", "sections", "seccion", "secciones"]),
+    }
+
+
+def _build_structured_portfolio_context(
+    db: Session,
+    *,
+    portfolio_id: int,
+    user_message: str,
+    language_id: Optional[int],
+) -> Tuple[str, List[Dict[str, Any]]]:
+    """
+    Build grounded context directly from structured portfolio tables.
+    Used as a fallback when vector RAG retrieval returns no chunks.
+    """
+    intent = _query_intent_flags(user_message)
+    if not any(intent.values()):
+        # Broad query: include all major sections.
+        intent = {"projects": True, "experience": True, "skills": True, "attachments": True, "sections": True}
+    # Cross-include related content classes so broad career questions are answerable
+    # even when the portfolio stores details in different tables.
+    if intent.get("experience"):
+        intent["projects"] = True
+        intent["sections"] = True
+    if intent.get("skills"):
+        intent["projects"] = True
+    if intent.get("projects"):
+        intent["sections"] = True
+
+    terms = _tokenize_query_terms(user_message)
+    blocks: List[Tuple[int, str, Dict[str, Any]]] = []
+
+    def _score(text_value: str) -> int:
+        if not terms:
+            return 1
+        low = (text_value or "").lower()
+        return sum(1 for t in terms if t in low)
+
+    if intent.get("projects"):
+        try:
+            rows = db.execute(
+                text(
+                    """
+                    SELECT
+                      p.id,
+                      COALESCE(
+                        (SELECT pt1.name
+                         FROM project_texts pt1
+                         WHERE pt1.project_id = p.id AND (:lang_id IS NOT NULL AND pt1.language_id = :lang_id)
+                         ORDER BY pt1.id ASC
+                         LIMIT 1),
+                        (SELECT pt2.name
+                         FROM project_texts pt2
+                         WHERE pt2.project_id = p.id
+                         ORDER BY pt2.id ASC
+                         LIMIT 1),
+                        ''
+                      ) AS name,
+                      COALESCE(
+                        (SELECT pt1.description
+                         FROM project_texts pt1
+                         WHERE pt1.project_id = p.id AND (:lang_id IS NOT NULL AND pt1.language_id = :lang_id)
+                         ORDER BY pt1.id ASC
+                         LIMIT 1),
+                        (SELECT pt2.description
+                         FROM project_texts pt2
+                         WHERE pt2.project_id = p.id
+                         ORDER BY pt2.id ASC
+                         LIMIT 1),
+                        ''
+                      ) AS description
+                    FROM portfolio_projects pp
+                    JOIN projects p ON p.id = pp.project_id
+                    WHERE pp.portfolio_id = :pid
+                    ORDER BY pp."order" ASC NULLS LAST, p.id ASC
+                    LIMIT 60
+                    """
+                ),
+                {"pid": portfolio_id, "lang_id": language_id},
+            ).mappings().all()
+
+            for row in rows:
+                name = (row.get("name") or "").strip()
+                desc = (row.get("description") or "").strip()
+                if not name and not desc:
+                    continue
+                snippet = f"Project: {name}\nDescription: {desc}".strip()
+                score = _score(f"{name}\n{desc}")
+                blocks.append(
+                    (
+                        score,
+                        snippet,
+                        {"source_table": "projects", "source_id": str(row["id"]), "score": 1.0},
+                    )
+                )
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
+    if intent.get("experience"):
+        try:
+            rows = db.execute(
+                text(
+                    """
+                    SELECT
+                      e.id,
+                      COALESCE(
+                        (SELECT et1.name
+                         FROM experience_texts et1
+                         WHERE et1.experience_id = e.id AND (:lang_id IS NOT NULL AND et1.language_id = :lang_id)
+                         ORDER BY et1.id ASC
+                         LIMIT 1),
+                        (SELECT et2.name
+                         FROM experience_texts et2
+                         WHERE et2.experience_id = e.id
+                         ORDER BY et2.id ASC
+                         LIMIT 1),
+                        ''
+                      ) AS name,
+                      COALESCE(
+                        (SELECT et1.description
+                         FROM experience_texts et1
+                         WHERE et1.experience_id = e.id AND (:lang_id IS NOT NULL AND et1.language_id = :lang_id)
+                         ORDER BY et1.id ASC
+                         LIMIT 1),
+                        (SELECT et2.description
+                         FROM experience_texts et2
+                         WHERE et2.experience_id = e.id
+                         ORDER BY et2.id ASC
+                         LIMIT 1),
+                        ''
+                      ) AS description,
+                      COALESCE(e.years, 0) AS years
+                    FROM portfolio_experiences pe
+                    JOIN experiences e ON e.id = pe.experience_id
+                    WHERE pe.portfolio_id = :pid
+                    ORDER BY pe."order" ASC NULLS LAST, e.id ASC
+                    LIMIT 60
+                    """
+                ),
+                {"pid": portfolio_id, "lang_id": language_id},
+            ).mappings().all()
+
+            for row in rows:
+                name = (row.get("name") or "").strip()
+                desc = (row.get("description") or "").strip()
+                years = int(row.get("years") or 0)
+                if not name and not desc:
+                    continue
+                years_txt = f"Years: {years}" if years > 0 else ""
+                snippet = f"Experience: {name}\n{years_txt}\nDescription: {desc}".strip()
+                score = _score(f"{name}\n{desc}\n{years_txt}")
+                blocks.append(
+                    (
+                        score,
+                        snippet,
+                        {"source_table": "experiences", "source_id": str(row["id"]), "score": 1.0},
+                    )
+                )
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
+    if intent.get("skills"):
+        try:
+            rows = db.execute(
+                text(
+                    """
+                    SELECT DISTINCT
+                      s.id,
+                      COALESCE(
+                        (SELECT st1.name
+                         FROM skill_texts st1
+                         WHERE st1.skill_id = s.id AND (:lang_id IS NOT NULL AND st1.language_id = :lang_id)
+                         ORDER BY st1.id ASC
+                         LIMIT 1),
+                        (SELECT st2.name
+                         FROM skill_texts st2
+                         WHERE st2.skill_id = s.id
+                         ORDER BY st2.id ASC
+                         LIMIT 1),
+                        ''
+                      ) AS name,
+                      COALESCE(
+                        (SELECT st1.description
+                         FROM skill_texts st1
+                         WHERE st1.skill_id = s.id AND (:lang_id IS NOT NULL AND st1.language_id = :lang_id)
+                         ORDER BY st1.id ASC
+                         LIMIT 1),
+                        (SELECT st2.description
+                         FROM skill_texts st2
+                         WHERE st2.skill_id = s.id
+                         ORDER BY st2.id ASC
+                         LIMIT 1),
+                        ''
+                      ) AS description
+                    FROM portfolio_projects pp
+                    JOIN project_skills ps ON ps.project_id = pp.project_id
+                    JOIN skills s ON s.id = ps.skill_id
+                    WHERE pp.portfolio_id = :pid
+                    LIMIT 100
+                    """
+                ),
+                {"pid": portfolio_id, "lang_id": language_id},
+            ).mappings().all()
+
+            for row in rows:
+                name = (row.get("name") or "").strip()
+                desc = (row.get("description") or "").strip()
+                if not name and not desc:
+                    continue
+                snippet = f"Skill: {name}\nDescription: {desc}".strip()
+                score = _score(f"{name}\n{desc}")
+                blocks.append(
+                    (
+                        score,
+                        snippet,
+                        {"source_table": "skills", "source_id": str(row["id"]), "score": 1.0},
+                    )
+                )
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
+    if intent.get("sections"):
+        try:
+            rows = db.execute(
+                text(
+                    """
+                    SELECT DISTINCT
+                      s.id,
+                      COALESCE(s.code, '') AS code,
+                      COALESCE(
+                        (SELECT st1.text
+                         FROM section_texts st1
+                         WHERE st1.section_id = s.id AND (:lang_id IS NOT NULL AND st1.language_id = :lang_id)
+                         ORDER BY st1.id ASC
+                         LIMIT 1),
+                        (SELECT st2.text
+                         FROM section_texts st2
+                         WHERE st2.section_id = s.id
+                         ORDER BY st2.id ASC
+                         LIMIT 1),
+                        ''
+                      ) AS body
+                    FROM sections s
+                    WHERE s.id IN (
+                        SELECT ps.section_id
+                        FROM portfolio_sections ps
+                        WHERE ps.portfolio_id = :pid
+                        UNION
+                        SELECT pjs.section_id
+                        FROM project_sections pjs
+                        WHERE pjs.project_id IN (
+                            SELECT pp.project_id FROM portfolio_projects pp WHERE pp.portfolio_id = :pid
+                        )
+                    )
+                    ORDER BY s.id ASC
+                    LIMIT 80
+                    """
+                ),
+                {"pid": portfolio_id, "lang_id": language_id},
+            ).mappings().all()
+
+            for row in rows:
+                code = (row.get("code") or "").strip()
+                body = (row.get("body") or "").strip()
+                if not code and not body:
+                    continue
+                snippet = f"Section: {code}\nContent: {body}".strip()
+                score = _score(f"{code}\n{body}")
+                blocks.append(
+                    (
+                        score,
+                        snippet,
+                        {"source_table": "sections", "source_id": str(row["id"]), "score": 1.0},
+                    )
+                )
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
+    if intent.get("attachments"):
+        try:
+            rows = db.execute(
+                text(
+                    """
+                    SELECT CAST(pa.id AS TEXT) AS source_id, 'portfolio_attachments' AS source_table, pa.file_name
+                    FROM portfolio_attachments pa
+                    WHERE pa.portfolio_id = :pid
+                    UNION ALL
+                    SELECT CAST(pa2.id AS TEXT) AS source_id, 'project_attachments' AS source_table, pa2.file_name
+                    FROM project_attachments pa2
+                    WHERE pa2.project_id IN (
+                        SELECT pp.project_id FROM portfolio_projects pp WHERE pp.portfolio_id = :pid
+                    )
+                    UNION ALL
+                    SELECT CAST(sa.id AS TEXT) AS source_id, 'section_attachments' AS source_table, sa.file_name
+                    FROM section_attachments sa
+                    WHERE sa.section_id IN (
+                        SELECT ps.section_id
+                        FROM portfolio_sections ps
+                        WHERE ps.portfolio_id = :pid
+                        UNION
+                        SELECT pjs.section_id
+                        FROM project_sections pjs
+                        WHERE pjs.project_id IN (
+                            SELECT pp.project_id FROM portfolio_projects pp WHERE pp.portfolio_id = :pid
+                        )
+                    )
+                    LIMIT 40
+                    """
+                ),
+                {"pid": portfolio_id},
+            ).mappings().all()
+
+            for row in rows:
+                name = (row.get("file_name") or "").strip()
+                if not name:
+                    continue
+                snippet = f"Document: {name}"
+                score = _score(name)
+                blocks.append(
+                    (
+                        score,
+                        snippet,
+                        {
+                            "source_table": row["source_table"],
+                            "source_id": row["source_id"],
+                            "score": 1.0,
+                        },
+                    )
+                )
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
+    if not blocks:
+        return "", []
+
+    # Prefer snippets that match query terms. If no term match, keep top entries by insertion order.
+    blocks.sort(key=lambda item: item[0], reverse=True)
+    selected = blocks[:30]
+    context_parts = [snippet for _, snippet, _cite in selected]
+    citations = [cite for _score_val, _snippet, cite in selected]
+    return "\n\n---\n\n".join(context_parts), citations
 
 
 def _get_agent_bundle(db: Session, agent_id: int, template_id: Optional[int] = None) -> Tuple[Agent, AgentCredential, AgentTemplate]:
@@ -181,7 +644,18 @@ def _resolve_portfolio_id(db: Session, provided_id: Optional[int], portfolio_que
     return None
 
 
-def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id: int | None, template_id: Optional[int] = None, portfolio_id: Optional[int] = None, portfolio_query: Optional[str] = None, language_id: Optional[int] = None) -> Dict[str, Any]:
+def run_agent_chat(
+    db: Session,
+    *,
+    agent_id: int,
+    user_message: str,
+    session_id: int | None,
+    template_id: Optional[int] = None,
+    portfolio_id: Optional[int] = None,
+    portfolio_query: Optional[str] = None,
+    language_id: Optional[int] = None,
+    raise_on_provider_error: bool = False,
+) -> Dict[str, Any]:
     # Always ensure we begin in a clean transaction state
     try:
         db.rollback()
@@ -222,42 +696,73 @@ def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id:
                 db.rollback()
             except Exception:
                 pass
+    else:
+        language_code = _infer_language_code(user_message, default="en")
+        language_name = "Spanish" if language_code == "es" else "English"
+
+    # Defensive prompt-injection handling:
+    # - If the message is malicious and has no valid portfolio intent, reject safely.
+    # - If it mixes malicious + valid intent, keep only the safe portfolio query.
+    safe_user_message = _extract_safe_user_query(user_message)
+    if safe_user_message is None:
+        blocked_answer = _get_translation("prompt_injection_blocked", language_code)
+        sess_id = session_id
+        if not sess_id:
+            s = AgentSession(agent_id=agent.id)
+            db.add(s)
+            db.flush()
+            sess_id = s.id
+        db.add(AgentMessage(session_id=sess_id, role="user", content=user_message))
+        db.add(AgentMessage(session_id=sess_id, role="assistant", content=blocked_answer, citations=[], tokens=0, latency_ms=0))
+        db.commit()
+        return {
+            "answer": blocked_answer,
+            "citations": [],
+            "token_usage": {},
+            "latency_ms": 0,
+            "session_id": sess_id,
+        }
+
+    user_message = safe_user_message
+
+    # Resolve portfolio id from free-text if provided
+    effective_portfolio_id = _resolve_portfolio_id(db, portfolio_id, portfolio_query)
 
     # Analyze query complexity for dynamic context sizing
-    complexity, top_k_dynamic, max_context_dynamic = analyze_query_complexity(user_message)
+    _complexity, top_k_dynamic, max_context_dynamic = analyze_query_complexity(user_message)
     
     # Check cache first for ALL queries (including trivial greetings)
     # Caching greetings provides instant responses (<5ms) on repeat
     cached_response = cache_service.get_agent_response(
         agent_id=agent_id,
         user_message=user_message,
-        portfolio_id=portfolio_id,
+        portfolio_id=effective_portfolio_id,
         language_id=language_id
     )
     if cached_response:
-            # Return cached response immediately
-            answer = cached_response.get("answer", "")
-            citations = cached_response.get("citations", [])
-            
-            # Save to database session
-            sess_id = session_id
-            if not sess_id:
-                s = AgentSession(agent_id=agent.id)
-                db.add(s)
-                db.flush()
-                sess_id = s.id
-            db.add(AgentMessage(session_id=sess_id, role="user", content=user_message))
-            db.add(AgentMessage(session_id=sess_id, role="assistant", content=answer, citations=citations, tokens=0, latency_ms=5))
-            db.commit()
-            
-            return {
-                "answer": answer,
-                "citations": citations,
-                "token_usage": {},
-                "latency_ms": 5,  # Cache hit is ~5ms
-                "session_id": sess_id,
-                "cached": True
-            }
+        # Return cached response immediately
+        answer = cached_response.get("answer", "")
+        citations = cached_response.get("citations", [])
+
+        # Save to database session
+        sess_id = session_id
+        if not sess_id:
+            s = AgentSession(agent_id=agent.id)
+            db.add(s)
+            db.flush()
+            sess_id = s.id
+        db.add(AgentMessage(session_id=sess_id, role="user", content=user_message))
+        db.add(AgentMessage(session_id=sess_id, role="assistant", content=answer, citations=citations, tokens=0, latency_ms=5))
+        db.commit()
+
+        return {
+            "answer": answer,
+            "citations": citations,
+            "token_usage": {},
+            "latency_ms": 5,  # Cache hit is ~5ms
+            "session_id": sess_id,
+            "cached": True
+        }
 
     # Note: We intentionally do NOT filter RAG retrieval by language_code here.
     # The agent should be able to access content in ANY language, regardless of which 
@@ -266,277 +771,156 @@ def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id:
     # This ensures the agent can work effectively even when content exists primarily 
     # in one language but the user requests a response in another language.
 
-    # Detect conversational queries BEFORE RAG search to avoid unnecessary embedding/retrieval
-    lower_msg = (user_message or "").lower().strip()
-    conversational_indicators = [
-        "hello", "hi ", "hey", "good morning", "good afternoon", "good evening",
-        "hola", "buenos días", "buenas tardes", "buen día",
-        "how are you", "what's up", "cómo estás", "qué tal", "como estas",
-        "are you working", "are you there", "can you help", "test", "testing",
-        "what can you do", "who are you", "help me", "can you confirm"
-    ]
-    # Content keywords that indicate the user wants actual portfolio information
-    content_keywords = [
-        "project", "proyecto", "experience", "experiencia", "skill", "habilidad",
-        "work", "trabajo", "resume", "cv", "portfolio", "portafolio",
-        "education", "educación", "certificate", "certificado"
-    ]
-    is_conversational = any(indicator in lower_msg for indicator in conversational_indicators)
-    asks_for_content = any(keyword in lower_msg for keyword in content_keywords)
-    
-    # For conversational queries without content requests, skip RAG search
-    # This makes greetings instant even when portfolio/language is selected
+    # Conversational queries are handled deterministically and safely.
+    # This avoids non-grounded LLM answers for greetings/meta questions.
+    is_conversational = _is_conversational_query(user_message)
+    asks_for_content = _contains_portfolio_intent(user_message)
     if is_conversational and not asks_for_content:
-        # Build conversational-only prompt
-        from app.services.prompt_builder import CONVERSATIONAL_SYSTEM_PROMPT
-        messages = [
-            {"role": "system", "content": CONVERSATIONAL_SYSTEM_PROMPT}
-        ]
-        
-        # Load conversation history if available
-        conversation_history = []
-        if session_id:
-            try:
-                recent_msgs = db.query(AgentMessage)\
-                    .filter(AgentMessage.session_id == session_id)\
-                    .order_by(AgentMessage.id.desc())\
-                    .limit(6)\
-                    .all()
-                conversation_history = extract_conversational_history(list(reversed(recent_msgs)), max_turns=3)
-                messages.extend(conversation_history)
-            except Exception:
-                try:
-                    db.rollback()
-                except Exception:
-                    pass
-        
-        # Add user message
-        messages.append({"role": "user", "content": user_message})
-        
-        # Call LLM
-        chat_model = agent.chat_model or "gpt-4o-mini"
-        try:
-            system_prompt = messages[0]['content']
-            chat_messages = messages[1:]
-            result = provider.chat(model=chat_model, system_prompt=system_prompt, messages=chat_messages)
-            
-            # Save to database
-            sess_id = session_id
-            if not sess_id:
-                s = AgentSession(agent_id=agent.id)
-                db.add(s)
-                db.flush()
-                sess_id = s.id
-            db.add(AgentMessage(session_id=sess_id, role="user", content=user_message))
-            db.add(AgentMessage(session_id=sess_id, role="assistant", content=result.get("text") or "", citations=[], tokens=(result.get("usage") or {}).get("total_tokens"), latency_ms=result.get("latency_ms")))
-            db.commit()
-            
-            # Cache greeting response so second "Hello" is instant (<5ms)
-            cache_service.set_agent_response(
-                agent_id=agent_id,
-                user_message=user_message,
-                response={"answer": result.get("text") or "", "citations": []},
-                portfolio_id=portfolio_id,
-                language_id=language_id,
-                ttl_seconds=3600  # 1 hour
-            )
-            
-            return {
-                "answer": result.get("text") or "",
-                "citations": [],
-                "token_usage": result.get("usage") or {},
-                "latency_ms": result.get("latency_ms") or 0,
-                "session_id": sess_id,
-            }
-        except Exception as e:
-            try:
-                db.rollback()
-            except Exception:
-                pass
-            # Fallback
-            fallback_text = "Hello! I'm your portfolio assistant. I can help you find information about projects, work experience, skills, and other portfolio content. What would you like to know?"
-            sess_id = session_id
-            if not sess_id:
-                s = AgentSession(agent_id=agent.id)
-                db.add(s)
-                db.flush()
-                sess_id = s.id
-            db.add(AgentMessage(session_id=sess_id, role="user", content=user_message))
-            db.add(AgentMessage(session_id=sess_id, role="assistant", content=fallback_text, citations=[], tokens=0, latency_ms=0))
-            db.commit()
-            return {
-                "answer": fallback_text,
-                "citations": [],
-                "token_usage": {},
-                "latency_ms": 0,
-                "session_id": sess_id,
-            }
+        scope_answer = _get_translation("assistant_scope", language_code)
+        sess_id = session_id
+        if not sess_id:
+            s = AgentSession(agent_id=agent.id)
+            db.add(s)
+            db.flush()
+            sess_id = s.id
+        db.add(AgentMessage(session_id=sess_id, role="user", content=user_message))
+        db.add(AgentMessage(session_id=sess_id, role="assistant", content=scope_answer, citations=[], tokens=0, latency_ms=0))
+        db.commit()
+
+        cache_service.set_agent_response(
+            agent_id=agent_id,
+            user_message=user_message,
+            response={"answer": scope_answer, "citations": []},
+            portfolio_id=effective_portfolio_id,
+            language_id=language_id,
+            ttl_seconds=3600,
+        )
+
+        return {
+            "answer": scope_answer,
+            "citations": [],
+            "token_usage": {},
+            "latency_ms": 0,
+            "session_id": sess_id,
+        }
 
     # Embed query and retrieve chunks with dynamic context sizing
     qvec = embed_query(db, provider=provider, embedding_model=agent.embedding_model, query=user_message)
-    # Resolve portfolio id from free-text if provided
-    effective_portfolio_id = _resolve_portfolio_id(db, portfolio_id, portfolio_query)
-    
-    # If the user asks about "project"/"projects" in any language, restrict retrieval primarily to projects
+
+    # If the user asks about projects, keep the signal for deterministic fallback retrieval.
     lower_q = (user_message or "").lower()
-    # Check for project keywords in multiple languages (English, Spanish, etc.)
     is_project_query = any(keyword in lower_q for keyword in ["project", "proyecto"])
-    tables_filter = ["projects"] if is_project_query else None
     
     # Use dynamic top_k and max_context_tokens based on query complexity
-    effective_top_k = top_k_dynamic if 'top_k_dynamic' in locals() else agent.top_k
-    effective_max_tokens = max_context_dynamic if 'max_context_dynamic' in locals() else agent.max_context_tokens
+    effective_top_k = top_k_dynamic or agent.top_k
+    effective_max_tokens = max_context_dynamic or agent.max_context_tokens
     
-    # Do NOT pass language_code to vector_search - we want to retrieve content in all languages
-    chunks = vector_search(db, qvec=qvec, model=agent.embedding_model, k=effective_top_k, score_threshold=agent.score_threshold, portfolio_id=effective_portfolio_id, tables_filter=tables_filter, language_code=None)
+    # Retrieve across all indexed portfolio tables/attachments.
+    # Do NOT pass language_code: retrieve source facts in any language and answer in target output language.
+    chunks = vector_search(
+        db,
+        qvec=qvec,
+        model=agent.embedding_model,
+        k=effective_top_k,
+        score_threshold=agent.score_threshold,
+        portfolio_id=effective_portfolio_id,
+        tables_filter=None,
+        language_code=None,
+    )
     context, citations = assemble_context(chunks, max_tokens=effective_max_tokens)
+    if not context.strip():
+        # Retry vector search with a relaxed threshold before giving up.
+        # This improves recall for portfolio attachments and sparse chunks.
+        retry_k = max(12, effective_top_k)
+        retry_chunks = vector_search(
+            db,
+            qvec=qvec,
+            model=agent.embedding_model,
+            k=retry_k,
+            score_threshold=None,
+            portfolio_id=effective_portfolio_id,
+            tables_filter=None,
+            language_code=None,
+        )
+        context, citations = assemble_context(retry_chunks, max_tokens=effective_max_tokens)
 
-    # Intent-specific deterministic handling for project names when a portfolio is known
-    if effective_portfolio_id is not None and is_project_query:
+    if not context.strip() and effective_portfolio_id is not None and is_project_query:
+        # Deterministic fallback for project-oriented questions when semantic retrieval is empty.
         try:
             rows = db.execute(text(
                 """
-                SELECT p.id, p.name
-                FROM portfolio_projects pp
-                JOIN projects p ON p.id = pp.project_id
-                WHERE pp.portfolio_id = :pid
-                ORDER BY p.id
+                SELECT c.id as chunk_id, c.text, c.source_id
+                FROM rag_chunk c
+                WHERE c.source_table='projects'
+                  AND c.source_id IN (
+                    SELECT CAST(p.id AS TEXT)
+                    FROM portfolio_projects pp JOIN projects p ON p.id = pp.project_id
+                    WHERE pp.portfolio_id = :pid
+                  )
+                  AND c.is_deleted=FALSE
+                ORDER BY c.source_id, c.part_index
+                LIMIT 50
                 """
             ), {"pid": effective_portfolio_id}).mappings().all()
-            names = [r["name"] for r in rows if (r.get("name") or "").strip()]
-            if names:
-                answer = _get_translation("projects", language_code) + " " + ", ".join(names)
-                # Persist session
-                sess_id = session_id
-                if not sess_id:
-                    s = AgentSession(agent_id=agent.id)
-                    db.add(s)
-                    db.flush()
-                    sess_id = s.id
-                db.add(AgentMessage(session_id=sess_id, role="user", content=user_message))
-                db.add(AgentMessage(session_id=sess_id, role="assistant", content=answer, citations=[{"source_table":"projects","source_id":str(r["id"]),"score":1.0} for r in rows], tokens=0, latency_ms=0))
-                db.commit()
-                return {
-                    "answer": answer,
-                    "citations": [{"source_table":"projects","source_id":str(r["id"]),"score":1.0} for r in rows],
-                    "token_usage": {},
-                    "latency_ms": 0,
-                    "session_id": sess_id,
-                }
+            if rows:
+                ctx_parts: List[str] = []
+                cits: List[Dict[str, Any]] = []
+                for row in rows:
+                    txt = (row.get("text") or "").strip()
+                    if txt:
+                        ctx_parts.append(txt)
+                        cits.append({
+                            "chunk_id": row["chunk_id"],
+                            "source_table": "projects",
+                            "source_id": row["source_id"],
+                            "score": 1.0,
+                        })
+                context = "\n\n---\n\n".join(ctx_parts)
+                citations = cits
         except Exception:
-            # Rollback to clear any failed transaction state
             try:
                 db.rollback()
             except Exception:
                 pass
-    # Short-circuit if no context was found to avoid slow external calls
-    if not context.strip():
-        # Deterministic DB fallback for common questions when portfolio scope is known
-        if effective_portfolio_id is not None and is_project_query:
-            # Try to build context from existing rag_chunk rows for projects
+
+    if not context.strip() and effective_portfolio_id is not None:
+        # Structured relational fallback when RAG index misses or is stale.
+        try:
+            context, citations = _build_structured_portfolio_context(
+                db,
+                portfolio_id=effective_portfolio_id,
+                user_message=user_message,
+                language_id=language_id,
+            )
+        except Exception:
             try:
-                rows = db.execute(text(
-                    """
-                    SELECT c.id as chunk_id, c.text, c.source_id
-                    FROM rag_chunk c
-                    WHERE c.source_table='projects'
-                      AND c.source_id IN (
-                        SELECT CAST(p.id AS TEXT)
-                        FROM portfolio_projects pp JOIN projects p ON p.id = pp.project_id
-                        WHERE pp.portfolio_id = :pid
-                      )
-                      AND c.is_deleted=FALSE
-                    ORDER BY c.source_id, c.part_index
-                    LIMIT 50
-                    """
-                ), {"pid": effective_portfolio_id}).mappings().all()
-                if rows:
-                    ctx_parts: List[str] = []
-                    cits: List[Dict[str, Any]] = []
-                    for r in rows:
-                        txt = (r.get("text") or "").strip()
-                        if txt:
-                            ctx_parts.append(txt)
-                            cits.append({
-                                "chunk_id": r["chunk_id"],
-                                "source_table": "projects",
-                                "source_id": r["source_id"],
-                                "score": 1.0,
-                            })
-                    context = "\n\n---\n\n".join(ctx_parts)
-                    citations = cits
+                db.rollback()
             except Exception:
-                try:
-                    db.rollback()
-                except Exception:
-                    pass
+                pass
 
-            # If still empty, read project names directly as a last resort
-            if not context.strip():
-                try:
-                    names = db.execute(text(
-                        """
-                        SELECT p.id, p.name, COALESCE(p.description,'') AS description
-                        FROM portfolio_projects pp
-                        JOIN projects p ON p.id = pp.project_id
-                        WHERE pp.portfolio_id = :pid
-                        ORDER BY p.id
-                        """
-                    ), {"pid": effective_portfolio_id}).mappings().all()
-                    if names:
-                        ctx_parts: List[str] = []
-                        cits: List[Dict[str, Any]] = []
-                        for n in names:
-                            line = f"Project: {n['name']}\n\n{n['description']}".strip()
-                            ctx_parts.append(line)
-                            cits.append({
-                                "chunk_id": 0,
-                                "source_table": "projects",
-                                "source_id": str(n["id"]),
-                                "score": 1.0,
-                            })
-                        context = "\n\n---\n\n".join(ctx_parts)
-                        citations = cits
-                except Exception:
-                    try:
-                        db.rollback()
-                    except Exception:
-                        pass
-
-        # If still no context, persist and return the canonical fallback
-        # UNLESS it's a conversational query that should reach the LLM
-        if not _is_conversational_query(user_message):
-            # Persist session messages even on no-context for traceability
-            sess_id = session_id
-            if not sess_id:
-                # Clear any prior failed state to avoid aborted transaction
-                try:
-                    db.rollback()
-                except Exception:
-                    pass
-                s = AgentSession(agent_id=agent.id)
-                db.add(s)
-                db.flush()
-                sess_id = s.id
-            m_user = AgentMessage(session_id=sess_id, role="user", content=user_message)
-            db.add(m_user)
-            # Use smart fallback from prompt_builder
-            fallback = build_fallback_prompt(user_message)
-            m_assist = AgentMessage(session_id=sess_id, role="assistant", content=fallback, citations=[], tokens=0, latency_ms=0)
-            db.add(m_assist)
-            db.commit()
-            return {
-                "answer": fallback,
-                "citations": [],
-                "token_usage": {},
-                "latency_ms": 0,
-                "session_id": sess_id,
-            }
-        
-        # Conversational query with no context: proceed to LLM with empty context
-        # The LLM will handle it as a general conversation
-        context = ""
-        citations = []
+    if not context.strip():
+        # Persist session messages even on no-context for traceability
+        sess_id = session_id
+        if not sess_id:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            s = AgentSession(agent_id=agent.id)
+            db.add(s)
+            db.flush()
+            sess_id = s.id
+        db.add(AgentMessage(session_id=sess_id, role="user", content=user_message))
+        fallback = build_fallback_prompt(user_message, language_code=language_code)
+        db.add(AgentMessage(session_id=sess_id, role="assistant", content=fallback, citations=[], tokens=0, latency_ms=0))
+        db.commit()
+        return {
+            "answer": fallback,
+            "citations": [],
+            "token_usage": {},
+            "latency_ms": 0,
+            "session_id": sess_id,
+        }
 
     # Enrich citations with metadata for user-friendly display
     # Use a savepoint (nested transaction) to isolate enrichment queries
@@ -615,6 +999,8 @@ def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id:
             db.rollback()
         except Exception:
             pass
+        if raise_on_provider_error:
+            raise RuntimeError(f"Provider chat call failed for agent {agent_id}: {e}") from e
         # If we have context, synthesize a deterministic, grounded fallback answer
         if context.strip():
             synthesized = _build_context_only_answer(user_message, context, citations, language_code)
@@ -635,7 +1021,7 @@ def run_agent_chat(db: Session, *, agent_id: int, user_message: str, session_id:
                 "session_id": sess_id,
             }
         # Otherwise, return a graceful error that fits the API envelope to avoid frontend timeouts
-        fail_text = "I couldn't complete the request in time. Please try again in a moment."
+        fail_text = _get_translation("provider_error", language_code)
         sess_id = session_id
         if not sess_id:
             s = AgentSession(agent_id=agent.id)
@@ -698,5 +1084,3 @@ def run_agent_test(db: Session, *, agent_id: int, prompt: str, template_id: Opti
         "citations": out.get("citations") or [],
         "answer": out.get("answer") or "",
     }
-
-
