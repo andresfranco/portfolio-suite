@@ -19,7 +19,7 @@ TRANSLATIONS = {
     "en": {
         "projects_found": "Projects found in the portfolio:",
         "projects": "Projects:",
-        "no_context": "I don't know based on the provided context.",
+        "no_context": "I don't have enough information in this portfolio to answer that.",
         "prompt_injection_blocked": "I can only help with portfolio questions. Please ask about projects, experience, skills, or attached documents.",
         "assistant_scope": "Hello. I can help with this portfolio's projects, experience, skills, and attached documents. Ask me a specific question and I will answer from available data.",
         "provider_error": "I couldn't complete the request right now. Please try again in a moment.",
@@ -27,7 +27,7 @@ TRANSLATIONS = {
     "es": {
         "projects_found": "Proyectos encontrados en el portafolio:",
         "projects": "Proyectos:",
-        "no_context": "No lo sé basado en el contexto proporcionado.",
+        "no_context": "No tengo suficiente informacion en este portafolio para responder eso.",
         "prompt_injection_blocked": "Solo puedo ayudarte con preguntas del portafolio. Pregunta por proyectos, experiencia, habilidades o documentos adjuntos.",
         "assistant_scope": "Hola. Puedo ayudarte con proyectos, experiencia, habilidades y documentos adjuntos de este portafolio. Haz una pregunta especifica y respondere con los datos disponibles.",
         "provider_error": "No pude completar la solicitud en este momento. Intentalo de nuevo en unos segundos.",
@@ -58,6 +58,28 @@ PROMPT_INJECTION_PATTERNS = [
 SPANISH_HINTS = [
     "hola", "gracias", "por favor", "proyecto", "experiencia", "habilidad",
     "portafolio", "adjunto", "curriculum", "que", "como", "cual", "donde",
+]
+
+CONTEXT_META_PATTERNS = [
+    re.compile(r"\bprovided context\b", re.IGNORECASE),
+    re.compile(r"\bcontext above\b", re.IGNORECASE),
+    re.compile(r"\bfrom (the )?context\b", re.IGNORECASE),
+    re.compile(r"\bbased on (the )?context\b", re.IGNORECASE),
+    re.compile(r"\baccording to (the )?context\b", re.IGNORECASE),
+    re.compile(r"\bcontext does not\b", re.IGNORECASE),
+    re.compile(r"\bcontext (doesn't|does not|is missing)\b", re.IGNORECASE),
+    re.compile(r"\bfrom the database\b", re.IGNORECASE),
+    re.compile(r"\bretrieval\b", re.IGNORECASE),
+    re.compile(r"\bchunk(s)?\b", re.IGNORECASE),
+]
+
+INSUFFICIENT_INFO_PATTERNS = [
+    re.compile(r"\bi don't have enough information\b", re.IGNORECASE),
+    re.compile(r"\bi do not have enough information\b", re.IGNORECASE),
+    re.compile(r"\bi don't have that information\b", re.IGNORECASE),
+    re.compile(r"\bi do not have that information\b", re.IGNORECASE),
+    re.compile(r"\bno tengo suficiente informacion\b", re.IGNORECASE),
+    re.compile(r"\bno tengo esa informacion\b", re.IGNORECASE),
 ]
 
 
@@ -171,6 +193,36 @@ def _infer_language_code(user_message: str, default: str = "en") -> str:
     if spanish_hits >= 2:
         return "es"
     return default
+
+
+def _sanitize_agent_answer(answer_text: str, language_code: str = "en") -> str:
+    """
+    Remove internal/meta "context" wording from model answers.
+    Keep only user-facing content. If nothing remains, return localized
+    insufficient-information response.
+    """
+    text_value = (answer_text or "").strip()
+    if not text_value:
+        return _get_translation("no_context", language_code)
+
+    normalized = re.sub(r"\s+", " ", text_value).strip()
+    sentence_candidates = [s.strip() for s in re.split(r"(?<=[.!?])\s+", normalized) if s.strip()]
+    if not sentence_candidates:
+        sentence_candidates = [normalized]
+
+    cleaned_sentences: List[str] = []
+    for sentence in sentence_candidates:
+        if any(p.search(sentence) for p in CONTEXT_META_PATTERNS):
+            continue
+        cleaned_sentences.append(sentence)
+
+    if cleaned_sentences:
+        return " ".join(cleaned_sentences).strip()
+
+    if any(p.search(normalized) for p in INSUFFICIENT_INFO_PATTERNS):
+        return _get_translation("no_context", language_code)
+
+    return normalized
 
 
 def _tokenize_query_terms(user_message: str) -> List[str]:
@@ -741,7 +793,7 @@ def run_agent_chat(
     )
     if cached_response:
         # Return cached response immediately
-        answer = cached_response.get("answer", "")
+        answer = _sanitize_agent_answer(cached_response.get("answer", ""), language_code)
         citations = cached_response.get("citations", [])
 
         # Save to database session
@@ -1003,7 +1055,10 @@ def run_agent_chat(
             raise RuntimeError(f"Provider chat call failed for agent {agent_id}: {e}") from e
         # If we have context, synthesize a deterministic, grounded fallback answer
         if context.strip():
-            synthesized = _build_context_only_answer(user_message, context, citations, language_code)
+            synthesized = _sanitize_agent_answer(
+                _build_context_only_answer(user_message, context, citations, language_code),
+                language_code,
+            )
             sess_id = session_id
             if not sess_id:
                 s = AgentSession(agent_id=agent.id)
@@ -1048,7 +1103,8 @@ def run_agent_chat(
         sess_id = s.id
     m_user = AgentMessage(session_id=sess_id, role="user", content=user_message)
     db.add(m_user)
-    m_assist = AgentMessage(session_id=sess_id, role="assistant", content=result.get("text") or "", citations=enriched_citations, tokens=(result.get("usage") or {}).get("total_tokens"), latency_ms=result.get("latency_ms"))
+    assistant_text = _sanitize_agent_answer(result.get("text") or "", language_code)
+    m_assist = AgentMessage(session_id=sess_id, role="assistant", content=assistant_text, citations=enriched_citations, tokens=(result.get("usage") or {}).get("total_tokens"), latency_ms=result.get("latency_ms"))
     db.add(m_assist)
     db.commit()
 
@@ -1057,14 +1113,14 @@ def run_agent_chat(
     cache_service.set_agent_response(
         agent_id=agent_id,
         user_message=user_message,
-        response={"answer": result.get("text") or "", "citations": enriched_citations},
+        response={"answer": assistant_text, "citations": enriched_citations},
         portfolio_id=effective_portfolio_id,
         language_id=language_id,
         ttl_seconds=3600  # 1 hour
     )
 
     return {
-        "answer": result.get("text") or "",
+        "answer": assistant_text,
         "citations": enriched_citations,
         "token_usage": result.get("usage") or {},
         "latency_ms": result.get("latency_ms") or 0,
