@@ -6,6 +6,7 @@ import Footer from './components/Footer';
 import HomePage from './pages/HomePage';
 import ProjectDetailsPage from './pages/ProjectDetailsPage';
 import ContactPage from './pages/ContactPage';
+import ChatModal from './components/ChatModal';
 import { LanguageProvider } from './context/LanguageContext';
 import { PortfolioProvider } from './context/PortfolioContext';
 import { EditModeProvider } from './context/EditModeContext';
@@ -42,6 +43,7 @@ function App() {
                   </Routes>
                 </main>
                 <Footer />
+                <ChatModal />
               </div>
             </ErrorBoundary>
           </BrowserRouter>
