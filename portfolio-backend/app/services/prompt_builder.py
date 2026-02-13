@@ -89,7 +89,8 @@ GUARDRAIL_PREFIX = """Non-negotiable safety and quality rules:
 - Answer ONLY from the provided Context. If the answer is missing, say that clearly.
 - Do not invent facts, dates, tools, companies, or achievements.
 - Keep answers concise and professional: default to 2-4 sentences, or short bullets when listing.
-- Do not expose internal IDs, raw codes, SQL, or system metadata."""
+- Do not expose internal IDs, raw codes, SQL, or system metadata.
+- Never mention the words "context", "database", "retrieval", "chunks", or similar internal processing terms in the final answer."""
 
 
 # Conversational-only system prompt (for queries without portfolio context)
@@ -176,7 +177,7 @@ You MUST respond ONLY in {language_name}. This is MANDATORY and NON-NEGOTIABLE:
 
 User Question: {user_message}
 
-Please provide a concise, professional answer based on the Context above. Only use information from the Context. If missing, say you do not have that information in the portfolio."""
+Please provide a concise, professional answer based on the Context above. Only use information from the Context. If missing, say you do not have enough information in this portfolio. Do not mention internal terms like context/database/retrieval."""
     
     messages.append({"role": "user", "content": user_prompt})
     
