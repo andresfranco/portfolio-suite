@@ -255,6 +255,41 @@ export const portfolioApi = {
   },
 
   /**
+   * Chat with the default agent configured for a portfolio.
+   * @param {number} portfolioId - Portfolio ID
+   * @param {string} message - User message
+   * @param {number|null} sessionId - Existing session ID for continuing conversation
+   * @param {string} languageCode - Language code (en, es)
+   * @returns {Promise<Object>} - Chat response from backend
+   */
+  chatWithPortfolioAgent: async (portfolioId, message, sessionId = null, languageCode = 'en') => {
+    try {
+      const payload = {
+        message,
+        session_id: sessionId,
+        language_id: getLanguageId(languageCode),
+      };
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/website/chat/portfolios/${portfolioId}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify(payload),
+        }
+      );
+
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error chatting with portfolio agent:', error);
+      throw error;
+    }
+  },
+
+  /**
    * CMS Operations (require authentication)
    */
 

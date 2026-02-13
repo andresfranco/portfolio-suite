@@ -1,6 +1,5 @@
 import React, { useState, useContext, useMemo, useEffect, useRef } from 'react';
 import defaultHeroImage from '../assets/images/hero.jpg';
-import ChatModal from './ChatModal';
 import { LanguageContext } from '../context/LanguageContext';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useEditMode } from '../context/EditModeContext';
@@ -15,7 +14,6 @@ import DraggableExperienceCard from './DraggableExperienceCard';
 import './DragAndDrop.css';
 
 const Hero = () => {
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const [resumeUrl, setResumeUrl] = useState(null);
   const [resumeFileName, setResumeFileName] = useState(null);
   const { portfolio, loading, getExperiences, getExperienceText, getSections, getSectionText, refreshPortfolio } = usePortfolio();
@@ -171,13 +169,6 @@ const Hero = () => {
   const heroTaglineValue = heroTaglineText?.text || translations[language].hero_tagline;
   
   // Get button label sections
-  const chatButtonSection = sections.find(s => {
-    const code = s.code?.trim();
-    return code === 'CHAT_WITH_AI' || code === 'chat_with_ai';
-  });
-  const chatButtonText = chatButtonSection ? getSectionText(chatButtonSection) : null;
-  const chatButtonValue = chatButtonText?.text || translations[language].chat_with_ai;
-  
   const downloadCvSection = sections.find(s => {
     const code = s.code?.trim();
     return code === 'DOWNLOAD_CV' || code === 'download_cv';
@@ -640,38 +631,6 @@ const Hero = () => {
               </DragDropContext>
 
               <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-start sm:items-center w-full flex-wrap">
-                {/* Chat with AI button - editable label in edit mode */}
-                <button
-                  onClick={(e) => {
-                    // In edit mode, only allow Ctrl/Cmd+Click to trigger the action
-                    if (isEditMode && !e.ctrlKey && !e.metaKey) {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      return;
-                    }
-                    setIsChatOpen(true);
-                  }}
-                  title={isEditMode ? "Click to edit • Ctrl/Cmd+Click to open chat" : "Open chat"}
-                  className="btn-flat btn-flat-lg whitespace-nowrap text-base md:text-lg xl:text-xl"
-                >
-                  {isEditMode && !chatButtonText?.id ? (
-                    <span className="text-sm italic opacity-75" title="Create 'chat_with_ai' section to edit">
-                      {chatButtonValue} ⚠️
-                    </span>
-                  ) : isEditMode && chatButtonText?.id ? (
-                    <InlineTextEditor
-                      value={chatButtonValue}
-                      entityType="section"
-                      entityId={chatButtonText.id}
-                      fieldName="text"
-                      className="text-base sm:text-lg text-white"
-                      placeholder="Chat button text..."
-                    />
-                  ) : (
-                    chatButtonValue
-                  )}
-                </button>
-
                 {/* Download CV button - editable label in edit mode */}
                   {resumeUrl ? (
                     <button
@@ -785,7 +744,6 @@ const Hero = () => {
         </div>
       )}
 
-      <ChatModal isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
     </>
   );
 };

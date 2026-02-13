@@ -61,10 +61,11 @@ import {
   Visibility as VisibilityIcon,
   Language as LanguageIcon,
   ArrowBack as ArrowBackIcon,
-  Link as LinkIconTab
+  Link as LinkIconTab,
+  SmartToy as SmartToyIcon
 } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
-import { api, projectsApi, experiencesApi, sectionsApi, linksApi } from '../services/api';
+import { api, projectsApi, experiencesApi, sectionsApi } from '../services/api';
 import { useSnackbar } from 'notistack';
 import SERVER_URL from '../components/common/BackendServerData';
 import PermissionGate from '../components/common/PermissionGate';
@@ -105,6 +106,7 @@ function PortfolioDataPage() {
   const [sections, setSections] = useState([]);
   const [images, setImages] = useState([]);
   const [attachments, setAttachments] = useState([]);
+  const [selectedAgentId, setSelectedAgentId] = useState('');
   
   // Available options states
   const [availableCategories, setAvailableCategories] = useState([]);
@@ -114,6 +116,9 @@ function PortfolioDataPage() {
   const [availableProjects, setAvailableProjects] = useState([]);
   // eslint-disable-next-line no-unused-vars
   const [availableSections, setAvailableSections] = useState([]);
+  const [availableAgents, setAvailableAgents] = useState([]);
+  const [agentsLoading, setAgentsLoading] = useState(false);
+  const [savingAgentAssignment, setSavingAgentAssignment] = useState(false);
 
   // Upload dialog states
   const [imageUploadOpen, setImageUploadOpen] = useState(false);
@@ -254,6 +259,7 @@ function PortfolioDataPage() {
       setSections(portfolio.sections || []);
       setImages(portfolio.images || []);
       setAttachments(portfolio.attachments || []);
+      setSelectedAgentId(portfolio.default_agent_id ? String(portfolio.default_agent_id) : '');
       
       console.log('============================================');
       console.log('STATE UPDATED SUCCESSFULLY');
@@ -304,6 +310,20 @@ function PortfolioDataPage() {
       
     } catch (err) {
       console.error('Error fetching available options:', err);
+    }
+  }, []);
+
+  const fetchAvailableAgents = useCallback(async () => {
+    try {
+      setAgentsLoading(true);
+      const response = await api.get('/api/agents');
+      const agents = response.data || [];
+      setAvailableAgents(Array.isArray(agents) ? agents : []);
+    } catch (err) {
+      console.error('Error fetching available agents:', err);
+      setAvailableAgents([]);
+    } finally {
+      setAgentsLoading(false);
     }
   }, []);
 
@@ -367,10 +387,12 @@ function PortfolioDataPage() {
       fetchAttachmentCategories();
       console.log('Calling fetchLanguages...');
       fetchLanguages();
+      console.log('Calling fetchAvailableAgents...');
+      fetchAvailableAgents();
     } else {
       console.warn('No portfolioId provided to PortfolioDataPage!');
     }
-  }, [portfolioId, fetchPortfolioData, fetchAvailableOptions, fetchAttachmentCategories, fetchLanguages]);
+  }, [portfolioId, fetchPortfolioData, fetchAvailableOptions, fetchAttachmentCategories, fetchLanguages, fetchAvailableAgents]);
 
   // Handle tab change
   const handleTabChange = (event, newValue) => {
@@ -463,6 +485,39 @@ function PortfolioDataPage() {
       enqueueSnackbar('Section removed successfully', { variant: 'success' });
     } catch (err) {
       enqueueSnackbar('Failed to remove section', { variant: 'error' });
+    }
+  };
+
+  const handleAssignDefaultAgent = async () => {
+    if (!selectedAgentId) {
+      enqueueSnackbar('Please select an agent first', { variant: 'warning' });
+      return;
+    }
+
+    try {
+      setSavingAgentAssignment(true);
+      await api.post(`/api/portfolios/${portfolioId}/agent/${selectedAgentId}`);
+      await fetchPortfolioData();
+      enqueueSnackbar('Default AI agent updated successfully', { variant: 'success' });
+    } catch (err) {
+      const errorMessage = err.response?.data?.detail || 'Failed to update default AI agent';
+      enqueueSnackbar(errorMessage, { variant: 'error' });
+    } finally {
+      setSavingAgentAssignment(false);
+    }
+  };
+
+  const handleClearDefaultAgent = async () => {
+    try {
+      setSavingAgentAssignment(true);
+      await api.delete(`/api/portfolios/${portfolioId}/agent`);
+      await fetchPortfolioData();
+      enqueueSnackbar('Default AI agent removed successfully', { variant: 'success' });
+    } catch (err) {
+      const errorMessage = err.response?.data?.detail || 'Failed to remove default AI agent';
+      enqueueSnackbar(errorMessage, { variant: 'error' });
+    } finally {
+      setSavingAgentAssignment(false);
     }
   };
 
@@ -1639,6 +1694,7 @@ function PortfolioDataPage() {
           <Tab icon={<PhotoLibraryIcon />} label="Images" />
           <Tab icon={<AttachFileIcon />} label="Attachments" />
           <Tab icon={<LinkIconTab />} label="Links" />
+          <Tab icon={<SmartToyIcon />} label="AI Agents" />
         </Tabs>
       </Box>
 
@@ -2737,6 +2793,108 @@ function PortfolioDataPage() {
                 errorMessage="You do not have permission to manage portfolio links."
               >
                 <PortfolioLinks portfolioId={portfolioId} />
+              </PermissionGate>
+            </TabPanel>
+
+            {/* AI Agents Tab */}
+            <TabPanel value={tabValue} index={8}>
+              <PermissionGate
+                permissions={["EDIT_PORTFOLIO", "MANAGE_AGENTS", "SYSTEM_ADMIN"]}
+                showError
+                errorMessage="You do not have permission to manage portfolio AI agents."
+              >
+                <Card>
+                  <CardHeader
+                    avatar={<Avatar sx={{ bgcolor: '#2e7d32' }}><SmartToyIcon /></Avatar>}
+                    title="Default AI Agent"
+                    subheader="This agent will be used by the website Chat with my AI assistant button."
+                  />
+                  <CardContent>
+                    <Stack spacing={3}>
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                          Current Agent
+                        </Typography>
+                        {portfolioData?.default_agent ? (
+                          <Paper variant="outlined" sx={{ p: 2 }}>
+                            <Typography variant="body1" fontWeight={600}>
+                              {portfolioData.default_agent.name}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                              {portfolioData.default_agent.description || 'No description provided'}
+                            </Typography>
+                            <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                              <Chip
+                                size="small"
+                                label={portfolioData.default_agent.is_active ? 'Active' : 'Inactive'}
+                                color={portfolioData.default_agent.is_active ? 'success' : 'default'}
+                              />
+                              {portfolioData.default_agent.chat_model && (
+                                <Chip
+                                  size="small"
+                                  variant="outlined"
+                                  label={`Model: ${portfolioData.default_agent.chat_model}`}
+                                />
+                              )}
+                            </Stack>
+                          </Paper>
+                        ) : (
+                          <Alert severity="warning">
+                            No default AI agent is assigned to this portfolio.
+                          </Alert>
+                        )}
+                      </Box>
+
+                      <FormControl fullWidth disabled={agentsLoading || savingAgentAssignment}>
+                        <InputLabel>Select Agent</InputLabel>
+                        <Select
+                          value={selectedAgentId}
+                          label="Select Agent"
+                          onChange={(event) => setSelectedAgentId(event.target.value)}
+                        >
+                          {availableAgents.map((agent) => (
+                            <MenuItem key={agent.id} value={String(agent.id)}>
+                              {agent.name}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+
+                      {agentsLoading && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <CircularProgress size={18} />
+                          <Typography variant="body2" color="text.secondary">
+                            Loading agents...
+                          </Typography>
+                        </Box>
+                      )}
+
+                      {!agentsLoading && availableAgents.length === 0 && (
+                        <Alert severity="info">
+                          No agents are available. Create agents in Agent Administration first.
+                        </Alert>
+                      )}
+
+                      <Stack direction="row" spacing={1}>
+                        <Button
+                          variant="contained"
+                          onClick={handleAssignDefaultAgent}
+                          disabled={savingAgentAssignment || !selectedAgentId}
+                        >
+                          {savingAgentAssignment ? <CircularProgress size={20} color="inherit" /> : 'Save Default Agent'}
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          onClick={handleClearDefaultAgent}
+                          disabled={savingAgentAssignment || !portfolioData?.default_agent_id}
+                        >
+                          Remove Assignment
+                        </Button>
+                      </Stack>
+                    </Stack>
+                  </CardContent>
+                </Card>
               </PermissionGate>
             </TabPanel>
           </>
