@@ -424,7 +424,6 @@ def index_record(db: Session, source_table: str, source_id: str) -> None:
             
     except Exception as e:
         _set_status(db, source_table, source_id, f"indexing failed: {str(e)[:200]}")
-        print(f"Indexer error for {source_table}/{source_id}: {str(e)[:200]}")
 
 
 def _index_record_for_language(db: Session, source_table: str, source_id: str, record: Dict[str, any], language_code: Optional[str]) -> None:

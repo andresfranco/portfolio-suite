@@ -172,7 +172,6 @@ export const AdvancedRichTextEditor = ({
       try {
         await refreshPortfolio();
       } catch (refreshError) {
-        console.warn('Content saved but refresh failed:', refreshError);
       }
 
       setIsEditing(false);

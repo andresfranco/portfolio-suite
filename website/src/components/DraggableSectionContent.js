@@ -193,7 +193,6 @@ export const DraggableTextContent = ({ text, index, isEditMode, sectionId, isBor
 
       return container.innerHTML;
     } catch (error) {
-      console.warn('[DraggableTextContent] Prism pre-highlight failed:', error);
       return cleanedHtml;
     }
   }, [cleanedHtml]);
@@ -291,7 +290,6 @@ export const DraggableTextContent = ({ text, index, isEditMode, sectionId, isBor
         Prism.highlightElement(block);
       });
     } catch (error) {
-      console.warn('[DraggableTextContent] Prism highlight failed:', error);
     }
   }, [highlightedHtml, isEditMode]);
   

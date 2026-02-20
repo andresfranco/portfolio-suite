@@ -68,14 +68,11 @@ export const AuthorizationProvider = ({ children }) => {
         
         // Get current user permissions from the API
         const response = await api.get('/api/users/me/permissions');
-        console.log(`[AUTH DEBUG] API Response:`, response.data);
         
         setPermissions(response.data.permissions || []);
         setRoles(response.data.roles || []);
         setIsSystemAdminUser(response.data.is_systemadmin || false);
         
-        console.log(`[AUTH DEBUG] Loaded permissions:`, response.data.permissions || []);
-        console.log(`[AUTH DEBUG] System admin flag:`, response.data.is_systemadmin || false);
         
         logInfo('User permissions loaded:', response.data.permissions?.length || 0, 'permissions');
         logInfo('System admin status:', response.data.is_systemadmin);
@@ -111,18 +108,15 @@ export const AuthorizationProvider = ({ children }) => {
     
     // Primary check: use the is_systemadmin flag from the backend
     if (isSystemAdminUser) {
-      console.log(`[AUTH DEBUG] isSystemAdmin(): TRUE (via backend flag)`);
       return true;
     }
     
     // Fallback: check if user has SYSTEM_ADMIN permission
     const hasSystemAdminPerm = permissions.includes(SYSTEM_ADMIN_PERMISSION);
     if (hasSystemAdminPerm) {
-      console.log(`[AUTH DEBUG] isSystemAdmin(): TRUE (via SYSTEM_ADMIN permission)`);
       return true;
     }
     
-    console.log(`[AUTH DEBUG] isSystemAdmin(): FALSE (isSystemAdminUser: ${isSystemAdminUser}, hasSystemAdminPerm: ${hasSystemAdminPerm})`);
     return false;
   }, [isSystemAdminUser, permissions, authToken]);
 
@@ -137,13 +131,11 @@ export const AuthorizationProvider = ({ children }) => {
     
     // System admin bypass
     if (isSystemAdmin()) {
-      console.log(`[AUTH DEBUG] hasPermission(${permission}): TRUE (system admin bypass)`);
       return true;
     }
     
     // Check specific permission directly
     if (permissions.includes(permission)) {
-      console.log(`[AUTH DEBUG] hasPermission(${permission}): TRUE (direct permission)`);
       return true;
     }
     
@@ -169,16 +161,12 @@ export const AuthorizationProvider = ({ children }) => {
     // Check if user has a manage permission that grants the required permission
     for (const [managePerm, grantedPermissions] of Object.entries(managePermissions)) {
       if (permissions.includes(managePerm) && grantedPermissions.includes(permission)) {
-        console.log(`[AUTH DEBUG] hasPermission(${permission}): TRUE (via manage permission ${managePerm})`);
         return true;
       }
     }
     
     // Only log detailed debug info if there's an auth token (avoid spam when logged out)
     if (authToken) {
-      console.log(`[AUTH DEBUG] hasPermission(${permission}): FALSE (no permission found)`);
-      console.log(`[AUTH DEBUG] Current permissions:`, permissions);
-      console.log(`[AUTH DEBUG] System admin status:`, isSystemAdmin());
     }
     return false;
   }, [permissions, isSystemAdmin, authToken]);

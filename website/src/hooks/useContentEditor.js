@@ -25,7 +25,6 @@ export const useContentEditor = (entityType) => {
    */
   const startEditing = useCallback((item) => {
     if (!isEditMode) {
-      console.warn('Cannot edit: not in edit mode');
       return;
     }
     

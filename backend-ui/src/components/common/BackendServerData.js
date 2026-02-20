@@ -13,7 +13,6 @@ const SERVER_URL = `${SERVER_PROTOCOL}://${SERVER_HOSTNAME}:${SERVER_PORT}`;
 
 // Debug info for development
 if (process.env.NODE_ENV === 'development') {
-  console.log('Using backend server URL:', SERVER_URL);
 }
 
 export default SERVER_URL;

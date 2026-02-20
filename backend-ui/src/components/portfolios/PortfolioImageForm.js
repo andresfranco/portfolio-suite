@@ -116,7 +116,6 @@ function PortfolioImageForm({ open, onClose, portfolio }) {
         const existingImage = images.find(img => img.category === categoryValue);
         
         if (existingImage) {
-          console.log(`Deleting existing ${categoryValue} image (ID: ${existingImage.id}) before uploading new one`);
           
           try {
             const deleteResponse = await fetch(
@@ -127,14 +126,11 @@ function PortfolioImageForm({ open, onClose, portfolio }) {
             );
             
             if (!deleteResponse.ok) {
-              console.warn('Failed to delete old image, backend will handle it');
             } else {
-              console.log('Successfully deleted old image');
               // Update local state immediately
               setImages(images.filter(img => img.id !== existingImage.id));
             }
           } catch (deleteErr) {
-            console.warn('Error deleting old image, backend will handle it:', deleteErr);
           }
         }
       }

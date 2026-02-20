@@ -304,13 +304,10 @@ const projectsApi = {
     const params = new URLSearchParams();
     params.append('category', category);
     if (languageId) {
-      console.log('Adding language_id to params:', languageId, 'Type:', typeof languageId);
       params.append('language_id', languageId);
     } else {
-      console.log('No language_id provided, languageId is:', languageId);
     }
     url += `?${params.toString()}`;
-    console.log('Final upload URL:', url);
     
     return api.post(url, formData);
   },
@@ -354,8 +351,6 @@ const projectsApi = {
       params.append('language_id', languageId);
     }
     const url = `/api/portfolios/${portfolioId}/attachments/${attachmentId}${params.toString() ? `?${params.toString()}` : ''}`;
-    console.log('PUT request URL:', url);
-    console.log('PUT request params:', { categoryId, isDefault, languageId });
     return api.put(url);
   },
   deletePortfolioAttachment: (portfolioId, attachmentId) => api.delete(`/api/portfolios/${portfolioId}/attachments/${attachmentId}`),

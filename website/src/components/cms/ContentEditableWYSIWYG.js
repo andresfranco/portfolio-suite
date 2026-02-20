@@ -158,18 +158,15 @@ export const ContentEditableWYSIWYG = ({
     if (isEditing && editorRef.current) {
       setTimeout(() => {
         const codeBlocks = editorRef.current.querySelectorAll('pre code[class*="language-"]');
-        console.log('[Prism Editor Open] Found code blocks:', codeBlocks.length);
         codeBlocks.forEach((block) => {
           try {
             // Only highlight if not already highlighted
             if (!block.querySelector('.token')) {
-              console.log('[Prism Editor Open] Highlighting:', block.className);
               const plainText = block.textContent;
               block.textContent = plainText;
               Prism.highlightElement(block);
             }
           } catch (e) {
-            console.warn('Failed to highlight code block on editor open:', e);
           }
         });
       }, 100);
@@ -437,27 +434,21 @@ export const ContentEditableWYSIWYG = ({
           // First try to highlight within the display content ref
           if (displayContentRef.current) {
             const codeBlocks = displayContentRef.current.querySelectorAll('pre code[class*="language-"]');
-            console.log('[Prism] Found code blocks in display mode:', codeBlocks.length);
             codeBlocks.forEach((block) => {
               try {
-                console.log('[Prism] Highlighting block with class:', block.className);
                 // Only re-highlight if not already highlighted
                 if (!block.querySelector('.token')) {
                   const plainText = block.textContent;
                   block.textContent = plainText;
                   Prism.highlightElement(block);
-                  console.log('[Prism] Block highlighted successfully');
                 }
               } catch (e) {
-                console.warn('Failed to highlight code block:', e);
               }
             });
           } else {
-            console.log('[Prism] displayContentRef.current is null');
           }
         }, 100);
       } catch (error) {
-        console.warn('Prism highlighting error:', error);
       }
     }
   }, [value, isEditing]);
@@ -607,9 +598,6 @@ export const ContentEditableWYSIWYG = ({
         });
 
         const uploadUrl = `${apiBaseUrl}/api/cms/content/images?${params}`;
-        console.log('Uploading image to:', uploadUrl);
-        console.log('Entity type:', entityType, 'Entity ID:', entityId);
-        console.log('API URL from env:', process.env.REACT_APP_API_URL);
 
         const response = await fetch(uploadUrl, {
           method: 'POST',
@@ -996,7 +984,6 @@ export const ContentEditableWYSIWYG = ({
       try {
         await refreshPortfolio();
       } catch (refreshError) {
-        console.warn('Content saved but refresh failed:', refreshError);
       }
 
       setIsEditing(false);
