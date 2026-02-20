@@ -210,10 +210,11 @@ export const LanguageProvider = ({ children }) => {
       // Make sure we're adding string values, not undefined or null
       formData.append('code', String(languageData.code || '').trim());
       formData.append('name', String(languageData.name || '').trim());
-      
+
       // Convert boolean to string for form data
       formData.append('is_default', languageData.is_default ? 'true' : 'false');
-      
+      formData.append('enabled', languageData.enabled !== undefined ? (languageData.enabled ? 'true' : 'false') : 'true');
+
       // Add image only if it exists and is a File
       if (languageData.image && languageData.image instanceof File) {
         formData.append('image', languageData.image);
@@ -274,7 +275,11 @@ export const LanguageProvider = ({ children }) => {
       if (languageData.is_default !== undefined) {
         formData.append('is_default', languageData.is_default ? 'true' : 'false');
       }
-      
+
+      if (languageData.enabled !== undefined) {
+        formData.append('enabled', languageData.enabled ? 'true' : 'false');
+      }
+
       // Add image only if it exists and is a File
       if (languageData.image && languageData.image instanceof File) {
         formData.append('image', languageData.image);

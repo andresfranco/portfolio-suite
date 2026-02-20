@@ -19,6 +19,7 @@ from app.core.security_decorators import require_permission
 from app import models
 import os
 import uuid
+from app.rag.rag_events import stage_event
 
 # Set up logger
 logger = setup_logger("app.api.endpoints.languages")
@@ -184,23 +185,25 @@ async def create_language(
     code: str = Form(..., min_length=2, max_length=10),
     name: str = Form(..., min_length=2, max_length=100),
     is_default: bool = Form(False),
+    enabled: bool = Form(True),
     image: Optional[UploadFile] = File(None),
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user)
 ):
     """
     Create a new language with optional image upload.
-    
+
     Args:
         code: Language code (e.g., 'en', 'es')
         name: Language name (e.g., 'English', 'Spanish')
         is_default: Whether this language is the default
+        enabled: Whether this language is enabled
         image: Optional flag image for the language
         db: Database session
-        
+
     Returns:
         Created language object
-        
+
     Raises:
         HTTPException: If language already exists or other errors occur
     """
@@ -251,7 +254,8 @@ async def create_language(
         language_data = LanguageCreate(
             code=code,
             name=name,
-            is_default=is_default
+            is_default=is_default,
+            enabled=enabled
         )
         
         # Create language in database
@@ -314,24 +318,26 @@ async def update_language(
     code: Optional[str] = Form(None, min_length=2, max_length=10),
     name: Optional[str] = Form(None, min_length=2, max_length=100),
     is_default: Optional[bool] = Form(None),
+    enabled: Optional[bool] = Form(None),
     image: Optional[UploadFile] = File(None),
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user)
 ):
     """
     Update an existing language with optional image upload.
-    
+
     Args:
         language_id: ID of the language to update
         code: Optional new language code
         name: Optional new language name
         is_default: Optional update to default status
+        enabled: Optional update to enabled status
         image: Optional new flag image
         db: Database session
-        
+
     Returns:
         Updated language object
-        
+
     Raises:
         HTTPException: If language not found, code already exists, or other errors occur
     """
@@ -391,7 +397,8 @@ async def update_language(
         language_data = LanguageUpdate(
             code=code,
             name=name,
-            is_default=is_default
+            is_default=is_default,
+            enabled=enabled
         )
         
         # Update language in database

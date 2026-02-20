@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Box, IconButton, Tooltip, Chip, Stack, Typography, Button, Container } from '@mui/material';
-import { Edit as EditIcon, Delete as DeleteIcon, PhotoLibrary as PhotoLibraryIcon, AttachFile as AttachFileIcon, ArrowUpward, ArrowDownward, Add, InfoOutlined } from '@mui/icons-material';
+import { Edit as EditIcon, Delete as DeleteIcon, Dashboard as DashboardIcon, ArrowUpward, ArrowDownward, Add, InfoOutlined } from '@mui/icons-material';
 import ProjectForm from './ProjectForm';
 import ReusableDataGrid from '../common/ReusableDataGrid';
 import ReusableFilters from '../common/ReusableFilters';
@@ -54,20 +54,6 @@ function ProjectIndexContent() {
 
   // Add useEffect to log permission checks on component mount and permission changes
   useEffect(() => {
-    console.log('[PROJECTS DEBUG] ProjectIndex permissions check:');
-    console.log('  - Loading:', authLoading);
-    console.log('  - Permissions array:', permissions);
-    console.log('  - isSystemAdminUser:', isSystemAdminUser);
-    console.log('  - hasPermission("CREATE_PROJECT"):', hasPermission('CREATE_PROJECT'));
-    console.log('  - hasPermission("MANAGE_PROJECTS"):', hasPermission('MANAGE_PROJECTS'));
-    console.log('  - hasPermission("VIEW_PROJECT_IMAGES"):', hasPermission('VIEW_PROJECT_IMAGES'));
-    console.log('  - hasPermission("EDIT_PROJECT_IMAGES"):', hasPermission('EDIT_PROJECT_IMAGES'));
-    console.log('  - hasPermission("VIEW_PROJECT_ATTACHMENTS"):', hasPermission('VIEW_PROJECT_ATTACHMENTS'));
-    console.log('  - hasPermission("SYSTEM_ADMIN"):', hasPermission('SYSTEM_ADMIN'));
-    console.log('  - hasAnyPermission(["CREATE_PROJECT", "MANAGE_PROJECTS"]):', hasAnyPermission(['CREATE_PROJECT', 'MANAGE_PROJECTS']));
-    console.log('  - canCreateProject():', canCreateProject());
-    console.log('  - canViewProjectImages():', canViewProjectImages());
-    console.log('  - canViewProjectAttachments():', canViewProjectAttachments());
   }, [authLoading, permissions, isSystemAdminUser, hasPermission, hasAnyPermission, canCreateProject, canViewProjectImages, canViewProjectAttachments]);
 
   // Fetch metadata on component mount
@@ -309,19 +295,16 @@ function ProjectIndexContent() {
   };
 
   const handleSearch = (searchFilters) => {
-    console.log('ProjectIndex - handleSearch called with:', searchFilters);
     
     let processedFilters = { ...searchFilters };
     
     // Remove empty arrays
     Object.keys(processedFilters).forEach(key => {
       if (Array.isArray(processedFilters[key]) && processedFilters[key].length === 0) {
-        console.log(`ProjectIndex - Removing empty array for key: ${key}`);
         delete processedFilters[key];
       }
     });
     
-    console.log('ProjectIndex - Processed filters after cleanup:', processedFilters);
     
     updateFilters(processedFilters);
     
@@ -332,20 +315,61 @@ function ProjectIndexContent() {
       ...processedFilters
     };
     
-    console.log('ProjectIndex - Calling fetchProjects with params:', fetchParams);
     
     // Call fetchProjects with the processed filters - let the backend handle the filtering logic
     fetchProjects(fetchParams);
   };
 
   // Handle navigation to project images
-  const handleImagesClick = (project) => {
-    navigate(`/projects/${project.id}/images`);
+  // Handle navigation to project data page
+  const handleProjectDataClick = (project) => {
+    navigate(`/projects/${project.id}`); // Opens Overview tab by default
   };
 
-  // Handle navigation to project attachments
-  const handleAttachmentsClick = (project) => {
-    navigate(`/projects/${project.id}/attachments`);
+  // Handle opening project in website CMS edit mode
+  const handleViewInCMS = async (project, event) => {
+    
+    // Prevent default behavior and stop propagation
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
+    try {
+      
+      // Generate website token from backend
+      const tokenResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/auth/generate-website-token`, {
+        credentials: 'include', // Include cookies for authentication
+      });
+      
+      if (!tokenResponse.ok) {
+        const errorText = await tokenResponse.text();
+        console.error('Token generation failed:', tokenResponse.status, errorText);
+        throw new Error('Failed to generate token');
+      }
+      
+      const data = await tokenResponse.json();
+      
+      // Backend returns 'access_token', not 'token'
+      const token = data.access_token || data.token;
+      
+      if (token) {
+        const websiteUrl = process.env.REACT_APP_WEBSITE_URL || 'http://localhost:3000';
+        
+        // Always use ID since slug might be empty or undefined
+        const projectIdentifier = project.id;
+        
+        const projectUrl = `${websiteUrl}/en/projects/${projectIdentifier}?token=${token}&edit=true`;
+        
+        
+        // Open in new tab
+        window.open(projectUrl, '_blank');
+      } else {
+        console.error('No token in response:', data);
+      }
+    } catch (err) {
+      console.error('Error opening project in CMS:', err);
+    }
   };
 
   // Define columns for the grid
@@ -600,61 +624,47 @@ function ProjectIndexContent() {
     {
       field: 'actions',
       headerName: 'Actions',
-      width: 160,
+      width: 180,
       sortable: false,
       disableColumnMenu: true,
       renderCell: (params) => (
         <Box>
-          <Tooltip title="Project Images">
-            <PermissionGate 
-              permissions={["VIEW_PROJECT_IMAGES", "UPLOAD_PROJECT_IMAGES", "EDIT_PROJECT_IMAGES", "DELETE_PROJECT_IMAGES", "MANAGE_PROJECT_IMAGES", "MANAGE_PROJECTS", "SYSTEM_ADMIN"]} 
+          <Tooltip title="Project Data">
+            <PermissionGate
+              permissions={["VIEW_PROJECTS", "MANAGE_PROJECTS", "SYSTEM_ADMIN"]}
               requireAll={false}
             >
-              <IconButton 
-                onClick={() => handleImagesClick(params.row)} 
-                size="small" 
-                sx={{ color: '#1976d2', p: 0.5, mr: 0.5 }}
-              >
-                <PhotoLibraryIcon fontSize="small" />
-              </IconButton>
-            </PermissionGate>
-          </Tooltip>
-          <Tooltip title="Project Attachments">
-            <PermissionGate 
-              permissions={["VIEW_PROJECT_ATTACHMENTS", "UPLOAD_PROJECT_ATTACHMENTS", "DELETE_PROJECT_ATTACHMENTS", "MANAGE_PROJECT_ATTACHMENTS", "MANAGE_PROJECTS", "SYSTEM_ADMIN"]} 
-              requireAll={false}
-            >
-              <IconButton 
-                onClick={() => handleAttachmentsClick(params.row)} 
-                size="small" 
-                sx={{ color: '#1976d2', p: 0.5, mr: 0.5 }}
-              >
-                <AttachFileIcon fontSize="small" />
-              </IconButton>
-            </PermissionGate>
-          </Tooltip>
-          <Tooltip title="Edit Project">
-            <PermissionGate 
-              permissions={["EDIT_PROJECT", "MANAGE_PROJECTS", "SYSTEM_ADMIN"]} 
-              requireAll={false}
-            >
-              <IconButton 
-                onClick={() => handleEditClick(params.row)} 
+              <IconButton
+                onClick={() => handleProjectDataClick(params.row)}
                 size="small"
                 sx={{ color: '#1976d2', p: 0.5, mr: 0.5 }}
+              >
+                <DashboardIcon fontSize="small" />
+              </IconButton>
+            </PermissionGate>
+          </Tooltip>
+          <Tooltip title="Edit in Website CMS">
+            <PermissionGate
+              permissions={["EDIT_PROJECT", "MANAGE_PROJECTS", "SYSTEM_ADMIN"]}
+              requireAll={false}
+            >
+              <IconButton
+                onClick={(e) => handleViewInCMS(params.row, e)}
+                size="small"
+                sx={{ color: '#43a047', p: 0.5, mr: 0.5 }}
               >
                 <EditIcon fontSize="small" />
               </IconButton>
             </PermissionGate>
           </Tooltip>
           <Tooltip title="Delete Project">
-            <PermissionGate 
-              permissions={["DELETE_PROJECT", "MANAGE_PROJECTS", "SYSTEM_ADMIN"]} 
+            <PermissionGate
+              permissions={["DELETE_PROJECT", "MANAGE_PROJECTS", "SYSTEM_ADMIN"]}
               requireAll={false}
             >
-              <IconButton 
-                onClick={() => handleDeleteClick(params.row)} 
-                size="small" 
+              <IconButton
+                onClick={() => handleDeleteClick(params.row)}
+                size="small"
                 sx={{ color: '#e53935', p: 0.5 }}
               >
                 <DeleteIcon fontSize="small" />

@@ -111,7 +111,6 @@ function renderFilterInput(type, control, handleSubmit, onSubmitFilters, roles) 
                 field.onChange(e);
                 // Auto-submit on change
                 setTimeout(() => {
-                  console.log(`Status filter changed to ${e.target.value}, auto-submitting form`);
                   handleSubmit(onSubmitFilters)();
                 }, 100);
               }}
@@ -194,14 +193,12 @@ function renderFilterInput(type, control, handleSubmit, onSubmitFilters, roles) 
                   typeof id === 'string' ? parseInt(id, 10) : id
                 );
                 
-                console.log(`Roles filter changed to: ${JSON.stringify(roleIds)}`);
                 
                 // Update the form field with the processed array
                 field.onChange(roleIds);
                 
                 // Auto-submit after short delay
                 setTimeout(() => {
-                  console.log(`Auto-submitting form after roles change: ${JSON.stringify(roleIds)}`);
                   handleSubmit(onSubmitFilters)();
                 }, 100);
               }}
@@ -368,7 +365,6 @@ const UserFilters = ({ onFilterChange, onSearch, filters: initialFilters }) => {
     isManualSubmitRef.current = true;
     
     // Debug logging
-    console.log('UserFilters onSubmitFilters - Form data received:', data);
     
     // Build the filter object
     const cleanFilters = {};
@@ -391,7 +387,6 @@ const UserFilters = ({ onFilterChange, onSearch, filters: initialFilters }) => {
               typeof id === 'string' ? parseInt(id, 10) : id
             );
             cleanFilters[type] = roleIds;
-            console.log(`Processed ${roleIds.length} roles for filter:`, roleIds);
           } else {
             emptyFilters.push(type);
           }
@@ -400,23 +395,18 @@ const UserFilters = ({ onFilterChange, onSearch, filters: initialFilters }) => {
           // But make sure it's not an empty string
           if (value !== '') {
             cleanFilters[type] = String(value);
-            console.log(`Including boolean filter: ${type}=${cleanFilters[type]} (type: ${typeof cleanFilters[type]})`);
           } else {
             emptyFilters.push(type);
           }
         } else {
           cleanFilters[type] = value;
-          console.log(`Including filter: ${type}=${JSON.stringify(value)}`);
         }
       } else {
         emptyFilters.push(type);
-        console.log(`Skipping empty filter: ${type}`);
       }
     });
     
     // Log the final filter object
-    console.log('UserFilters - Final filters object being submitted:', cleanFilters);
-    console.log('UserFilters - Empty filters not included:', emptyFilters);
     
     // Save to ref and persistent store
     filtersRef.current = {...cleanFilters};
@@ -430,18 +420,15 @@ const UserFilters = ({ onFilterChange, onSearch, filters: initialFilters }) => {
     });
     
     // Apply filters directly to context
-    console.log('UserFilters - Calling applyFilters with:', cleanFilters);
     applyFilters(cleanFilters);
     
     // Notify parent component
     if (onFilterChange) {
-      console.log('UserFilters - Notifying parent via onFilterChange with:', cleanFilters);
       onFilterChange({...cleanFilters});
     }
     
     // If specific search callback provided, call it too
     if (onSearch && onSearch !== onFilterChange) {
-      console.log('UserFilters - Notifying parent via onSearch with:', cleanFilters);
       onSearch({...cleanFilters});
     }
     
@@ -470,23 +457,19 @@ const UserFilters = ({ onFilterChange, onSearch, filters: initialFilters }) => {
   
   // Handle removing a filter
   const handleRemoveFilter = useCallback((filterId) => {
-    console.log("UserFilters - Removing filter with ID:", filterId);
     
     // Find the filter to be removed
     const filterToRemove = activeFilters.find(f => f.id === filterId);
     
     if (!filterToRemove) {
-      console.warn("UserFilters - Filter not found with ID:", filterId);
       return;
     }
     
     const typeToRemove = filterToRemove.type;
-    console.log(`UserFilters - Removing filter: ${typeToRemove} (ID: ${filterId})`);
     
     // Clear the form value for the removed filter FIRST
     const defaultValue = typeToRemove === 'roles' ? [] : '';
     setValue(typeToRemove, defaultValue);
-    console.log(`UserFilters - Cleared form value for: ${typeToRemove}`);
     
     // Create a copy of the current form values with the removed filter cleared
     const currentFormValues = {...watch()};
@@ -503,12 +486,10 @@ const UserFilters = ({ onFilterChange, onSearch, filters: initialFilters }) => {
         const defaultType = Object.keys(FILTER_TYPES)[0];
         updated.push({ id: nextFilterId, type: defaultType });
         setNextFilterId(prev => prev + 1);
-        console.log(`UserFilters - Added default filter: ${defaultType}`);
       }
       
       // Update persistent store
       persistentFormStore.activeFilters = [...updated];
-      console.log(`UserFilters - Active filters after removal:`, updated);
       
       return updated;
     });
@@ -535,24 +516,18 @@ const UserFilters = ({ onFilterChange, onSearch, filters: initialFilters }) => {
           cleanFilters[type] = value.map(id => 
             typeof id === 'string' ? parseInt(id, 10) : id
           );
-          console.log(`UserFilters - Including roles after filter removal: ${JSON.stringify(cleanFilters[type])}`);
         } else if (type === 'is_active' && value !== '') {
           // Convert to string for API compatibility
           cleanFilters[type] = String(value);
-          console.log(`UserFilters - Including is_active after filter removal: ${cleanFilters[type]}`);
         } else {
           cleanFilters[type] = value;
-          console.log(`UserFilters - Including ${type} after filter removal: ${value}`);
         }
       }
     });
     
-    console.log('UserFilters - Final clean filters after removal:', cleanFilters);
-    console.log('UserFilters - Removed filter type should NOT be present:', typeToRemove);
     
     // Double-check to make sure the removed filter isn't somehow still in the cleanFilters
     if (typeToRemove in cleanFilters) {
-      console.warn(`UserFilters - REMOVED FILTER TYPE ${typeToRemove} WAS STILL PRESENT! Removing it.`);
       delete cleanFilters[typeToRemove];
     }
     
@@ -568,13 +543,11 @@ const UserFilters = ({ onFilterChange, onSearch, filters: initialFilters }) => {
     // Notify parent component FIRST to refresh the grid IMMEDIATELY
     // This is critical for updating the grid with the correct filters
     if (onFilterChange) {
-      console.log('UserFilters - Notifying parent via onFilterChange with:', cleanFilters);
       onFilterChange({...cleanFilters});
     }
     
     // If specific search callback provided, call it too
     if (onSearch && onSearch !== onFilterChange) {
-      console.log('UserFilters - Notifying parent via onSearch with:', cleanFilters);
       onSearch({...cleanFilters});
     }
     
@@ -610,7 +583,6 @@ const UserFilters = ({ onFilterChange, onSearch, filters: initialFilters }) => {
   
   // Handle clearing all filters
   const handleClearFilters = useCallback(() => {
-    console.log('UserFilters handleClearFilters - Clearing all filters');
     
     // Reset form
     reset({
@@ -642,13 +614,11 @@ const UserFilters = ({ onFilterChange, onSearch, filters: initialFilters }) => {
     // Notify parent component explicitly with empty filters object FIRST
     // This ensures grid is refreshed immediately
     if (onFilterChange) {
-      console.log('UserFilters - Triggering explicit filter change with empty filters on clear');
       onFilterChange({});
     }
     
     // If specific search callback provided, call it too to force refresh
     if (onSearch && onSearch !== onFilterChange) {
-      console.log('UserFilters - Triggering explicit search with empty filters on clear');
       onSearch({});
     }
     

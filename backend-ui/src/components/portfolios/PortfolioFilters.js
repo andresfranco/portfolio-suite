@@ -118,7 +118,6 @@ function PortfolioFilters({ filters, onFiltersChange, onSearch }) {
       }
     });
     
-    console.log('Searching with filters:', cleanFilters);
     
     // Update parent component with new filters
     if (onFiltersChange) {

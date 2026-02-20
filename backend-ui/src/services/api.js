@@ -26,6 +26,7 @@ const isLikelyAuthError = (error) => {
 const api = axios.create({
   baseURL: SERVER_URL || 'http://localhost:8000',
   timeout: API_CONFIG.TIMEOUT,
+  withCredentials: true, // Important: Send cookies with every request
   headers: {
     'Content-Type': 'application/json',
     ...API_CONFIG.HEADERS
@@ -35,28 +36,45 @@ const api = axios.create({
   }
 });
 
-// Request interceptor for authentication
+// Create a separate axios instance for CSRF refresh to avoid interceptor recursion
+const csrfRefreshInstance = axios.create({
+  baseURL: SERVER_URL || 'http://localhost:8000',
+  timeout: API_CONFIG.TIMEOUT,
+  withCredentials: true, // Important: Send cookies with every request
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+// Request interceptor for CSRF token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('accessToken');
+    const csrfToken = localStorage.getItem('csrf_token');
     logDebug('API Request Interceptor:', {
       url: config.url,
       method: config.method,
-      tokenExists: !!token,
-      tokenLength: token ? token.length : 0,
-      headers: config.headers
+      csrfTokenExists: !!csrfToken,
+      headers: config.headers,
+      isFormData: config.data instanceof FormData
     });
     
-    if (token) {
-      // Optionally preemptively reject if token is expired; backend will also return 401
-      if (isTokenExpired(token, 0)) {
-        logDebug('Token appears expired before request; proceeding to let server respond 401');
-      }
-      config.headers.Authorization = `Bearer ${token}`;
-      logDebug('Authorization header added:', config.headers.Authorization.substring(0, 20) + '...');
-    } else {
-      logDebug('No access token found in localStorage');
+    // Add CSRF token for state-changing requests (POST, PUT, DELETE, PATCH)
+    const stateMutatingMethods = ['post', 'put', 'delete', 'patch'];
+    if (csrfToken && stateMutatingMethods.includes(config.method?.toLowerCase())) {
+      config.headers['X-CSRF-Token'] = csrfToken;
+      logDebug('CSRF token added to request');
     }
+    
+    // Handle FormData: Remove Content-Type to let axios/browser set it with boundary
+    if (config.data instanceof FormData) {
+      // Delete the Content-Type header to let browser set it with proper boundary
+      delete config.headers['Content-Type'];
+      logDebug('FormData detected, removed Content-Type header for proper boundary');
+    }
+    
+    // Note: Access token is now in httpOnly cookie, sent automatically by browser
+    // No need to manually add Authorization header
+    
     return config;
   },
   (error) => Promise.reject(error)
@@ -66,62 +84,154 @@ api.interceptors.request.use(
 let isRefreshing = false;
 let refreshPromise = null;
 
+/**
+ * Check if the 401 error is due to password verification failure (not token expiry)
+ * These errors should NOT trigger token refresh
+ */
+const isPasswordVerificationError = (error) => {
+  const { config, response } = error || {};
+  
+  // Check if it's an MFA endpoint with password verification
+  const isMfaEndpoint = config?.url?.includes('/api/mfa/');
+  const isAccountSecurityEndpoint = config?.url?.includes('/api/account/');
+  
+  // Check if the error message indicates password verification failure
+  const errorDetail = response?.data?.detail || '';
+  const isPasswordError = errorDetail.toLowerCase().includes('password') || 
+                          errorDetail.toLowerCase().includes('invalid password');
+  
+  return (isMfaEndpoint || isAccountSecurityEndpoint) && isPasswordError;
+};
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const { response, config } = error || {};
     if (!response) return Promise.reject(error);
+    
+    // Handle CSRF token validation failures (403) by refreshing tokens
+    // The refresh endpoint will provide a new CSRF token
+    if (response.status === 403 && 
+        response.data?.code === 'CSRF_VALIDATION_FAILED') {
+      logDebug('CSRF validation failed, refreshing tokens to get new CSRF token');
+      
+      // Avoid infinite loop
+      if (config && config._csrfRetry) {
+        logError('CSRF refresh already attempted, giving up');
+        return Promise.reject(error);
+      }
+      
+      // Check if we're authenticated (refresh token is in httpOnly cookie)
+      const isAuth = localStorage.getItem('isAuthenticated');
+      if (!isAuth) {
+        logError('Not authenticated, cannot refresh CSRF token');
+        localStorage.removeItem('csrf_token');
+        return Promise.reject(error);
+      }
+      
+      try {
+        // Refresh tokens - this will give us a new CSRF token
+        if (!isRefreshing) {
+          isRefreshing = true;
+          refreshPromise = csrfRefreshInstance.post(API_CONFIG.ENDPOINTS.auth.refreshToken, {})
+            .then((res) => {
+              // Update CSRF token from refresh response
+              if (res.data?.csrf_token) {
+                localStorage.setItem('csrf_token', res.data.csrf_token);
+                logInfo('CSRF token refreshed via token refresh');
+                return res.data.csrf_token;
+              }
+              return null;
+            })
+            .finally(() => {
+              isRefreshing = false;
+            });
+        }
+        
+        const newCsrfToken = await refreshPromise;
+        
+        if (newCsrfToken) {
+          // Retry original request with new CSRF token
+          const retryConfig = { 
+            ...config, 
+            _csrfRetry: true,
+            headers: {
+              ...(config.headers || {}),
+              'X-CSRF-Token': newCsrfToken
+            }
+          };
+          
+          return api.request(retryConfig);
+        } else {
+          logError('Failed to get CSRF token from refresh response');
+          return Promise.reject(error);
+        }
+      } catch (refreshError) {
+        logError('Token refresh failed for CSRF update:', refreshError);
+        localStorage.removeItem('csrf_token');
+        localStorage.removeItem('isAuthenticated');
+        return Promise.reject(error);
+      }
+    }
+    
+    // Handle authentication failures (401)
     if (response.status !== 401) return Promise.reject(error);
 
-    // Avoid infinite loop
-    if (config && config._retry) {
-      // Finalize: clear tokens and propagate error
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refresh_token');
+    // Don't try to refresh token for password verification errors
+    if (isPasswordVerificationError(error)) {
+      logDebug('Password verification failed, not attempting token refresh');
       return Promise.reject(error);
     }
 
-    const refreshToken = localStorage.getItem('refresh_token');
-    if (!refreshToken) {
-      localStorage.removeItem('accessToken');
+    // Avoid infinite loop
+    if (config && config._retry) {
+      // Finalize: clear authentication state
+      localStorage.removeItem('csrf_token');
+      localStorage.removeItem('isAuthenticated');
+      return Promise.reject(error);
+    }
+
+    // Check if we're authenticated (refresh token is in httpOnly cookie)
+    const isAuth = localStorage.getItem('isAuthenticated');
+    if (!isAuth) {
+      localStorage.removeItem('csrf_token');
       return Promise.reject(error);
     }
 
     try {
       if (!isRefreshing) {
         isRefreshing = true;
-        refreshPromise = axios.post(`${SERVER_URL || API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.auth.refreshToken}`,
-          { refresh_token: refreshToken },
-          { headers: { 'Content-Type': 'application/json' } }
+        refreshPromise = csrfRefreshInstance.post(API_CONFIG.ENDPOINTS.auth.refreshToken,
+          {}
         ).then((res) => {
-          const newToken = res.data?.access_token;
-          if (newToken) {
-            localStorage.setItem('accessToken', newToken);
+          // Update CSRF token if provided
+          if (res.data?.csrf_token) {
+            localStorage.setItem('csrf_token', res.data.csrf_token);
           }
-          // Optionally update refresh token
-          if (res.data?.refresh_token) {
-            localStorage.setItem('refresh_token', res.data.refresh_token);
-          }
-          return newToken;
+          return res.data?.success;
         }).finally(() => {
           isRefreshing = false;
         });
       }
 
-      const newToken = await refreshPromise;
-      if (newToken) {
-        // Retry original request once with new token
+      const success = await refreshPromise;
+      if (success) {
+        // Retry original request once (new token is in cookie)
         const retryConfig = { ...config, _retry: true };
-        retryConfig.headers = {
-          ...(config.headers || {}),
-          Authorization: `Bearer ${newToken}`,
-        };
+        // Update CSRF token header if needed
+        const csrfToken = localStorage.getItem('csrf_token');
+        if (csrfToken) {
+          retryConfig.headers = {
+            ...(config.headers || {}),
+            'X-CSRF-Token': csrfToken,
+          };
+        }
         return api.request(retryConfig);
       }
     } catch (e) {
       logError('Token refresh failed in api client:', e);
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('csrf_token');
+      localStorage.removeItem('isAuthenticated');
     }
 
     return Promise.reject(error);
@@ -138,46 +248,110 @@ const projectsApi = {
   
   // Project images
   getProjectImages: (projectId) => api.get(`/api/projects/${projectId}/images/`),
-  uploadProjectImage: (projectId, formData) => api.post(`/api/projects/${projectId}/images/`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }),
-  updateProjectImage: (projectId, imageId, formData) => api.put(`/api/projects/${projectId}/images/${imageId}`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }),
+  uploadProjectImage: (projectId, file, categoryCode, languageId = null) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('category_code', categoryCode);
+    if (languageId) {
+      formData.append('language_id', languageId);
+    }
+    
+    return api.post(`/api/projects/${projectId}/images`, formData);
+  },
+  updateProjectImage: (projectId, imageId, formData) => api.put(`/api/projects/${projectId}/images/${imageId}`, formData),
   deleteProjectImage: (projectId, imageId) => api.delete(`/api/projects/${projectId}/images/${imageId}`),
   
   // Project attachments
   getProjectAttachments: (projectId) => api.get(`/api/projects/${projectId}/attachments/`),
-  uploadProjectAttachment: (projectId, formData) => api.post(`/api/projects/${projectId}/attachments/`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }),
+  uploadProjectAttachment: (projectId, file, categoryId = null, isDefault = false, languageId = null) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (categoryId) {
+      formData.append('category_id', categoryId);
+    }
+    if (languageId) {
+      formData.append('language_id', languageId);
+    }
+    // Note: is_default is handled separately by backend for resume attachments
+    
+    return api.post(`/api/projects/${projectId}/attachments`, formData);
+  },
+  updateProjectAttachment: (projectId, attachmentId, categoryId, isDefault, languageId = null) => {
+    const params = new URLSearchParams();
+    if (categoryId) {
+      params.append('category_id', categoryId);
+    }
+    if (isDefault !== undefined) {
+      params.append('is_default', isDefault ? 'true' : 'false');
+    }
+    if (languageId) {
+      params.append('language_id', languageId);
+    }
+    const url = `/api/projects/${projectId}/attachments/${attachmentId}?${params.toString()}`;
+    return api.put(url, {});
+  },
   deleteProjectAttachment: (projectId, attachmentId) => api.delete(`/api/projects/${projectId}/attachments/${attachmentId}`),
   
   // Portfolio image methods
   getPortfolioImages: (portfolioId) => api.get(`/api/portfolios/${portfolioId}/images`),
-  uploadPortfolioImage: (portfolioId, file, category) => {
+  uploadPortfolioImage: (portfolioId, file, category, languageId = null) => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('category', category);
-    return api.post(`/api/portfolios/${portfolioId}/images?category=${category}`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    
+    // Build URL with query parameters
+    let url = `/api/portfolios/${portfolioId}/images`;
+    const params = new URLSearchParams();
+    params.append('category', category);
+    if (languageId) {
+      params.append('language_id', languageId);
+    } else {
+    }
+    url += `?${params.toString()}`;
+    
+    return api.post(url, formData);
   },
   deletePortfolioImage: (portfolioId, imageId) => api.delete(`/api/portfolios/${portfolioId}/images/${imageId}`),
   renamePortfolioImage: (portfolioId, imageId, updateData) => api.put(`/api/portfolios/${portfolioId}/images/${imageId}`, updateData),
 
   // Portfolio attachment methods
   getPortfolioAttachments: (portfolioId) => api.get(`/api/portfolios/${portfolioId}/attachments`),
-  uploadPortfolioAttachment: (portfolioId, file) => {
+  uploadPortfolioAttachment: (portfolioId, file, categoryId = null, isDefault = false, languageId = null) => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post(`/api/portfolios/${portfolioId}/attachments`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    
+    // Build URL with query parameters
+    let url = `/api/portfolios/${portfolioId}/attachments`;
+    const params = new URLSearchParams();
+    if (categoryId) {
+      params.append('category_id', categoryId);
+    }
+    if (isDefault) {
+      params.append('is_default', 'true');
+    }
+    if (languageId) {
+      params.append('language_id', languageId);
+    }
+    if (params.toString()) {
+      url += `?${params.toString()}`;
+    }
+    
+    return api.post(url, formData);
+  },
+  updatePortfolioAttachment: (portfolioId, attachmentId, categoryId = null, isDefault = null, languageId = null) => {
+    const params = new URLSearchParams();
+    // Only add params if they have actual values (not null, undefined, or empty string)
+    if (categoryId !== null && categoryId !== undefined && categoryId !== '') {
+      params.append('category_id', categoryId);
+    }
+    if (isDefault !== null && isDefault !== undefined) {
+      params.append('is_default', isDefault);
+    }
+    if (languageId !== null && languageId !== undefined && languageId !== '') {
+      params.append('language_id', languageId);
+    }
+    const url = `/api/portfolios/${portfolioId}/attachments/${attachmentId}${params.toString() ? `?${params.toString()}` : ''}`;
+    return api.put(url);
   },
   deletePortfolioAttachment: (portfolioId, attachmentId) => api.delete(`/api/portfolios/${portfolioId}/attachments/${attachmentId}`),
 };
@@ -231,12 +405,46 @@ const sectionsApi = {
   checkUnique: (params) => api.get('/api/sections/check-unique/', { params })
 };
 
-export { 
-  api, 
-  projectsApi, 
-  categoriesApi, 
-  languagesApi, 
-  skillsApi, 
+// Links API
+const linksApi = {
+  // Link Category Types
+  getLinkCategoryTypes: (params) => api.get('/api/links/category-types', { params }),
+  getLinkCategoryType: (code) => api.get(`/api/links/category-types/${code}`),
+  createLinkCategoryType: (data) => api.post('/api/links/category-types', data),
+  updateLinkCategoryType: (code, data) => api.put(`/api/links/category-types/${code}`, data),
+  deleteLinkCategoryType: (code) => api.delete(`/api/links/category-types/${code}`),
+
+  // Link Categories
+  getLinkCategories: (params) => api.get('/api/links/categories', { params }),
+  getLinkCategory: (id) => api.get(`/api/links/categories/${id}`),
+  createLinkCategory: (data) => api.post('/api/links/categories', data),
+  updateLinkCategory: (id, data) => api.put(`/api/links/categories/${id}`, data),
+  deleteLinkCategory: (id) => api.delete(`/api/links/categories/${id}`),
+  createLinkCategoryText: (categoryId, data) => api.post(`/api/links/categories/${categoryId}/texts`, data),
+
+  // Portfolio Links
+  getPortfolioLinks: (portfolioId, params) => api.get(`/api/links/portfolios/${portfolioId}/links`, { params }),
+  getPortfolioLink: (linkId) => api.get(`/api/links/portfolios/links/${linkId}`),
+  createPortfolioLink: (data) => api.post('/api/links/portfolios/links', data),
+  updatePortfolioLink: (linkId, data) => api.put(`/api/links/portfolios/links/${linkId}`, data),
+  deletePortfolioLink: (linkId) => api.delete(`/api/links/portfolios/links/${linkId}`),
+  updatePortfolioLinksOrder: (portfolioId, data) => api.put(`/api/links/portfolios/${portfolioId}/links/order`, data),
+  createPortfolioLinkText: (linkId, data) => api.post(`/api/links/portfolios/links/${linkId}/texts`, data),
+  uploadPortfolioLinkImage: (linkId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/api/links/portfolios/links/${linkId}/image`, formData);
+  },
+  deletePortfolioLinkImage: (linkId) => api.delete(`/api/links/portfolios/links/${linkId}/image`)
+};
+
+export {
+  api,
+  projectsApi,
+  categoriesApi,
+  languagesApi,
+  skillsApi,
   experiencesApi,
-  sectionsApi 
+  sectionsApi,
+  linksApi
 }; 

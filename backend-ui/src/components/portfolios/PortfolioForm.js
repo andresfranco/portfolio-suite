@@ -19,6 +19,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import WarningIcon from '@mui/icons-material/Warning';
 import { alpha } from '@mui/material/styles';
 import { logInfo, logError } from '../../utils/logger';
+import { api } from '../../services/api';
 
 function PortfolioForm({ open, onClose, portfolio, mode = 'create' }) {
   const [formData, setFormData] = useState({
@@ -87,52 +88,23 @@ function PortfolioForm({ open, onClose, portfolio, mode = 'create' }) {
     setIsSubmitting(true);
     
     try {
-      let url = `/api/portfolios/`;
-      let method = 'POST';
-      let payload = {
-        name: formData.name.trim(),
-        description: formData.description?.trim() || ''
-      };
-      
-      // For edit and delete, use the portfolio ID in the URL
-      if (mode === 'edit' || mode === 'delete') {
-        url = `/api/portfolios/${formData.id}`;
-        method = mode === 'edit' ? 'PUT' : 'DELETE';
+      // Build request using authenticated api client (adds Authorization header)
+      let response;
+      if (mode === 'create') {
+        response = await api.post('/api/portfolios/', {
+          name: formData.name.trim(),
+          description: formData.description?.trim() || ''
+        });
+      } else if (mode === 'edit') {
+        response = await api.put(`/api/portfolios/${formData.id}`, {
+          name: formData.name.trim(),
+          description: formData.description?.trim() || ''
+        });
+      } else if (mode === 'delete') {
+        response = await api.delete(`/api/portfolios/${formData.id}`);
       }
       
-      logInfo('PortfolioForm', `${mode} portfolio request:`, { url, method, payload: method !== 'DELETE' ? payload : undefined });
-      
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}${url}`, {
-        method,
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: method !== 'DELETE' ? JSON.stringify(payload) : undefined
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        let errorMessage = `Failed to ${mode} portfolio`;
-        
-        // Handle validation errors
-        if (response.status === 422 && errorData.detail) {
-          if (Array.isArray(errorData.detail)) {
-            errorMessage = errorData.detail.map(err => err.msg || err.message || err).join(', ');
-          } else {
-            errorMessage = errorData.detail;
-          }
-        } else if (errorData.detail) {
-          errorMessage = errorData.detail;
-        } else {
-          errorMessage = `${errorMessage}: ${response.status} ${response.statusText}`;
-        }
-        
-        throw new Error(errorMessage);
-      }
-      
-      logInfo('PortfolioForm', `Portfolio ${mode}d successfully`);
-      
-      // Close the form and refresh data
+      logInfo('PortfolioForm', `Portfolio ${mode}d successfully`, response?.data);
       onClose(true);
     } catch (error) {
       logError('PortfolioForm', `Error ${mode}ing portfolio:`, error);

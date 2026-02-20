@@ -1,5 +1,5 @@
 from typing import Generator, Optional
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from pydantic import ValidationError
@@ -9,27 +9,53 @@ from app.core.database import get_db
 from app.core.config import settings
 from app import models, schemas
 from app.core.logging import setup_logger
+from app.core.secure_cookies import SecureCookieManager
 
 # Set up logger for debugging
 logger = setup_logger("app.api.deps")
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+# Keep OAuth2PasswordBearer for backward compatibility, but make it optional
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
 def get_current_user(
-    db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
+    request: Request,
+    db: Session = Depends(get_db), 
+    token_from_header: Optional[str] = Depends(oauth2_scheme)
 ) -> models.User:
     """
     Validate and decode the JWT token to get the current user.
     Loads roles and permissions for authorization checks.
+    
+    Token extraction priority:
+    1. httpOnly cookie (secure, recommended)
+    2. Authorization header (backward compatibility)
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
+    # Try to get token from cookie first (secure method)
+    token = SecureCookieManager.get_access_token(request)
+    
+    # Fall back to Authorization header for backward compatibility
+    if not token:
+        token = token_from_header
+    
+    if not token:
+        logger.warning("No authentication token found in cookie or header")
+        raise credentials_exception
+    
     try:
+        # Get appropriate key for JWT verification based on algorithm
+        if settings.ALGORITHM == "RS256":
+            verification_key = settings.get_public_key()
+        else:
+            verification_key = settings.SECRET_KEY
+        
         payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+            token, verification_key, algorithms=[settings.ALGORITHM]
         )
         username: str = payload.get("sub")
         if username is None:
@@ -49,6 +75,16 @@ def get_current_user(
     
     if user is None:
         raise credentials_exception
+    
+    # Verify token fingerprint for additional security (only for cookie-based auth)
+    if SecureCookieManager.get_access_token(request):
+        if not SecureCookieManager.verify_token_fingerprint(request):
+            logger.warning(f"Token fingerprint mismatch for user: {username}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session validation failed",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         
     return user
 

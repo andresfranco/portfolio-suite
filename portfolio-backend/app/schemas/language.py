@@ -42,6 +42,7 @@ class LanguageBase(BaseModel):
     name: str = Field(..., min_length=2, max_length=100, description="Language name (e.g., 'English', 'Spanish')")
     image: Optional[str] = None
     is_default: bool = Field(False, description="Whether this language is the default")
+    enabled: bool = Field(True, description="Whether this language is enabled")
     
     @field_validator("code")
     def code_to_lowercase(cls, v):
@@ -58,6 +59,7 @@ class LanguageUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=2, max_length=100, description="Language name (e.g., 'English', 'Spanish')")
     image: Optional[str] = None
     is_default: Optional[bool] = Field(None, description="Whether this language is the default")
+    enabled: Optional[bool] = Field(None, description="Whether this language is enabled")
     
     @field_validator("code")
     def code_to_lowercase(cls, v):
