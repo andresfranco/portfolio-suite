@@ -711,11 +711,6 @@ def read_portfolio(
     """
     Get portfolio by ID.
     """
-    print(f"\n\n{'='*80}")
-    print(f"PORTFOLIO ENDPOINT CALLED - ID: {portfolio_id}")
-    print(f"include_full_details: {include_full_details}")
-    print(f"User: {current_user.email if current_user else 'None'}")
-    print(f"{'='*80}\n")
     
     logger.info(f"========== GET PORTFOLIO {portfolio_id} - include_full_details={include_full_details} ==========")
     logger.debug(f"Getting portfolio with ID {portfolio_id}, include_full_details={include_full_details}")
@@ -745,19 +740,6 @@ def read_portfolio(
     
     logger.info(f"Processed result has {len(result[0]['categories']) if result and len(result) > 0 else 0} categories")
     logger.info(f"========== END GET PORTFOLIO {portfolio_id} ==========")
-    
-    print(f"\n{'='*80}")
-    print(f"PORTFOLIO ENDPOINT RESPONSE")
-    print(f"Portfolio ID: {portfolio_id}")
-    if result and len(result) > 0:
-        print(f"Categories: {len(result[0]['categories'])}")
-        print(f"Category IDs: {[c['id'] for c in result[0]['categories']]}")
-        print(f"Experiences: {len(result[0]['experiences'])}")
-        print(f"Projects: {len(result[0]['projects'])}")
-        print(f"Sections: {len(result[0]['sections'])}")
-    else:
-        print("No result returned!")
-    print(f"{'='*80}\n")
     
     return result[0] if result and len(result) > 0 else {
         "id": portfolio.id,
@@ -1012,12 +994,6 @@ def delete_portfolio_image(
     """
     Delete a portfolio image.
     """
-    print(f"\n{'='*60}")
-    print(f"DELETE IMAGE REQUEST")
-    print(f"Portfolio ID: {portfolio_id}")
-    print(f"Image ID: {image_id}")
-    print(f"User: {current_user.username}")
-    print(f"{'='*60}\n")
     
     logger.info(f"Deleting image {image_id} from portfolio {portfolio_id}")
     try:
@@ -1029,7 +1005,6 @@ def delete_portfolio_image(
                 detail="Portfolio not found"
             )
         
-        print(f"Portfolio found: {portfolio.id}")
         
         portfolio_image = portfolio_crud.delete_portfolio_image(db, image_id=image_id)
         if not portfolio_image:
@@ -1039,39 +1014,26 @@ def delete_portfolio_image(
                 detail="Portfolio image not found"
             )
         
-        print(f"Image found in DB: {portfolio_image.id}, path: {portfolio_image.image_path}")
         
         # Delete the file from the filesystem
         if portfolio_image.image_path:
             file_path = os.path.join(settings.BASE_DIR, portfolio_image.image_path)
-            print(f"Attempting to delete file: {file_path}")
-            print(f"File exists: {os.path.exists(file_path)}")
             
             if os.path.exists(file_path):
                 try:
                     os.remove(file_path)
                     logger.debug(f"Deleted image file: {file_path}")
-                    print(f"✓ File deleted successfully")
                 except OSError as e:
                     logger.warning(f"Could not delete image file {file_path}: {str(e)}")
-                    print(f"✗ File deletion failed: {str(e)}")
         
         logger.info(f"Image {image_id} deleted successfully")
-        print(f"✓ Image deleted successfully from database")
-        print(f"{'='*60}\n")
         
         stage_event(db, {"op":"delete","source_table":"portfolio_images","source_id":str(image_id),"changed_fields":[]})
         return portfolio_image
     except HTTPException:
         raise
     except Exception as e:
-        print(f"\n{'!'*60}")
-        print(f"ERROR DELETING IMAGE:")
-        print(f"Error type: {type(e).__name__}")
-        print(f"Error message: {str(e)}")
         import traceback
-        print(f"Traceback:\n{traceback.format_exc()}")
-        print(f"{'!'*60}\n")
         
         logger.error(f"Error deleting portfolio image: {str(e)}", exc_info=True)
         raise HTTPException(
@@ -1564,12 +1526,6 @@ def delete_portfolio_attachment(
     """
     Delete a portfolio attachment.
     """
-    print(f"\n{'='*60}")
-    print(f"DELETE ATTACHMENT REQUEST")
-    print(f"Portfolio ID: {portfolio_id}")
-    print(f"Attachment ID: {attachment_id}")
-    print(f"User: {current_user.username}")
-    print(f"{'='*60}\n")
     
     logger.info(f"Deleting attachment {attachment_id} from portfolio {portfolio_id}")
     try:
@@ -1581,7 +1537,6 @@ def delete_portfolio_attachment(
                 detail="Portfolio not found"
             )
         
-        print(f"Portfolio found: {portfolio.id}")
         
         portfolio_attachment = portfolio_crud.delete_portfolio_attachment(db, attachment_id=attachment_id)
         if not portfolio_attachment:
@@ -1591,39 +1546,26 @@ def delete_portfolio_attachment(
                 detail="Portfolio attachment not found"
             )
         
-        print(f"Attachment found in DB: {portfolio_attachment.id}, path: {portfolio_attachment.file_path}")
         
         # Delete the file from the filesystem
         if portfolio_attachment.file_path:
             file_path = Path(settings.BASE_DIR) / portfolio_attachment.file_path
-            print(f"Attempting to delete file: {file_path}")
-            print(f"File exists: {file_path.exists()}")
             
             if file_path.exists():
                 try:
                     os.remove(file_path)
                     logger.debug(f"Deleted attachment file: {file_path}")
-                    print(f"✓ File deleted successfully")
                 except OSError as e:
                     logger.warning(f"Could not delete attachment file {file_path}: {str(e)}")
-                    print(f"✗ File deletion failed: {str(e)}")
         
         logger.info(f"Attachment {attachment_id} deleted successfully")
-        print(f"✓ Attachment deleted successfully from database")
-        print(f"{'='*60}\n")
         
         stage_event(db, {"op":"delete","source_table":"portfolio_attachments","source_id":str(attachment_id),"changed_fields":[]})
         return portfolio_attachment
     except HTTPException:
         raise
     except Exception as e:
-        print(f"\n{'!'*60}")
-        print(f"ERROR DELETING ATTACHMENT:")
-        print(f"Error type: {type(e).__name__}")
-        print(f"Error message: {str(e)}")
         import traceback
-        print(f"Traceback:\n{traceback.format_exc()}")
-        print(f"{'!'*60}\n")
         
         logger.error(f"Error deleting portfolio attachment: {str(e)}", exc_info=True)
         raise HTTPException(
@@ -1645,14 +1587,6 @@ def add_portfolio_category(
     """
     Add a category to a portfolio.
     """
-    print(f"\n{'='*60}")
-    print(f"ADD CATEGORY ENDPOINT CALLED")
-    print(f"User: {current_user.username}")
-    print(f"Portfolio ID: {portfolio_id}")
-    print(f"Category ID: {category_id}")
-    print(f"User Roles: {[role.name for role in current_user.roles]}")
-    print(f"User Permissions: {[perm.name for role in current_user.roles for perm in role.permissions]}")
-    print(f"{'='*60}\n")
     
     logger.info(f"Adding category {category_id} to portfolio {portfolio_id}")
     try:

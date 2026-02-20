@@ -153,21 +153,17 @@ export const ProjectFormDialog = ({ mode = 'create', project = null, onClose, on
       if (mode === 'create') {
         // Create the project
         const createdProject = await portfolioApi.createProject(formData, authToken);
-        console.log('Project created:', createdProject);
 
         // Associate the project with the current portfolio
         if (portfolio && portfolio.id && createdProject && createdProject.id) {
-          console.log(`Associating project ${createdProject.id} with portfolio ${portfolio.id}`);
           try {
             await portfolioApi.addProjectToPortfolio(portfolio.id, createdProject.id, authToken);
-            console.log('Project successfully associated with portfolio');
           } catch (associationError) {
             console.error('Error associating project with portfolio:', associationError);
             // Show a warning but don't fail the entire operation
             setError(`Project created but failed to associate with portfolio: ${associationError.message}`);
           }
         } else {
-          console.warn('Portfolio ID or created project ID not available for association');
         }
       } else {
         await portfolioApi.updateProject(project.id, formData, authToken);

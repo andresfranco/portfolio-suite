@@ -80,7 +80,6 @@ function ProjectImageForm({ open, onClose, project }) {
         const categoriesData = await categoriesResponse.json();
         let categoriesList = categoriesData || [];
         
-        console.log("ProjectImageForm - PROI categories from API:", categoriesList);
         
         // Map categories to format with code and display name
         const formattedCategories = categoriesList.map(category => {
@@ -121,7 +120,6 @@ function ProjectImageForm({ open, onClose, project }) {
           };
         });
         
-        console.log("ProjectImageForm - Formatted categories for select:", formattedCategories);
         
         setCategories(formattedCategories);
         
@@ -217,7 +215,6 @@ function ProjectImageForm({ open, onClose, project }) {
         );
         
         if (existingImage) {
-          console.log(`Deleting existing ${categoryCode} image (ID: ${existingImage.id}) before uploading new one`);
           
           try {
             const deleteResponse = await fetch(
@@ -229,14 +226,11 @@ function ProjectImageForm({ open, onClose, project }) {
             );
             
             if (!deleteResponse.ok) {
-              console.warn('Failed to delete old image, backend will handle it');
             } else {
-              console.log('Successfully deleted old image');
               // Update local state immediately
               setImages(images.filter(img => img.id !== existingImage.id));
             }
           } catch (deleteErr) {
-            console.warn('Error deleting old image, backend will handle it:', deleteErr);
           }
         }
       }

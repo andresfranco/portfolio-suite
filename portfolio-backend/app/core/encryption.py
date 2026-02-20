@@ -418,52 +418,28 @@ class EncryptedFieldMixin:
 
 if __name__ == "__main__":
     # Self-test
-    print("=" * 70)
-    print("Encryption Manager Self-Test")
-    print("=" * 70)
     
     # Test basic encryption/decryption
     test_data = "user@example.com"
-    print(f"\n1. Testing basic encryption:")
-    print(f"   Original: {test_data}")
     
     encrypted = encryption_manager.encrypt(test_data)
-    print(f"   Encrypted: {encrypted[:50]}...")
     
     decrypted = encryption_manager.decrypt(encrypted)
-    print(f"   Decrypted: {decrypted}")
-    print(f"   ✅ Match: {test_data == decrypted}")
     
     # Test dictionary encryption
-    print(f"\n2. Testing dictionary encryption:")
     user_data = {
         "name": "John Doe",
         "email": "john@example.com",
         "phone": "+1-555-0123",
         "role": "user"
     }
-    print(f"   Original: {user_data}")
     
     encrypted_data = encryption_manager.encrypt_dict(user_data, ["email", "phone"])
-    print(f"   Encrypted: email={encrypted_data['email'][:30]}..., phone={encrypted_data['phone'][:30]}...")
     
     decrypted_data = encryption_manager.decrypt_dict(encrypted_data, ["email", "phone"])
-    print(f"   Decrypted: {decrypted_data}")
-    print(f"   ✅ Match: {user_data == {k: v for k, v in decrypted_data.items() if not k.endswith('_encrypted')}}")
     
     # Test key info
-    print(f"\n3. Key Information:")
     info = encryption_manager.get_key_info()
     for key, value in info.items():
-        print(f"   {key}: {value}")
-    
-    print(f"\n4. Security Recommendations:")
-    print(f"   • Store ENCRYPTION_MASTER_KEY in secrets manager (Vault, AWS Secrets)")
-    print(f"   • Rotate keys every 90 days")
-    print(f"   • Use different keys for dev/staging/production")
-    print(f"   • Enable database encryption at rest")
-    print(f"   • Audit encrypted field access")
-    
-    print("\n" + "=" * 70)
-    print("✅ All tests passed!")
-    print("=" * 70)
+        pass
+

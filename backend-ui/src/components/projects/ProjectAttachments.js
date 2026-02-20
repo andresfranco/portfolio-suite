@@ -178,22 +178,6 @@ function ProjectAttachmentsContent() {
 
   // Debug logging
   useEffect(() => {
-    console.log('[PROJECT ATTACHMENTS DEBUG] Authentication Status:');
-    console.log('  - Auth Loading:', authLoading);
-    console.log('  - Permissions:', permissions);
-    console.log('  - Is System Admin:', isSystemAdmin());
-    console.log('  - Has VIEW_PROJECT_ATTACHMENTS:', hasPermission('VIEW_PROJECT_ATTACHMENTS'));
-    console.log('  - Has UPLOAD_PROJECT_ATTACHMENTS:', hasPermission('UPLOAD_PROJECT_ATTACHMENTS'));
-    console.log('  - Has DELETE_PROJECT_ATTACHMENTS:', hasPermission('DELETE_PROJECT_ATTACHMENTS'));
-    console.log('  - Has MANAGE_PROJECT_ATTACHMENTS:', hasPermission('MANAGE_PROJECT_ATTACHMENTS'));
-    console.log('  - Has MANAGE_PROJECTS:', hasPermission('MANAGE_PROJECTS'));
-    console.log('  - Has SYSTEM_ADMIN:', hasPermission('SYSTEM_ADMIN'));
-    console.log('  - Can Access (any of above):', 
-      hasPermission('VIEW_PROJECT_ATTACHMENTS') || 
-      hasPermission('MANAGE_PROJECT_ATTACHMENTS') || 
-      hasPermission('MANAGE_PROJECTS') || 
-      hasPermission('SYSTEM_ADMIN')
-    );
   }, [authLoading, permissions, hasPermission, isSystemAdmin]);
 
   // Permission checking helpers
@@ -235,18 +219,12 @@ function ProjectAttachmentsContent() {
         setError(null);
         
         // First, verify authentication by checking current user permissions
-        console.log('[PROJECT ATTACHMENTS DEBUG] Testing authentication...');
         const authTestResponse = await api.get('/api/users/me/permissions');
         
-        console.log('[PROJECT ATTACHMENTS DEBUG] Auth test response status:', authTestResponse.status);
-        console.log('[PROJECT ATTACHMENTS DEBUG] Auth test response data:', authTestResponse.data);
         
         // Fetch project details
-        console.log('[PROJECT ATTACHMENTS DEBUG] Fetching project details for ID:', projectId);
         const projectResponse = await api.get(`/api/projects/${projectId}`);
         
-        console.log('[PROJECT ATTACHMENTS DEBUG] Project response status:', projectResponse.status);
-        console.log('[PROJECT ATTACHMENTS DEBUG] Project response data:', projectResponse.data);
         
         setProject(projectResponse.data);
         
@@ -310,7 +288,6 @@ function ProjectAttachmentsContent() {
 
   const fetchAttachments = async (currentPage = page, filters = appliedFilters) => {
     try {
-      console.log(`ProjectAttachments - Fetching attachments for project ${projectId}`);
       
       // Build query parameters
       const params = new URLSearchParams({
@@ -327,10 +304,8 @@ function ProjectAttachmentsContent() {
       }
       
       const attachmentsResponse = await api.get(`/api/projects/${projectId}/attachments?${params}`);
-      console.log('ProjectAttachments - API response received');
       
       const attachmentsData = attachmentsResponse.data;
-      console.log(`ProjectAttachments - Fetched ${attachmentsData.items?.length || 0} attachments out of ${attachmentsData.total || 0}:`, attachmentsData);
       
       setAttachments(attachmentsData.items || []);
       setTotal(attachmentsData.total || 0);
@@ -478,13 +453,10 @@ function ProjectAttachmentsContent() {
           formData.append('category_id', fileObj.category_id);
         }
 
-        console.log(`ProjectAttachments - Uploading file: ${fileObj.name}`);
         const response = await api.post(`/api/projects/${projectId}/attachments`, formData);
 
-        console.log(`ProjectAttachments - Upload response status: ${response.status} for file: ${fileObj.name}`);
 
         const uploadedAttachment = response.data;
-        console.log(`ProjectAttachments - Successfully uploaded: ${fileObj.name}`, uploadedAttachment);
         successfulUploads.push(uploadedAttachment);
         setUploadProgress(prev => ({ ...prev, [fileObj.id]: 100 }));
         
@@ -504,13 +476,10 @@ function ProjectAttachmentsContent() {
       }
     }
 
-    console.log(`ProjectAttachments - Upload results: ${successfulUploads.length} successful, ${failedUploads.length} failed`);
 
     // Update state based on results
     if (successfulUploads.length > 0) {
-      console.log('ProjectAttachments - Refreshing attachments list...');
       await fetchAttachments(page, appliedFilters); // Refresh attachments list
-      console.log('ProjectAttachments - Attachments list refreshed');
     }
 
     if (failedUploads.length > 0) {
@@ -518,7 +487,6 @@ function ProjectAttachmentsContent() {
       setUploadError(`Some files failed to upload: ${errorMessage}`);
     } else {
       // All uploads successful (no failed uploads)
-      console.log('ProjectAttachments - All uploads successful, closing dialog');
       setIsUploadDialogOpen(false);
       setSelectedFiles([]);
       setUploadProgress({});
@@ -665,7 +633,6 @@ function ProjectAttachmentsContent() {
           const tokenResponse = await api.post(`/api/projects/${projectId}/attachments/${attachment.id}/preview-token`);
           
           const tokenData = tokenResponse.data;
-          console.log('Generated preview token:', tokenData);
           
           // Store the public URL for external viewers
           setPreviewContent(tokenData.full_url);
@@ -1834,15 +1801,12 @@ function ProjectAttachmentsContent() {
                         }}
                         title="Document Preview"
                         onLoad={(e) => {
-                          console.log('Google Docs viewer iframe loaded');
                           // Check if the iframe shows "No preview available" after a delay
                           setTimeout(() => {
                             try {
                               // This is a workaround since we can't directly check iframe content due to CORS
                               // We'll rely on user feedback or implement a different approach
-                              console.log('Google Docs viewer loaded, checking for content...');
                             } catch (error) {
-                              console.log('Cannot check iframe content due to CORS restrictions');
                             }
                           }, 3000);
                         }}

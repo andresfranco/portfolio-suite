@@ -40,15 +40,12 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
   // Update project sections when project data changes
   useEffect(() => {
     if (project?.sections) {
-      console.log('[PROJECT SECTIONS] Project data updated, sorting sections by display_order');
-      console.log('[PROJECT SECTIONS] Raw sections:', project.sections.map(s => ({ id: s.id, display_order: s.display_order })));
       
       // Sort sections directly without cleanup (cleanup already done in backend script)
       const sortedSections = [...project.sections].sort(
         (a, b) => (a.display_order || 0) - (b.display_order || 0)
       );
       
-      console.log('[PROJECT SECTIONS] Sorted sections:', sortedSections.map(s => ({ id: s.id, display_order: s.display_order })));
       setProjectSections(sortedSections);
     }
   }, [project]);
@@ -57,26 +54,21 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
    * Handle drag end event for main sections
    */
   const handleMainSectionDragEnd = (result) => {
-    console.log('Main section drag end:', result);
     
     if (!result.destination) {
-      console.log('No destination - dropped outside');
       return;
     }
     
     if (result.destination.index === result.source.index) {
-      console.log('No movement - same position');
       return;
     }
 
-    console.log(`Moving section from index ${result.source.index} to ${result.destination.index}`);
 
     // Reorder the sections array
     const reorderedSections = Array.from(sectionOrder);
     const [movedSection] = reorderedSections.splice(result.source.index, 1);
     reorderedSections.splice(result.destination.index, 0, movedSection);
     
-    console.log('New section order:', reorderedSections);
     
     // Update local state immediately for instant feedback
     setSectionOrder(reorderedSections);
@@ -108,68 +100,40 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
    * Handle drag end event for project sections (database entities)
    */
   const handleProjectSectionsDragEnd = async (result) => {
-    console.log('🎯 === PROJECT SECTION DRAG END TRIGGERED ===');
-    console.log('🔍 Context:', {
-      isEditMode,
-      hasToken: !!authToken,
-      tokenPreview: authToken ? `${authToken.substring(0, 20)}...` : 'null',
-      projectId: project?.id,
-      projectName: project?.name,
-      result
-    });
     
     if (!result.destination) {
-      console.log('❌ No destination - dropped outside');
       return;
     }
     
     if (result.destination.index === result.source.index) {
-      console.log('❌ No movement - same position');
       return;
     }
 
     // Prevent concurrent reordering operations
     if (isReorderingSectionsRef.current) {
-      console.log('⚠️ Reordering already in progress, skipping...');
       return;
     }
 
     isReorderingSectionsRef.current = true;
 
-    console.log(`📍 Moving project section from index ${result.source.index} to ${result.destination.index}`);
 
     // Reorder the sections array
     const reorderedSections = Array.from(projectSections);
     const [movedSection] = reorderedSections.splice(result.source.index, 1);
     reorderedSections.splice(result.destination.index, 0, movedSection);
     
-    console.log('📋 New project sections order:', reorderedSections.map(s => ({ id: s.id, code: s.code })));
     
     // Update local state immediately for instant feedback
     setProjectSections(reorderedSections);
     
     // Check conditions for backend save
-    console.log('🔐 Checking save conditions:', {
-      isEditMode,
-      hasToken: !!authToken,
-      hasProjectId: !!project?.id,
-      willSave: isEditMode && !!authToken && !!project?.id
-    });
     
     // Persist to backend API
     if (isEditMode && authToken && project?.id) {
       try {
         const sectionIds = reorderedSections.map(section => section.id);
-        console.log('[REORDER] Sending request to backend:', {
-          projectId: project.id,
-          sectionIds,
-          hasToken: !!authToken,
-          apiUrl: `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/cms/content/project/${project.id}/sections/order`
-        });
         
         const response = await portfolioApi.reorderProjectSections(project.id, sectionIds, authToken);
-        console.log('[REORDER] Backend response:', response);
-        console.log('Successfully saved project sections order to backend');
         
         // Show success notification
         if (showNotification) {
@@ -181,9 +145,7 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
         }
         
         // Refresh portfolio data to sync with backend
-        console.log('[REORDER] Refreshing portfolio data...');
         await refreshPortfolio();
-        console.log('[REORDER] Portfolio data refreshed after reorder');
       } catch (error) {
         console.error('[REORDER] Failed to save project sections order:', error);
         console.error('[REORDER] Error details:', {
@@ -209,16 +171,6 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
         }
       }
     } else {
-      console.warn('⚠️ === BACKEND SAVE SKIPPED ===');
-      console.warn('❌ One or more conditions failed:', {
-        isEditMode: isEditMode ? '✅' : '❌ FALSE',
-        hasToken: authToken ? '✅' : '❌ NULL/UNDEFINED',
-        hasProjectId: project?.id ? '✅' : '❌ NULL/UNDEFINED',
-      });
-      console.warn('💡 To fix:');
-      console.warn('  1. Make sure you are in Edit Mode (activate via backend admin)');
-      console.warn('  2. Check localStorage for cms_auth_token');
-      console.warn('  3. Verify project data is loaded');
       
       // Show warning notification
       if (showNotification) {
@@ -351,7 +303,6 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
    */
   const handleEditSection = (section) => {
     // Simply set the section - cleanup already happened in useEffect
-    console.log('[EDIT SECTION] Opening section:', section.id, section.code);
     setEditingSection(section);
   };
 
@@ -442,36 +393,30 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
   const getCategoryName = (category) => {
     if (!category) return '';
     
-    console.log('Processing category:', category);
     
     // Try to get name from category_texts array
     if (category.category_texts && category.category_texts.length > 0) {
-      console.log('Category has category_texts:', category.category_texts);
       // Try to find text for current language
       const categoryText = category.category_texts.find(text => {
         // Match language by code if available
         return text.language_code === language || text.language_id === (language === 'en' ? 1 : 2);
       });
       if (categoryText && categoryText.name) {
-        console.log('Found category name from category_texts:', categoryText.name);
         return categoryText.name;
       }
       // Fallback to first available text
       if (category.category_texts[0].name) {
-        console.log('Using first category_text name:', category.category_texts[0].name);
         return category.category_texts[0].name;
       }
     }
     
     // Try direct name property
     if (category.name) {
-      console.log('Using direct category name:', category.name);
       return category.name;
     }
     
     // Fallback to code or empty string
     const fallback = category.code || '';
-    console.log('Using category code as fallback:', fallback);
     return fallback;
   };
   
@@ -480,43 +425,34 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
     if (!skill) return '';
     
     // Log skill data for debugging
-    console.log('Processing skill:', skill);
     
     // Try to get name from skill_texts array
     if (skill.skill_texts && skill.skill_texts.length > 0) {
-      console.log('Skill has skill_texts:', skill.skill_texts);
       // Try to find text for current language
       const skillText = skill.skill_texts.find(text => {
         // Match language by code if available
         return text.language_code === language || text.language_id === (language === 'en' ? 1 : 2);
       });
       if (skillText && skillText.name) {
-        console.log('Found skill name from skill_texts:', skillText.name);
         return skillText.name;
       }
       // Fallback to first available text
       if (skill.skill_texts[0].name) {
-        console.log('Using first skill_text name:', skill.skill_texts[0].name);
         return skill.skill_texts[0].name;
       }
     }
     
     // Try direct name property (from old API structure)
     if (skill.name) {
-      console.log('Using direct skill name:', skill.name);
       return skill.name;
     }
     
     // Fallback to type or empty string
     const fallback = skill.type || '';
-    console.log('Using skill type as fallback:', fallback);
     return fallback;
   };
 
   // Log project data for debugging
-  console.log('Project data:', project);
-  console.log('Project skills:', project.skills);
-  console.log('Project categories:', project.categories);
 
   // Validate required data
   if (!title || !description) {
@@ -801,7 +737,6 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
                                           language={language}
                                           isEditMode={isEditMode}
                                           onContentReorder={(sectionId, reorderedItems) => {
-                                            console.log(`Section ${sectionId} content reordered:`, reorderedItems);
                                             // Content reordering is handled by EditableProjectSection via API
                                           }}
                                           onEdit={handleEditSection}

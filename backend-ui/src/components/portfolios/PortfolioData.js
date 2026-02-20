@@ -185,11 +185,7 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
       const portfolio = response.data;
       
       // Debug: log attachments to see their structure
-      console.log('Portfolio attachments:', portfolio.attachments);
       if (portfolio.attachments && portfolio.attachments.length > 0) {
-        console.log('First attachment:', portfolio.attachments[0]);
-        console.log('First attachment category:', portfolio.attachments[0].category);
-        console.log('First attachment language:', portfolio.attachments[0].language);
       }
       
       setPortfolioData(portfolio);
@@ -400,16 +396,8 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
 
     try {
       setUploadLoading(true);
-      console.log('Uploading image with:', { 
-        portfolioId, 
-        fileName: uploadFile.name, 
-        category: imageCategory, 
-        languageId: imageLanguage,
-        languageIdType: typeof imageLanguage
-      });
       // Ensure languageId is a number or null
       const languageIdToSend = imageLanguage ? parseInt(imageLanguage, 10) : null;
-      console.log('Parsed languageId:', languageIdToSend, 'Type:', typeof languageIdToSend);
       await projectsApi.uploadPortfolioImage(portfolioId, uploadFile, imageCategory, languageIdToSend);
       await fetchPortfolioData();
       enqueueSnackbar('Image uploaded successfully', { variant: 'success' });
@@ -638,13 +626,6 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
       setEditLoading(true);
       
       // Debug: log what we're sending
-      console.log('Updating attachment:', {
-        portfolioId,
-        attachmentId: selectedAttachment.id,
-        categoryId: editAttachmentCategory || null,
-        isDefault: editSetAsDefault,
-        languageId: editAttachmentLanguage || null
-      });
       
       await projectsApi.updatePortfolioAttachment(
         portfolioId,
@@ -691,13 +672,6 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
       setEditLoading(true);
       
       // Debug: log what we're sending
-      console.log('Updating image:', {
-        portfolioId,
-        imageId: selectedImageForEdit.id,
-        fileName: editImageFileName.trim(),
-        category: editImageCategory || null,
-        languageId: editImageLanguage || null
-      });
       
       // Single API call with all updates
       await projectsApi.renamePortfolioImage(portfolioId, selectedImageForEdit.id, {
@@ -2260,7 +2234,6 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
               value={imageLanguage}
               label="Language (Optional)"
               onChange={(e) => {
-                console.log('Language selected:', e.target.value, 'Type:', typeof e.target.value);
                 setImageLanguage(e.target.value);
               }}
               disabled={uploadLoading || languagesLoading}

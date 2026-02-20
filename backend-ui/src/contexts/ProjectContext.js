@@ -33,7 +33,6 @@ export function ProjectProvider({ children }) {
       setLoading(true);
       setError(null);
       
-      console.log('ProjectContext - fetchProjects called with raw params:', params);
       
       const requestParams = {
         page: params.page || pagination.page,
@@ -43,7 +42,6 @@ export function ProjectProvider({ children }) {
 
       // Handle name filter separately
       if (params.name) {
-        console.log('ProjectContext - Adding name_filter:', params.name);
         requestParams.name_filter = params.name;
       }
 
@@ -54,7 +52,6 @@ export function ProjectProvider({ children }) {
 
       // Handle category_id filters
       if (Array.isArray(params.category_id) && params.category_id.length > 0) {
-        console.log('ProjectContext - Processing category_id filters:', params.category_id);
         params.category_id.forEach(id => {
           filterFields.push('category_id');
           filterValues.push(id.toString());
@@ -64,7 +61,6 @@ export function ProjectProvider({ children }) {
 
       // Handle skill_id filters
       if (Array.isArray(params.skill_id) && params.skill_id.length > 0) {
-        console.log('ProjectContext - Processing skill_id filters:', params.skill_id);
         params.skill_id.forEach(id => {
           filterFields.push('skill_id');
           filterValues.push(id.toString());
@@ -74,7 +70,6 @@ export function ProjectProvider({ children }) {
 
       // Handle language_id filters
       if (Array.isArray(params.language_id) && params.language_id.length > 0) {
-        console.log('ProjectContext - Processing language_id filters:', params.language_id);
         params.language_id.forEach(id => {
           filterFields.push('language_id');
           filterValues.push(id.toString());
@@ -87,11 +82,6 @@ export function ProjectProvider({ children }) {
         requestParams.filter_field = filterFields;
         requestParams.filter_value = filterValues;
         requestParams.filter_operator = filterOperators;
-        console.log('ProjectContext - Adding filter arrays:', {
-          filter_field: filterFields,
-          filter_value: filterValues,
-          filter_operator: filterOperators
-        });
       }
 
       // Add other parameters (like sort)
@@ -101,7 +91,6 @@ export function ProjectProvider({ children }) {
         }
       });
 
-      console.log('ProjectContext - Final request params being sent to API:', requestParams);
       
       // For filter arrays, we need to manually construct the URL to avoid axios bracket notation
       let customUrl = '/api/projects/';
@@ -124,15 +113,9 @@ export function ProjectProvider({ children }) {
       }
       
       const finalUrl = `${customUrl}?${urlParams.toString()}`;
-      console.log('ProjectContext - Final URL being requested:', finalUrl);
       
       const response = await api.get(finalUrl);
       
-      console.log('ProjectContext - API response received:', {
-        itemsCount: response.data.items?.length || 0,
-        total: response.data.total || 0,
-        page: response.data.page || 1
-      });
       
       setProjects(response.data.items || []);
       setPagination({
@@ -141,10 +124,6 @@ export function ProjectProvider({ children }) {
         total: response.data.total || 0
       });
       
-      console.log('ProjectContext - Projects fetched successfully:', {
-        count: response.data.items?.length || 0,
-        total: response.data.total || 0
-      });
       
       return response.data;
     } catch (err) {
@@ -169,7 +148,6 @@ export function ProjectProvider({ children }) {
       setLoading(true);
       setError(null);
       
-      console.log('ProjectContext - Creating project:', projectData);
       
       const response = await projectsApi.createProject(projectData);
       
@@ -180,7 +158,6 @@ export function ProjectProvider({ children }) {
         ...filters 
       });
       
-      console.log('ProjectContext - Project created successfully:', response.data);
       
       return response.data;
     } catch (err) {
@@ -205,7 +182,6 @@ export function ProjectProvider({ children }) {
       setLoading(true);
       setError(null);
       
-      console.log('ProjectContext - Updating project:', { id, projectData });
       
       const response = await projectsApi.updateProject(id, projectData);
       
@@ -216,7 +192,6 @@ export function ProjectProvider({ children }) {
         ...filters 
       });
       
-      console.log('ProjectContext - Project updated successfully:', response.data);
       
       return response.data;
     } catch (err) {
@@ -241,7 +216,6 @@ export function ProjectProvider({ children }) {
       setLoading(true);
       setError(null);
       
-      console.log('ProjectContext - Deleting project:', id);
       
       const response = await projectsApi.deleteProject(id);
       
@@ -252,7 +226,6 @@ export function ProjectProvider({ children }) {
         ...filters 
       });
       
-      console.log('ProjectContext - Project deleted successfully');
       
       return response.data;
     } catch (err) {
@@ -266,12 +239,10 @@ export function ProjectProvider({ children }) {
   }, [hasPermission, fetchProjects, pagination, filters]);
 
   const updateFilters = useCallback((newFilters) => {
-    console.log('ProjectContext - Updating filters:', newFilters);
     setFilters(newFilters);
   }, []);
 
   const updatePagination = useCallback((newPagination) => {
-    console.log('ProjectContext - Updating pagination:', newPagination);
     setPagination(prev => ({ ...prev, ...newPagination }));
   }, []);
 

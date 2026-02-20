@@ -394,7 +394,6 @@ function RoleFilters({ onFilterChange, onSearch, filters: initialFilters }) {
         // 4. When there's only one filter active, just update the UI but don't trigger a search
         // This prevents the unwanted refresh when changing types with a single filter
         if (activeFilters.length === 1) {
-            console.log('Only one filter active, updating UI without triggering search');
             
             // Just update the form references without triggering a search
             const updatedFilters = {};
@@ -424,7 +423,6 @@ function RoleFilters({ onFilterChange, onSearch, filters: initialFilters }) {
             }
         });
         
-        console.log('Filter type changed, updated filters object:', updatedFilters);
         
         // 6. Update all references
         filtersRef.current = updatedFilters;
@@ -434,7 +432,6 @@ function RoleFilters({ onFilterChange, onSearch, filters: initialFilters }) {
         
         // 7. Trigger grid refresh with updated filters - only if we have active filters
         if (onFilterChange) {
-            console.log('Applying filters in parent component:', updatedFilters);
             onFilterChange(updatedFilters);
         }
     }, [activeFilters, setValue, onFilterChange, formValues]);
@@ -557,12 +554,10 @@ function RoleFilters({ onFilterChange, onSearch, filters: initialFilters }) {
     
     // Remove filter button handler
     const handleRemoveFilter = useCallback((filterId) => {
-        console.log("Removing filter with ID:", filterId);
         
         // Find the filter to remove
         const filterToRemove = activeFilters.find(f => f.id === filterId);
         if (!filterToRemove) {
-            console.warn("Filter not found with ID:", filterId);
             return;
         }
         

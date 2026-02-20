@@ -16,7 +16,6 @@ const CustomPagination = (props) => {
   
   const handleChangePageSize = (e) => {
     const newPageSize = parseInt(e.target.value, 10);
-    console.log('CustomPagination: Page size changed to', newPageSize);
     
     // Call the provided callback to update pagination
     if (onPaginationChange) {
@@ -26,7 +25,6 @@ const CustomPagination = (props) => {
   
   const handlePrevPage = () => {
     if (pagination.page > 0) {
-      console.log('CustomPagination: Moving to previous page');
       if (onPaginationChange) {
         onPaginationChange({ ...pagination, page: pagination.page - 1 });
       }
@@ -36,7 +34,6 @@ const CustomPagination = (props) => {
   const handleNextPage = () => {
     const lastPage = Math.ceil(pagination.total / pagination.pageSize) - 1;
     if (pagination.page < lastPage) {
-      console.log('CustomPagination: Moving to next page');
       if (onPaginationChange) {
         onPaginationChange({ ...pagination, page: pagination.page + 1 });
       }
@@ -192,7 +189,6 @@ function PermissionIndexContent() {
   
   // Handle pagination change
   const handlePaginationModelChange = (newModel) => {
-    console.log('Pagination changed:', newModel);
     // Convert from 0-indexed (DataGrid) to 1-indexed (API)
     fetchPermissions(newModel.page + 1, newModel.pageSize, filters, sortModel);
   };
@@ -293,7 +289,6 @@ function PermissionIndexContent() {
     setFormMode('create');
     setSelectedPermission(null);
     setIsFormOpen(true);
-    console.log('Opening create permission form');
   };
   
   // Edit an existing permission
@@ -301,7 +296,6 @@ function PermissionIndexContent() {
     setFormMode('edit');
     setSelectedPermission(permission);
     setIsFormOpen(true);
-    console.log('Opening edit permission form for:', permission);
   };
   
   // Delete a permission
@@ -309,7 +303,6 @@ function PermissionIndexContent() {
     setFormMode('delete');
     setSelectedPermission(permission);
     setIsFormOpen(true);
-    console.log('Opening delete permission confirmation for:', permission);
   };
 
   // View a permission
@@ -317,13 +310,11 @@ function PermissionIndexContent() {
     setFormMode('view');
     setSelectedPermission(permission);
     setIsFormOpen(true);
-    console.log('Opening view permission for:', permission);
   };
   
   // Form close handler
   const handleFormClose = (shouldRefresh) => {
     setIsFormOpen(false);
-    console.log('Closing permission form, shouldRefresh:', shouldRefresh);
     
     // If changes were made, refresh the data
     if (shouldRefresh) {
