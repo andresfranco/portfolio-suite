@@ -1,5 +1,5 @@
 from app.schemas.token import Token, TokenPayload
-from app.schemas.user import UserBase, UserCreate, UserOut, UserUpdate, UserPasswordChange, PaginatedUserResponse, Filter as UserFilter
+from app.schemas.user import UserBase, UserCreate, UserOut, UserUpdate, UserPasswordChange, UserSelfPasswordChange, PaginatedUserResponse, Filter as UserFilter
 from app.schemas.role import RoleBase, RoleOut, RoleUpdate, PaginatedRoleResponse, RoleFilter
 from app.schemas.permission import PermissionBase, PermissionCreate, PermissionOut, PermissionUpdate, PaginatedPermissionResponse, Filter as PermissionFilter
 from app.schemas.skill import SkillBase, SkillCreate, SkillUpdate, SkillOut, SkillTextBase, SkillTextCreate, SkillTextUpdate, SkillTextOut, PaginatedSkillResponse, Filter as SkillFilter

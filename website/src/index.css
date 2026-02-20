@@ -3,3 +3,193 @@
 @tailwind utilities;
 
 /* Custom styles can be added here */
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+html {
+  background-color: #03060a;
+  color: #ffffff;
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto !important;
+  max-width: 100vw;
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #03060a;
+  color: #ffffff;
+  position: relative;
+  min-height: 100%;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  overflow-y: hidden !important;
+  margin: 0;
+  padding: 0;
+  scrollbar-width: none;
+}
+
+body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+#root {
+  width: 100%;
+  min-height: 100%;
+  max-width: 100vw;
+  overflow: visible;
+}
+
+.btn-flat {
+  @apply inline-flex items-center justify-center px-5 py-2 text-sm sm:text-base bg-white/5 text-white/80 border border-[#14C800]/50 rounded-none transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#14C800]/60;
+}
+
+/* Responsive text sizing for larger screens */
+@media (min-width: 1280px) {
+  .btn-flat {
+    @apply px-6 py-2.5;
+  }
+}
+
+@media (min-width: 1536px) {
+  .btn-flat {
+    @apply px-8 py-3;
+  }
+}
+
+.btn-flat:hover {
+  @apply bg-white/10 text-white border-[#14C800];
+}
+
+.btn-flat:active {
+  @apply bg-white/20 text-white border-[#14C800]/90;
+}
+
+.btn-flat:disabled {
+  @apply opacity-50 cursor-not-allowed bg-white/5 text-white/50 border-[#14C800]/30;
+}
+
+.btn-flat-active {
+  @apply bg-white/20 text-white border-[#14C800];
+}
+
+.btn-flat-lg {
+  @apply px-6 sm:px-8 py-3 text-base sm:text-lg;
+}
+
+/* Responsive button scaling for larger screens */
+@media (min-width: 1280px) {
+  .btn-flat-lg {
+    @apply px-10 py-4;
+  }
+}
+
+@media (min-width: 1536px) {
+  .btn-flat-lg {
+    @apply px-12 py-5;
+  }
+}
+
+.btn-flat-sm {
+  @apply px-3 py-1.5 text-sm;
+}
+
+.btn-flat-icon {
+  @apply p-3 sm:p-4 text-2xl;
+}
+
+.chip {
+  @apply inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#14C800] bg-white/5 text-white/80 text-sm font-medium backdrop-blur-sm;
+}
+
+.chip-sm {
+  @apply px-2.5 py-1 text-xs;
+}
+
+.chip-lg {
+  @apply px-4 py-2 text-base;
+}
+
+.select-flat {
+  @apply bg-white/5 text-white/80 border border-[#14C800]/50 rounded-none pl-4 pr-12 py-2 appearance-none leading-tight focus:outline-none focus:ring-2 focus:ring-[#14C800]/60;
+  color-scheme: dark;
+}
+
+.select-flat:hover {
+  @apply bg-white/10 text-white border-[#14C800];
+}
+
+.select-flat:active {
+  @apply bg-white/20 text-white border-[#14C800]/90;
+}
+
+/* Image change button - High contrast overlay button for edit mode */
+.btn-image-change {
+  @apply flex items-center gap-2 px-4 py-2 rounded-none;
+  background: linear-gradient(135deg, rgba(3, 6, 10, 0.95) 0%, rgba(3, 6, 10, 0.98) 100%);
+  border: 2px solid #14C800;
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 0.875rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(20, 200, 0, 0.3);
+  backdrop-filter: blur(8px);
+  transition: all 0.2s ease;
+}
+
+.btn-image-change:hover {
+  @apply bg-white/10 text-white border-[#14C800];
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(20, 200, 0, 0.3);
+  transform: none;
+}
+
+.btn-image-change svg {
+  color: #14C800;
+  transition: color 0.2s ease;
+}
+
+.btn-image-change:hover svg {
+  color: #ffffff;
+}
+
+/* Custom Scrollbar Styles */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(20, 200, 0, 0.3) rgba(255, 255, 255, 0.05);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(20, 200, 0, 0.3);
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(20, 200, 0, 0.5);
+}

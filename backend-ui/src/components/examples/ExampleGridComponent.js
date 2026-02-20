@@ -54,7 +54,6 @@ function ExampleFilters({ filters, onFiltersChange, onSearch }) {
 function ExampleForm({ open, onClose, item, mode }) {
   // This would be implemented with a modal dialog and form fields
   // For this example, we're just showing the structure
-  console.log('Form opened with item:', item, 'in mode:', mode);
   return null;
 }
 
@@ -116,7 +115,6 @@ function ExampleGridComponent() {
   const handleDeleteClick = (item) => {
     if (window.confirm(`Are you sure you want to delete ${item.name}?`)) {
       // In a real application, this would be an API call
-      console.log('Deleting item:', item);
       alert('Delete functionality would be implemented with a real API endpoint');
       
       // Example of how the API call would look:
@@ -147,7 +145,6 @@ function ExampleGridComponent() {
     setIsFormOpen(false);
     if (refreshData) {
       // In a real application, this would refresh the data
-      console.log('Refreshing data after form submission');
     }
   };
 

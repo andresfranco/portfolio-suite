@@ -577,3 +577,88 @@ def ensure_project_image_category_exists(db: Session) -> None:
                 logger.error(f"Error creating PROI category {cat_info['code']}: {str(e)}")
         else:
             logger.debug(f"PROI category already exists: {cat_info['code']}")
+
+
+def ensure_project_attachment_category_exists(db: Session) -> None:
+    """
+    Ensure that the PROA-* (Project Attachment) categories exist.
+    This is used for attachment categorization in projects.
+    
+    Args:
+        db: Database session
+    """
+    required_categories = [
+        {
+            "code": "PROA-DOC",
+            "name": "Documentation",
+            "description": "Project documentation files"
+        },
+        {
+            "code": "PROA-SPEC",
+            "name": "Specifications",
+            "description": "Technical specifications and requirements"
+        },
+        {
+            "code": "PROA-REPORT",
+            "name": "Reports",
+            "description": "Project reports and analysis documents"
+        },
+        {
+            "code": "PROA-PRES",
+            "name": "Presentations",
+            "description": "Presentation files and slides"
+        },
+        {
+            "code": "PROA-DATA",
+            "name": "Data Files",
+            "description": "Data files, spreadsheets, and datasets"
+        },
+        {
+            "code": "PROA-OTHER",
+            "name": "Other",
+            "description": "Other project attachment files"
+        },
+    ]
+    
+    # Get the default language
+    default_language = db.query(Language).filter(Language.is_default == True).first()
+    if not default_language:
+        default_language = db.query(Language).first()  # Fall back to any language
+    
+    if not default_language:
+        logger.error("Cannot create PROA categories: No languages found in database")
+        return
+    
+    # Create or update each required category
+    for cat_info in required_categories:
+        # Check if category exists
+        existing = db.query(Category).filter(Category.code == cat_info["code"]).first()
+        
+        if not existing:
+            logger.info(f"Creating PROA category: {cat_info['code']}")
+            
+            # Create the category
+            try:
+                category = Category(
+                    code=cat_info["code"],
+                    type_code="PROA"  # Project Attachment type
+                )
+                db.add(category)
+                db.flush()  # Get the ID
+                
+                # Add the default text
+                text = CategoryText(
+                    category_id=category.id,
+                    language_id=default_language.id,
+                    name=cat_info["name"],
+                    description=cat_info["description"]
+                )
+                db.add(text)
+                db.commit()
+                
+                logger.info(f"Created PROA category: {cat_info['code']}")
+            except Exception as e:
+                db.rollback()
+                logger.error(f"Error creating PROA category {cat_info['code']}: {str(e)}")
+        else:
+            logger.debug(f"PROA category already exists: {cat_info['code']}")

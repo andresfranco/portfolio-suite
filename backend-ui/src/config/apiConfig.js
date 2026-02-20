@@ -29,7 +29,8 @@ const API_CONFIG = {
       refreshToken: '/api/auth/refresh-token',
       forgotPassword: '/api/auth/forgot-password',
       resetPassword: '/api/auth/reset-password',
-      me: '/api/auth/me'
+      me: '/api/auth/me',
+      mfaVerifyLogin: '/api/auth/mfa/verify-login'
     },
     
     // User management endpoints
@@ -88,6 +89,16 @@ const API_CONFIG = {
     categoryTypes: {
       list: '/api/category-types',
       detail: '/api/category-types/:id'
+    },
+    
+    // MFA (Multi-Factor Authentication) endpoints
+    mfa: {
+      status: '/api/mfa/status',
+      enroll: '/api/mfa/enroll',
+      verifyEnrollment: '/api/mfa/verify-enrollment',
+      disable: '/api/mfa/disable',
+      resetDevice: '/api/mfa/reset-device',
+      regenerateBackupCodes: '/api/mfa/regenerate-backup-codes'
     }
   }
 };

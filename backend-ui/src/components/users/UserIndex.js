@@ -36,7 +36,6 @@ const CustomPagination = (props) => {
   // Update ref when pagination changes from parent
   useEffect(() => {
     if (currentPageSize && currentPageSize !== selectedPageSizeRef.current) {
-      console.log('CustomPagination - Syncing selectedPageSizeRef with pageSize:', currentPageSize);
       selectedPageSizeRef.current = currentPageSize;
     }
   }, [currentPageSize]);
@@ -46,11 +45,9 @@ const CustomPagination = (props) => {
     
     // Skip if same size already selected (prevents duplicate calls)
     if (newPageSize === selectedPageSizeRef.current) {
-      console.log('CustomPagination - Skipping duplicate page size change:', newPageSize);
       return;
     }
     
-    console.log('CustomPagination - handleChangePageSize - Selected new page size:', newPageSize);
     
     // Update our ref immediately for UI consistency
     selectedPageSizeRef.current = newPageSize;
@@ -60,7 +57,6 @@ const CustomPagination = (props) => {
     
     // Check if this is a duplicate change
     if (lastChangeRef.current === changeKey) {
-      console.log('CustomPagination - Skipping duplicate pagination change');
       return;
     }
     
@@ -69,10 +65,6 @@ const CustomPagination = (props) => {
     
     // Call the provided callback to update pagination in the parent
     if (onPaginationChange) {
-      console.log('CustomPagination - handleChangePageSize - Calling onPaginationChange with:', { 
-        page: 0, 
-        pageSize: newPageSize 
-      });
       
       // Always reset to page 1 (0-indexed) when changing page size and trigger refresh
       onPaginationChange({ 
@@ -83,16 +75,8 @@ const CustomPagination = (props) => {
   };
   
   const handlePrevPage = () => {
-    console.log('CustomPagination - Previous page calculation:', {
-      totalItems,
-      pageSize: currentPageSize,
-      currentPage
-    });
     
     if (currentPage > 0) {
-      console.log('CustomPagination - Moving to previous page', {
-
-      });
       const targetPage = currentPage - 1;
       if (onPaginationChange) {
         onPaginationChange({ 
@@ -101,9 +85,6 @@ const CustomPagination = (props) => {
         });
       }
     } else {
-      console.log('CustomPagination - Already at first page, cannot go back', {
-        currentPage
-      });
     }
   };
   
@@ -112,24 +93,12 @@ const CustomPagination = (props) => {
     const totalPages = Math.max(1, Math.ceil(totalItems / currentPageSize));
     const lastPage = totalPages - 1; // Convert to 0-indexed for UI
     
-    console.log('CustomPagination - Next page calculation:', {
-      totalItems,
-      pageSize: currentPageSize,
-      totalPages,
-      lastPage: lastPage,
-      currentPage
-    });
     
     if (currentPage < lastPage) {
-      console.log('CustomPagination - Moving to next page', {
-        currentPage,
-        targetPage: currentPage + 1
-      });
       
       // Check if moving to the target page is safe
       const targetPage = currentPage + 1;
       if (targetPage > lastPage) {
-        console.warn(`CustomPagination - Target page ${targetPage} exceeds last valid page ${lastPage}, adjusting to ${lastPage}`);
         
       if (onPaginationChange) {
           onPaginationChange({ 
@@ -147,10 +116,6 @@ const CustomPagination = (props) => {
         });
       }
     } else {
-      console.log('CustomPagination - Already at last page, cannot go forward', {
-        currentPage,
-        lastPage: lastPage
-      });
     }
   };
   
@@ -162,18 +127,9 @@ const CustomPagination = (props) => {
   const isFirstPage = currentPage === 0;
   const isLastPage = currentPage >= Math.ceil((totalItems || 1) / (effectivePageSize || 1)) - 1;
   
-  console.log('CustomPagination rendering with:', {
-    page_size: pagination.page_size,
-    effective_page_size: effectivePageSize, 
-    total: pagination.total,
-    currentPage: pagination.page,
-    displayedRange: `${start}-${end} of ${pagination.total}`,
-    actualUsers: props.users?.length || 0
-  });
   
   // Log current page size for debugging
   if (props.onPaginationChange) {
-    console.log('Current page size (normalized):', currentPageSize);
   }
   
   return (
@@ -320,7 +276,6 @@ function UserIndexContent() {
 
   // Update useEffect to sync paginationModel with backend pagination
   useEffect(() => {
-    console.log('Backend pagination state changed:', pagination);
     
     // Only update if there's an actual change and it's not from a manual update
     if (
@@ -329,7 +284,6 @@ function UserIndexContent() {
        paginationModel.pageSize !== pagination.page_size)
     ) {
       // Skip automatic API calls - we only want to sync the local state with backend
-      console.log('Syncing paginationModel with backend pagination state (UI update only)');
       
       // Update paginationModel to match backend state WITHOUT triggering a fetch
       setPaginationModel(prevModel => {
@@ -348,7 +302,6 @@ function UserIndexContent() {
 
   // Modify the paginationModel effect to prevent redundant API calls
   useEffect(() => {
-    console.log('paginationModel changed:', paginationModel);
     
     // Use a ref declared outside the useEffect callback
     if (isInitialRender.current) {
@@ -358,17 +311,16 @@ function UserIndexContent() {
     
     // This useEffect should only fire on direct paginationModel updates not handled elsewhere
     // We'll leave this empty as our handlePaginationModelChange already handles the API calls
-    console.log('Direct paginationModel change detected - no action needed as API calls happen through the handlers');
   }, [paginationModel]);
 
   // Fetch users on initial load only - remove paginationModel dependency
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Verify token before fetching
-        const token = localStorage.getItem('accessToken');
-        if (!token) {
-          console.error('No authentication token found in UserIndex');
+        // Verify authentication before fetching
+        const isAuth = localStorage.getItem('isAuthenticated') === 'true';
+        if (!isAuth) {
+          console.error('User not authenticated in UserIndex');
           setOpenDeleteDialog(false);
           setOpenDialog(false);
           setTimeout(() => {
@@ -460,15 +412,12 @@ function UserIndexContent() {
 
   // Close the form dialog
   const handleFormClose = (shouldRefresh = false) => {
-    console.log('handleFormClose called with shouldRefresh:', shouldRefresh);
-    console.log('Current form mode:', formMode);
     
     // First close the dialog
     setOpenDialog(false);
     
     // If we need to refresh, do it immediately
     if (shouldRefresh) {
-      console.log('Refreshing user list after form close');
       fetchUsers({ 
         page: pagination.page, 
         page_size: pagination.page_size,
@@ -481,7 +430,6 @@ function UserIndexContent() {
     // Reset other states after dialog animation is complete
     // This prevents unwanted flashes of the form in different modes
     setTimeout(() => {
-      console.log('Resetting form state after dialog close');
       clearSelectedUser();
       setSelectedUserId(null);
       setFormMode('create');
@@ -490,14 +438,12 @@ function UserIndexContent() {
 
   // Handle filters change
   const handleFiltersChange = (newFilters) => {
-    console.log('UserIndex handleFiltersChange - Received filters:', newFilters);
     logInfo('Filters changed:', newFilters);
     
     // Detect if we're clearing all filters
     const isClearing = newFilters && Object.keys(newFilters).length === 0;
     
     if (isClearing) {
-      console.log('UserIndex handleFiltersChange - Clearing all filters detected');
       // Update local state
       setFilters({});
       
@@ -515,7 +461,6 @@ function UserIndexContent() {
     }
     
     // For debugging - check what filters are in the old state vs new state
-    console.log('UserIndex handleFiltersChange - Previous filters state:', filters);
     
     // Determine which filters were removed by comparing with previous state
     const removedFilterTypes = Object.keys(filters).filter(
@@ -523,12 +468,10 @@ function UserIndexContent() {
     );
     
     if (removedFilterTypes.length > 0) {
-      console.log('UserIndex handleFiltersChange - Detected removed filter types:', removedFilterTypes);
     }
     
     // Ensure we're working with an object
     const filtersToApply = newFilters || {};
-    console.log('UserIndex handleFiltersChange - filtersToApply:', filtersToApply);
     
     // Clean filters to only include those with actual values
     const cleanedFilters = {};
@@ -542,45 +485,36 @@ function UserIndexContent() {
             // For roles array, ensure values are numbers for proper comparison
             if (key === 'roles') {
               cleanedFilters[key] = value.map(id => typeof id === 'string' ? parseInt(id, 10) : id);
-              console.log(`UserIndex handleFiltersChange - Including roles filter with ${cleanedFilters[key].length} values:`, JSON.stringify(cleanedFilters[key]));
             } else {
               cleanedFilters[key] = value;
-              console.log(`UserIndex handleFiltersChange - Including array filter: ${key} with ${value.length} values`);
             }
             logInfo(`Including array filter: ${key} with ${value.length} values: ${JSON.stringify(value)}`);
           } else {
-            console.log(`UserIndex handleFiltersChange - Skipping empty array for ${key}`);
           }
         } else if (typeof value === 'string') {
           // Only include non-empty strings
           if (value.trim() !== '') {
             cleanedFilters[key] = value.trim();
-            console.log(`UserIndex handleFiltersChange - Including string filter: ${key}=${value}`);
             logInfo(`Including string filter: ${key}=${value}`);
           } else {
-            console.log(`UserIndex handleFiltersChange - Skipping empty string for ${key}`);
           }
         } else if (typeof value === 'number' || typeof value === 'boolean') {
           // Special handling for is_active to ensure it's passed correctly to the API
           if (key === 'is_active') {
             cleanedFilters[key] = String(value); // Convert to string for API compatibility
-            console.log(`UserIndex handleFiltersChange - Including is_active filter: ${key}=${cleanedFilters[key]} (string value)`);
           } else {
             cleanedFilters[key] = value;
-            console.log(`UserIndex handleFiltersChange - Including ${typeof value} filter: ${key}=${value}`);
           }
           logInfo(`Including ${typeof value} filter: ${key}=${value}`);
         }
       }
     });
     
-    console.log('UserIndex handleFiltersChange - Final cleanedFilters:', cleanedFilters);
     logInfo('Applying cleaned filters:', cleanedFilters);
     
     // Double-check to make sure removed filters aren't somehow still in the cleanedFilters
     for (const type of removedFilterTypes) {
       if (type in cleanedFilters) {
-        console.warn(`UserIndex handleFiltersChange - REMOVED FILTER TYPE ${type} WAS STILL PRESENT! Removing it.`);
         delete cleanedFilters[type];
       }
     }
@@ -629,12 +563,6 @@ function UserIndexContent() {
       ? parseInt(newModel.pageSize)
       : pagination.page_size;
     
-    console.log('handlePaginationModelChange - Processing pagination change:', {
-      newModel,
-      currentPagination: pagination,
-      currentPaginationModel: paginationModel,
-      effectiveNewPageSize: newPageSize
-    });
     
     // Update local pagination model state (UI)
     setPaginationModel({
@@ -660,7 +588,6 @@ function UserIndexContent() {
       ...filters
     };
     
-    console.log('Calling fetchUsers with:', requestParams);
     
     // Set a loading state indicator
     setLoading(true);
@@ -668,19 +595,9 @@ function UserIndexContent() {
     // Make the API call with the complete request parameters
     fetchUsers(requestParams)
       .then(response => {
-        console.log('Successfully fetched users with new pagination:', {
-          requestedPageSize: newPageSize,
-          returnedPageSize: response?.page_size || response?.pageSize || pagination.page_size,
-          actualItemCount: response?.items?.length || 0
-        });
         
         // The page size discrepancy is now handled in fetchUsers - we'll always use what we requested
         if (newPageSize !== (response?.page_size || response?.pageSize)) {
-          console.warn('Page size discrepancy handled: Grid is showing correct number of rows:', {
-            requested: newPageSize,
-            returned: response?.page_size || response?.pageSize,
-            actualItemsDisplayed: response?.items?.length || 0
-          });
         }
         
         setLoading(false);

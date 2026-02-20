@@ -20,17 +20,10 @@ function ReusablePagination({ pagination, onPaginationChange, pageSizeOptions = 
 
   const handleChangePageSize = (e) => {
     const newSize = parseInt(e.target.value, 10);
-    console.log('ReusablePagination - Page size change:', {
-      oldPageSize: safePagination.pageSize,
-      newPageSize: newSize,
-      currentPage: safePagination.page,
-      total: safePagination.total
-    });
     
     if (onPaginationChange) {
       // Reset to first page when changing page size
       const newPaginationModel = { page: 0, pageSize: newSize };
-      console.log('ReusablePagination - Calling onPaginationChange with:', newPaginationModel);
       onPaginationChange(newPaginationModel);
     }
   };
@@ -42,11 +35,6 @@ function ReusablePagination({ pagination, onPaginationChange, pageSizeOptions = 
   };
 
   const handleNextPage = () => {
-    console.log('handleNextPage called:', {
-      currentPage: safePagination.page,
-      lastPageIndex,
-      canGoNext: safePagination.page < lastPageIndex
-    });
     
     if (safePagination.page < lastPageIndex && onPaginationChange) {
       onPaginationChange({ ...safePagination, page: safePagination.page + 1 });
@@ -61,15 +49,6 @@ function ReusablePagination({ pagination, onPaginationChange, pageSizeOptions = 
   const isLastPage = safePagination.page >= lastPageIndex;
 
   // Debug logging
-  console.log('ReusablePagination debug:', {
-    safePagination,
-    totalPages,
-    lastPageIndex,
-    isFirstPage,
-    isLastPage,
-    start,
-    end
-  });
 
   return (
     <Box sx={{ display:'flex', alignItems:'center', justifyContent:'flex-end', backgroundColor:'transparent', height:'52px', padding:'0 24px' }}>

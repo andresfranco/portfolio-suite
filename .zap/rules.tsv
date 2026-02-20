@@ -1,0 +1,124 @@
+# OWASP ZAP Scan Rules Configuration
+# Format: <rule-id> <action> [<message>]
+# Actions: IGNORE, WARN, FAIL
+# Rule IDs: https://www.zaproxy.org/docs/alerts/
+
+# High Risk - Always FAIL
+10020	FAIL	Anti-CSRF tokens check
+10021	FAIL	X-Frame-Options Header
+10023	FAIL	Information Disclosure - Debug Error Messages
+10024	FAIL	Information Disclosure - Sensitive Information in URL
+10025	FAIL	Information Disclosure - Sensitive Information in HTTP Referrer Header
+10026	FAIL	HTTP Parameter Override
+10027	FAIL	Information Disclosure - Suspicious Comments
+10028	FAIL	Open Redirect
+10029	FAIL	Cookie Poisoning
+10030	FAIL	User Controllable Charset
+10031	FAIL	User Controllable HTML Element Attribute (Potential XSS)
+10032	FAIL	Viewstate
+10033	FAIL	Directory Browsing
+10034	FAIL	Heartbleed OpenSSL Vulnerability
+10035	FAIL	Strict-Transport-Security Header
+10036	FAIL	HTTP Server Response Header
+10037	FAIL	Server Leaks Information via "X-Powered-By" HTTP Response Header
+10038	FAIL	Content Security Policy (CSP) Header Not Set
+10039	FAIL	X-Backend-Server Header Information Leak
+10040	FAIL	Secure Pages Include Mixed Content
+10041	FAIL	HTTP to HTTPS Insecure Transition in Form Post
+10042	FAIL	HTTPS to HTTP Insecure Transition in Form Post
+10043	FAIL	User Controllable JavaScript Event (XSS)
+10044	FAIL	Big Redirect Detected (Potential Sensitive Information Leak)
+10045	FAIL	Source Code Disclosure - /WEB-INF folder
+10046	FAIL	Secure Pages Include Mixed Content (Including Scripts)
+10047	FAIL	HTTPS Content Available via HTTP
+10048	FAIL	Remote Code Execution - Shell Shock
+10049	FAIL	Content Cacheability
+
+# SQL Injection
+40018	FAIL	SQL Injection
+40019	FAIL	SQL Injection - MySQL
+40020	FAIL	SQL Injection - Hypersonic SQL
+40021	FAIL	SQL Injection - Oracle
+40022	FAIL	SQL Injection - PostgreSQL
+
+# Cross-Site Scripting (XSS)
+40012	FAIL	Cross Site Scripting (Reflected)
+40013	FAIL	Cross Site Scripting (Persistent)
+40014	FAIL	Cross Site Scripting (DOM Based)
+40016	FAIL	Cross Site Scripting (Persistent) - Prime
+40017	FAIL	Cross Site Scripting (Persistent) - Spider
+
+# Path Traversal
+6	FAIL	Path Traversal
+
+# Remote File Inclusion
+7	FAIL	Remote File Inclusion
+
+# Command Injection
+90020	FAIL	Remote OS Command Injection
+
+# Authentication & Session Management
+10011	FAIL	Cookie Without Secure Flag
+10012	FAIL	Cookie Without HttpOnly Flag
+10054	FAIL	Cookie Without SameSite Attribute
+10055	FAIL	CSP: Wildcard Directive
+10056	FAIL	CSP: script-src unsafe-inline
+10057	FAIL	CSP: script-src unsafe-eval
+10061	FAIL	X-AspNet-Version Response Header
+10062	FAIL	PII Disclosure
+10063	FAIL	Permissions Policy Header Not Set
+10096	FAIL	Timestamp Disclosure
+10097	FAIL	Hash Disclosure
+10098	FAIL	Cross-Domain Misconfiguration
+10099	FAIL	Source Code Disclosure
+
+# XXE
+90023	FAIL	XML External Entity Attack
+
+# Server-Side Request Forgery
+40046	FAIL	Server Side Request Forgery
+
+# Medium Risk - WARN (not blocking but important)
+10015	WARN	Re-examine Cache-control Directives
+10017	WARN	Cross-Domain JavaScript Source File Inclusion
+10019	WARN	Content-Type Header Missing
+10050	WARN	Retrieved from Cache
+10051	WARN	Relative Path Confusion
+10052	WARN	X-ChromeLogger-Data (XCOLD) Header Information Leak
+10053	WARN	Apache Range Header DoS (CVE-2011-3192)
+10058	WARN	GET for POST
+10059	WARN	X-AspNetMvc-Version Response Header
+10060	WARN	X-Debug-Token Information Leak
+10094	WARN	Base64 Disclosure
+10095	WARN	Backup File Disclosure
+10105	WARN	Weak Authentication Method
+
+# Low Risk - WARN
+10010	WARN	Cookie No HttpOnly Flag
+90001	WARN	Insecure JSF ViewState
+90002	WARN	Private IP Disclosure
+90003	WARN	Sub Resource Integrity Attribute Missing
+90004	WARN	Insufficient Site Isolation Against Spectre Vulnerability
+
+# Informational - IGNORE (unless you want to track them)
+10003	IGNORE	Vulnerable JS Library
+10009	IGNORE	In Page Banner Information Leak
+10070	IGNORE	AJAX Request Header
+10071	IGNORE	Session ID in URL Rewrite
+10072	IGNORE	User Agent Fuzzer
+10073	IGNORE	Password Autocomplete in Browser
+10074	IGNORE	Sensitive Information in Test
+10075	IGNORE	Application Error Disclosure
+10076	IGNORE	User Controllable Robots.txt
+10077	IGNORE	Cookie Slack Detector
+10081	IGNORE	HTTP Parameter Pollution
+10093	IGNORE	AngularJS Client Side Template Injection
+10104	IGNORE	User Agent Fuzzer
+
+# API-specific rules
+90033	FAIL	Loosely Scoped Cookie
+90034	FAIL	Cloud Metadata Potentially Exposed
+
+# Custom rules (adjust based on your application)
+# Example: Ignore specific false positives
+# 10027	IGNORE	Information Disclosure - Suspicious Comments (TODO/FIXME acceptable in development)

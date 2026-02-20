@@ -444,7 +444,10 @@ COMPREHENSIVE_PERMISSIONS = [
     {"name": "VIEW_TRANSLATIONS", "description": "View translation list and translation details"},
     {"name": "CREATE_TRANSLATION", "description": "Create new translations"},
     {"name": "EDIT_TRANSLATION", "description": "Edit existing translation details"},
-    {"name": "DELETE_TRANSLATION", "description": "Delete translations"}
+    {"name": "DELETE_TRANSLATION", "description": "Delete translations"},
+
+    # Agent Admin Module
+    {"name": "MANAGE_AGENTS", "description": "Create and manage agents, credentials, templates, and tests"}
 ]
 
 # Legacy permissions for backward compatibility

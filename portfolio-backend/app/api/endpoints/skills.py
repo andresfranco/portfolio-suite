@@ -11,6 +11,7 @@ from app.crud import skill as skill_crud  # Fixed import to match section implem
 from app.core.logging import setup_logger
 from app.core.security_decorators import require_permission
 import traceback
+from app.rag.rag_events import stage_event
 
 # Set up logger using centralized logging
 logger = setup_logger("app.api.endpoints.skills")
@@ -396,7 +397,8 @@ def create_skill(
     Create new skill.
     """
     
-    skill = skill_crud.create_skill(db, skill=skill_in)
+    skill = skill_crud.create_skill(db, skill_in)
+    stage_event(db, {"op":"insert","source_table":"skills","source_id":str(skill.id),"changed_fields":["type","type_code"]})
     db.commit()
     db.refresh(skill)
     
@@ -425,6 +427,7 @@ def update_skill(
         )
     
     skill = skill_crud.update_skill(db, skill_id=skill_id, skill=skill_in)
+    stage_event(db, {"op":"update","source_table":"skills","source_id":str(skill_id),"changed_fields":list(skill_in.model_dump(exclude_unset=True).keys())})
     db.commit()
     db.refresh(skill)
     
@@ -432,14 +435,14 @@ def update_skill(
     processed_skills = process_skills_for_response([skill])
     return processed_skills[0] if processed_skills else None
 
-@router.delete("/{skill_id}", status_code=204)
+@router.delete("/{skill_id}", status_code=status.HTTP_200_OK)
 @require_permission("DELETE_SKILL")
 def delete_skill(
     *,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user),
     skill_id: int,
-) -> None:
+) -> Any:
     """
     Delete a skill.
     """
@@ -452,4 +455,5 @@ def delete_skill(
         )
     
     skill_crud.delete_skill(db, skill_id=skill_id)
+    stage_event(db, {"op":"delete","source_table":"skills","source_id":str(skill_id),"changed_fields":[]})
     db.commit()

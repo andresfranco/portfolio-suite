@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload, joinedload, object_session
 from typing import Any, List, Optional, Dict
 import os
 import uuid
@@ -18,13 +18,15 @@ from app.schemas.portfolio import (
     PortfolioAttachmentCreate,
     Filter
 )
-from app.models.portfolio import Portfolio as PortfolioModel
+from app.models.portfolio import Portfolio as PortfolioModel, PortfolioImage, PortfolioAttachment
+from app.models.category import Category
 from app.api import deps
 from app.core.config import settings
 from app.core.logging import setup_logger
 from app.core.security_decorators import require_permission, require_any_permission, permission_checker
 from app import models
 import traceback
+from app.rag.rag_events import stage_event
 
 # Set up logger using centralized logging
 logger = setup_logger("app.api.endpoints.portfolios")
@@ -41,9 +43,16 @@ def get_file_url(file_path: str) -> str:
         # Strip 'static/uploads/' prefix and serve from '/uploads/'
         relative_path = file_path[len('static/uploads/'):]
         return f"/uploads/{relative_path}"
+    elif file_path.startswith('/uploads/'):
+        # Already has /uploads/ prefix, return as-is
+        return file_path
     elif file_path.startswith('uploads/'):
         # Already has uploads prefix, just add leading slash
         return f"/{file_path}"
+    elif file_path.startswith('/projects/') or file_path.startswith('/portfolios/'):
+        # Path starts with /projects/ or /portfolios/ - prepend /uploads
+        # This handles legacy/incorrect paths like /projects/project_1/...
+        return f"/uploads{file_path}"
     else:
         # Fallback: assume it's a relative path under uploads
         return f"/uploads/{file_path}"
@@ -68,6 +77,8 @@ def process_portfolios_for_response(
                 "id": portfolio.id,
                 "name": portfolio.name,
                 "description": portfolio.description,
+                "default_agent_id": getattr(portfolio, "default_agent_id", None),
+                "default_agent": None,
                 "created_at": portfolio.created_at,
                 "updated_at": portfolio.updated_at,
                 "categories": [],
@@ -77,6 +88,15 @@ def process_portfolios_for_response(
                 "images": [],
                 "attachments": []
             }
+
+            if hasattr(portfolio, "default_agent") and portfolio.default_agent:
+                portfolio_dict["default_agent"] = {
+                    "id": portfolio.default_agent.id,
+                    "name": portfolio.default_agent.name,
+                    "description": portfolio.default_agent.description,
+                    "is_active": portfolio.default_agent.is_active,
+                    "chat_model": portfolio.default_agent.chat_model,
+                }
             
             # Process categories
             if hasattr(portfolio, 'categories') and portfolio.categories:
@@ -121,7 +141,8 @@ def process_portfolios_for_response(
                         "id": experience.id,
                         "code": experience.code,
                         "years": experience.years,
-                        "experience_texts": []
+                        "experience_texts": [],
+                        "images": []
                     }
                     
                     # Include experience texts if they exist
@@ -148,6 +169,23 @@ def process_portfolios_for_response(
                             
                             exp_dict["experience_texts"].append(text_dict)
                     
+                    # Include experience images if present and already loaded (avoid lazy load when table unavailable)
+                    images_collection = getattr(experience, "__dict__", {}).get("images")
+                    if images_collection:
+                        for image in images_collection:
+                            exp_dict["images"].append({
+                                "id": image.id,
+                                "experience_id": image.experience_id,
+                                "experience_text_id": getattr(image, "experience_text_id", None),
+                                "image_path": image.image_path,
+                                "image_url": get_file_url(image.image_path),
+                                "file_name": getattr(image, "file_name", None),
+                                "category": getattr(image, "category", None),
+                                "language_id": getattr(image, "language_id", None),
+                                "created_at": getattr(image, "created_at", None),
+                                "updated_at": getattr(image, "updated_at", None)
+                            })
+
                     portfolio_dict["experiences"].append(exp_dict)
             
             # Process projects
@@ -157,9 +195,14 @@ def process_portfolios_for_response(
                         "id": project.id,
                         "repository_url": project.repository_url,
                         "website_url": project.website_url,
+                        "project_date": project.project_date.isoformat() if hasattr(project, 'project_date') and project.project_date else None,
+                        "created_at": project.created_at if hasattr(project, 'created_at') else None,
                         "project_texts": [],
                         "categories": [],
-                        "skills": []
+                        "skills": [],
+                        "sections": [],
+                        "images": [],
+                        "attachments": []
                     }
                     
                     # Include project texts if they exist
@@ -186,6 +229,198 @@ def process_portfolios_for_response(
                             
                             proj_dict["project_texts"].append(text_dict)
                     
+                    # Include project images if they exist
+                    if include_images and hasattr(project, 'images') and project.images:
+                        for image in project.images:
+                            img_dict = {
+                                "id": image.id,
+                                "project_id": image.project_id,
+                                "category": image.category,
+                                "image_path": image.image_path,
+                                "file_name": image.file_name if hasattr(image, 'file_name') else None,
+                                "language_id": image.language_id if hasattr(image, 'language_id') else None,
+                                "image_url": get_file_url(image.image_path) if image.image_path else None,
+                                "created_at": image.created_at if hasattr(image, 'created_at') else None,
+                                "updated_at": image.updated_at if hasattr(image, 'updated_at') else None
+                            }
+                            
+                            # Include language if it exists
+                            if hasattr(image, 'language') and image.language:
+                                language = image.language
+                                img_dict["language"] = {
+                                    "id": language.id,
+                                    "code": language.code,
+                                    "name": language.name
+                                }
+                            else:
+                                img_dict["language"] = None
+                            
+                            proj_dict["images"].append(img_dict)
+                    
+                    # Include project attachments if they exist
+                    if include_attachments and hasattr(project, 'attachments') and project.attachments:
+                        for attachment in project.attachments:
+                            att_dict = {
+                                "id": attachment.id,
+                                "project_id": attachment.project_id,
+                                "file_name": attachment.file_name,
+                                "file_path": attachment.file_path,
+                                "file_url": get_file_url(attachment.file_path) if attachment.file_path else None,
+                                "category_id": attachment.category_id if hasattr(attachment, 'category_id') else None,
+                                "language_id": attachment.language_id if hasattr(attachment, 'language_id') else None,
+                                "created_at": attachment.created_at if hasattr(attachment, 'created_at') else None,
+                                "updated_at": attachment.updated_at if hasattr(attachment, 'updated_at') else None
+                            }
+                            
+                            # Include language if it exists
+                            if hasattr(attachment, 'language') and attachment.language:
+                                language = attachment.language
+                                att_dict["language"] = {
+                                    "id": language.id,
+                                    "code": language.code,
+                                    "name": language.name
+                                }
+                            else:
+                                att_dict["language"] = None
+                            
+                            proj_dict["attachments"].append(att_dict)
+                    
+                    # Include project categories if they exist
+                    if hasattr(project, 'categories') and project.categories:
+                        for category in project.categories:
+                            cat_dict = {
+                                "id": category.id,
+                                "code": category.code,
+                                "type_code": category.type_code,
+                                "category_texts": []
+                            }
+                            
+                            # Include category texts if they exist
+                            if hasattr(category, 'category_texts') and category.category_texts:
+                                for text in category.category_texts:
+                                    text_dict = {
+                                        "id": text.id,
+                                        "language_id": text.language_id,
+                                        "name": text.name,
+                                        "description": text.description if hasattr(text, 'description') else None
+                                    }
+                                    
+                                    # Include language if it exists
+                                    if hasattr(text, "language") and text.language is not None:
+                                        language = text.language
+                                        text_dict["language"] = {
+                                            "id": language.id,
+                                            "code": language.code,
+                                            "name": language.name
+                                        }
+                                    
+                                    cat_dict["category_texts"].append(text_dict)
+                            
+                            proj_dict["categories"].append(cat_dict)
+                    
+                    # Include project skills if they exist
+                    if hasattr(project, 'skills') and project.skills:
+                        for skill in project.skills:
+                            skill_dict = {
+                                "id": skill.id,
+                                "type": skill.type if hasattr(skill, 'type') else None,
+                                "type_code": skill.type_code if hasattr(skill, 'type_code') else None,
+                                "skill_texts": []
+                            }
+                            
+                            # Include skill texts if they exist
+                            if hasattr(skill, 'skill_texts') and skill.skill_texts:
+                                for text in skill.skill_texts:
+                                    text_dict = {
+                                        "id": text.id,
+                                        "language_id": text.language_id,
+                                        "name": text.name,
+                                        "description": text.description if hasattr(text, 'description') else None
+                                    }
+                                    
+                                    # Include language if it exists
+                                    if hasattr(text, "language") and text.language is not None:
+                                        language = text.language
+                                        text_dict["language"] = {
+                                            "id": language.id,
+                                            "code": language.code,
+                                            "name": language.name
+                                        }
+                                    
+                                    skill_dict["skill_texts"].append(text_dict)
+                            
+                            proj_dict["skills"].append(skill_dict)
+
+                    # Include project sections if they exist
+                    # IMPORTANT: Load sections with display_order from association table
+                    from app.crud import section as section_crud
+                    if hasattr(project, 'id'):
+                        # Get the database session from the project object's session
+                        db_session = object_session(project)
+                        if db_session:
+                            sections_with_order = section_crud.get_project_sections(db_session, project.id)
+                            for section in sections_with_order:
+                                sect_dict = {
+                                    "id": section.id,
+                                    "code": section.code,
+                                    "display_order": section.display_order if hasattr(section, 'display_order') else 0,
+                                    "display_style": section.display_style if hasattr(section, 'display_style') else "bordered",
+                                    "section_texts": [],
+                                    "images": [],
+                                    "attachments": []
+                                }
+
+                                # Include section texts if they exist
+                                if hasattr(section, 'section_texts') and section.section_texts:
+                                    for text in section.section_texts:
+                                        text_dict = {
+                                            "id": text.id,
+                                            "language_id": text.language_id,
+                                            "text": text.text
+                                        }
+
+                                        # Include language if it exists
+                                        if hasattr(text, "language") and text.language is not None:
+                                            language = text.language
+                                            text_dict["language"] = {
+                                                "id": language.id,
+                                                "code": language.code,
+                                                "name": language.name
+                                            }
+
+                                        sect_dict["section_texts"].append(text_dict)
+
+                                # Include section images if they exist
+                                if hasattr(section, 'images') and section.images:
+                                    for image in section.images:
+                                        img_dict = {
+                                            "id": image.id,
+                                            "section_id": image.section_id,
+                                            "image_path": image.image_path,
+                                            "display_order": image.display_order if hasattr(image, 'display_order') else 0,
+                                            "language_id": image.language_id if hasattr(image, 'language_id') else None,
+                                            "created_at": image.created_at if hasattr(image, 'created_at') else None,
+                                            "updated_at": image.updated_at if hasattr(image, 'updated_at') else None
+                                        }
+                                        sect_dict["images"].append(img_dict)
+
+                                # Include section attachments if they exist
+                                if hasattr(section, 'attachments') and section.attachments:
+                                    for attachment in section.attachments:
+                                        att_dict = {
+                                            "id": attachment.id,
+                                            "section_id": attachment.section_id,
+                                            "file_name": attachment.file_name,
+                                            "file_path": attachment.file_path,
+                                            "display_order": attachment.display_order if hasattr(attachment, 'display_order') else 0,
+                                            "language_id": attachment.language_id if hasattr(attachment, 'language_id') else None,
+                                            "created_at": attachment.created_at if hasattr(attachment, 'created_at') else None,
+                                            "updated_at": attachment.updated_at if hasattr(attachment, 'updated_at') else None
+                                        }
+                                        sect_dict["attachments"].append(att_dict)
+
+                                proj_dict["sections"].append(sect_dict)
+
                     portfolio_dict["projects"].append(proj_dict)
             
             # Process sections
@@ -231,10 +466,24 @@ def process_portfolios_for_response(
                         "category": image.category,
                         "image_path": image.image_path,
                         "file_name": image.file_name,
+                        "language_id": image.language_id if hasattr(image, 'language_id') else None,
                         "image_url": get_file_url(image.image_path) if image.image_path else None,
                         "created_at": image.created_at,
                         "updated_at": image.updated_at if hasattr(image, 'updated_at') else None
                     }
+                    
+                    # Include language if it exists
+                    if hasattr(image, 'language') and image.language:
+                        language = image.language
+                        img_dict["language"] = {
+                            "id": language.id,
+                            "code": language.code,
+                            "name": language.name,
+                            "image": language.image if hasattr(language, 'image') else None
+                        }
+                    else:
+                        img_dict["language"] = None
+                    
                     portfolio_dict["images"].append(img_dict)
             
             # Process attachments (permission-aware)
@@ -246,9 +495,48 @@ def process_portfolios_for_response(
                         "file_name": attachment.file_name,
                         "file_path": attachment.file_path,
                         "file_url": get_file_url(attachment.file_path) if attachment.file_path else None,
+                        "category_id": attachment.category_id if hasattr(attachment, 'category_id') else None,
+                        "language_id": attachment.language_id if hasattr(attachment, 'language_id') else None,
+                        "is_default": attachment.is_default if hasattr(attachment, 'is_default') else False,
                         "created_at": attachment.created_at,
                         "updated_at": attachment.updated_at if hasattr(attachment, 'updated_at') else None
                     }
+                    
+                    # Include category if it exists
+                    if hasattr(attachment, 'category') and attachment.category:
+                        category = attachment.category
+                        cat_dict = {
+                            "id": category.id,
+                            "code": category.code,
+                            "type_code": category.type_code if hasattr(category, 'type_code') else None,
+                            "category_texts": []
+                        }
+                        
+                        # Include category texts
+                        if hasattr(category, 'category_texts') and category.category_texts:
+                            for text in category.category_texts:
+                                cat_dict["category_texts"].append({
+                                    "language_id": text.language_id,
+                                    "name": text.name,
+                                    "description": text.description if hasattr(text, 'description') else None
+                                })
+                        
+                        att_dict["category"] = cat_dict
+                    else:
+                        att_dict["category"] = None
+                    
+                    # Include language if it exists
+                    if hasattr(attachment, 'language') and attachment.language:
+                        language = attachment.language
+                        att_dict["language"] = {
+                            "id": language.id,
+                            "code": language.code,
+                            "name": language.name,
+                            "image": language.image if hasattr(language, 'image') else None
+                        }
+                    else:
+                        att_dict["language"] = None
+                    
                     portfolio_dict["attachments"].append(att_dict)
                 
             processed_portfolios.append(portfolio_dict)
@@ -260,6 +548,8 @@ def process_portfolios_for_response(
                 "id": portfolio.id if hasattr(portfolio, 'id') else None,
                 "name": portfolio.name if hasattr(portfolio, 'name') else "",
                 "description": portfolio.description if hasattr(portfolio, 'description') else "",
+                "default_agent_id": portfolio.default_agent_id if hasattr(portfolio, 'default_agent_id') else None,
+                "default_agent": None,
                 "created_at": portfolio.created_at if hasattr(portfolio, 'created_at') else None,
                 "updated_at": portfolio.updated_at if hasattr(portfolio, 'updated_at') else None,
                 "categories": [],
@@ -300,7 +590,7 @@ def read_portfolios(
     filter_value: Optional[List[str]] = Query(None, description="Filter values"),
     filter_operator: Optional[List[str]] = Query(None, description="Filter operators"),
     sort_field: Optional[str] = Query(None, description="Sort field"),
-    sort_order: Optional[str] = Query("asc", regex="^(asc|desc)$", description="Sort order"),
+    sort_order: Optional[str] = Query("asc", pattern="^(asc|desc)$", description="Sort order"),
     include_full_details: bool = Query(False, description="Include full portfolio details"),
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user),
@@ -402,29 +692,12 @@ def list_portfolio_names(
 def create_portfolio(
     *,
     db: Session = Depends(deps.get_db),
-    portfolio_in: PortfolioCreate,
     current_user: models.User = Depends(deps.get_current_user),
+    portfolio_in: PortfolioCreate,
 ) -> Any:
-    """
-    Create new portfolio.
-    """
-    logger.info(f"Creating portfolio: {portfolio_in.name}")
-    try:
-        portfolio = portfolio_crud.create_portfolio(db, portfolio=portfolio_in)
-        logger.info(f"Portfolio created successfully with ID {portfolio.id}")
-        return process_single_portfolio_for_response(portfolio)
-    except ValueError as e:
-        logger.warning(f"Validation error creating portfolio: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(e)
-        )
-    except Exception as e:
-        logger.error(f"Error creating portfolio: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error creating portfolio: {str(e)}"
-        )
+    portfolio = portfolio_crud.create_portfolio(db, portfolio_in)
+    stage_event(db, {"op":"insert","source_table":"portfolios","source_id":str(portfolio.id),"changed_fields":["name"]})
+    return portfolio
 
 @router.get("/{portfolio_id}", response_model=PortfolioOut)
 @require_permission("VIEW_PORTFOLIOS")
@@ -432,20 +705,29 @@ def read_portfolio(
     *,
     db: Session = Depends(deps.get_db),
     portfolio_id: int,
+    include_full_details: bool = Query(False, description="Include full portfolio details"),
     current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Get portfolio by ID.
     """
-    logger.debug(f"Getting portfolio with ID {portfolio_id}")
     
-    portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
+    logger.info(f"========== GET PORTFOLIO {portfolio_id} - include_full_details={include_full_details} ==========")
+    logger.debug(f"Getting portfolio with ID {portfolio_id}, include_full_details={include_full_details}")
+    
+    portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id, full_details=include_full_details)
     if not portfolio:
         logger.warning(f"Portfolio with ID {portfolio_id} not found")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Portfolio not found"
         )
+    
+    logger.info(f"Portfolio found: {portfolio.name}")
+    logger.info(f"Portfolio has {len(portfolio.categories) if hasattr(portfolio, 'categories') else 0} categories")
+    logger.info(f"Portfolio has {len(portfolio.experiences) if hasattr(portfolio, 'experiences') else 0} experiences")
+    logger.info(f"Portfolio has {len(portfolio.projects) if hasattr(portfolio, 'projects') else 0} projects")
+    logger.info(f"Portfolio has {len(portfolio.sections) if hasattr(portfolio, 'sections') else 0} sections")
     
     # Process portfolio data
     can_view_images = permission_checker.user_has_permission(current_user, "VIEW_PORTFOLIO_IMAGES")
@@ -455,10 +737,16 @@ def read_portfolio(
         include_images=can_view_images,
         include_attachments=can_view_attachments,
     )
+    
+    logger.info(f"Processed result has {len(result[0]['categories']) if result and len(result) > 0 else 0} categories")
+    logger.info(f"========== END GET PORTFOLIO {portfolio_id} ==========")
+    
     return result[0] if result and len(result) > 0 else {
         "id": portfolio.id,
         "name": portfolio.name,
         "description": portfolio.description,
+        "default_agent_id": portfolio.default_agent_id,
+        "default_agent": None,
         "created_at": portfolio.created_at,
         "updated_at": portfolio.updated_at,
         "categories": [],
@@ -474,73 +762,43 @@ def read_portfolio(
 def update_portfolio(
     *,
     db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_user),
     portfolio_id: int,
     portfolio_in: PortfolioUpdate,
-    current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
-    """
-    Update a portfolio.
-    """
-    logger.info(f"Updating portfolio with ID {portfolio_id}")
-    try:
-        portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
-        if not portfolio:
-            logger.warning(f"Portfolio with ID {portfolio_id} not found for update")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Portfolio not found"
-            )
-        
-        portfolio = portfolio_crud.update_portfolio(db, portfolio_id=portfolio_id, portfolio=portfolio_in)
-        logger.info(f"Portfolio {portfolio_id} updated successfully")
-        return process_single_portfolio_for_response(portfolio)
-    except HTTPException:
-        raise
-    except ValueError as e:
-        logger.warning(f"Validation error updating portfolio {portfolio_id}: {str(e)}")
+    portfolio = portfolio_crud.update_portfolio(db, portfolio_id, portfolio_in)
+    stage_event(db, {"op":"update","source_table":"portfolios","source_id":str(portfolio_id),"changed_fields":list(portfolio_in.model_dump(exclude_unset=True).keys())})
+    
+    # Reload portfolio with full details to properly serialize relationships
+    portfolio_full = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id, full_details=True)
+    if not portfolio_full:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(e)
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Portfolio not found after update"
         )
-    except Exception as e:
-        logger.error(f"Error updating portfolio {portfolio_id}: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error updating portfolio: {str(e)}"
-        )
+    
+    # Process portfolio data properly
+    can_view_images = permission_checker.user_has_permission(current_user, "VIEW_PORTFOLIO_IMAGES")
+    can_view_attachments = permission_checker.user_has_permission(current_user, "VIEW_PORTFOLIO_ATTACHMENTS")
+    result = process_portfolios_for_response(
+        [portfolio_full],
+        include_images=can_view_images,
+        include_attachments=can_view_attachments,
+    )
+    
+    return result[0] if result and len(result) > 0 else portfolio_full
 
 @router.delete("/{portfolio_id}", response_model=PortfolioOut, status_code=status.HTTP_200_OK)
 @require_permission("DELETE_PORTFOLIO")
 def delete_portfolio(
     *,
     db: Session = Depends(deps.get_db),
-    portfolio_id: int,
     current_user: models.User = Depends(deps.get_current_user),
+    portfolio_id: int,
 ) -> Any:
-    """
-    Delete a portfolio.
-    """
-    logger.info(f"Deleting portfolio with ID {portfolio_id}")
-    try:
-        portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
-        if not portfolio:
-            logger.warning(f"Portfolio with ID {portfolio_id} not found for deletion")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Portfolio not found"
-            )
-        
-        portfolio = portfolio_crud.delete_portfolio(db, portfolio_id=portfolio_id)
-        logger.info(f"Portfolio {portfolio_id} deleted successfully")
-        return process_single_portfolio_for_response(portfolio)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error deleting portfolio {portfolio_id}: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error deleting portfolio: {str(e)}"
-        )
+    portfolio = portfolio_crud.delete_portfolio(db, portfolio_id)
+    stage_event(db, {"op":"delete","source_table":"portfolios","source_id":str(portfolio_id),"changed_fields":[]})
+    return portfolio
 
 @router.get("/{portfolio_id}/images", response_model=List[PortfolioImageOut])
 @require_permission("VIEW_PORTFOLIO_IMAGES")
@@ -588,13 +846,22 @@ async def upload_portfolio_image(
     db: Session = Depends(deps.get_db),
     portfolio_id: int,
     category: str = Query(..., description="Image category"),
+    language_id: Optional[int] = Query(None, description="Language ID"),
     file: UploadFile = File(...),
     current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Upload an image for a portfolio.
+    For 'main' category, replaces existing image if one exists.
+    For other categories, creates new image entries.
     """
-    logger.info(f"Uploading image for portfolio {portfolio_id}")
+    logger.info(f"=== UPLOAD IMAGE DEBUG ===")
+    logger.info(f"Portfolio ID: {portfolio_id}")
+    logger.info(f"Category: {category} (type: {type(category)})")
+    logger.info(f"Language ID: {language_id} (type: {type(language_id)})")
+    logger.info(f"File: {file.filename}")
+    logger.info(f"========================")
+    
     try:
         portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
         if not portfolio:
@@ -611,47 +878,100 @@ async def upload_portfolio_image(
                 detail="File must be an image"
             )
         
-        # Create upload directory with structure: portfolios/{portfolio_id}/images/
-        upload_dir = os.path.join(settings.UPLOADS_DIR, "portfolios", str(portfolio_id), "images")
+        # Define categories that should only have one image (optionally per language)
+        # main, thumbnail, and background should be unique
+        # gallery allows multiple images
+        UNIQUE_CATEGORIES = ['main', 'thumbnail', 'background']
+        
+        # For unique categories, check if image already exists and replace it
+        existing_image = None
+        if category in UNIQUE_CATEGORIES:
+            if language_id:
+                # Look for existing image with the same language
+                existing_image = db.query(PortfolioImage).filter(
+                    PortfolioImage.portfolio_id == portfolio_id,
+                    PortfolioImage.category == category,
+                    PortfolioImage.language_id == language_id
+                ).first()
+            else:
+                # Look for existing image with no language
+                existing_image = db.query(PortfolioImage).filter(
+                    PortfolioImage.portfolio_id == portfolio_id,
+                    PortfolioImage.category == category,
+                    PortfolioImage.language_id.is_(None)
+                ).first()
+            
+            if existing_image:
+                logger.info(f"Found existing {category} image (ID: {existing_image.id}) - will replace it")
+        else:
+            logger.info(f"Category '{category}' allows multiple images - no uniqueness check")
+        
+        # Create upload directory with structure: portfolios/{portfolio_id}/{category}/
+        upload_dir = os.path.join(settings.UPLOADS_DIR, "portfolios", str(portfolio_id), category)
         os.makedirs(upload_dir, exist_ok=True)
         
-        # Use original filename, but handle duplicates
-        original_filename = file.filename or "untitled"
-        filename = original_filename
-        counter = 1
+        # Use UUID-based physical filename to avoid conflicts, but keep original filename in database
+        original_filename = file.filename or "image.png"
+        file_extension = os.path.splitext(original_filename)[1]
+        physical_filename = f"{uuid.uuid4()}{file_extension}"
         
-        # Check for duplicates and add counter if needed
-        while os.path.exists(os.path.join(upload_dir, filename)):
-            name, ext = os.path.splitext(original_filename)
-            filename = f"{name}_{counter}{ext}"
-            counter += 1
-        
-        file_path = os.path.join(upload_dir, filename)
+        file_path = os.path.join(upload_dir, physical_filename)
         
         # Save the file
         contents = await file.read()
         with open(file_path, "wb") as f:
             f.write(contents)
         
-        # Create relative path for database
-        relative_path = os.path.relpath(file_path, settings.BASE_DIR)
+        # Create URL-friendly path (relative to static/uploads)
+        url_path = f"/uploads/portfolios/{portfolio_id}/{category}/{physical_filename}"
         
-        # Create portfolio image in database
-        portfolio_image = portfolio_crud.add_portfolio_image(
-            db, 
-            portfolio_id=portfolio_id, 
-            image=PortfolioImageCreate(
-                image_path=relative_path,
-                file_name=filename,
-                category=category
+        # Update existing or create new image record
+        if existing_image:
+            # Delete old file if it exists
+            if existing_image.image_path:
+                old_file_path = existing_image.image_path
+                # Convert URL path to absolute path
+                if old_file_path.startswith('/uploads/'):
+                    old_abs_path = os.path.join(settings.BASE_DIR, 'static', old_file_path.lstrip('/'))
+                elif old_file_path.startswith('static/'):
+                    old_abs_path = os.path.join(settings.BASE_DIR, old_file_path)
+                else:
+                    old_abs_path = os.path.join(settings.BASE_DIR, old_file_path)
+                
+                if os.path.exists(old_abs_path):
+                    os.remove(old_abs_path)
+                    logger.info(f"Deleted old file: {old_abs_path}")
+            
+            # Update existing record
+            existing_image.image_path = url_path
+            existing_image.file_name = original_filename
+            if language_id is not None:
+                existing_image.language_id = language_id
+            db.commit()
+            db.refresh(existing_image)
+            portfolio_image = existing_image
+            logger.info(f"Updated existing {category} image for portfolio {portfolio_id}")
+            stage_event(db, {"op":"update","source_table":"portfolio_images","source_id":str(portfolio_image.id),"changed_fields":["file_name","image_path","language_id"]})
+        else:
+            # Create new portfolio image in database
+            logger.info(f"Creating new image with language_id={language_id}, category={category}, file_name={original_filename}")
+            portfolio_image = portfolio_crud.add_portfolio_image(
+                db, 
+                portfolio_id=portfolio_id, 
+                image=PortfolioImageCreate(
+                    image_path=url_path,
+                    file_name=original_filename,
+                    category=category,
+                    language_id=language_id
+                )
             )
-        )
+            logger.info(f"Created new {category} image for portfolio {portfolio_id} with ID {portfolio_image.id}, language_id={portfolio_image.language_id}")
+            stage_event(db, {"op":"insert","source_table":"portfolio_images","source_id":str(portfolio_image.id),"changed_fields":["file_name","image_path","category","language_id"]})
         
         # Add image URL for frontend
         if portfolio_image.image_path:
             portfolio_image.image_url = get_file_url(portfolio_image.image_path)
         
-        logger.info(f"Image uploaded successfully for portfolio {portfolio_id}")
         return portfolio_image
     except HTTPException:
         raise
@@ -674,6 +994,7 @@ def delete_portfolio_image(
     """
     Delete a portfolio image.
     """
+    
     logger.info(f"Deleting image {image_id} from portfolio {portfolio_id}")
     try:
         portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
@@ -684,6 +1005,7 @@ def delete_portfolio_image(
                 detail="Portfolio not found"
             )
         
+        
         portfolio_image = portfolio_crud.delete_portfolio_image(db, image_id=image_id)
         if not portfolio_image:
             logger.warning(f"Portfolio image with ID {image_id} not found")
@@ -692,9 +1014,11 @@ def delete_portfolio_image(
                 detail="Portfolio image not found"
             )
         
+        
         # Delete the file from the filesystem
         if portfolio_image.image_path:
             file_path = os.path.join(settings.BASE_DIR, portfolio_image.image_path)
+            
             if os.path.exists(file_path):
                 try:
                     os.remove(file_path)
@@ -703,10 +1027,14 @@ def delete_portfolio_image(
                     logger.warning(f"Could not delete image file {file_path}: {str(e)}")
         
         logger.info(f"Image {image_id} deleted successfully")
+        
+        stage_event(db, {"op":"delete","source_table":"portfolio_images","source_id":str(image_id),"changed_fields":[]})
         return portfolio_image
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        
         logger.error(f"Error deleting portfolio image: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -726,7 +1054,13 @@ async def rename_portfolio_image(
     """
     Rename a portfolio image or update its category.
     """
-    logger.info(f"Updating image {image_id} from portfolio {portfolio_id}")
+    logger.info(f"=== UPDATE IMAGE DEBUG ===")
+    logger.info(f"Portfolio ID: {portfolio_id}")
+    logger.info(f"Image ID: {image_id}")
+    logger.info(f"Update data: {image_update.model_dump(exclude_unset=True)}")
+    logger.info(f"Language ID in update: {image_update.language_id}")
+    logger.info(f"========================")
+    
     try:
         portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
         if not portfolio:
@@ -847,20 +1181,25 @@ def read_portfolio_attachments(
             detail=f"Error getting portfolio attachments: {str(e)}"
         )
 
-@router.post("/{portfolio_id}/attachments", response_model=PortfolioAttachmentOut, status_code=status.HTTP_201_CREATED)
-@require_permission("UPLOAD_PORTFOLIO_ATTACHMENTS")
-async def upload_portfolio_attachment(
+@router.get("/{portfolio_id}/attachments/default-resume", response_model=PortfolioAttachmentOut)
+def get_default_resume(
     *,
     db: Session = Depends(deps.get_db),
     portfolio_id: int,
-    file: UploadFile = File(...),
-    current_user: models.User = Depends(deps.get_current_user),
+    language_id: Optional[int] = Query(None, description="Language ID to filter resume by language"),
+    category_id: Optional[int] = Query(None, description="Category ID (e.g., Technical Resume)"),
 ) -> Any:
     """
-    Upload an attachment for a portfolio.
-    Supported file types: PDF, Word docs, Excel, CSV, text files, JSON, XML, ZIP
+    Get the default resume attachment for a portfolio (public endpoint for website).
+    Optionally filter by language_id and category_id.
+    Priority:
+    1. Default resume with matching language and category
+    2. Default resume with matching language (any RESU category)
+    3. Default resume with matching category (any language)
+    4. Any default resume
+    Returns 404 if no default resume is found.
     """
-    logger.info(f"Uploading attachment for portfolio {portfolio_id}: {file.filename}")
+    logger.debug(f"Getting default resume for portfolio {portfolio_id}, language_id={language_id}, category_id={category_id}")
     try:
         portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
         if not portfolio:
@@ -869,6 +1208,149 @@ async def upload_portfolio_attachment(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Portfolio not found"
             )
+        
+        # Build query for default resume
+        query = db.query(PortfolioAttachment).filter(
+            PortfolioAttachment.portfolio_id == portfolio_id,
+            PortfolioAttachment.is_default == True
+        )
+        
+        # Try to find with both language and category match
+        if language_id and category_id:
+            default_resume = query.filter(
+                PortfolioAttachment.language_id == language_id,
+                PortfolioAttachment.category_id == category_id
+            ).first()
+            if default_resume:
+                logger.debug(f"Found default resume with language {language_id} and category {category_id}")
+            else:
+                # Try language match only
+                default_resume = query.filter(
+                    PortfolioAttachment.language_id == language_id
+                ).first()
+                if default_resume:
+                    logger.debug(f"Found default resume with language {language_id} (any category)")
+                else:
+                    # Try category match only
+                    default_resume = query.filter(
+                        PortfolioAttachment.category_id == category_id
+                    ).first()
+                    if default_resume:
+                        logger.debug(f"Found default resume with category {category_id} (any language)")
+        elif language_id:
+            # Language specified, no category
+            default_resume = query.filter(
+                PortfolioAttachment.language_id == language_id
+            ).first()
+            if default_resume:
+                logger.debug(f"Found default resume with language {language_id}")
+        elif category_id:
+            # Category specified, no language
+            default_resume = query.filter(
+                PortfolioAttachment.category_id == category_id
+            ).first()
+            if default_resume:
+                logger.debug(f"Found default resume with category {category_id}")
+        else:
+            # No filters, get any default resume
+            default_resume = query.first()
+        
+        # Fallback: if still not found, get any default resume
+        if not default_resume:
+            default_resume = db.query(PortfolioAttachment).filter(
+                PortfolioAttachment.portfolio_id == portfolio_id,
+                PortfolioAttachment.is_default == True
+            ).first()
+        
+        if not default_resume:
+            logger.warning(f"No default resume found for portfolio {portfolio_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No default resume found for this portfolio"
+            )
+        
+        # Add file URL for frontend
+        if default_resume.file_path:
+            default_resume.file_url = get_file_url(default_resume.file_path)
+        
+        logger.debug(f"Found default resume {default_resume.id} for portfolio {portfolio_id}")
+        return default_resume
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting default resume: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error getting default resume: {str(e)}"
+        )
+
+@router.post("/{portfolio_id}/attachments", response_model=PortfolioAttachmentOut, status_code=status.HTTP_201_CREATED)
+@require_permission("UPLOAD_PORTFOLIO_ATTACHMENTS")
+async def upload_portfolio_attachment(
+    *,
+    db: Session = Depends(deps.get_db),
+    portfolio_id: int,
+    file: UploadFile = File(...),
+    category_id: Optional[int] = Query(None, description="Category ID (for PORTFOLIO_DOCUMENT or RESUME)"),
+    is_default: bool = Query(False, description="Mark as default resume (only for RESUME category)"),
+    language_id: Optional[int] = Query(None, description="Language ID for the attachment"),
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Upload an attachment for a portfolio.
+    Supported file types: PDF, Word docs, Excel, CSV, text files, JSON, XML, ZIP
+    
+    Use category_id to associate attachment with PORTFOLIO_DOCUMENT or RESUME category.
+    Set is_default=true to mark a resume as the default one (only one default resume per portfolio).
+    Use language_id to associate the attachment with a specific language.
+    """
+    logger.info(f"Uploading attachment for portfolio {portfolio_id}: {file.filename}, category_id={category_id}, is_default={is_default}, language_id={language_id}")
+    try:
+        portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
+        if not portfolio:
+            logger.warning(f"Portfolio with ID {portfolio_id} not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Portfolio not found"
+            )
+        
+        # Validate language if provided
+        if language_id:
+            language = db.query(models.Language).filter(models.Language.id == language_id).first()
+            if not language:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Language with ID {language_id} not found"
+                )
+        
+        # Validate category if provided
+        if category_id:
+            category = db.query(models.Category).filter(models.Category.id == category_id).first()
+            if not category:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Category with ID {category_id} not found"
+                )
+            
+            # Verify category is of type PDOC or RESU
+            if category.type_code not in ["PDOC", "RESU"]:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Category must be of type PDOC (Portfolio Document) or RESU (Resume). Got type: {category.type_code}"
+                )
+            
+            # If marking as default and category is RESU, unset any existing default resume
+            if is_default and category.type_code == "RESU":
+                existing_defaults = db.query(PortfolioAttachment).filter(
+                    PortfolioAttachment.portfolio_id == portfolio_id,
+                    PortfolioAttachment.is_default == True
+                ).all()
+                
+                for existing in existing_defaults:
+                    existing.is_default = False
+                    logger.info(f"Unmarked attachment {existing.id} as default resume")
+                
+                db.commit()
         
         # Validate file type
         allowed_types = [
@@ -908,16 +1390,9 @@ async def upload_portfolio_attachment(
         upload_dir = Path(settings.UPLOADS_DIR) / "portfolios" / str(portfolio_id) / "attachments"
         upload_dir.mkdir(parents=True, exist_ok=True)
         
-        # Use original filename, but handle duplicates
-        original_filename = file.filename or "untitled"
-        filename = original_filename
-        counter = 1
-        
-        # Check for duplicates and add counter if needed
-        while (upload_dir / filename).exists():
-            name, ext = os.path.splitext(original_filename)
-            filename = f"{name}_{counter}{ext}"
-            counter += 1
+        # Use UUID-based filename to avoid conflicts
+        file_extension = os.path.splitext(file.filename or "document.pdf")[1]
+        filename = f"{uuid.uuid4()}{file_extension}"
         
         file_path = upload_dir / filename
         
@@ -925,13 +1400,16 @@ async def upload_portfolio_attachment(
         with open(file_path, "wb") as buffer:
             buffer.write(await file.read())
         
-        # Create relative path for database storage
-        relative_path = str(file_path.relative_to(Path(settings.BASE_DIR)))
+        # Create URL-friendly path (relative to static/uploads)
+        url_path = f"/uploads/portfolios/{portfolio_id}/attachments/{filename}"
         
         # Create attachment in database
         attachment_data = PortfolioAttachmentCreate(
-            file_path=relative_path,
-            file_name=filename  # Keep actual filename used (may have counter)
+            file_path=url_path,
+            file_name=file.filename or filename,  # Keep original filename for display
+            category_id=category_id,
+            is_default=is_default,
+            language_id=language_id
         )
         
         # Add portfolio attachment to database
@@ -944,7 +1422,8 @@ async def upload_portfolio_attachment(
         # Add file URL for frontend
         portfolio_attachment.file_url = get_file_url(portfolio_attachment.file_path)
         
-        logger.info(f"Attachment uploaded successfully for portfolio {portfolio_id}")
+        logger.info(f"Attachment uploaded successfully for portfolio {portfolio_id}, ID={portfolio_attachment.id}")
+        stage_event(db, {"op":"insert","source_table":"portfolio_attachments","source_id":str(portfolio_attachment.id),"changed_fields":["file_name","file_path","category_id","is_default"]})
         return portfolio_attachment
     except HTTPException:
         raise
@@ -953,6 +1432,86 @@ async def upload_portfolio_attachment(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error uploading attachment: {str(e)}"
+        )
+
+@router.put("/{portfolio_id}/attachments/{attachment_id}", response_model=PortfolioAttachmentOut)
+@require_permission("MANAGE_PORTFOLIO_ATTACHMENTS")
+def update_portfolio_attachment(
+    *,
+    db: Session = Depends(deps.get_db),
+    portfolio_id: int,
+    attachment_id: int,
+    category_id: Optional[int] = None,
+    language_id: Optional[int] = None,
+    is_default: Optional[bool] = None,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Update a portfolio attachment's category, language, and is_default flag.
+    """
+    logger.info(f"Updating attachment {attachment_id} for portfolio {portfolio_id}")
+    try:
+        portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
+        if not portfolio:
+            logger.warning(f"Portfolio with ID {portfolio_id} not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Portfolio not found"
+            )
+        
+        # Verify attachment belongs to the portfolio
+        attachment = db.query(PortfolioAttachment).filter(
+            PortfolioAttachment.id == attachment_id,
+            PortfolioAttachment.portfolio_id == portfolio_id
+        ).first()
+        
+        if not attachment:
+            logger.warning(f"Attachment {attachment_id} not found in portfolio {portfolio_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Attachment not found in this portfolio"
+            )
+        
+        updated_attachment = portfolio_crud.update_portfolio_attachment(
+            db,
+            attachment_id=attachment_id,
+            category_id=category_id,
+            language_id=language_id,
+            is_default=is_default
+        )
+        
+        if not updated_attachment:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update attachment"
+            )
+        
+        logger.info(f"Attachment {attachment_id} updated successfully")
+        stage_event(db, {"op":"update","source_table":"portfolio_attachments","source_id":str(attachment_id),"changed_fields":["category_id", "language_id", "is_default"]})
+        
+        # Reload with relationships - need to query again with eager loading
+        updated_attachment = db.query(PortfolioAttachment).options(
+            selectinload(PortfolioAttachment.category).selectinload(Category.category_texts),
+            selectinload(PortfolioAttachment.language)
+        ).filter(PortfolioAttachment.id == attachment_id).first()
+        
+        if not updated_attachment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Attachment not found after update"
+            )
+        
+        # Add file URL for frontend
+        updated_attachment.file_url = get_file_url(updated_attachment.file_path)
+        
+        return updated_attachment
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating portfolio attachment: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating portfolio attachment: {str(e)}"
         )
 
 @router.delete("/{portfolio_id}/attachments/{attachment_id}", response_model=PortfolioAttachmentOut)
@@ -967,6 +1526,7 @@ def delete_portfolio_attachment(
     """
     Delete a portfolio attachment.
     """
+    
     logger.info(f"Deleting attachment {attachment_id} from portfolio {portfolio_id}")
     try:
         portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
@@ -977,6 +1537,7 @@ def delete_portfolio_attachment(
                 detail="Portfolio not found"
             )
         
+        
         portfolio_attachment = portfolio_crud.delete_portfolio_attachment(db, attachment_id=attachment_id)
         if not portfolio_attachment:
             logger.warning(f"Portfolio attachment with ID {attachment_id} not found")
@@ -985,9 +1546,11 @@ def delete_portfolio_attachment(
                 detail="Portfolio attachment not found"
             )
         
+        
         # Delete the file from the filesystem
         if portfolio_attachment.file_path:
             file_path = Path(settings.BASE_DIR) / portfolio_attachment.file_path
+            
             if file_path.exists():
                 try:
                     os.remove(file_path)
@@ -996,10 +1559,14 @@ def delete_portfolio_attachment(
                     logger.warning(f"Could not delete attachment file {file_path}: {str(e)}")
         
         logger.info(f"Attachment {attachment_id} deleted successfully")
+        
+        stage_event(db, {"op":"delete","source_table":"portfolio_attachments","source_id":str(attachment_id),"changed_fields":[]})
         return portfolio_attachment
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        
         logger.error(f"Error deleting portfolio attachment: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1020,6 +1587,7 @@ def add_portfolio_category(
     """
     Add a category to a portfolio.
     """
+    
     logger.info(f"Adding category {category_id} to portfolio {portfolio_id}")
     try:
         # Verify portfolio exists
@@ -1039,6 +1607,7 @@ def add_portfolio_category(
             )
         
         logger.info(f"Category {category_id} added to portfolio {portfolio_id} successfully")
+        stage_event(db, {"op":"update","source_table":"portfolios","source_id":str(portfolio_id),"changed_fields":["categories"]})
         return {"message": "Category added successfully"}
     except HTTPException:
         raise
@@ -1080,6 +1649,7 @@ def remove_portfolio_category(
             )
         
         logger.info(f"Category {category_id} removed from portfolio {portfolio_id} successfully")
+        stage_event(db, {"op":"update","source_table":"portfolios","source_id":str(portfolio_id),"changed_fields":["categories"]})
         return {"message": "Category removed successfully"}
     except HTTPException:
         raise
@@ -1121,6 +1691,7 @@ def add_portfolio_experience(
             )
         
         logger.info(f"Experience {experience_id} added to portfolio {portfolio_id} successfully")
+        stage_event(db, {"op":"update","source_table":"portfolios","source_id":str(portfolio_id),"changed_fields":["experiences"]})
         return {"message": "Experience added successfully"}
     except HTTPException:
         raise
@@ -1162,6 +1733,7 @@ def remove_portfolio_experience(
             )
         
         logger.info(f"Experience {experience_id} removed from portfolio {portfolio_id} successfully")
+        stage_event(db, {"op":"update","source_table":"portfolios","source_id":str(portfolio_id),"changed_fields":["experiences"]})
         return {"message": "Experience removed successfully"}
     except HTTPException:
         raise
@@ -1203,6 +1775,7 @@ def add_portfolio_project(
             )
         
         logger.info(f"Project {project_id} added to portfolio {portfolio_id} successfully")
+        stage_event(db, {"op":"update","source_table":"portfolios","source_id":str(portfolio_id),"changed_fields":["projects"]})
         return {"message": "Project added successfully"}
     except HTTPException:
         raise
@@ -1244,6 +1817,7 @@ def remove_portfolio_project(
             )
         
         logger.info(f"Project {project_id} removed from portfolio {portfolio_id} successfully")
+        stage_event(db, {"op":"update","source_table":"portfolios","source_id":str(portfolio_id),"changed_fields":["projects"]})
         return {"message": "Project removed successfully"}
     except HTTPException:
         raise
@@ -1285,6 +1859,7 @@ def add_portfolio_section(
             )
         
         logger.info(f"Section {section_id} added to portfolio {portfolio_id} successfully")
+        stage_event(db, {"op":"update","source_table":"portfolios","source_id":str(portfolio_id),"changed_fields":["sections"]})
         return {"message": "Section added successfully"}
     except HTTPException:
         raise
@@ -1326,6 +1901,7 @@ def remove_portfolio_section(
             )
         
         logger.info(f"Section {section_id} removed from portfolio {portfolio_id} successfully")
+        stage_event(db, {"op":"update","source_table":"portfolios","source_id":str(portfolio_id),"changed_fields":["sections"]})
         return {"message": "Section removed successfully"}
     except HTTPException:
         raise
@@ -1337,5 +1913,80 @@ def remove_portfolio_section(
         )
 
 
+@router.post("/{portfolio_id}/agent/{agent_id}", status_code=status.HTTP_200_OK)
+@require_permission("EDIT_PORTFOLIO")
+def set_portfolio_default_agent(
+    *,
+    db: Session = Depends(deps.get_db),
+    portfolio_id: int,
+    agent_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Set the default AI agent for a portfolio.
+    """
+    logger.info(f"Setting default agent {agent_id} for portfolio {portfolio_id}")
+    try:
+        portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
+        if not portfolio:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Portfolio not found"
+            )
+
+        result = portfolio_crud.set_portfolio_default_agent(db, portfolio_id=portfolio_id, agent_id=agent_id)
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to set default agent for portfolio"
+            )
+
+        stage_event(db, {"op": "update", "source_table": "portfolios", "source_id": str(portfolio_id), "changed_fields": ["default_agent_id"]})
+        return {"message": "Default agent set successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error setting default agent for portfolio: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error setting default agent for portfolio: {str(e)}"
+        )
 
 
+@router.delete("/{portfolio_id}/agent", status_code=status.HTTP_200_OK)
+@require_permission("EDIT_PORTFOLIO")
+def clear_portfolio_default_agent(
+    *,
+    db: Session = Depends(deps.get_db),
+    portfolio_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Remove the default AI agent for a portfolio.
+    """
+    logger.info(f"Clearing default agent for portfolio {portfolio_id}")
+    try:
+        portfolio = portfolio_crud.get_portfolio(db, portfolio_id=portfolio_id)
+        if not portfolio:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Portfolio not found"
+            )
+
+        result = portfolio_crud.clear_portfolio_default_agent(db, portfolio_id=portfolio_id)
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to clear default agent for portfolio"
+            )
+
+        stage_event(db, {"op": "update", "source_table": "portfolios", "source_id": str(portfolio_id), "changed_fields": ["default_agent_id"]})
+        return {"message": "Default agent removed successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error clearing default agent for portfolio: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error clearing default agent for portfolio: {str(e)}"
+        )

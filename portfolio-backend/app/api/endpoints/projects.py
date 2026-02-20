@@ -17,11 +17,12 @@ from app.api import deps
 from app.core.config import settings
 from app.core.logging import setup_logger
 from app.core.security_decorators import require_permission
-from app.utils.file_utils import save_upload_file, save_project_image, PROJECT_IMAGES_DIR, get_file_url, delete_file
+from app.utils.file_utils import save_upload_file, save_project_image, PROJECT_IMAGES_DIR, get_file_url, get_relative_path, delete_file
 from app.crud import category as category_crud
 from app.crud import image as image_crud
-
 from app.core.security import create_temp_token, verify_temp_token
+from app.rag.rag_events import stage_event
+from app.schemas import section as section_schema
 
 router = APIRouter()
 
@@ -33,6 +34,82 @@ logger.info(f"Available crud modules: {dir(crud)}")
 logger.info(f"Project module available: {'project' in dir(crud)}")
 logger.info(f"Direct project_crud import: {project_crud is not None}")
 
+
+# =============================================================================
+# SECTION ROUTES - Must be defined before /{project_id}/ routes to avoid conflicts
+# =============================================================================
+
+@router.delete("/sections/images/{image_id}", status_code=status.HTTP_200_OK)
+@require_permission("EDIT_PROJECT")
+def delete_section_image(
+    *,
+    db: Session = Depends(deps.get_db),
+    image_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Delete a section image
+    """
+    logger.info(f"Deleting section image {image_id}")
+    try:
+        from app.crud import section as section_crud
+
+        image = section_crud.delete_section_image(db, image_id=image_id)
+        if not image:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Image not found"
+            )
+
+        logger.info(f"Successfully deleted section image {image_id}")
+        return {"message": "Image deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting section image: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting section image: {str(e)}"
+        )
+
+
+@router.delete("/sections/attachments/{attachment_id}", status_code=status.HTTP_200_OK)
+@require_permission("EDIT_PROJECT")
+def delete_section_attachment(
+    *,
+    db: Session = Depends(deps.get_db),
+    attachment_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Delete a section attachment
+    """
+    logger.info(f"Deleting section attachment {attachment_id}")
+    try:
+        from app.crud import section as section_crud
+
+        attachment = section_crud.delete_section_attachment(db, attachment_id=attachment_id)
+        if not attachment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Attachment not found"
+            )
+
+        logger.info(f"Successfully deleted section attachment {attachment_id}")
+        return {"message": "Attachment deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting section attachment: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting section attachment: {str(e)}"
+        )
+
+
+# =============================================================================
+# PROJECT ROUTES
+# =============================================================================
 
 @router.get("/", response_model=Dict[str, Any])
 @require_permission("VIEW_PROJECTS")
@@ -113,6 +190,7 @@ def read_projects(
                     "id": project.id,
                     "repository_url": project.repository_url or "",
                     "website_url": project.website_url or "",
+                    "project_date": project.project_date.isoformat() if project.project_date else None,
                     "project_texts": [],
                     "images": [],
                     "attachments": [],
@@ -157,6 +235,7 @@ def process_projects_for_response(projects: List[models.project.Project]) -> Lis
                 "id": project.id,
                 "repository_url": project.repository_url or "",
                 "website_url": project.website_url or "",
+                "project_date": project.project_date.isoformat() if project.project_date else None,
                 "project_texts": [
                     {
                         "id": text.id,
@@ -196,6 +275,7 @@ def process_projects_for_response(projects: List[models.project.Project]) -> Lis
                 "id": project.id if hasattr(project, 'id') else None,
                 "repository_url": project.repository_url if hasattr(project, 'repository_url') else "",
                 "website_url": project.website_url if hasattr(project, 'website_url') else "",
+                "project_date": project.project_date.isoformat() if hasattr(project, 'project_date') and project.project_date else None,
                 "project_texts": [],
                 "categories": [],
                 "skills": []
@@ -341,11 +421,20 @@ def create_project(
         except (AttributeError, ImportError):
             project = project_crud.create_project(db, project=project_in)
         
+        # Stage RAG index event
+        stage_event(db, {
+            "op": "insert",
+            "source_table": "projects",
+            "source_id": str(project.id),
+            "changed_fields": ["repository_url", "website_url", "project_date"]
+        })
+
         # Convert to dictionary for proper serialization
         project_dict = {
             "id": project.id,
             "repository_url": project.repository_url or "",
             "website_url": project.website_url or "",
+            "project_date": project.project_date.isoformat() if project.project_date else None,
             "project_texts": [
                 {
                     "id": text.id,
@@ -375,7 +464,7 @@ def create_project(
                 for skill in (project.skills or [])
             ]
         }
-        
+
         return project_dict
     except Exception as e:
         logger.error(f"Error creating project: {e}")
@@ -407,12 +496,17 @@ def read_project(
                 status_code=404,
                 detail="Project not found",
             )
-        
+
+        # Get sections with display_order from the association table
+        from app.crud import section as section_crud
+        sections_with_order = section_crud.get_project_sections(db, project_id=project_id)
+
         # Convert to dictionary for proper serialization
         project_dict = {
             "id": project.id,
             "repository_url": project.repository_url or "",
             "website_url": project.website_url or "",
+            "project_date": project.project_date.isoformat() if project.project_date else None,
             "project_texts": [
                 {
                     "id": text.id,
@@ -440,9 +534,48 @@ def read_project(
                     "name": skill.skill_texts[0].name if skill.skill_texts else f"Skill {skill.id}"
                 }
                 for skill in (project.skills or [])
+            ],
+            "sections": [
+                {
+                    "id": section.id,
+                    "code": section.code,
+                    "display_order": getattr(section, 'display_order', 0),
+                    "display_style": section.display_style or "bordered",  # Add display_style field
+                    "section_texts": [
+                        {
+                            "id": text.id,
+                            "language_id": text.language_id,
+                            "text": text.text,
+                            "language": {
+                                "id": text.language.id,
+                                "code": text.language.code,
+                                "name": text.language.name
+                            } if text.language else None
+                        }
+                        for text in (section.section_texts or [])
+                    ],
+                    "images": [
+                        {
+                            "id": img.id,
+                            "image_path": img.image_path,
+                            "display_order": img.display_order
+                        }
+                        for img in (section.images or [])
+                    ],
+                    "attachments": [
+                        {
+                            "id": att.id,
+                            "file_path": att.file_path,
+                            "file_name": att.file_name,
+                            "display_order": att.display_order
+                        }
+                        for att in (section.attachments or [])
+                    ]
+                }
+                for section in sections_with_order
             ]
         }
-        
+
         return project_dict
     except HTTPException:
         raise
@@ -493,11 +626,20 @@ def update_project(
         except (AttributeError, ImportError):
             updated_project = project_crud.update_project(db, project_id=project_id, project=project_in)
         
+        # Stage RAG update event
+        stage_event(db, {
+            "op": "update",
+            "source_table": "projects",
+            "source_id": str(project_id),
+            "changed_fields": list(project_in.model_dump(exclude_unset=True).keys())
+        })
+        
         # Convert to dictionary for proper serialization
         project_dict = {
             "id": updated_project.id,
             "repository_url": updated_project.repository_url or "",
             "website_url": updated_project.website_url or "",
+            "project_date": updated_project.project_date.isoformat() if updated_project.project_date else None,
             "project_texts": [
                 {
                     "id": text.id,
@@ -568,6 +710,14 @@ def delete_project(
             deleted_project = crud.project.delete_project(db, project_id=project_id)
         except (AttributeError, ImportError):
             deleted_project = project_crud.delete_project(db, project_id=project_id)
+        
+        # Stage RAG delete event
+        stage_event(db, {
+            "op": "delete",
+            "source_table": "projects",
+            "source_id": str(project_id),
+            "changed_fields": []
+        })
         
         # Convert to dictionary for proper serialization
         project_dict = {
@@ -649,8 +799,11 @@ def read_project_images(
                 "id": image.id,
                 "image_path": image.image_path,
                 "category": image.category,
+                "language_id": image.language_id,
                 "created_at": image.created_at,
-                "updated_at": image.updated_at
+                "updated_at": image.updated_at,
+                "created_by": image.created_by,
+                "updated_by": image.updated_by
             }
             
             # Add URL using the file utils function
@@ -678,14 +831,16 @@ async def upload_project_image(
     project_id: int,
     file: UploadFile = File(...),  # Image file
     category_code: str = Form(...),  # Category code 
+    language_id: Optional[int] = Form(None),  # Optional language ID
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user),
 ):
     """
     Upload an image for a project. 
     Requires category_code as form data.
+    Optionally accepts language_id to associate the image with a language.
     """
-    logger.info(f"Uploading image for project {project_id} with category {category_code}")
+    logger.info(f"Uploading image for project {project_id} with category {category_code}, language_id: {language_id}")
     logger.info(f"File: {file.filename}, content_type: {file.content_type}")
     
     try:
@@ -728,6 +883,47 @@ async def upload_project_image(
         
         logger.info(f"Using category code: {category_code}")
         
+        # Check if an image with the same category and language already exists for this project
+        # Only enforce uniqueness for specific categories (logo, thumbnail)
+        # Gallery and other categories can have multiple images
+        UNIQUE_CATEGORIES = ['PROI-LOGO', 'PROI-THUMBNAIL']
+        
+        if category_code in UNIQUE_CATEGORIES:
+            existing_images = crud.project.get_project_images_by_category_and_language(
+                db=db,
+                project_id=project_id,
+                category=category_code,
+                language_id=language_id
+            )
+            
+            if existing_images:
+                logger.info(f"Found {len(existing_images)} existing image(s) with category '{category_code}' and language_id '{language_id}' for project {project_id}")
+                logger.info(f"Enforcing uniqueness for category '{category_code}' - deleting existing images")
+                
+                # Delete existing images to maintain one image per category per language
+                for existing_image in existing_images:
+                    logger.info(f"Deleting existing image ID {existing_image.id} to maintain uniqueness")
+                    
+                    # Delete the file from filesystem
+                    try:
+                        if existing_image.image_path:
+                            # Get absolute path for deletion
+                            from app.core.config import settings
+                            absolute_path = settings.UPLOADS_DIR / existing_image.image_path
+                            if delete_file(str(absolute_path)):
+                                logger.info(f"Deleted file: {absolute_path}")
+                            else:
+                                logger.warning(f"Could not delete file: {absolute_path}")
+                    except Exception as e:
+                        logger.warning(f"Error deleting old image file: {e}")
+                    
+                    # Delete the database record
+                    crud.project.delete_project_image(db, project_image_id=existing_image.id)
+                
+                logger.info(f"Successfully deleted {len(existing_images)} existing image(s)")
+        else:
+            logger.info(f"Category '{category_code}' allows multiple images - skipping uniqueness check")
+        
         # Process and save the file
         original_filename = file.filename
         logger.info(f"Saving file: {original_filename}")
@@ -742,27 +938,29 @@ async def upload_project_image(
         
         logger.info(f"File saved successfully at: {file_path}")
         
-        # Get the file URL
-        file_url = get_file_url(file_path)
+        # Convert absolute path to relative path for database storage
+        relative_path = get_relative_path(file_path)
+        
+        # Get the file URL for response
+        file_url = get_file_url(relative_path)
+        logger.info(f"Relative path for DB: {relative_path}")
         logger.info(f"Generated file URL: {file_url}")
-            
-        # Calculate relative path for database storage (use the full path returned by save_project_image)
-        image_path = file_path  # save_project_image already returns full path
         
-        logger.debug(f"Image path for database: {image_path}")
-        
-        # Create image record in database using the correct field names
+        # Create image record in database using the relative path
         image_in = schemas.project.ProjectImageCreate(
-            image_path=str(file_path),  # Store the full path
+            image_path=relative_path,  # Store the relative path from uploads dir
             category=category_code,    # Match the DB column name (category, not category_code)
+            language_id=language_id,   # Associate with language if provided
         )
         
         logger.info(f"Creating DB record with: {image_in}")
         image = crud.project.create_project_image(
             db=db, 
             project_id=project_id, 
-            image_path=str(file_path),
-            category=category_code
+            image_path=relative_path,  # Store relative path
+            category=category_code,
+            language_id=language_id,
+            created_by=current_user.id
         )
         
         # Add URL to the image response
@@ -791,6 +989,7 @@ async def update_project_image(
     project_id: int,
     image_id: int,
     category: Optional[str] = Form(None),
+    language_id: Optional[int] = Form(None),
     image: Optional[UploadFile] = File(None),
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user),
@@ -798,7 +997,7 @@ async def update_project_image(
     """
     Update a project image. Max file size: 2MB
     """
-    logger.debug(f"Updating image {image_id} for project {project_id}")
+    logger.debug(f"Updating image {image_id} for project {project_id}, language_id: {language_id}")
     
     # Check if project exists
     project = crud.project.get_project(db, project_id=project_id)
@@ -867,7 +1066,9 @@ async def update_project_image(
         db, 
         project_image_id=image_id, 
         image_path=image_path, 
-        category=category
+        category=category,
+        language_id=language_id,
+        updated_by=current_user.id
     )
     
     # Add URL for the frontend
@@ -963,11 +1164,44 @@ def read_project_attachments(
             "id": attachment.id,
             "file_path": attachment.file_path,
             "file_name": attachment.file_name,
+            "category_id": attachment.category_id,
+            "language_id": attachment.language_id,
             "created_at": attachment.created_at,
             "updated_at": attachment.updated_at,
+            "created_by": attachment.created_by,
+            "updated_by": attachment.updated_by
         }
         if attachment.file_path:
             attachment_dict["file_url"] = get_file_url(attachment.file_path)
+        
+        # Add language object if present
+        if attachment.language:
+            attachment_dict["language"] = {
+                "id": attachment.language.id,
+                "name": attachment.language.name,
+                "code": attachment.language.code,
+                "image": attachment.language.image
+            }
+        
+        # Add category object if present
+        if attachment.category:
+            category_name = attachment.category.code
+            if attachment.category.category_texts:
+                # Get English or first available category name
+                for text in attachment.category.category_texts:
+                    if text.language and text.language.code == 'en':
+                        category_name = text.name
+                        break
+                if category_name == attachment.category.code and attachment.category.category_texts:
+                    category_name = attachment.category.category_texts[0].name
+            
+            attachment_dict["category"] = {
+                "id": attachment.category.id,
+                "code": attachment.category.code,
+                "name": category_name,
+                "texts": [{"name": t.name, "language_id": t.language_id} for t in attachment.category.category_texts] if attachment.category.category_texts else []
+            }
+        
         attachment_list.append(attachment_dict)
     
     return {
@@ -987,15 +1221,21 @@ async def upload_project_attachment(
     db: Session = Depends(deps.get_db),
     project_id: int,
     file: UploadFile = File(...),
+    category_id: Optional[int] = Form(None),  # Optional category ID
+    language_id: Optional[int] = Form(None),  # Optional language ID
     current_user: models.User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Upload an attachment for a project.
     Supported file types: PDF, Word docs, Excel, CSV, text files
+    Optionally accepts category_id and language_id to categorize and associate the attachment.
     """
-    logger.info(f"Uploading attachment for project {project_id}: {file.filename}")
+    logger.info(f"Uploading attachment for project {project_id}: {file.filename}, category_id: {category_id}, language_id: {language_id}")
     
     try:
+        # Ensure PROA categories exist
+        category_crud.ensure_project_attachment_category_exists(db)
+        
         # Check if project exists
         project = crud.project.get_project(db, project_id=project_id)
         if not project:
@@ -1060,18 +1300,32 @@ async def upload_project_attachment(
         # Create attachment in database
         attachment_data = schemas.ProjectAttachmentCreate(
             file_path=relative_path,
-            file_name=file.filename  # Keep original filename for display
+            file_name=file.filename,  # Keep original filename for display
+            category_id=category_id,  # Associate with category if provided
+            language_id=language_id   # Associate with language if provided
         )
         
         # Add project attachment to database
         project_attachment = crud.project.add_project_attachment(
             db, 
             project_id=project_id, 
-            attachment=attachment_data
+            attachment=attachment_data,
+            created_by=current_user.id
         )
         
         # Add file URL for frontend
         project_attachment.file_url = get_file_url(project_attachment.file_path)
+        
+        # Stage RAG index event for attachment
+        try:
+            stage_event(db, {
+                "op": "insert",
+                "source_table": "project_attachments",
+                "source_id": str(project_attachment.id),
+                "changed_fields": ["file_name", "file_path"]
+            })
+        except Exception:
+            pass
         
         logger.info(f"Attachment uploaded successfully: {file.filename}")
         return project_attachment
@@ -1085,6 +1339,65 @@ async def upload_project_attachment(
             detail=f"Internal server error: {str(e)}"
         )
 
+
+@router.put("/{project_id}/attachments/{attachment_id}", response_model=schemas.ProjectAttachmentOut)
+@require_permission("EDIT_PROJECT_ATTACHMENTS")
+def update_project_attachment(
+    *,
+    db: Session = Depends(deps.get_db),
+    project_id: int,
+    attachment_id: int,
+    category_id: Optional[int] = Query(None),
+    language_id: Optional[int] = Query(None),
+    is_default: bool = Query(False),
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Update a project attachment's metadata (category, language, is_default flag).
+    """
+    logger.info(f"Updating attachment {attachment_id} for project {project_id}")
+    
+    # Check if project exists
+    project = crud.project.get_project(db, project_id=project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Get the attachment
+    attachment = crud.project.get_project_attachment(db, attachment_id=attachment_id)
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Project attachment not found")
+    
+    # Verify the attachment belongs to the specified project
+    if attachment.project_id != project_id:
+        raise HTTPException(status_code=400, detail="Attachment does not belong to the specified project")
+    
+    # Validate category if provided
+    if category_id is not None:
+        category = crud.category.get_category(db, category_id=category_id)
+        if not category:
+            raise HTTPException(status_code=404, detail=f"Category with ID {category_id} not found")
+    
+    # Validate language if provided
+    if language_id is not None:
+        language = db.query(models.Language).filter(models.Language.id == language_id).first()
+        if not language:
+            raise HTTPException(status_code=404, detail=f"Language with ID {language_id} not found")
+    
+    # Update the attachment
+    updated_attachment = crud.project.update_project_attachment(
+        db,
+        attachment_id=attachment_id,
+        category_id=category_id,
+        language_id=language_id,
+        is_default=is_default,
+        updated_by=current_user.id
+    )
+    
+    if not updated_attachment:
+        raise HTTPException(status_code=500, detail="Failed to update attachment")
+    
+    logger.info(f"Successfully updated attachment {attachment_id}")
+    return updated_attachment
 
 @router.delete("/{project_id}/attachments/{attachment_id}", response_model=schemas.ProjectAttachmentOut)
 @require_permission("DELETE_PROJECT_ATTACHMENTS")
@@ -1136,6 +1449,18 @@ def delete_project_attachment(
             deleted_attachment.file_url = get_file_url(deleted_attachment.file_path)
         
         logger.info(f"Attachment {attachment_id} deleted successfully")
+        
+        # Stage RAG delete event for attachment
+        try:
+            stage_event(db, {
+                "op": "delete",
+                "source_table": "project_attachments",
+                "source_id": str(attachment_id),
+                "changed_fields": []
+            })
+        except Exception:
+            pass
+        
         return deleted_attachment
         
     except HTTPException:
@@ -1252,3 +1577,381 @@ async def generate_preview_token(
         "expires_in": 3600,
         "token": token
     }
+
+
+# ===================================
+# Project Sections Endpoints
+# ===================================
+
+@router.get("/{project_id}/sections", response_model=List[section_schema.Section])
+@require_permission("VIEW_PROJECT")
+def get_project_sections(
+    *,
+    db: Session = Depends(deps.get_db),
+    project_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Get all sections associated with a project
+    """
+    logger.info(f"Getting sections for project {project_id}")
+    try:
+        from app.crud import section as section_crud
+        sections = section_crud.get_project_sections(db, project_id=project_id)
+        return sections
+    except Exception as e:
+        logger.error(f"Error getting project sections: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error getting project sections: {str(e)}"
+        )
+
+
+@router.post("/{project_id}/sections/{section_id}", status_code=status.HTTP_201_CREATED)
+@require_permission("EDIT_PROJECT")
+def add_section_to_project(
+    *,
+    db: Session = Depends(deps.get_db),
+    project_id: int,
+    section_id: int,
+    section_data: section_schema.ProjectSectionAdd,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Add an existing section to a project
+    """
+    logger.info(f"Adding section {section_id} to project {project_id}")
+    try:
+        # Verify project exists
+        project = project_crud.get_project(db, project_id=project_id)
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found"
+            )
+
+        # Verify section exists
+        from app.crud import section as section_crud
+        section = section_crud.get_section(db, section_id=section_id)
+        if not section:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Section not found"
+            )
+
+        # Add section to project
+        result = section_crud.add_section_to_project(
+            db,
+            project_id=project_id,
+            section_id=section_id,
+            display_order=section_data.display_order
+        )
+
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Section already associated with project"
+            )
+
+        logger.info(f"Successfully added section {section_id} to project {project_id}")
+        return {"message": "Section added to project successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding section to project: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error adding section to project: {str(e)}"
+        )
+
+
+@router.post("/{project_id}/sections", status_code=status.HTTP_201_CREATED, response_model=section_schema.Section)
+@require_permission("EDIT_PROJECT")
+def create_and_add_section_to_project(
+    *,
+    db: Session = Depends(deps.get_db),
+    project_id: int,
+    section_data: section_schema.ProjectSectionCreate,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Create a new section and add it to a project
+    """
+    logger.info(f"Creating and adding new section to project {project_id}")
+    try:
+        # Verify project exists
+        project = project_crud.get_project(db, project_id=project_id)
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found"
+            )
+
+        # Create section
+        from app.crud import section as section_crud
+        section_create = section_schema.SectionCreate(
+            code=section_data.code,
+            section_texts=section_data.section_texts,
+            display_style=section_data.display_style  # Add display_style
+        )
+        new_section = section_crud.create_section(db, section=section_create)
+
+        # Add to project
+        section_crud.add_section_to_project(
+            db,
+            project_id=project_id,
+            section_id=new_section.id,
+            display_order=section_data.display_order
+        )
+
+        logger.info(f"Successfully created and added section {new_section.id} to project {project_id}")
+
+        # Return the created section with all relationships
+        return section_crud.get_section(db, section_id=new_section.id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating section for project: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating section for project: {str(e)}"
+        )
+
+
+@router.delete("/{project_id}/sections/{section_id}", status_code=status.HTTP_200_OK)
+@require_permission("EDIT_PROJECT")
+def remove_section_from_project(
+    *,
+    db: Session = Depends(deps.get_db),
+    project_id: int,
+    section_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Remove a section from a project (does not delete the section itself)
+    """
+    logger.info(f"Removing section {section_id} from project {project_id}")
+    try:
+        from app.crud import section as section_crud
+        result = section_crud.remove_section_from_project(db, project_id=project_id, section_id=section_id)
+
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Section not associated with this project"
+            )
+
+        logger.info(f"Successfully removed section {section_id} from project {project_id}")
+        return {"message": "Section removed from project successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error removing section from project: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error removing section from project: {str(e)}"
+        )
+
+
+@router.post("/sections/{section_id}/images", status_code=status.HTTP_201_CREATED, response_model=section_schema.SectionImageOut)
+@require_permission("EDIT_PROJECT")
+def add_section_image(
+    *,
+    db: Session = Depends(deps.get_db),
+    section_id: int,
+    image_data: section_schema.SectionImageCreate,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Add an image to a section
+    """
+    logger.info(f"Adding image to section {section_id}")
+    try:
+        from app.crud import section as section_crud
+
+        # Verify section exists
+        section = section_crud.get_section(db, section_id=section_id)
+        if not section:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Section not found"
+            )
+
+        # Add image
+        image = section_crud.add_section_image(
+            db,
+            section_id=section_id,
+            image_data=image_data,
+            created_by=current_user.id
+        )
+
+        logger.info(f"Successfully added image to section {section_id}")
+        return image
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding image to section: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error adding image to section: {str(e)}"
+        )
+
+
+@router.post("/sections/{section_id}/attachments", status_code=status.HTTP_201_CREATED, response_model=section_schema.SectionAttachmentOut)
+@require_permission("EDIT_PROJECT")
+def add_section_attachment(
+    *,
+    db: Session = Depends(deps.get_db),
+    section_id: int,
+    attachment_data: section_schema.SectionAttachmentCreate,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Add an attachment to a section
+    """
+    logger.info(f"Adding attachment to section {section_id}")
+    try:
+        from app.crud import section as section_crud
+
+        # Verify section exists
+        section = section_crud.get_section(db, section_id=section_id)
+        if not section:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Section not found"
+            )
+
+        # Add attachment
+        attachment = section_crud.add_section_attachment(
+            db,
+            section_id=section_id,
+            attachment_data=attachment_data,
+            created_by=current_user.id
+        )
+
+        logger.info(f"Successfully added attachment to section {section_id}")
+        return attachment
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding attachment to section: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error adding attachment to section: {str(e)}"
+        )
+
+
+# =============================================================================
+# SKILL MANAGEMENT ROUTES
+# =============================================================================
+
+@router.post("/{project_id}/skills/{skill_id}", status_code=status.HTTP_201_CREATED)
+@require_permission("EDIT_PROJECT")
+def add_skill_to_project(
+    *,
+    db: Session = Depends(deps.get_db),
+    project_id: int,
+    skill_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Add a skill to a project
+    """
+    logger.info(f"Adding skill {skill_id} to project {project_id}")
+    try:
+        # Verify project exists
+        project = project_crud.get_project(db, project_id=project_id)
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found"
+            )
+
+        # Verify skill exists
+        from app.crud import skill as skill_crud
+        skill = skill_crud.get_skill(db, skill_id=skill_id)
+        if not skill:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Skill not found"
+            )
+
+        # Check if skill is already associated
+        if skill in project.skills:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Skill is already associated with this project"
+            )
+
+        # Add skill to project
+        project.skills.append(skill)
+        db.commit()
+        db.refresh(project)
+
+        logger.info(f"Successfully added skill {skill_id} to project {project_id}")
+        return {"message": "Skill added to project successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding skill to project: {str(e)}", exc_info=True)
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error adding skill to project: {str(e)}"
+        )
+
+
+@router.delete("/{project_id}/skills/{skill_id}", status_code=status.HTTP_200_OK)
+@require_permission("EDIT_PROJECT")
+def remove_skill_from_project(
+    *,
+    db: Session = Depends(deps.get_db),
+    project_id: int,
+    skill_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Remove a skill from a project
+    """
+    logger.info(f"Removing skill {skill_id} from project {project_id}")
+    try:
+        # Verify project exists
+        project = project_crud.get_project(db, project_id=project_id)
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found"
+            )
+
+        # Verify skill exists
+        from app.crud import skill as skill_crud
+        skill = skill_crud.get_skill(db, skill_id=skill_id)
+        if not skill:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Skill not found"
+            )
+
+        # Check if skill is associated
+        if skill not in project.skills:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Skill is not associated with this project"
+            )
+
+        # Remove skill from project
+        project.skills.remove(skill)
+        db.commit()
+        db.refresh(project)
+
+        logger.info(f"Successfully removed skill {skill_id} from project {project_id}")
+        return {"message": "Skill removed from project successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error removing skill from project: {str(e)}", exc_info=True)
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error removing skill from project: {str(e)}"
+        )

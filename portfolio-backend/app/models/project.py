@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Table, ForeignKey, DateTime, Text
+from sqlalchemy import Column, Integer, String, Table, ForeignKey, DateTime, Text, Date
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -24,7 +24,8 @@ class Project(Base):
     id = Column(Integer, primary_key=True, index=True)
     repository_url = Column(String, nullable=True)
     website_url = Column(String, nullable=True)
-    
+    project_date = Column(Date, nullable=True)
+
     # Timestamp and user tracking fields
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -35,6 +36,12 @@ class Project(Base):
     portfolios = relationship("Portfolio", secondary="portfolio_projects", back_populates="projects")
     categories = relationship("Category", secondary=project_categories, back_populates="projects")
     skills = relationship("Skill", secondary=project_skills, back_populates="projects")
+    sections = relationship(
+        "Section", 
+        secondary="project_sections", 
+        back_populates="projects",
+        order_by="project_sections.c.display_order"
+    )
     project_texts = relationship("ProjectText", back_populates="project")
     images = relationship("ProjectImage", back_populates="project")
     attachments = relationship("ProjectAttachment", back_populates="project")
@@ -65,6 +72,7 @@ class ProjectImage(Base):
     project_id = Column(Integer, ForeignKey("projects.id"))
     image_path = Column(String)
     category = Column(String)  # e.g., "diagram", "main", "gallery"
+    language_id = Column(Integer, ForeignKey("languages.id"), nullable=True)  # Link to language
     
     # Timestamp and user tracking fields
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -74,6 +82,7 @@ class ProjectImage(Base):
     
     # Relationships
     project = relationship("Project", back_populates="images")
+    language = relationship("Language")
 
 
 class ProjectAttachment(Base):
@@ -82,6 +91,8 @@ class ProjectAttachment(Base):
     project_id = Column(Integer, ForeignKey("projects.id"))
     file_path = Column(String)
     file_name = Column(String)
+    category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)  # Link to category (PDOC, RESU, etc)
+    language_id = Column(Integer, ForeignKey("languages.id"), nullable=True)  # Link to language
     
     # Timestamp and user tracking fields
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -91,3 +102,5 @@ class ProjectAttachment(Base):
     
     # Relationships
     project = relationship("Project", back_populates="attachments")
+    category = relationship("Category")
+    language = relationship("Language")

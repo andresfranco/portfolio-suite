@@ -31,10 +31,14 @@ class PermissionChecker:
     
     def user_has_permission(self, user: User, required_permission: str) -> bool:
         """Check if user has specific permission or a manage permission that grants it"""
+        
         # System admin bypass
-        if self.is_system_admin(user):
+        is_admin = self.is_system_admin(user)
+        
+        if is_admin:
             logger.debug(f"System admin {user.username} granted access to {required_permission}")
             return True
+        
         
         # Define manage permissions that grant multiple permissions
         manage_permissions = {

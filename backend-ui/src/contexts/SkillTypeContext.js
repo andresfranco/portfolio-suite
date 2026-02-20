@@ -195,8 +195,14 @@ export const SkillTypeProvider = ({ children }) => {
       logInfo('Skill type created successfully', response.data);
       
       // Refresh skill types list with current filters
-      const currentFilters = filtersRef.current && Object.keys(filtersRef.current).length > 0 ? filtersRef.current : {};
-      await fetchSkillTypes(0, paginationRef.current.pageSize, currentFilters);
+      // Don't let refresh errors mask the successful creation
+      try {
+        const currentFilters = filtersRef.current && Object.keys(filtersRef.current).length > 0 ? filtersRef.current : {};
+        await fetchSkillTypes(0, paginationRef.current.pageSize, currentFilters);
+      } catch (refreshErr) {
+        logError('Error refreshing skill types after create (non-fatal):', refreshErr);
+        // Don't throw - the create operation succeeded
+      }
       
       return response.data;
     } catch (err) {
@@ -234,8 +240,14 @@ export const SkillTypeProvider = ({ children }) => {
       logInfo(`Skill type ${code} updated successfully`, response.data);
       
       // Refresh skill types list with current filters
-      const currentFilters = filtersRef.current && Object.keys(filtersRef.current).length > 0 ? filtersRef.current : {};
-      await fetchSkillTypes(paginationRef.current.page, paginationRef.current.pageSize, currentFilters);
+      // Don't let refresh errors mask the successful update
+      try {
+        const currentFilters = filtersRef.current && Object.keys(filtersRef.current).length > 0 ? filtersRef.current : {};
+        await fetchSkillTypes(paginationRef.current.page, paginationRef.current.pageSize, currentFilters);
+      } catch (refreshErr) {
+        logError('Error refreshing skill types after update (non-fatal):', refreshErr);
+        // Don't throw - the update operation succeeded
+      }
       
       return response.data;
     } catch (err) {
@@ -275,20 +287,26 @@ export const SkillTypeProvider = ({ children }) => {
       logInfo(`Skill type ${code} deleted successfully`);
       
       // Refresh the list, potentially adjusting page if needed
-      const currentPage = paginationRef.current.page;
-      const currentPageSize = paginationRef.current.pageSize;
-      const currentTotal = paginationRef.current.total;
-      const newTotal = currentTotal - 1;
-      
-      // If we're on a page with only one item or deleting the last item would result in an empty page,
-      // go back one page (unless we're already on page 0)
-      const newPage = (currentPage > 0 && (newTotal % currentPageSize === 0 || skillTypes.length === 1)) 
-                     ? currentPage - 1 
-                     : currentPage;
-      
-      // Get current filters
-      const currentFilters = filtersRef.current && Object.keys(filtersRef.current).length > 0 ? filtersRef.current : {};
-      await fetchSkillTypes(newPage, currentPageSize, currentFilters);
+      // Don't let refresh errors mask the successful deletion
+      try {
+        const currentPage = paginationRef.current.page;
+        const currentPageSize = paginationRef.current.pageSize;
+        const currentTotal = paginationRef.current.total;
+        const newTotal = currentTotal - 1;
+        
+        // If we're on a page with only one item or deleting the last item would result in an empty page,
+        // go back one page (unless we're already on page 0)
+        const newPage = (currentPage > 0 && (newTotal % currentPageSize === 0 || skillTypes.length === 1)) 
+                       ? currentPage - 1 
+                       : currentPage;
+        
+        // Get current filters
+        const currentFilters = filtersRef.current && Object.keys(filtersRef.current).length > 0 ? filtersRef.current : {};
+        await fetchSkillTypes(newPage, currentPageSize, currentFilters);
+      } catch (refreshErr) {
+        logError('Error refreshing skill types after delete (non-fatal):', refreshErr);
+        // Don't throw - the delete operation succeeded
+      }
       
       return true;
     } catch (err) {
