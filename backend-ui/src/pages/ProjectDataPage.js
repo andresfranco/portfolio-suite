@@ -317,7 +317,6 @@ function ProjectDataPage() {
       // Always fetch images and attachments separately since backend doesn't include them
       try {
         const imagesRes = await projectsApi.getProjectImages(projectId);
-        console.log('Images fetched:', imagesRes.data);
         setImages(imagesRes.data || []);
       } catch (e) {
         console.error('Error fetching images:', e);
@@ -326,7 +325,6 @@ function ProjectDataPage() {
       
       try {
         const attachmentsRes = await projectsApi.getProjectAttachments(projectId);
-        console.log('Attachments fetched:', attachmentsRes.data);
         // Backend returns paginated response with 'items' array
         const attachmentsData = attachmentsRes.data?.items || attachmentsRes.data || [];
         setAttachments(attachmentsData);
@@ -369,9 +367,7 @@ function ProjectDataPage() {
       // Filter to only show enabled languages
       // The backend field is 'enabled', not 'is_enabled'
       const allLanguages = data.items || data || [];
-      console.log('All languages fetched:', allLanguages);
       const enabledLanguages = allLanguages.filter(lang => lang.enabled === true || lang.enabled === 1);
-      console.log('Enabled languages after filter:', enabledLanguages);
       setAvailableLanguages(enabledLanguages);
     } catch (error) {
       console.error('Error fetching languages:', error);

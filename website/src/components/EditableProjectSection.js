@@ -74,34 +74,28 @@ const EditableProjectSection = ({ section, language, isEditMode, onContentReorde
    * Handle drag end for section content
    */
   const handleContentDragEnd = async (result) => {
-    console.log('Section content drag end:', result);
     
     if (!result.destination) {
-      console.log('No destination - dropped outside');
       return;
     }
     
     if (result.destination.index === result.source.index) {
-      console.log('No movement - same position');
       return;
     }
 
     // Prevent concurrent reordering operations
     if (isReorderingRef.current) {
-      console.log('Reordering already in progress, skipping...');
       return;
     }
 
     isReorderingRef.current = true;
 
-    console.log(`Moving content from index ${result.source.index} to ${result.destination.index}`);
 
     // Reorder the content items
     const reorderedItems = Array.from(contentItems);
     const [movedItem] = reorderedItems.splice(result.source.index, 1);
     reorderedItems.splice(result.destination.index, 0, movedItem);
     
-    console.log('New content order:', reorderedItems);
     
     // Update local state immediately for instant feedback
     setContentItems(reorderedItems);
@@ -125,7 +119,6 @@ const EditableProjectSection = ({ section, language, isEditMode, onContentReorde
         }));
 
         await portfolioApi.reorderSectionContent(section.id, contentItemsWithOrder, token);
-        console.log('Successfully saved content order to backend');
         
         // Show success feedback briefly
         setTimeout(() => setIsSaving(false), 800);

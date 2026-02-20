@@ -86,23 +86,6 @@ function ProjectImagesContent() {
 
   // Debug logging
   useEffect(() => {
-    console.log('[PROJECT IMAGES DEBUG] Authentication Status:');
-    console.log('  - Auth Loading:', authLoading);
-    console.log('  - Permissions:', permissions);
-    console.log('  - Is System Admin:', isSystemAdmin());
-    console.log('  - Has VIEW_PROJECT_IMAGES:', hasPermission('VIEW_PROJECT_IMAGES'));
-    console.log('  - Has UPLOAD_PROJECT_IMAGES:', hasPermission('UPLOAD_PROJECT_IMAGES'));
-    console.log('  - Has EDIT_PROJECT_IMAGES:', hasPermission('EDIT_PROJECT_IMAGES'));
-    console.log('  - Has DELETE_PROJECT_IMAGES:', hasPermission('DELETE_PROJECT_IMAGES'));
-    console.log('  - Has MANAGE_PROJECT_IMAGES:', hasPermission('MANAGE_PROJECT_IMAGES'));
-    console.log('  - Has MANAGE_PROJECTS:', hasPermission('MANAGE_PROJECTS'));
-    console.log('  - Has SYSTEM_ADMIN:', hasPermission('SYSTEM_ADMIN'));
-    console.log('  - Can Access (any of above):', 
-      hasPermission('VIEW_PROJECT_IMAGES') || 
-      hasPermission('MANAGE_PROJECT_IMAGES') || 
-      hasPermission('MANAGE_PROJECTS') || 
-      hasPermission('SYSTEM_ADMIN')
-    );
   }, [authLoading, permissions, hasPermission, isSystemAdmin]);
 
   // Permission checking helpers
@@ -155,14 +138,10 @@ function ProjectImagesContent() {
         setError(null);
         
         // First, verify authentication by checking current user permissions
-        console.log('[PROJECT IMAGES DEBUG] Testing authentication...');
         const authTestResponse = await api.get('/api/users/me/permissions');
         
-        console.log('[PROJECT IMAGES DEBUG] Auth test response status:', authTestResponse.status);
-        console.log('[PROJECT IMAGES DEBUG] Auth test response data:', authTestResponse.data);
         
         // Fetch languages to identify default language
-        console.log('[PROJECT IMAGES DEBUG] Fetching languages...');
         const languagesResponse = await api.get('/api/languages/?page=1&page_size=100');
         
         const languagesData = languagesResponse.data;
@@ -173,13 +152,9 @@ function ProjectImagesContent() {
         setLanguages(languagesList);  // Store all languages for the dropdown
         
         // Fetch project details
-        console.log('[PROJECT IMAGES DEBUG] Fetching project details for ID:', projectId);
-        console.log('[PROJECT IMAGES DEBUG] Request URL:', `/api/projects/${projectId}`);
         
         const projectResponse = await api.get(`/api/projects/${projectId}`);
         
-        console.log('[PROJECT IMAGES DEBUG] Project response status:', projectResponse.status);
-        console.log('[PROJECT IMAGES DEBUG] Project response data:', projectResponse.data);
         
         setProject(projectResponse.data);
         
@@ -193,7 +168,6 @@ function ProjectImagesContent() {
         const categoriesData = categoriesResponse.data;
         let categoriesList = categoriesData || [];
         
-        console.log("PROI categories from API:", categoriesList);
         
         // Map categories to format with code and display name
         const formattedCategories = categoriesList.map(category => {
@@ -234,7 +208,6 @@ function ProjectImagesContent() {
           };
         });
         
-        console.log("Formatted categories for select:", formattedCategories);
         
         setCategories(formattedCategories);
         
@@ -712,7 +685,6 @@ function ProjectImagesContent() {
       const failures = results.filter(result => result.status === 'rejected');
       
       if (failures.length > 0) {
-        console.warn(`${failures.length} out of ${imageIds.length} deletions failed`);
         setError(`Some images could not be deleted (${failures.length}/${imageIds.length} failed)`);
       }
       
@@ -733,7 +705,6 @@ function ProjectImagesContent() {
       
       if (failures.length === 0) {
         // All deletions successful
-        console.log(`Successfully deleted ${successfulDeletions.length} images`);
       }
     } catch (error) {
       console.error('Error during bulk delete:', error);

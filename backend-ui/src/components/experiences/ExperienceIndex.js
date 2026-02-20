@@ -70,12 +70,6 @@ const ExperienceIndexContent = () => {
   }), [availableLanguages]);
 
   // Debug logging for language data
-  console.log('ExperienceIndex - Language debug info:', {
-    availableLanguages: availableLanguages?.length || 0,
-    loadingLanguages,
-    languageOptions: FILTER_TYPES.language_id.options,
-    sampleLanguages: availableLanguages?.slice(0, 3),
-  });
 
   // Build access notices for filters
   const { noticesByType } = useMemo(() => {
@@ -102,11 +96,6 @@ const ExperienceIndexContent = () => {
       },
     };
 
-    console.log('ExperienceIndex - FiltersWrapper render:', {
-      currentFilters,
-      filterTypesLanguages: filterTypesWithLoadingState.language_id,
-      optionsCount: filterTypesWithLoadingState.language_id.options?.length || 0,
-    });
 
     return (
       <ReusableFilters

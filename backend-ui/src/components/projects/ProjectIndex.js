@@ -54,20 +54,6 @@ function ProjectIndexContent() {
 
   // Add useEffect to log permission checks on component mount and permission changes
   useEffect(() => {
-    console.log('[PROJECTS DEBUG] ProjectIndex permissions check:');
-    console.log('  - Loading:', authLoading);
-    console.log('  - Permissions array:', permissions);
-    console.log('  - isSystemAdminUser:', isSystemAdminUser);
-    console.log('  - hasPermission("CREATE_PROJECT"):', hasPermission('CREATE_PROJECT'));
-    console.log('  - hasPermission("MANAGE_PROJECTS"):', hasPermission('MANAGE_PROJECTS'));
-    console.log('  - hasPermission("VIEW_PROJECT_IMAGES"):', hasPermission('VIEW_PROJECT_IMAGES'));
-    console.log('  - hasPermission("EDIT_PROJECT_IMAGES"):', hasPermission('EDIT_PROJECT_IMAGES'));
-    console.log('  - hasPermission("VIEW_PROJECT_ATTACHMENTS"):', hasPermission('VIEW_PROJECT_ATTACHMENTS'));
-    console.log('  - hasPermission("SYSTEM_ADMIN"):', hasPermission('SYSTEM_ADMIN'));
-    console.log('  - hasAnyPermission(["CREATE_PROJECT", "MANAGE_PROJECTS"]):', hasAnyPermission(['CREATE_PROJECT', 'MANAGE_PROJECTS']));
-    console.log('  - canCreateProject():', canCreateProject());
-    console.log('  - canViewProjectImages():', canViewProjectImages());
-    console.log('  - canViewProjectAttachments():', canViewProjectAttachments());
   }, [authLoading, permissions, isSystemAdminUser, hasPermission, hasAnyPermission, canCreateProject, canViewProjectImages, canViewProjectAttachments]);
 
   // Fetch metadata on component mount
@@ -309,19 +295,16 @@ function ProjectIndexContent() {
   };
 
   const handleSearch = (searchFilters) => {
-    console.log('ProjectIndex - handleSearch called with:', searchFilters);
     
     let processedFilters = { ...searchFilters };
     
     // Remove empty arrays
     Object.keys(processedFilters).forEach(key => {
       if (Array.isArray(processedFilters[key]) && processedFilters[key].length === 0) {
-        console.log(`ProjectIndex - Removing empty array for key: ${key}`);
         delete processedFilters[key];
       }
     });
     
-    console.log('ProjectIndex - Processed filters after cleanup:', processedFilters);
     
     updateFilters(processedFilters);
     
@@ -332,7 +315,6 @@ function ProjectIndexContent() {
       ...processedFilters
     };
     
-    console.log('ProjectIndex - Calling fetchProjects with params:', fetchParams);
     
     // Call fetchProjects with the processed filters - let the backend handle the filtering logic
     fetchProjects(fetchParams);
@@ -346,7 +328,6 @@ function ProjectIndexContent() {
 
   // Handle opening project in website CMS edit mode
   const handleViewInCMS = async (project, event) => {
-    console.log('🚀🚀🚀 HANDLE VIEW IN CMS CALLED! 🚀🚀🚀');
     
     // Prevent default behavior and stop propagation
     if (event) {
@@ -355,9 +336,6 @@ function ProjectIndexContent() {
     }
     
     try {
-      console.log('Opening project in CMS:', project);
-      console.log('Project ID:', project.id);
-      console.log('Project slug:', project.slug);
       
       // Generate website token from backend
       const tokenResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/auth/generate-website-token`, {
@@ -371,7 +349,6 @@ function ProjectIndexContent() {
       }
       
       const data = await tokenResponse.json();
-      console.log('Token response:', data);
       
       // Backend returns 'access_token', not 'token'
       const token = data.access_token || data.token;
@@ -381,11 +358,9 @@ function ProjectIndexContent() {
         
         // Always use ID since slug might be empty or undefined
         const projectIdentifier = project.id;
-        console.log('Using project ID:', projectIdentifier);
         
         const projectUrl = `${websiteUrl}/en/projects/${projectIdentifier}?token=${token}&edit=true`;
         
-        console.log('Opening URL:', projectUrl);
         
         // Open in new tab
         window.open(projectUrl, '_blank');

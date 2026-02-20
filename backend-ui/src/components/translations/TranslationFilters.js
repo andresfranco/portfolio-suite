@@ -136,7 +136,6 @@ function TranslationFilters({ filters, onFiltersChange, onSearch }) {
       }
     });
     
-    console.log('Searching with filters:', cleanFilters);
     if (onFiltersChange) {
       onFiltersChange(cleanFilters);
     }

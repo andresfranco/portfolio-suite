@@ -57,7 +57,6 @@ const Hero = () => {
             setResumeFileName(resumeData.file_name || `${language}_resume.pdf`);
           }
         } else {
-          console.warn('No default resume found for language:', language);
           setResumeUrl(null);
           setResumeFileName(null);
         }
@@ -86,7 +85,6 @@ const Hero = () => {
     );
     
     if (heroImages.length === 0) {
-      console.warn(`No main image found for language ${language} (ID: ${languageId}), using default`);
       return defaultHeroImage;
     }
     
@@ -94,7 +92,6 @@ const Hero = () => {
     heroImages.sort((a, b) => b.id - a.id);
     const heroImg = heroImages[0];
     
-    console.log(`Using hero image for language ${language}:`, heroImg);
     
     if (heroImg?.image_path) {
       // If path starts with /uploads, construct full URL
@@ -152,7 +149,6 @@ const Hero = () => {
         });
       
       if (hasChanged) {
-        console.log('Syncing experiences from API:', apiExperiences);
         setExperiences(apiExperiences);
         prevApiExperiencesRef.current = apiExperiences;
       }
@@ -374,21 +370,16 @@ const Hero = () => {
    * Handle drag end event to reorder experiences
    */
   const handleDragEnd = async (result) => {
-    console.log('Drag end result:', result);
     
     // If dropped outside the list or no movement
     if (!result.destination) {
-      console.log('No destination - dropped outside');
       return;
     }
     
     if (result.destination.index === result.source.index) {
-      console.log('No movement - same position');
       return;
     }
 
-    console.log(`Moving from index ${result.source.index} to ${result.destination.index}`);
-    console.log('Current experiences:', experiences);
 
     // Set flag to prevent useEffect from resetting our optimistic update
     isReorderingRef.current = true;
@@ -398,14 +389,12 @@ const Hero = () => {
     const [movedItem] = reorderedExperiences.splice(result.source.index, 1);
     reorderedExperiences.splice(result.destination.index, 0, movedItem);
     
-    console.log('Reordered experiences:', reorderedExperiences);
     
     // Update local state immediately for instant feedback
     setExperiences(reorderedExperiences);
 
     // Get the new order of IDs
     const newOrderIds = reorderedExperiences.map(exp => exp.id);
-    console.log('New order IDs:', newOrderIds);
 
     try {
       // Persist the new order to the backend

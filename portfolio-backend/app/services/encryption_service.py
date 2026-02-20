@@ -300,27 +300,4 @@ def mask_ssn(ssn: str) -> str:
 
 
 if __name__ == "__main__":
-    # Test masking functions
-    print("=" * 70)
-    print("PII Masking Functions Test")
-    print("=" * 70)
-    
-    print(f"\nEmail masking:")
-    print(f"  Original: john.doe@example.com")
-    print(f"  Masked:   {mask_email('john.doe@example.com')}")
-    
-    print(f"\nPhone masking:")
-    print(f"  Original: +1-555-123-4567")
-    print(f"  Masked:   {mask_phone('+1-555-123-4567')}")
-    
-    print(f"\nSSN masking:")
-    print(f"  Original: 123-45-6789")
-    print(f"  Masked:   {mask_ssn('123-45-6789')}")
-    
-    print(f"\nGeneric PII masking:")
-    print(f"  Original: SensitiveData123")
-    print(f"  Masked:   {mask_pii('SensitiveData123', visible_chars=3)}")
-    
-    print("\n" + "=" * 70)
-    print("✅ Masking tests complete!")
-    print("=" * 70)
+    pass
