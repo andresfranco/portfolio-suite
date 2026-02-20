@@ -18,7 +18,6 @@ const CustomPagination = (props) => {
   
   const handleChangePageSize = (e) => {
     const newPageSize = parseInt(e.target.value, 10);
-    console.log('CustomPagination: Page size changed to', newPageSize);
     
     // Call the provided callback to update pagination
     if (onPaginationChange) {
@@ -28,7 +27,6 @@ const CustomPagination = (props) => {
   
   const handlePrevPage = () => {
     if (pagination.page > 0) {
-      console.log('CustomPagination: Moving to previous page');
       if (onPaginationChange) {
         onPaginationChange({ ...pagination, page: pagination.page - 1 });
       }
@@ -38,7 +36,6 @@ const CustomPagination = (props) => {
   const handleNextPage = () => {
     const lastPage = Math.ceil(pagination.total / pagination.pageSize) - 1;
     if (pagination.page < lastPage) {
-      console.log('CustomPagination: Moving to next page');
       if (onPaginationChange) {
         onPaginationChange({ ...pagination, page: pagination.page + 1 });
       }
@@ -517,7 +514,6 @@ function RoleIndexContent() {
 
   // Handle pagination model changes from the DataGrid
   const handlePaginationModelChange = (newModel) => {
-    console.log('Pagination changed:', newModel);
     
     // Convert 0-indexed page from DataGrid to 1-indexed for backend
     fetchRoles(

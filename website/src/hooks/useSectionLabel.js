@@ -32,13 +32,6 @@ export const useSectionLabel = (sectionCode, fallbackKey, editorProps = {}) => {
   
   // Debug logging in development
   if (isEditMode) {
-    console.log(`[useSectionLabel] Looking for: ${sectionCode}`, {
-      found: !!section,
-      availableCodes: sections.map(s => s.code),
-      exactMatch: sections.some(s => s.code === sectionCode),
-      lowerMatch: sections.some(s => s.code === sectionCode.toLowerCase()),
-      upperMatch: sections.some(s => s.code === sectionCode.toUpperCase()),
-    });
   }
   
   // Get the value (section text or fallback)
@@ -58,14 +51,7 @@ export const useSectionLabel = (sectionCode, fallbackKey, editorProps = {}) => {
     
     // Debug check - log the issue
     if (!section) {
-      console.warn(`[useSectionLabel] Section not found: ${sectionCode}. Available sections:`, 
-        sections.map(s => s.code));
     } else if (!sectionText?.id) {
-      console.warn(`[useSectionLabel] Section found but no text ID for ${sectionCode}:`, {
-        section,
-        sectionText,
-        section_texts: section.section_texts
-      });
     }
     
     // Edit mode but no section or section text found - show warning

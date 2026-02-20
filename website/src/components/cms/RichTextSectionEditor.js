@@ -214,7 +214,6 @@ const SimpleImage = Node.create({
                 }
               }
             } catch (err) {
-              console.warn('[IMAGE RESIZE] Error getting initial position:', err);
               imagePos = null;
             }
           }
@@ -252,7 +251,6 @@ const SimpleImage = Node.create({
             // Update node attributes
             const newWidth = parseInt(img.style.width);
             if (!newWidth || isNaN(newWidth)) {
-              console.warn('[IMAGE RESIZE] Invalid width:', img.style.width);
               return;
             }
             
@@ -278,7 +276,6 @@ const SimpleImage = Node.create({
                 if (foundPos !== null && foundPos >= 0 && foundPos < state.doc.content.size) {
                   posToUse = foundPos;
                 } else {
-                  console.warn('[IMAGE RESIZE] Could not find image node in document');
                   return;
                 }
               }
@@ -286,14 +283,12 @@ const SimpleImage = Node.create({
               // Validate position one more time before using
               const docSize = state.doc.content.size;
               if (posToUse < 0 || posToUse >= docSize) {
-                console.warn('[IMAGE RESIZE] Position out of range:', posToUse, 'docSize:', docSize);
                 return;
               }
               
               // Verify the node at this position is actually an image
               const nodeAtPos = state.doc.nodeAt(posToUse);
               if (!nodeAtPos || nodeAtPos.type.name !== 'simpleImage') {
-                console.warn('[IMAGE RESIZE] Node at position is not an image:', nodeAtPos?.type?.name);
                 return;
               }
               
@@ -329,10 +324,8 @@ const SimpleImage = Node.create({
               const { state, dispatch } = editor.view;
               const tr = state.tr.setSelection(NodeSelection.create(state.doc, pos));
               dispatch(tr);
-              console.log('[IMAGE] Image selected at position:', pos);
             }
           } catch (err) {
-            console.warn('[IMAGE] Error selecting image:', err);
           }
         }
         
@@ -538,7 +531,6 @@ const DraggableTableCell = TableCell.extend({
         key: new PluginKey('cellDragDrop'),
         // Use view.dom to attach native event listeners directly
         view(editorView) {
-          console.log('[DRAG-NATIVE] 🚀 Plugin view() called - installing listeners on:', editorView.dom.className);
           
           let dragOverCount = 0;
           
@@ -564,31 +556,19 @@ const DraggableTableCell = TableCell.extend({
             }
 
             if (dragOverCount === 1 || dragOverCount % 50 === 0) {
-              console.log('[DRAG-NATIVE] ✅ dragover #' + dragOverCount + ' (component drag)', {
-                hasCell: !!cell,
-                hasTable: !!table,
-                target: event.target.tagName,
-                cellTag: cell ? cell.tagName : 'none'
-              });
             }
           };
 
           const handleDrop = (event) => {
-            console.log('[DRAG-NATIVE] ✅✅✅ DROP EVENT FIRED!', {
-              target: event.target.tagName,
-              targetClass: event.target.className
-            });
 
             // Handle text nodes (which don't have closest method)
             const element = event.target.nodeType === Node.ELEMENT_NODE ? event.target : event.target.parentElement;
             const cell = element?.closest('td, th');
             if (cell) {
-              console.log('[DRAG-NATIVE] Drop in cell, letting TipTap handle it');
               
               // Re-enable onChange after drop completes
               setTimeout(() => {
                 window._tiptapDragging = false;
-                console.log('[DRAG-NATIVE] onChange RE-ENABLED after drop');
                 
                 // Ensure transparency after drop
                 const table = cell.closest('table');
@@ -600,7 +580,6 @@ const DraggableTableCell = TableCell.extend({
                     c.style.background = 'transparent';
                     c.style.backgroundColor = 'transparent';
                   });
-                  console.log('[DRAG-NATIVE] Applied transparency');
                 }
               }, 200);
             } else {
@@ -621,26 +600,18 @@ const DraggableTableCell = TableCell.extend({
             if (isDraggableComponent) {
               // Set global flag to prevent editor onChange during component drag
               window._tiptapDragging = true;
-              console.log('[DRAG-NATIVE] 🎯 Component drag started, onChange will be BLOCKED');
-              console.log('[DRAG-NATIVE] From:', {
-                tag: target.tagName,
-                class: target.className
-              });
             } else {
               // This is likely text selection, don't interfere
-              console.log('[DRAG-NATIVE] Text selection drag detected, not blocking');
             }
           };
 
           const handleDragEnd = (event) => {
             // Always re-enable onChange when drag ends (safety fallback)
             window._tiptapDragging = false;
-            console.log('[DRAG-NATIVE] Drag ended, onChange RE-ENABLED');
           };
 
           // Test that event listeners work
           const testListener = () => {
-            console.log('[DRAG-NATIVE] Test: DOM listeners ARE working!');
           };
           editorView.dom.addEventListener('click', testListener, { once: true });
 
@@ -650,7 +621,6 @@ const DraggableTableCell = TableCell.extend({
           editorView.dom.addEventListener('drop', handleDrop, true);
           editorView.dom.addEventListener('dragend', handleDragEnd, true);
 
-          console.log('[DRAG-NATIVE] ✅ Native drag handlers installed on', editorView.dom);
 
           return {
             destroy() {
@@ -659,7 +629,6 @@ const DraggableTableCell = TableCell.extend({
               editorView.dom.removeEventListener('dragover', handleDragOver, true);
               editorView.dom.removeEventListener('drop', handleDrop, true);
               editorView.dom.removeEventListener('dragend', handleDragEnd, true);
-              console.log('[DRAG-NATIVE] ❌ Native drag handlers removed');
             }
           };
         },
@@ -680,7 +649,6 @@ const DraggableTableCell = TableCell.extend({
                 // Get the HTML of what's being dragged
                 window._draggedContent = draggedElement.outerHTML;
                 window._draggedElement = draggedElement;
-                console.log('[DRAG] Starting component drag from:', target.tagName, target.className, 'Content stored:', window._draggedContent.substring(0, 100));
 
                 // Set the global flag to block onChange (only for component drags)
                 window._tiptapDragging = true;
@@ -688,7 +656,6 @@ const DraggableTableCell = TableCell.extend({
                 // No component being dragged - this is text selection
                 window._draggedContent = null;
                 window._draggedElement = null;
-                console.log('[DRAG] Text selection drag from:', target.tagName, target.className, '(allowing normal selection)');
                 // Don't set window._tiptapDragging for text selection
               }
 
@@ -702,7 +669,6 @@ const DraggableTableCell = TableCell.extend({
               const cell = element?.closest('td, th');
               if (cell && cell.classList.contains('table-cell-droppable')) {
                 cell.classList.add('drag-over');
-                console.log('[DRAG] Entered cell');
               }
               return false; // Don't block the event
             },
@@ -716,7 +682,6 @@ const DraggableTableCell = TableCell.extend({
                 const relatedTarget = event.relatedTarget;
                 if (!relatedTarget || !cell.contains(relatedTarget)) {
                   cell.classList.remove('drag-over');
-                  console.log('[DRAG] Left cell');
                 }
               }
               return false; // Don't block the event
@@ -752,14 +717,6 @@ const DraggableTableCell = TableCell.extend({
                   const hasDroppableClass = cell.classList.contains('table-cell-droppable');
                   const isBorderless = table && table.classList.contains('borderless');
                   
-                  console.log('[DRAG] ✅ dragover working! Cell details:', {
-                    hasDroppableClass,
-                    isBorderless,
-                    cellClasses: cell.className,
-                    targetTag: event.target.tagName,
-                    cellTag: cell.tagName,
-                    hasStoredContent: !!window._draggedContent
-                  });
                 }
                 
                 return true; // Handled - prevent other handlers
@@ -776,17 +733,14 @@ const DraggableTableCell = TableCell.extend({
             
             // Manual drop handler - use TipTap commands to move content
             drop: (view, event) => {
-              console.log('[DRAG-PLUGIN] 🔵🔵🔵 DROP event in ProseMirror plugin!');
               // Handle text nodes (which don't have closest method)
               const element = event.target.nodeType === Node.ELEMENT_NODE ? event.target : event.target.parentElement;
               const cell = element?.closest('td, th');
-              console.log('[DRAG-PLUGIN] Cell:', cell ? 'found (' + cell.tagName + ')' : 'not found', 'hasContent:', !!window._draggedContent);
               
               // Check if we have stored content to move
               if (window._draggedContent && cell) {
                 event.preventDefault();
                 event.stopPropagation();
-                console.log('[DRAG-PLUGIN] 🎯 Processing manual drop with stored content');
                 
                 // Get the editor instance from global storage
                 const editorInstance = window._tiptapEditorInstance;
@@ -846,7 +800,6 @@ const DraggableTableCell = TableCell.extend({
                           return false; // Stop searching
                         }
                       } catch (err) {
-                        console.warn('[DRAG] Error accessing node DOM:', err);
                         return false;
                       }
                     }
@@ -860,10 +813,8 @@ const DraggableTableCell = TableCell.extend({
                   return true; // Handled
                 }
                 
-                console.log('[DRAG] Target cell position:', targetCellPos, 'Insert position:', insertPos);
                 
                 if (insertPos === null) {
-                  console.warn('[DRAG] Could not find cell position, using DOM fallback');
                   // Fallback: Use DOM manipulation
                   const cellContent = cell.querySelector('p') || cell;
                   if (cellContent) {
@@ -875,7 +826,6 @@ const DraggableTableCell = TableCell.extend({
                     if (window._draggedElement && window._draggedElement.parentNode) {
                       window._draggedElement.remove();
                     }
-                    console.log('[DRAG] ✅ Content moved via DOM fallback');
                   }
                   window._tiptapDragging = false;
                   return true;
@@ -884,7 +834,6 @@ const DraggableTableCell = TableCell.extend({
                 try {
                   // Guard: ensure insert position is valid
                   if (insertPos === null || insertPos < 0 || insertPos >= docSize) {
-                    console.warn('[DRAG] Invalid insert position:', insertPos, 'docSize:', docSize);
                     window._tiptapDragging = false;
                     window._draggedContent = null;
                     window._draggedElement = null;
@@ -912,18 +861,15 @@ const DraggableTableCell = TableCell.extend({
                                 return false;
                               }
                             } catch (err) {
-                              console.warn('[DRAG] Error accessing node DOM for original:', err);
                               return false;
                             }
                           }
                         });
                       }
                     } catch (err) {
-                      console.warn('[DRAG] Error finding original node:', err);
                     }
                   }
                   
-                  console.log('[DRAG] Original node position:', originalNodePos, 'Insert at:', insertPos);
                   
                   // Get original node size BEFORE removal (for position adjustment)
                   let originalNodeSize = 0;
@@ -938,18 +884,15 @@ const DraggableTableCell = TableCell.extend({
                           // Adjust insert position if original is before target
                           if (originalNodePos < insertPos) {
                             adjustedInsertPos = Math.max(0, insertPos - originalNodeSize);
-                            console.log('[DRAG] Adjusted insert position from', insertPos, 'to', adjustedInsertPos, '(original node size:', originalNodeSize + ')');
                           }
                         }
                       }
                     } catch (err) {
-                      console.warn('[DRAG] Error getting original node size:', err);
                     }
                   }
                   
                   // Guard: ensure adjusted insert position is valid
                   if (adjustedInsertPos < 0 || adjustedInsertPos >= docSize) {
-                    console.warn('[DRAG] Invalid adjusted insert position:', adjustedInsertPos, 'docSize:', docSize);
                     adjustedInsertPos = Math.max(0, Math.min(adjustedInsertPos, docSize - 1));
                   }
                   
@@ -961,9 +904,7 @@ const DraggableTableCell = TableCell.extend({
                         .setTextSelection(originalNodePos)
                         .deleteSelection()
                         .run();
-                      console.log('[DRAG] ✅ Original content removed via TipTap at position', originalNodePos);
                     } catch (err) {
-                      console.warn('[DRAG] Failed to remove via TipTap, will use DOM fallback:', err);
                     }
                   }
                   
@@ -975,7 +916,6 @@ const DraggableTableCell = TableCell.extend({
                       .insertContent(window._draggedContent)
                       .run();
                     
-                    console.log('[DRAG] ✅ Content inserted at position', adjustedInsertPos);
                   } catch (err) {
                     console.error('[DRAG] Error inserting content:', err);
                     throw err;
@@ -985,7 +925,6 @@ const DraggableTableCell = TableCell.extend({
                   if (window._draggedElement && window._draggedElement.parentNode) {
                     setTimeout(() => {
                       window._draggedElement.remove();
-                      console.log('[DRAG] ✅ Original content removed via DOM (cleanup)');
                     }, 50);
                   }
                   
@@ -1002,7 +941,6 @@ const DraggableTableCell = TableCell.extend({
                     if (window._draggedElement && window._draggedElement.parentNode) {
                       window._draggedElement.remove();
                     }
-                    console.log('[DRAG] ✅ Content moved via DOM fallback (error recovery)');
                   }
                 }
                 
@@ -1014,7 +952,6 @@ const DraggableTableCell = TableCell.extend({
                 // Reset flag
                 setTimeout(() => {
                   window._tiptapDragging = false;
-                  console.log('[DRAG] Flag reset after manual drop');
                 }, 100);
                 
                 // Ensure table stays transparent
@@ -1031,18 +968,15 @@ const DraggableTableCell = TableCell.extend({
                       c.style.backgroundColor = 'transparent';
                       c.style.border = 'none';
                     });
-                    console.log('[DRAG] Re-applied transparent styles');
                   }
                 }, 200);
                 
                 return true; // Handled
               } else {
                 // No stored content or not dropping in cell - let TipTap handle it
-                console.log('[DRAG] No stored content or not in cell, letting TipTap handle');
                 
                 setTimeout(() => {
                   window._tiptapDragging = false;
-                  console.log('[DRAG] Flag reset after drop (ProseMirror handler)');
                 }, 100);
                 
                 if (cell) {
@@ -1055,7 +989,6 @@ const DraggableTableCell = TableCell.extend({
             
             // Cleanup on drag end
             dragend: (view, event) => {
-              console.log('[DRAG] ⚫ Drag ended (ProseMirror handler)');
               
               // Reset the drag flag
               window._tiptapDragging = false;
@@ -1082,7 +1015,6 @@ const DraggableTableCell = TableCell.extend({
                     c.style.border = 'none';
                   });
                 });
-                console.log('[DRAG] Final transparency check complete');
               }, 300);
               
               return false; // Don't block the event
@@ -1403,7 +1335,6 @@ const CustomCodeBlock = Node.create({
     try {
       Prism.highlightElement(codeEl);
     } catch (e) {
-      console.warn('Prism highlighting failed:', e);
     }
     
     return wrapper;
@@ -1507,10 +1438,8 @@ const RichTextSectionEditor = ({
   // Wrap onChange to prevent calls during drag
   const safeOnChange = useCallback((html) => {
     if (window._tiptapDragging) {
-      console.log('[SAFE-ON-CHANGE] 🛑 BLOCKED call to parent onChange (drag active)');
       return;
     }
-    console.log('[SAFE-ON-CHANGE] ✅ Calling parent onChange');
     if (onChangeRef.current) {
       onChangeRef.current(html);
     }
@@ -1529,7 +1458,6 @@ const RichTextSectionEditor = ({
         clearTimeout(layoutTimeoutRef.current);
         // Force reset the flag on cleanup
         window._tiptapDragging = false;
-        console.log('[LAYOUT] Cleanup: Reset drag flag on unmount');
       }
     };
   }, []);
@@ -1542,7 +1470,6 @@ const RichTextSectionEditor = ({
   
   // Simple notification function (since we don't have access to the context)
   const showNotification = (title, message, type) => {
-    console.log(`[${type.toUpperCase()}] ${title}: ${message}`);
     if (type === 'error') {
       setError(message);
       setTimeout(() => setError(null), 5000);
@@ -1581,7 +1508,6 @@ const RichTextSectionEditor = ({
   // Note: In development with React StrictMode, you may see duplicate extension warnings
   // due to intentional double-mounting. This is harmless and won't occur in production.
   const extensions = useMemo(() => {
-    console.log('[RichTextEditor] Initializing extensions');
     return [
     StarterKit.configure({
       heading: {
@@ -1638,7 +1564,6 @@ const RichTextSectionEditor = ({
 
                 // Handle arrow keys manually since ProseMirror isn't updating selection outside tables
                 if (event.key.startsWith('Arrow')) {
-                  console.log('[KEY DOWN] Arrow key pressed:', event.key, 'Selection:', selection.from, '-', selection.to);
 
                   // Check if we're in a table cell
                   let inTableCell = false;
@@ -1652,7 +1577,6 @@ const RichTextSectionEditor = ({
 
                   // If NOT in table cell, let ProseMirror handle arrow keys naturally
                   if (!inTableCell) {
-                    console.log('[KEY DOWN] Outside table cell - letting ProseMirror handle naturally');
                     return false;
                   }
                 }
@@ -1978,29 +1902,20 @@ const RichTextSectionEditor = ({
       editable: !disabled,
       onSelectionUpdate: ({ editor }) => {
         const { from, to } = editor.state.selection;
-        console.log('[SELECTION UPDATE] Selection changed to:', from, '-', to);
 
         // Debug: Log the selected content structure
         if (from !== to) {
           const { state } = editor;
           const selectedText = state.doc.textBetween(from, to);
-          console.log('[SELECTION UPDATE] Selected text:', selectedText);
 
           // Log the node structure in the selection
           state.doc.nodesBetween(from, to, (node, pos) => {
-            console.log('[SELECTION UPDATE] Node:', {
-              type: node.type.name,
-              pos,
-              size: node.nodeSize,
-              textContent: node.textContent.substring(0, 50)
-            });
           });
         }
       },
       onUpdate: ({ editor }) => {
         // Block onUpdate during content loading to prevent infinite loops
         if (isLoadingContentRef.current) {
-          console.log('[RichTextEditor] onUpdate BLOCKED (content loading)');
           return;
         }
         
@@ -2088,11 +2003,9 @@ const RichTextSectionEditor = ({
           html = htmlToClean;
         }
         
-        console.log('[RichTextEditor] onUpdate - HTML length:', html.length);
         safeOnChange(html); // Use safe wrapper that checks drag flag
       },
       onCreate: ({ editor }) => {
-        console.log('[RichTextEditor] onCreate - editor initialized successfully');
         // Content will be loaded via direct DOM manipulation in useEffect
       },
       editorProps: {
@@ -2183,12 +2096,10 @@ const RichTextSectionEditor = ({
   useEffect(() => {
     if (editor) {
       window._tiptapEditorInstance = editor;
-      console.log('[DRAG] Editor instance stored globally');
     }
     return () => {
       if (window._tiptapEditorInstance === editor) {
         window._tiptapEditorInstance = null;
-        console.log('[DRAG] Editor instance cleared');
       }
     };
   }, [editor]);
@@ -2200,24 +2111,20 @@ const RichTextSectionEditor = ({
   
   useEffect(() => {
     if (!editor) {
-      console.log('[DRAG-DIRECT] Editor not ready');
       return;
     }
 
     // Wait for view to be fully mounted
     if (!editor.view || !editor.view.dom || editor.isDestroyed) {
-      console.log('[DRAG-DIRECT] Editor view not ready or destroyed');
       return;
     }
 
     // Skip if handlers are already attached
     if (dragHandlersAttachedRef.current) {
-      console.log('[DRAG-DIRECT] Handlers already attached, skipping');
       return;
     }
 
     const editorDom = editor.view.dom;
-    console.log('[DRAG-DIRECT] 🚀 Attaching drag handlers directly to DOM');
     dragHandlersAttachedRef.current = true;
 
     let dragOverCount = 0;
@@ -2236,10 +2143,8 @@ const RichTextSectionEditor = ({
       if (isDraggableComponent) {
         dragOverCount = 0;
         window._tiptapDragging = true;
-        console.log('[DRAG-DIRECT] 🎯 Component drag started, onChange BLOCKED');
       } else {
         // This is text selection, don't interfere
-        console.log('[DRAG-DIRECT] Text selection drag detected, allowing normal selection');
       }
     };
 
@@ -2263,7 +2168,6 @@ const RichTextSectionEditor = ({
         
         // Log first 10, then every 20th
         if (dragOverCount <= 10 || dragOverCount % 20 === 0) {
-          console.log('[DRAG-DIRECT] ✅ dragover #' + dragOverCount + ' (hasContent) on', event.target.tagName, isOverEditor ? 'in editor' : 'outside editor', cell ? '(in cell ' + cell.tagName + ')' : '(no cell)');
         }
         return; // Handled
       }
@@ -2271,12 +2175,10 @@ const RichTextSectionEditor = ({
       // No stored content - this might be text selection, don't interfere
       // Don't call preventDefault as it would block text selection
       if (dragOverCount <= 3) {
-        console.log('[DRAG-DIRECT] dragover #' + dragOverCount + ' without stored content (likely text selection), not blocking');
       }
     };
 
     const handleDrop = (event) => {
-      console.log('[DRAG-DIRECT] 🔵 DROP event fired, target:', event.target.tagName, 'hasContent:', !!window._draggedContent);
 
       // Handle text nodes (which don't have closest method)
       const element = event.target.nodeType === Node.ELEMENT_NODE ? event.target : event.target.parentElement;
@@ -2284,25 +2186,21 @@ const RichTextSectionEditor = ({
       // Only handle drops in editor content
       const isOverEditor = element?.closest('.ProseMirror');
       if (!isOverEditor) {
-        console.log('[DRAG-DIRECT] ⚠️ Drop not over editor, ignoring');
         return;
       }
 
       // Check if we have stored content to move
       if (!window._draggedContent) {
-        console.log('[DRAG-DIRECT] ⚠️ No stored content, letting TipTap handle');
         // No stored content, let TipTap handle it normally
         return;
       }
 
       const cell = element?.closest('td, th');
       if (!cell) {
-        console.log('[DRAG-DIRECT] ⚠️ Not dropping in a cell, letting TipTap handle');
         // Not dropping in a cell, let TipTap handle it
         return;
       }
       
-      console.log('[DRAG-DIRECT] ✅✅✅ DROP on cell, processing manually');
       event.preventDefault();
       event.stopPropagation();
       
@@ -2364,7 +2262,6 @@ const RichTextSectionEditor = ({
                 return false; // Stop searching
               }
             } catch (err) {
-              console.warn('[DRAG-DIRECT] Error accessing node DOM:', err);
               return false;
             }
           }
@@ -2378,10 +2275,8 @@ const RichTextSectionEditor = ({
         return;
       }
       
-      console.log('[DRAG-DIRECT] Target cell position:', targetCellPos, 'Insert position:', insertPos);
       
       if (insertPos === null) {
-        console.warn('[DRAG-DIRECT] Could not find cell position, using DOM fallback');
         // Fallback: Use DOM manipulation
         const cellContent = cell.querySelector('p') || cell;
         if (cellContent) {
@@ -2393,7 +2288,6 @@ const RichTextSectionEditor = ({
           if (window._draggedElement && window._draggedElement.parentNode) {
             window._draggedElement.remove();
           }
-          console.log('[DRAG-DIRECT] ✅ Content moved via DOM fallback');
         }
         window._tiptapDragging = false;
         window._draggedContent = null;
@@ -2405,7 +2299,6 @@ const RichTextSectionEditor = ({
       try {
         // Guard: ensure insert position is valid
         if (insertPos === null || insertPos < 0 || insertPos >= docSize) {
-          console.warn('[DRAG-DIRECT] Invalid insert position:', insertPos, 'docSize:', docSize);
           window._tiptapDragging = false;
           window._draggedContent = null;
           window._draggedElement = null;
@@ -2433,18 +2326,15 @@ const RichTextSectionEditor = ({
                       return false;
                     }
                   } catch (err) {
-                    console.warn('[DRAG-DIRECT] Error accessing node DOM for original:', err);
                     return false;
                   }
                 }
               });
             }
           } catch (err) {
-            console.warn('[DRAG-DIRECT] Error finding original node:', err);
           }
         }
         
-        console.log('[DRAG-DIRECT] Original node position:', originalNodePos, 'Insert at:', insertPos);
         
         // Get original node size BEFORE removal
         let originalNodeSize = 0;
@@ -2459,18 +2349,15 @@ const RichTextSectionEditor = ({
                 // Adjust insert position if original is before target
                 if (originalNodePos < insertPos) {
                   adjustedInsertPos = Math.max(0, insertPos - originalNodeSize);
-                  console.log('[DRAG-DIRECT] Adjusted insert position from', insertPos, 'to', adjustedInsertPos);
                 }
               }
             }
           } catch (err) {
-            console.warn('[DRAG-DIRECT] Error getting original node size:', err);
           }
         }
         
         // Guard: ensure adjusted insert position is valid
         if (adjustedInsertPos < 0 || adjustedInsertPos >= docSize) {
-          console.warn('[DRAG-DIRECT] Invalid adjusted insert position:', adjustedInsertPos, 'docSize:', docSize);
           adjustedInsertPos = Math.max(0, Math.min(adjustedInsertPos, docSize - 1));
         }
         
@@ -2482,9 +2369,7 @@ const RichTextSectionEditor = ({
               .setTextSelection(originalNodePos)
               .deleteSelection()
               .run();
-            console.log('[DRAG-DIRECT] ✅ Original content removed via TipTap');
           } catch (err) {
-            console.warn('[DRAG-DIRECT] Failed to remove via TipTap:', err);
           }
         }
         
@@ -2496,7 +2381,6 @@ const RichTextSectionEditor = ({
             .insertContent(window._draggedContent)
             .run();
           
-          console.log('[DRAG-DIRECT] ✅ Content inserted at position', adjustedInsertPos);
         } catch (err) {
           console.error('[DRAG-DIRECT] Error inserting content:', err);
           throw err;
@@ -2506,7 +2390,6 @@ const RichTextSectionEditor = ({
         if (window._draggedElement && window._draggedElement.parentNode) {
           setTimeout(() => {
             window._draggedElement.remove();
-            console.log('[DRAG-DIRECT] ✅ Original content removed via DOM (cleanup)');
           }, 50);
         }
         
@@ -2518,7 +2401,6 @@ const RichTextSectionEditor = ({
         // Reset flag
         setTimeout(() => {
           window._tiptapDragging = false;
-          console.log('[DRAG-DIRECT] Flag reset after drop');
         }, 100);
         
       } catch (error) {
@@ -2534,7 +2416,6 @@ const RichTextSectionEditor = ({
           if (window._draggedElement && window._draggedElement.parentNode) {
             window._draggedElement.remove();
           }
-          console.log('[DRAG-DIRECT] ✅ Content moved via DOM fallback (error recovery)');
         }
         window._tiptapDragging = false;
         window._draggedContent = null;
@@ -2545,7 +2426,6 @@ const RichTextSectionEditor = ({
 
     const handleDragEnd = (event) => {
       window._tiptapDragging = false;
-      console.log('[DRAG-DIRECT] ⚫ Drag ended (flag reset)');
     };
 
     // Attach to document to ensure we catch all events (capture phase)
@@ -2554,21 +2434,16 @@ const RichTextSectionEditor = ({
     document.addEventListener('drop', handleDrop, true);
     document.addEventListener('dragend', handleDragEnd, true);
 
-    console.log('[DRAG-DIRECT] ✅ Drag handlers attached successfully to document (capture phase)');
-    console.log('[DRAG-DIRECT] Editor DOM element:', editorDom.tagName, editorDom.className);
     
     // Verify handlers are actually attached by checking the event listener count
-    console.log('[DRAG-DIRECT] Test: Checking if dragover handler is callable...');
     
     // Create a test to verify the handler function exists
     const testHandler = () => {
-      console.log('[DRAG-DIRECT] TEST: Handler function is callable');
     };
     // This is just to verify the function can be called - we'll remove it
     const testEl = document.createElement('div');
     testEl.addEventListener('dragover', testHandler, true);
     testEl.removeEventListener('dragover', testHandler, true);
-    console.log('[DRAG-DIRECT] Test: Event listener API is working');
 
     return () => {
       document.removeEventListener('dragstart', handleDragStart, true);
@@ -2576,7 +2451,6 @@ const RichTextSectionEditor = ({
       document.removeEventListener('drop', handleDrop, true);
       document.removeEventListener('dragend', handleDragEnd, true);
       dragHandlersAttachedRef.current = false; // Reset so handlers can be re-attached if editor is recreated
-      console.log('[DRAG-DIRECT] ❌ Drag handlers removed from document');
     };
   }, [editor]);
   */
@@ -2600,11 +2474,9 @@ const RichTextSectionEditor = ({
       return;
     }
 
-    console.log('[CODE BLOCK EDIT] handleCodeBlockClick called, target:', event.target);
 
     // Check if delete button was clicked
     if (event.target.closest('.code-block-delete-btn')) {
-      console.log('[CODE BLOCK EDIT] Delete button clicked, ignoring for edit');
       event.preventDefault();
       event.stopPropagation();
 
@@ -2622,20 +2494,15 @@ const RichTextSectionEditor = ({
     // Look for code block wrapper or pre element
     const codeBlock = wrapper ? wrapper.querySelector('pre') : preElement;
 
-    console.log('[CODE BLOCK EDIT] Found wrapper:', wrapper);
-    console.log('[CODE BLOCK EDIT] Found codeBlock:', codeBlock);
 
     if (codeBlock) {
-      console.log('[CODE BLOCK EDIT] Code block found, processing...');
 
       // Only handle pre elements that contain code elements (actual code blocks)
       const codeElement = codeBlock.querySelector('code');
       if (!codeElement) {
-        console.log('[CODE BLOCK EDIT] No code element found inside pre');
         return;
       }
 
-      console.log('[CODE BLOCK EDIT] Code element found, preventing default and opening dialog');
       event.preventDefault();
       event.stopPropagation();
 
@@ -2666,7 +2533,6 @@ const RichTextSectionEditor = ({
 
       language = language || 'javascript';
 
-      console.log('[CODE BLOCK EDIT] Opening dialog with code:', existingCode, 'language:', language);
 
       // Store reference to the code block wrapper being edited
       savedSelectionRef.current = { editingCodeBlock: wrapper || codeBlock };
@@ -2681,30 +2547,25 @@ const RichTextSectionEditor = ({
   // Load content by temporarily destroying and recreating TipTap
   useEffect(() => {
     if (!editor) {
-      console.log('[RichTextEditor] Content loading effect: No editor yet');
       return;
     }
     
     // Guard: Don't run if editor is destroyed
     if (editor.isDestroyed) {
-      console.log('[RichTextEditor] Editor destroyed, skipping content load');
       return;
     }
     
     // Guard: Don't run if editor view isn't ready
     if (!editor.view || !editor.view.dom) {
-      console.log('[RichTextEditor] Editor view not ready, skipping content load');
       return;
     }
     
     // Guard: Don't run if content already loaded
     if (hasSetInitialContentRef.current) {
-      console.log('[RichTextEditor] Content already loaded, skipping');
       return;
     }
     
       hasSetInitialContentRef.current = true;
-      console.log('[RichTextEditor] Starting content load with editor disabled');
     
     // Set loading flag to block onUpdate
     isLoadingContentRef.current = true;
@@ -2718,7 +2579,6 @@ const RichTextSectionEditor = ({
             return;
           }
           
-          console.log('[RichTextEditor] Disabling editor to prevent MutationObserver interference');
           
           // CRITICAL: Destroy the editor temporarily to stop it from observing DOM changes
           editor.setEditable(false);
@@ -2726,7 +2586,6 @@ const RichTextSectionEditor = ({
           // Wait for editor to fully disable
           setTimeout(() => {
             try {
-              console.log('[RichTextEditor] Injecting content into disabled editor');
               const content = originalContentRef.current || '<p></p>';
               
             // CRITICAL: Clean any existing ⋮ characters from loaded content
@@ -2744,7 +2603,6 @@ const RichTextSectionEditor = ({
             // Only update if content is different from current
             const currentContent = editor.getHTML();
             if (cleanedContent === currentContent || (cleanedContent === '<p></p>' && currentContent === '<p></p>')) {
-              console.log('[RichTextEditor] Content unchanged, skipping update');
               editor.setEditable(true);
               setIsLoadingContent(false);
               isLoadingContentRef.current = false;
@@ -2755,7 +2613,6 @@ const RichTextSectionEditor = ({
               // This ensures ProseMirror parses the HTML and converts it to proper nodes
               // (e.g., fileAttachment nodes, customCodeBlock nodes, etc.)
               editor.commands.setContent(cleanedContent, false);
-              console.log('[RichTextEditor] Content set via ProseMirror (cleaned),', cleanedContent.length, 'characters (original:', content.length, ')');
 
               // CRITICAL: Apply borderless styles to any tables in the loaded content
               // This ensures layout tables show dashed borders in edit mode
@@ -2798,18 +2655,15 @@ const RichTextSectionEditor = ({
               
               // Re-enable editor after content is set
               setTimeout(() => {
-                console.log('[RichTextEditor] Re-enabling editor');
                 editor.setEditable(true);
                 setIsLoadingContent(false);
                 
                 // Setup resize functionality for any images in loaded content
-                console.log('[RESIZE] Triggering resize setup for loaded content');
                 setTimeout(() => {
                   // Use the editorElement from outer scope (line 2635)
                   const editorDomForImages = document.querySelector('.ProseMirror');
                   if (editorDomForImages) {
                     const images = editorDomForImages.querySelectorAll('img');
-                    console.log('[RESIZE] Found', images.length, 'images after content load');
                     if (images.length > 0) {
                       // Trigger a fake update to activate makeImagesResizable
                       editor.commands.focus();
@@ -2832,12 +2686,10 @@ const RichTextSectionEditor = ({
                         !deleteBtn.hasAttribute('data-handler-attached-render')) {
                       // Call addDeleteButtonsToExistingFiles logic directly
                       // This is the same logic from addDeleteButtonsToExistingFiles for existing buttons
-                      console.log('[FILE DELETE] 🔧 Attaching handler to button after content load');
                       deleteBtn.setAttribute('data-handler-attached', 'true');
                       
                       // Create a shared handler function to avoid duplication
                       const contentLoadHandler = (e) => {
-                        console.log('[FILE DELETE] 🎯 CONTENT-LOAD BUTTON CLICK!');
                         e.preventDefault();
                         e.stopPropagation();
                         e.stopImmediatePropagation();
@@ -2927,9 +2779,7 @@ const RichTextSectionEditor = ({
                 const finalContent = editor.getHTML();
                 if (finalContent !== currentContent) {
                   safeOnChange(finalContent);
-                  console.log('[RichTextEditor] Content load complete, parent notified');
                 } else {
-                  console.log('[RichTextEditor] Content load complete, no change to notify');
                 }
               }, 200);
               }, 100);
@@ -3224,7 +3074,6 @@ const RichTextSectionEditor = ({
             try {
               Prism.highlightElement(block);
             } catch (e) {
-              console.warn('Prism highlight failed for block:', e);
             }
           });
 
@@ -3238,7 +3087,6 @@ const RichTextSectionEditor = ({
             }
           });
         } catch (error) {
-          console.warn('Prism highlighting error:', error);
         }
       }, 100);
     };
@@ -3288,7 +3136,6 @@ const RichTextSectionEditor = ({
 
         // Only log when we actually added buttons
         if (buttonsAdded > 0) {
-          console.log('[FILE DELETE] Added delete buttons to', buttonsAdded, 'file card(s)');
         }
       };
 
@@ -3322,18 +3169,6 @@ const RichTextSectionEditor = ({
         
         // CRITICAL: Process immediately - don't check for existing handlers
         // This ensures the click is handled even if button handlers aren't attached yet
-        console.log('[FILE DELETE] 🎯🎯🎯 DOCUMENT HANDLER FIRED! Delete button click detected!', {
-          target: target.tagName,
-          targetClass: target.className,
-          button: deleteBtn,
-          buttonClass: deleteBtn.className,
-          hasHandler: deleteBtn.hasAttribute('data-handler-attached') ||
-                     deleteBtn.hasAttribute('data-handler-attached-mutation') ||
-                     deleteBtn.hasAttribute('data-handler-attached-render'),
-          eventPhase: e.eventPhase,
-          isInTableCell: deleteBtn.closest('td, th') !== null,
-          buttonOnclick: deleteBtn.getAttribute('onclick')
-        });
         
         // CRITICAL: Stop all propagation immediately to prevent other handlers from interfering
         // This must happen BEFORE any other processing
@@ -3341,7 +3176,6 @@ const RichTextSectionEditor = ({
         e.stopPropagation();
         e.stopImmediatePropagation();
         
-        console.log('[FILE DELETE] 🎯 DOCUMENT HANDLER: Processing delete button click (after stopPropagation)');
         
         const fileCard = deleteBtn.closest('.file-attachment-card');
         if (fileCard && editor) {
@@ -3407,7 +3241,6 @@ const RichTextSectionEditor = ({
                 if (matches) {
                   const tr = state.tr.delete(filePos, filePos + nodeAtPos.nodeSize);
                   editor.view.dispatch(tr);
-                  console.log('[FILE DELETE] ✅ File deleted via document handler');
                   showNotification('File Removed', 'File attachment removed from content', 'success');
                 }
               }
@@ -3423,17 +3256,14 @@ const RichTextSectionEditor = ({
       // Use capture phase with high priority by attaching early
       // CRITICAL: Attach to window FIRST (highest priority in capture phase)
       window.addEventListener('click', documentClickHandler, true);
-      console.log('[FILE DELETE] ✅ Window-level click handler attached in capture phase');
       
       // Then attach to document (still capture phase, but window runs first)
       document.addEventListener('click', documentClickHandler, true);
-      console.log('[FILE DELETE] ✅ Document-level click handler attached in capture phase');
       
       // CRITICAL: Also attach directly to the editor element in capture phase
       // This ensures we catch clicks even if document/window handlers are blocked
       if (editorElement) {
         editorElement.addEventListener('click', documentClickHandler, true);
-        console.log('[FILE DELETE] ✅ Editor-level click handler attached in capture phase');
       }
       
       // Handle file attachment card delete button clicks
@@ -3449,13 +3279,6 @@ const RichTextSectionEditor = ({
         
         // Log delete button clicks immediately (even if we return early)
         if (isDeleteBtn) {
-          console.log('[FILE DELETE] 🎯 HANDLER CALLED - Delete button click!', {
-            target: target.tagName,
-            targetClass: target.className,
-            isInTableCell: target.closest('td, th') !== null,
-            eventPhase: e.eventPhase,
-            currentTarget: e.currentTarget?.tagName || 'unknown'
-          });
         }
         
         // Only process if it's actually a delete button click
@@ -3468,18 +3291,15 @@ const RichTextSectionEditor = ({
         
         // Get the actual button element (deleteBtn already found above)
         if (!deleteBtn && !target.classList.contains('file-delete-btn')) {
-          console.log('[FILE DELETE] ⚠️ Could not find delete button element');
           return;
         }
         
         // Get the actual button element
         const actualDeleteBtn = deleteBtn || (target.classList.contains('file-delete-btn') ? target : null);
         if (!actualDeleteBtn) {
-          console.log('[FILE DELETE] ⚠️ actualDeleteBtn is null');
           return;
         }
         
-        console.log('[FILE DELETE] ✅ Processing delete for button:', actualDeleteBtn);
         
           e.preventDefault();
           e.stopPropagation();
@@ -3487,7 +3307,6 @@ const RichTextSectionEditor = ({
         
         const fileCard = actualDeleteBtn.closest('.file-attachment-card');
         if (fileCard && editor) {
-          console.log('[FILE DELETE] Delete button clicked, removing file attachment card');
           
           try {
             // CRITICAL: Use TipTap commands to delete the node, not DOM manipulation
@@ -3503,7 +3322,6 @@ const RichTextSectionEditor = ({
             const cell = fileCard.closest('td, th');
             const isInTableCell = cell !== null;
             
-            console.log('[FILE DELETE] File in table cell:', isInTableCell, 'fileId:', fileId, 'fileUrl:', fileUrl);
             
             if (isInTableCell) {
               // File is in a table cell - need to find the cell position first
@@ -3516,11 +3334,9 @@ const RichTextSectionEditor = ({
                     const domNode = view.nodeDOM(pos);
                     if (domNode && (domNode === cell || cell.contains(domNode))) {
                       cellPos = pos;
-                      console.log('[FILE DELETE] Found cell at position:', cellPos);
                       return false; // Stop searching
                     }
                   } catch (err) {
-                    console.warn('[FILE DELETE] Error accessing cell DOM:', err);
                     return false;
                   }
                 }
@@ -3533,7 +3349,6 @@ const RichTextSectionEditor = ({
                   const cellStart = cellPos + 1; // Content starts after node opening
                   const cellEnd = cellPos + cellNode.nodeSize - 1; // Content ends before node closing
                   
-                  console.log('[FILE DELETE] Searching in cell from', cellStart, 'to', cellEnd);
                   
                   // Use nodesBetween to get absolute positions within the cell
                   state.doc.nodesBetween(cellStart, cellEnd, (node, pos) => {
@@ -3542,7 +3357,6 @@ const RichTextSectionEditor = ({
                                      (fileUrl && node.attrs.fileurl === fileUrl);
                       if (matches && filePos === null) {
                         filePos = pos;
-                        console.log('[FILE DELETE] Found file in cell at absolute position:', filePos);
                         return false; // Stop searching
                       }
                     }
@@ -3551,7 +3365,6 @@ const RichTextSectionEditor = ({
               }
             } else {
               // File is not in a table cell - use standard search
-              console.log('[FILE DELETE] File not in table cell, searching document...');
               state.doc.descendants((node, pos) => {
                 if (node.type.name === 'fileAttachment') {
                   // Match by data-component-id or fileurl
@@ -3559,7 +3372,6 @@ const RichTextSectionEditor = ({
                                  (fileUrl && node.attrs.fileurl === fileUrl);
                   if (matches && filePos === null) {
                     filePos = pos;
-                    console.log('[FILE DELETE] Found file at document position:', filePos);
                     return false; // Stop searching
                   }
                 }
@@ -3578,10 +3390,8 @@ const RichTextSectionEditor = ({
                   const tr = state.tr.delete(filePos, filePos + nodeAtPos.nodeSize);
                   editor.view.dispatch(tr);
                   
-                  console.log('[FILE DELETE] File node deleted at position:', filePos);
                   showNotification('File Removed', 'File attachment removed from content', 'success');
                 } else {
-                  console.warn('[FILE DELETE] Node at position does not match file attributes');
                   // Fallback: try DOM removal
                   fileCard.remove();
                   const updatedHtml = editor.getHTML();
@@ -3589,7 +3399,6 @@ const RichTextSectionEditor = ({
             showNotification('File Removed', 'File attachment removed from content', 'success');
                 }
               } else {
-                console.warn('[FILE DELETE] Node at position is not a file attachment:', nodeAtPos?.type?.name);
                 // Fallback: try DOM removal
                 fileCard.remove();
                 const updatedHtml = editor.getHTML();
@@ -3597,7 +3406,6 @@ const RichTextSectionEditor = ({
                 showNotification('File Removed', 'File attachment removed from content', 'success');
               }
             } else {
-              console.warn('[FILE DELETE] Could not find file node in document (pos:', filePos, 'docSize:', state.doc.content.size, '), using DOM removal');
               // Fallback: use DOM removal if we can't find the node
               fileCard.remove();
               const updatedHtml = editor.getHTML();
@@ -3622,7 +3430,6 @@ const RichTextSectionEditor = ({
       
       // CRITICAL: Attach to document with capture phase to catch clicks before table handlers
       // This ensures delete button clicks work even inside table cells
-      console.log('[FILE DELETE] 📌 Attaching event listeners for file delete');
       
       // DEBUG: Add a test handler to see if ANY clicks are being registered
       const testClickHandler = (e) => {
@@ -3630,14 +3437,6 @@ const RichTextSectionEditor = ({
         const isDeleteBtn = target.classList.contains('file-delete-btn') || 
                            target.closest('.file-delete-btn') !== null;
         if (isDeleteBtn) {
-          console.log('[FILE DELETE] 🔍 TEST HANDLER: Delete button click detected!', {
-            target: target.tagName,
-            targetClass: target.className,
-            eventPhase: e.eventPhase,
-            bubbles: e.bubbles,
-            cancelable: e.cancelable,
-            defaultPrevented: e.defaultPrevented
-          });
         }
       };
       
@@ -3665,19 +3464,11 @@ const RichTextSectionEditor = ({
           return; // Already has handler, skip
         }
         
-        console.log('[FILE DELETE] 🔧 MutationObserver: Attaching handler to button');
         
         // Set flag IMMEDIATELY to prevent re-attachment
         btn.setAttribute('data-handler-attached-mutation', 'true');
         
         const mutationHandler = (e) => {
-          console.log('[FILE DELETE] 🎯 MUTATION HANDLER CLICK! Event received!', {
-            button: btn,
-            isInTableCell: btn.closest('td, th') !== null,
-            eventPhase: e.eventPhase,
-            target: e.target.tagName,
-            currentTarget: e.currentTarget?.tagName
-          });
           
           // CRITICAL: Stop everything immediately
           e.preventDefault();
@@ -3686,7 +3477,6 @@ const RichTextSectionEditor = ({
           
           const fileCard = btn.closest('.file-attachment-card');
           if (fileCard && editor) {
-            console.log('[FILE DELETE] Processing delete via mutation handler');
             // Use the same deletion logic as directButtonHandler
             try {
               const { state, view } = editor.view;
@@ -3750,7 +3540,6 @@ const RichTextSectionEditor = ({
                   if (matches) {
                     const tr = state.tr.delete(filePos, filePos + nodeAtPos.nodeSize);
                     editor.view.dispatch(tr);
-                    console.log('[FILE DELETE] ✅ File deleted via mutation handler');
                     showNotification('File Removed', 'File attachment removed from content', 'success');
                   }
                 }
@@ -3765,7 +3554,6 @@ const RichTextSectionEditor = ({
         btn.addEventListener('click', mutationHandler, true);
         btn.addEventListener('click', mutationHandler, false);
         btn.addEventListener('mousedown', (e) => {
-          console.log('[FILE DELETE] 🖱️ MUTATION MOUSEDOWN!');
           e.preventDefault();
           e.stopPropagation();
           setTimeout(() => btn.click(), 0);
@@ -3775,13 +3563,7 @@ const RichTextSectionEditor = ({
       // CRITICAL: Attach handlers to existing buttons IMMEDIATELY
       // This ensures buttons that are already in the DOM have handlers before user clicks
       const existingButtons = editorElement.querySelectorAll('.file-delete-btn');
-      console.log('[FILE DELETE] Found', existingButtons.length, 'existing delete buttons');
       existingButtons.forEach((btn, index) => {
-        console.log(`[FILE DELETE] Processing button ${index + 1}/${existingButtons.length}`, {
-          hasHandler: btn.hasAttribute('data-handler-attached') || 
-                     btn.hasAttribute('data-handler-attached-mutation') ||
-                     btn.hasAttribute('data-handler-attached-render')
-        });
         attachHandlerToButton(btn);
       });
       
@@ -3822,21 +3604,10 @@ const RichTextSectionEditor = ({
       });
       
       // DEBUG: Test if handler is working
-      console.log('[FILE DELETE] ✅ Event listeners attached. Testing handler...');
       setTimeout(() => {
         const testBtn = editorElement.querySelector('.file-delete-btn');
         if (testBtn) {
-          console.log('[FILE DELETE] 🧪 Found delete button in DOM:', testBtn);
-          console.log('[FILE DELETE] 🧪 Button computed styles:', {
-            pointerEvents: window.getComputedStyle(testBtn).pointerEvents,
-            zIndex: window.getComputedStyle(testBtn).zIndex,
-            position: window.getComputedStyle(testBtn).position,
-            display: window.getComputedStyle(testBtn).display,
-            visibility: window.getComputedStyle(testBtn).visibility
-          });
-          console.log('[FILE DELETE] 🧪 Button has mutation handler:', testBtn.hasAttribute('data-handler-attached-mutation'));
         } else {
-          console.log('[FILE DELETE] ⚠️ No delete button found in DOM');
         }
       }, 500);
       
@@ -3845,7 +3616,6 @@ const RichTextSectionEditor = ({
       
       // Store cleanup function to be called by parent useEffect
       window._fileDeleteCleanup = () => {
-        console.log('[FILE DELETE] 🧹 Cleaning up event listeners');
         document.removeEventListener('click', documentClickHandler, true);
         window.removeEventListener('click', documentClickHandler, true);
         document.removeEventListener('click', handleFileDelete, true);
@@ -3912,7 +3682,6 @@ const RichTextSectionEditor = ({
   // This runs ONCE on mount and never gets cleaned up until component unmount
   // This prevents the handler from being removed/re-attached when editor/props change
   useEffect(() => {
-    console.log('[FILE DELETE] 🚀 Setting up one-time event delegation handler');
 
     // CRITICAL: Use event delegation for file delete buttons
     // This ensures handlers work even when ProseMirror re-renders and replaces DOM elements
@@ -3920,28 +3689,16 @@ const RichTextSectionEditor = ({
       // DEBUG: Log EVERY click to window to verify handler is attached and running
       const inCell = e.target.closest && e.target.closest('td, th');
       if (inCell) {
-        console.log('[FILE DELETE WINDOW] Click in cell detected:', {
-          target: e.target.tagName,
-          targetClass: e.target.className,
-          hasClosest: !!e.target.closest,
-          phase: e.eventPhase
-        });
       }
 
       // DEBUG: Log every delete button click to see if handler is being called
       if (e.target.classList && e.target.classList.contains('file-delete-btn') || e.target.closest && e.target.closest('.file-delete-btn')) {
-        console.log('[FILE DELETE] 🔍 Handler invoked! Event phase:', e.eventPhase, 'defaultPrevented:', e.defaultPrevented, 'propagationStopped:', e.cancelBubble);
       }
 
       // Check if click is on or inside a delete button
       const deleteBtn = e.target.closest ? e.target.closest('.file-delete-btn') : null;
       if (!deleteBtn) return; // Not a delete button click
 
-      console.log('[FILE DELETE] 🎯 DELETE BUTTON CLICKED (event delegation)!', {
-        target: e.target.tagName,
-        button: deleteBtn,
-        isInTableCell: deleteBtn.closest('td, th') !== null
-      });
 
       // CRITICAL: Prevent default and stop all propagation
       e.preventDefault();
@@ -3960,7 +3717,6 @@ const RichTextSectionEditor = ({
       const fileName = fileCard.getAttribute('data-filename');
       const fileId = fileCard.getAttribute('data-component-id');
 
-      console.log('[FILE DELETE] 📋 File info:', { fileUrl, fileName, fileId });
 
       if (!fileUrl && !fileId) {
         console.error('[FILE DELETE] ❌ No fileUrl or fileId found');
@@ -3974,7 +3730,6 @@ const RichTextSectionEditor = ({
         return;
       }
 
-      console.log('[FILE DELETE] 🔍 Searching for file node in ProseMirror document...');
 
       // Check if this is inside a table cell
       const isInTableCell = deleteBtn.closest('td, th') !== null;
@@ -3985,31 +3740,20 @@ const RichTextSectionEditor = ({
 
       // SIMPLIFIED: Search all fileAttachment nodes regardless of table location
       // The fileId/fileUrl matching ensures we delete the correct one
-      console.log('[FILE DELETE] 🔍 Searching for matching node (isInTableCell:', isInTableCell, ')...');
       state.doc.descendants((node, pos) => {
         if (node.type.name === 'fileAttachment') {
           const matches = (fileId && node.attrs['data-component-id'] === fileId) ||
                        (fileUrl && node.attrs.fileurl === fileUrl);
-          console.log('[FILE DELETE] 🔍 Checking node at pos', pos, ':', {
-            nodeId: node.attrs['data-component-id'],
-            nodeUrl: node.attrs.fileurl,
-            searchId: fileId,
-            searchUrl: fileUrl,
-            matches
-          });
           if (matches && filePos === null) {
             filePos = pos;
-            console.log('[FILE DELETE] 🔍 ✅ Match found at position:', filePos);
             return false; // Stop searching
           }
         }
       });
 
       if (filePos !== null) {
-        console.log('[FILE DELETE] 🗑️ Deleting node at position:', filePos);
         const tr = state.tr.delete(filePos, filePos + 1);
         currentEditor.view.dispatch(tr);
-        console.log('[FILE DELETE] ✅ File deleted successfully');
 
         // Show success notification if available
         if (window._showNotification) {
@@ -4017,14 +3761,8 @@ const RichTextSectionEditor = ({
         }
       } else {
         console.error('[FILE DELETE] ❌ Could not find matching fileAttachment node in document');
-        console.log('[FILE DELETE] 📊 Document structure:');
         state.doc.descendants((node, pos) => {
           if (node.type.name === 'fileAttachment') {
-            console.log('[FILE DELETE]   - fileAttachment at pos', pos, ':', {
-              id: node.attrs['data-component-id'],
-              url: node.attrs.fileurl,
-              filename: node.attrs.filename
-            });
           }
         });
       }
@@ -4034,7 +3772,6 @@ const RichTextSectionEditor = ({
     // Window capture phase runs before document, before editor, before everything
     // Only attach once (this useEffect runs once due to empty dependency array)
     window.addEventListener('click', handleFileDeleteClick, true);
-    console.log('[FILE DELETE] ✅ Event delegation handler attached to WINDOW (capture phase)');
 
     // ALSO attach to ProseMirror element as fallback for clicks inside contenteditable=false elements in cells
     // These might not bubble to window due to contenteditable boundary issues
@@ -4042,7 +3779,6 @@ const RichTextSectionEditor = ({
       const proseMirrorEl = document.querySelector('.ProseMirror');
       if (proseMirrorEl) {
         proseMirrorEl.addEventListener('click', handleFileDeleteClick, true);
-        console.log('[FILE DELETE] ✅ FALLBACK handler attached to .ProseMirror element (capture phase)');
       }
     }, 100);
 
@@ -4052,7 +3788,6 @@ const RichTextSectionEditor = ({
 
     // Cleanup ONLY on component unmount (not on re-renders)
     return () => {
-      console.log('[FILE DELETE] 🧹 Component unmounting - cleaning up delegated event handler');
       window.removeEventListener('click', handleFileDeleteClick, true);
 
       // Also remove fallback handler from ProseMirror element
@@ -4123,13 +3858,11 @@ const RichTextSectionEditor = ({
         const reader = new FileReader();
         reader.onload = (e) => {
           const base64 = e.target.result;
-          console.log('[IMAGE] Inserting base64 image for new section, size:', base64.length);
           editor.chain().focus().setImage({ src: base64 }).run();
           
           // Trigger onChange to update parent component
             setTimeout(() => {
               const html = editor.getHTML();
-              console.log('[IMAGE] Triggering onChange after image insertion, HTML length:', html.length);
             safeOnChange(html);
             }, 100);
           
@@ -4226,7 +3959,6 @@ const RichTextSectionEditor = ({
         },
       }).run();
       
-      console.log('[FILE UPLOAD] Inserted file attachment node');
 
       showNotification('File Uploaded', `${file.name} uploaded successfully`, 'success');
 
@@ -4294,7 +4026,6 @@ const RichTextSectionEditor = ({
     // Restore the saved selection if available
     if (savedSelectionRef.current) {
       const { from, to } = savedSelectionRef.current;
-      console.log('[FONT SIZE] Restoring selection:', from, '-', to);
       
       // Set selection, apply font size, then restore focus
       editor.chain()
@@ -4317,7 +4048,6 @@ const RichTextSectionEditor = ({
   const openCodeDialog = useCallback(() => {
     // Note: Selection is captured in onMouseDown handler on the toolbar button
     // This happens BEFORE the editor loses focus, ensuring we get the correct position
-    console.log('[CODE BLOCK] Opening dialog - using selection from onMouseDown:', savedSelectionRef.current);
 
     setCodeContent('');
     setCodeLanguage('javascript');
@@ -4348,7 +4078,6 @@ const RichTextSectionEditor = ({
       try {
         Prism.highlightElement(codeElement);
       } catch (e) {
-        console.warn('Failed to highlight code block:', e);
       }
 
       // Trigger content update
@@ -4375,7 +4104,6 @@ const RichTextSectionEditor = ({
     if (savedSelectionRef.current?.editingCodeBlock) {
       const existingBlock = savedSelectionRef.current.editingCodeBlock;
 
-      console.log('[CODE BLOCK UPDATE] Editing existing block:', existingBlock);
 
       // Try to find the code block in ProseMirror document by data-component-id
       const wrapper = existingBlock.classList?.contains('code-block-wrapper')
@@ -4384,7 +4112,6 @@ const RichTextSectionEditor = ({
 
       if (wrapper) {
         const codeBlockId = wrapper.getAttribute('data-component-id');
-        console.log('[CODE BLOCK UPDATE] Looking for code block with ID:', codeBlockId);
 
         if (codeBlockId && editor) {
           const { state } = editor;
@@ -4394,18 +4121,15 @@ const RichTextSectionEditor = ({
           state.doc.descendants((node, pos) => {
             if (node.type.name === 'customCodeBlock') {
               const nodeId = node.attrs['data-component-id'];
-              console.log('[CODE BLOCK UPDATE] Found customCodeBlock at pos', pos, 'with ID:', nodeId);
 
               if (nodeId === codeBlockId) {
                 nodePos = pos;
-                console.log('[CODE BLOCK UPDATE] Match found at position:', pos);
                 return false; // Stop searching
               }
             }
           });
 
           if (nodePos !== null) {
-            console.log('[CODE BLOCK UPDATE] Updating node at position:', nodePos, 'with new content');
 
             // Update the node's attributes using ProseMirror transaction
             const tr = state.tr.setNodeMarkup(nodePos, null, {
@@ -4415,7 +4139,6 @@ const RichTextSectionEditor = ({
             });
 
             editor.view.dispatch(tr);
-            console.log('[CODE BLOCK UPDATE] ✅ Code block updated via ProseMirror transaction');
             showNotification('Success', 'Code block updated', 'success');
           } else {
             console.error('[CODE BLOCK UPDATE] ❌ Could not find code block node in document');
@@ -4423,11 +4146,9 @@ const RichTextSectionEditor = ({
             updateCodeBlockDOM(existingBlock);
           }
         } else {
-          console.log('[CODE BLOCK UPDATE] No component ID found, using DOM manipulation');
           updateCodeBlockDOM(existingBlock);
         }
       } else {
-        console.log('[CODE BLOCK UPDATE] No wrapper found, using DOM manipulation on block directly');
         updateCodeBlockDOM(existingBlock);
       }
 
@@ -4439,19 +4160,15 @@ const RichTextSectionEditor = ({
       const savedSelection = savedSelectionRef.current;
 
       if (savedSelection && savedSelection.from !== undefined && savedSelection.to !== undefined) {
-        console.log('[CODE BLOCK] Restoring saved selection:', savedSelection);
 
         // Use the pre-calculated cell position if we were in a table cell when dialog opened
         let insertPos = savedSelection.from;
 
         if (savedSelection.inTableCell && savedSelection.cellPos !== null) {
           insertPos = savedSelection.cellPos;
-          console.log('[CODE BLOCK] Was in table cell - using saved cell position:', insertPos);
         } else {
-          console.log('[CODE BLOCK] Was NOT in table cell - using saved cursor position:', insertPos);
         }
 
-        console.log('[CODE BLOCK] Final insert position:', insertPos);
 
         // Insert at the calculated position
         editor
@@ -4471,7 +4188,6 @@ const RichTextSectionEditor = ({
         savedSelectionRef.current = null;
       } else {
         // No saved selection - insert at current cursor position
-        console.log('[CODE BLOCK] No saved position, inserting at current cursor');
         editor.chain().focus().insertContent({
           type: 'customCodeBlock',
           attrs: {
@@ -4490,9 +4206,7 @@ const RichTextSectionEditor = ({
             if (!block.querySelector('.token')) {
               try {
                 Prism.highlightElement(block);
-                console.log('Highlighted code block:', block.className);
               } catch (e) {
-                console.warn('Prism highlighting failed:', e);
               }
             }
           });
@@ -4542,13 +4256,11 @@ const RichTextSectionEditor = ({
     
     // Guard: Ensure editor view is ready
     if (!editor.view || editor.isDestroyed) {
-      console.log('[LAYOUT] Editor view not ready, cannot insert layout');
       return;
     }
     
     // CRITICAL: Block onChange during layout insertion to prevent re-render
     window._tiptapDragging = true;
-    console.log('[LAYOUT] 🛑 Blocking onChange during layout insertion');
     
     let rows = 1;  // Default to 1 row for side-by-side layouts
     let cols = 2;  // Default to 2 columns
@@ -4580,7 +4292,6 @@ const RichTextSectionEditor = ({
         cols = 2;
     }
     
-    console.log('[LAYOUT] Inserting table:', { rows, cols, type });
     
     // Build table HTML manually to ensure exact structure
     let tableHTML = '<table class="borderless" style="border: none; background: transparent; border-collapse: collapse;">';
@@ -4597,7 +4308,6 @@ const RichTextSectionEditor = ({
     
     tableHTML += '</tbody></table>';
     
-    console.log('[LAYOUT] Generated table HTML:', tableHTML);
     
     // Insert the HTML directly
     editor.chain().focus().insertContent(tableHTML).run();
@@ -4614,18 +4324,15 @@ const RichTextSectionEditor = ({
           const firstRow = newTable.querySelector('tr');
           if (firstRow) {
             const domCols = firstRow.children.length;
-            console.log('[LAYOUT] ✅ DOM columns:', domCols, 'Expected:', cols, 'Match:', domCols === cols);
             
             // If there are extra columns, remove them
             if (domCols > cols) {
-              console.warn('[LAYOUT] ⚠️ Removing extra columns!');
               const allRows = newTable.querySelectorAll('tr');
               allRows.forEach(row => {
                 while (row.children.length > cols) {
                   row.removeChild(row.lastChild);
                 }
               });
-              console.log('[LAYOUT] ✅ Extra columns removed');
             }
           }
           
@@ -4638,7 +4345,6 @@ const RichTextSectionEditor = ({
           
           // Apply styling to all cells - use class only, let CSS handle styling
           const cells = newTable.querySelectorAll('td, th');
-          console.log('[LAYOUT] Styling', cells.length, 'cells');
           cells.forEach(cell => {
             // CRITICAL: Add class immediately - CSS will handle the dashed border styling
             cell.classList.add('table-cell-droppable');
@@ -4661,7 +4367,6 @@ const RichTextSectionEditor = ({
             // when moving between cells and outside content
           });
           
-          console.log('[LAYOUT] ✅ Layout insertion complete with', cols, 'columns');
           
           // Force a re-check by the plugin/enforceBorderlessStyle
           // Trigger editor update to ensure plugin runs
@@ -4675,7 +4380,6 @@ const RichTextSectionEditor = ({
       
       // Guard: Check if editor is still valid before accessing view
       if (!editor || !editor.view || editor.isDestroyed) {
-        console.log('[LAYOUT] Editor destroyed during insertion, skipping attribute update');
         return;
       }
       
@@ -4730,17 +4434,14 @@ const RichTextSectionEditor = ({
               });
             }
           } catch (err) {
-            console.warn('[LAYOUT] Error updating cell at position', cellPos, err);
           }
         });
         
         if (cellPositions.length > 0) {
           view.dispatch(tr);
-          console.log('[LAYOUT] ✅ Updated table and', cellPositions.length, 'cell attributes in TipTap model');
         } else {
           // Fallback: just update the table
           view.dispatch(tr);
-          console.log('[LAYOUT] ✅ Updated table attributes (no cells found to update)');
         }
       }
       
@@ -4748,7 +4449,6 @@ const RichTextSectionEditor = ({
       setTimeout(() => {
         // Guard: Ensure editor is still mounted
         if (!editor || !editor.view || editor.isDestroyed) {
-          console.log('[LAYOUT] Editor not ready for focus, skipping');
           return;
         }
         
@@ -4771,7 +4471,6 @@ const RichTextSectionEditor = ({
           // Set selection to the first cell
           const selection = state.selection.constructor.near(state.doc.resolve(firstCellPos));
           editor.view.dispatch(focusTr.setSelection(selection));
-          console.log('[LAYOUT] Focused first cell at position:', firstCellPos);
           
           // Blur and refocus to ensure the cell is fully activated
           setTimeout(() => {
@@ -4792,12 +4491,10 @@ const RichTextSectionEditor = ({
     layoutTimeoutRef.current = setTimeout(() => {
       window._tiptapDragging = false;
       layoutTimeoutRef.current = null; // Clear ref after execution
-      console.log('[LAYOUT] ✅ Re-enabling onChange after layout setup');
       
       // Manually trigger onChange to notify parent
       if (editor && !editor.isDestroyed) {
         const html = editor.getHTML();
-        console.log('[LAYOUT] Manually triggering onChange with HTML length:', html.length);
         safeOnChange(html);
       }
     }, 300); // Wait for all nested timeouts to complete (100 + 150 + 50 = 300)
@@ -4891,9 +4588,7 @@ const RichTextSectionEditor = ({
               e.preventDefault(); // Prevent focus loss
             }}
             onClick={() => {
-              console.log('[TOOLBAR] Bold clicked, selection:', editor.state.selection.from, '-', editor.state.selection.to);
               const result = editor.chain().focus().toggleBold().run();
-              console.log('[TOOLBAR] Bold result:', result);
             }}
             active={editor.isActive('bold')}
             disabled={disabled}
@@ -5024,8 +4719,6 @@ const RichTextSectionEditor = ({
                 const { from, to } = editor.state.selection;
                 const $pos = editor.state.doc.resolve(from);
 
-                console.log('[CODE BLOCK] onMouseDown - capturing selection:', { from, to });
-                console.log('[CODE BLOCK] onMouseDown - $pos.depth:', $pos.depth);
 
                 // Walk up tree to find if we're in a table cell
                 let inTableCell = false;
@@ -5033,12 +4726,10 @@ const RichTextSectionEditor = ({
 
                 for (let depth = $pos.depth; depth > 0; depth--) {
                   const node = $pos.node(depth);
-                  console.log('[CODE BLOCK] onMouseDown - depth', depth, 'node type:', node.type.name);
 
                   if (node.type.name === 'tableCell' || node.type.name === 'tableHeader') {
                     inTableCell = true;
                     cellPos = $pos.before(depth);
-                    console.log('[CODE BLOCK] onMouseDown - found table cell at depth', depth, 'cellPos:', cellPos);
                     break;
                   }
                 }
@@ -5051,7 +4742,6 @@ const RichTextSectionEditor = ({
                   cellPos: inTableCell ? cellPos + 1 : null  // Position after cell opening tag
                 };
 
-                console.log('[CODE BLOCK] onMouseDown - saved selection data:', savedSelectionRef.current);
               }
             }}
             onClick={openCodeDialog}
@@ -5104,7 +4794,6 @@ const RichTextSectionEditor = ({
               if (editor && !editor.state.selection.empty) {
                 const { from, to } = editor.state.selection;
                 savedSelectionRef.current = { from, to };
-                console.log('[FONT SIZE] Saved selection:', savedSelectionRef.current);
               }
             }}
             onClick={() => {
@@ -5252,10 +4941,6 @@ const RichTextSectionEditor = ({
               e.preventDefault(); // Prevent focus loss
             }}
             onClick={() => {
-              console.log('[TABLE] Adding row after');
-              console.log('[TABLE] Can add row:', editor.can().addRowAfter());
-              console.log('[TABLE] Current selection:', editor.state.selection);
-              console.log('[TABLE] Is in table:', editor.can().addRowAfter() || editor.can().addRowBefore());
               
               // Check if we're in a table by checking the selection
               const { $anchor } = editor.state.selection;
@@ -5269,13 +4954,11 @@ const RichTextSectionEditor = ({
                 if (node.type.name === 'tableCell' || node.type.name === 'tableHeader') {
                   inTable = true;
                   cellPos = $anchor.before(depth);
-                  console.log('[TABLE] Found table cell at depth', depth, 'position', cellPos);
                   // Continue to find the table
                   for (let tableDepth = depth - 1; tableDepth > 0; tableDepth--) {
                     const tableNode = $anchor.node(tableDepth);
                     if (tableNode.type.name === 'table') {
                       tablePos = $anchor.before(tableDepth);
-                      console.log('[TABLE] Found table at depth', tableDepth, 'position', tablePos);
                       break;
                     }
                   }
@@ -5283,7 +4966,6 @@ const RichTextSectionEditor = ({
                 } else if (node.type.name === 'table') {
                   inTable = true;
                   tablePos = $anchor.before(depth);
-                  console.log('[TABLE] Found table at depth', depth, 'position', tablePos);
                   // Try to find a cell within this table
                   const tableEnd = tablePos + node.nodeSize;
                   editor.state.doc.nodesBetween(tablePos, tableEnd, (cellNode, pos) => {
@@ -5296,7 +4978,6 @@ const RichTextSectionEditor = ({
               }
               
               if (!inTable) {
-                console.warn('[TABLE] Not in a table! Trying to find a table in the document...');
                 // Try to find any table in the document
                 let foundTable = false;
                 editor.state.doc.descendants((node, pos) => {
@@ -5310,7 +4991,6 @@ const RichTextSectionEditor = ({
                         cellPos = cellPosInTable + 1;
                         // Move cursor to this cell
                         editor.chain().setTextSelection(cellPos).focus().run();
-                        console.log('[TABLE] Moved cursor to table cell at position', cellPos);
                       }
                     });
                     return false; // Stop searching
@@ -5329,10 +5009,8 @@ const RichTextSectionEditor = ({
               try {
                 // Try to add row using TipTap command
                 const result = editor.chain().addRowAfter().run();
-                console.log('[TABLE] Row added, result:', result);
                 
                 if (!result) {
-                  console.warn('[TABLE] addRowAfter returned false even after positioning cursor');
                 }
                 
                 // Force style enforcement after row is added
@@ -5368,8 +5046,6 @@ const RichTextSectionEditor = ({
               e.preventDefault(); // Prevent focus loss
             }}
             onClick={() => {
-              console.log('[TABLE] Deleting row');
-              console.log('[TABLE] Can delete row:', editor.can().deleteRow());
               
               // Check if we're in a table by checking the selection
               const { $anchor } = editor.state.selection;
@@ -5382,7 +5058,6 @@ const RichTextSectionEditor = ({
                 if (node.type.name === 'tableCell' || node.type.name === 'tableHeader') {
                   inTable = true;
                   cellPos = $anchor.before(depth);
-                  console.log('[TABLE] Found table cell at depth', depth, 'position', cellPos);
                   break;
                 } else if (node.type.name === 'table') {
                   inTable = true;
@@ -5398,7 +5073,6 @@ const RichTextSectionEditor = ({
               }
               
               if (!inTable) {
-                console.warn('[TABLE] Not in a table! Trying to find a table in the document...');
                 let foundTable = false;
                 editor.state.doc.descendants((node, pos) => {
                   if (node.type.name === 'table' && !foundTable) {
@@ -5408,7 +5082,6 @@ const RichTextSectionEditor = ({
                       if ((cellNode.type.name === 'tableCell' || cellNode.type.name === 'tableHeader') && !cellPos) {
                         cellPos = cellPosInTable + 1;
                         editor.chain().setTextSelection(cellPos).focus().run();
-                        console.log('[TABLE] Moved cursor to table cell at position', cellPos);
                       }
                     });
                     return false;
@@ -5425,9 +5098,7 @@ const RichTextSectionEditor = ({
               
               try {
                 const result = editor.chain().deleteRow().run();
-                console.log('[TABLE] Row deleted, result:', result);
                 if (!result) {
-                  console.warn('[TABLE] deleteRow returned false');
                 }
               } catch (error) {
                 console.error('[TABLE] Error deleting row:', error);
@@ -5445,9 +5116,6 @@ const RichTextSectionEditor = ({
               e.preventDefault(); // Prevent focus loss
             }}
             onClick={() => {
-              console.log('[TABLE] Adding column after');
-              console.log('[TABLE] Can add column:', editor.can().addColumnAfter());
-              console.log('[TABLE] Current selection:', editor.state.selection);
               
               // Check if we're in a table by checking the selection
               const { $anchor } = editor.state.selection;
@@ -5461,13 +5129,11 @@ const RichTextSectionEditor = ({
                 if (node.type.name === 'tableCell' || node.type.name === 'tableHeader') {
                   inTable = true;
                   cellPos = $anchor.before(depth);
-                  console.log('[TABLE] Found table cell at depth', depth, 'position', cellPos);
                   // Continue to find the table
                   for (let tableDepth = depth - 1; tableDepth > 0; tableDepth--) {
                     const tableNode = $anchor.node(tableDepth);
                     if (tableNode.type.name === 'table') {
                       tablePos = $anchor.before(tableDepth);
-                      console.log('[TABLE] Found table at depth', tableDepth, 'position', tablePos);
                       break;
                     }
                   }
@@ -5475,7 +5141,6 @@ const RichTextSectionEditor = ({
                 } else if (node.type.name === 'table') {
                   inTable = true;
                   tablePos = $anchor.before(depth);
-                  console.log('[TABLE] Found table at depth', depth, 'position', tablePos);
                   // Try to find a cell within this table
                   const tableEnd = tablePos + node.nodeSize;
                   editor.state.doc.nodesBetween(tablePos, tableEnd, (cellNode, pos) => {
@@ -5488,7 +5153,6 @@ const RichTextSectionEditor = ({
               }
               
               if (!inTable) {
-                console.warn('[TABLE] Not in a table! Trying to find a table in the document...');
                 // Try to find any table in the document
                 let foundTable = false;
                 editor.state.doc.descendants((node, pos) => {
@@ -5502,7 +5166,6 @@ const RichTextSectionEditor = ({
                         cellPos = cellPosInTable + 1;
                         // Move cursor to this cell
                         editor.chain().setTextSelection(cellPos).focus().run();
-                        console.log('[TABLE] Moved cursor to table cell at position', cellPos);
                       }
                     });
                     return false; // Stop searching
@@ -5521,10 +5184,8 @@ const RichTextSectionEditor = ({
               try {
                 // Try to add column using TipTap command
                 const result = editor.chain().addColumnAfter().run();
-                console.log('[TABLE] Column added, result:', result);
                 
                 if (!result) {
-                  console.warn('[TABLE] addColumnAfter returned false even after positioning cursor');
                 }
                 
                 // Force style enforcement after column is added
@@ -5560,8 +5221,6 @@ const RichTextSectionEditor = ({
               e.preventDefault(); // Prevent focus loss
             }}
             onClick={() => {
-              console.log('[TABLE] Deleting column');
-              console.log('[TABLE] Can delete column:', editor.can().deleteColumn());
               
               // Check if we're in a table by checking the selection
               const { $anchor } = editor.state.selection;
@@ -5574,7 +5233,6 @@ const RichTextSectionEditor = ({
                 if (node.type.name === 'tableCell' || node.type.name === 'tableHeader') {
                   inTable = true;
                   cellPos = $anchor.before(depth);
-                  console.log('[TABLE] Found table cell at depth', depth, 'position', cellPos);
                   break;
                 } else if (node.type.name === 'table') {
                   inTable = true;
@@ -5590,7 +5248,6 @@ const RichTextSectionEditor = ({
               }
               
               if (!inTable) {
-                console.warn('[TABLE] Not in a table! Trying to find a table in the document...');
                 let foundTable = false;
                 editor.state.doc.descendants((node, pos) => {
                   if (node.type.name === 'table' && !foundTable) {
@@ -5600,7 +5257,6 @@ const RichTextSectionEditor = ({
                       if ((cellNode.type.name === 'tableCell' || cellNode.type.name === 'tableHeader') && !cellPos) {
                         cellPos = cellPosInTable + 1;
                         editor.chain().setTextSelection(cellPos).focus().run();
-                        console.log('[TABLE] Moved cursor to table cell at position', cellPos);
                       }
                     });
                     return false;
@@ -5617,9 +5273,7 @@ const RichTextSectionEditor = ({
               
               try {
                 const result = editor.chain().deleteColumn().run();
-                console.log('[TABLE] Column deleted, result:', result);
                 if (!result) {
-                  console.warn('[TABLE] deleteColumn returned false');
                 }
               } catch (error) {
                 console.error('[TABLE] Error deleting column:', error);
@@ -5639,7 +5293,6 @@ const RichTextSectionEditor = ({
             onClick={() => {
               if (!editor) return;
               
-              console.log('[TABLE DELETE] Attempting to delete table');
               
               // Get current selection
               const { state } = editor;
@@ -5663,10 +5316,8 @@ const RichTextSectionEditor = ({
                 // We found the table, delete it directly using the transaction
                 const tr = state.tr.delete(tablePos, tablePos + $anchor.node(tableDepth).nodeSize);
                 editor.view.dispatch(tr);
-                console.log('[TABLE DELETE] Table deleted successfully at position', tablePos);
               } else {
                 // Not in a table, search for any table in the document
-                console.warn('[TABLE DELETE] Not currently in a table, searching document...');
                 let foundTablePos = null;
                 let foundTableSize = null;
                 
@@ -5681,7 +5332,6 @@ const RichTextSectionEditor = ({
                 if (foundTablePos !== null) {
                   const tr = state.tr.delete(foundTablePos, foundTablePos + foundTableSize);
                   editor.view.dispatch(tr);
-                  console.log('[TABLE DELETE] Table deleted at position', foundTablePos);
                 } else {
                   console.error('[TABLE DELETE] No table found in document');
                   setError('No table found to delete');

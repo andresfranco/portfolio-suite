@@ -123,13 +123,11 @@ export const InlineTextEditor = ({
       
       // If we got here, the save succeeded
       saveSucceeded = true;
-      console.log('Save succeeded, response:', response);
       
       // Refresh portfolio data - catch and log errors but don't fail the save
       try {
         await refreshPortfolio();
       } catch (refreshError) {
-        console.warn('Portfolio saved but refresh failed:', refreshError);
         // Don't throw - the save was successful
       }
       
@@ -157,7 +155,6 @@ export const InlineTextEditor = ({
       
       // If save succeeded but something else failed, don't show error
       if (saveSucceeded) {
-        console.warn('Save succeeded but post-save operation failed');
         setIsEditing(false);
         setActiveEditor(null);
         showNotification(

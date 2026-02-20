@@ -23,7 +23,6 @@ export function PortfolioProvider({ children }) {
       setLoading(true);
       setError(null);
       
-      console.log('PortfolioContext - fetchPortfolios called with raw params:', params);
       
       const requestParams = {
         page: params.page || pagination.page,
@@ -33,13 +32,11 @@ export function PortfolioProvider({ children }) {
 
       // Handle name filter separately
       if (params.name) {
-        console.log('PortfolioContext - Adding name_filter:', params.name);
         requestParams.name_filter = params.name;
       }
 
       // Handle description filter separately
       if (params.description) {
-        console.log('PortfolioContext - Adding description_filter:', params.description);
         requestParams.description_filter = params.description;
       }
 
@@ -60,22 +57,11 @@ export function PortfolioProvider({ children }) {
         requestParams.filter_field = filterFields;
         requestParams.filter_value = filterValues;
         requestParams.filter_operator = filterOperators;
-        console.log('PortfolioContext - Adding filter arrays:', {
-          filter_field: filterFields,
-          filter_value: filterValues,
-          filter_operator: filterOperators
-        });
       }
 
-      console.log('PortfolioContext - Final request params being sent to API:', requestParams);
       
       const response = await api.get('/api/portfolios/', { params: requestParams });
       
-      console.log('PortfolioContext - API response received:', {
-        itemsCount: response.data.items?.length || 0,
-        total: response.data.total || 0,
-        page: response.data.page || 1
-      });
       
       setPortfolios(response.data.items || []);
       setPagination({
@@ -84,10 +70,6 @@ export function PortfolioProvider({ children }) {
         total: response.data.total || 0
       });
       
-      console.log('PortfolioContext - Portfolios fetched successfully:', {
-        count: response.data.items?.length || 0,
-        total: response.data.total || 0
-      });
       
       return response.data;
     } catch (err) {
@@ -105,7 +87,6 @@ export function PortfolioProvider({ children }) {
       setLoading(true);
       setError(null);
       
-      console.log('PortfolioContext - Creating portfolio:', portfolioData);
       
       const response = await api.post('/api/portfolios/', portfolioData);
       
@@ -116,7 +97,6 @@ export function PortfolioProvider({ children }) {
         ...filters 
       });
       
-      console.log('PortfolioContext - Portfolio created successfully:', response.data);
       
       return response.data;
     } catch (err) {
@@ -134,7 +114,6 @@ export function PortfolioProvider({ children }) {
       setLoading(true);
       setError(null);
       
-      console.log('PortfolioContext - Updating portfolio:', { id, portfolioData });
       
       const response = await api.put(`/api/portfolios/${id}`, portfolioData);
       
@@ -145,7 +124,6 @@ export function PortfolioProvider({ children }) {
         ...filters 
       });
       
-      console.log('PortfolioContext - Portfolio updated successfully:', response.data);
       
       return response.data;
     } catch (err) {
@@ -163,7 +141,6 @@ export function PortfolioProvider({ children }) {
       setLoading(true);
       setError(null);
       
-      console.log('PortfolioContext - Deleting portfolio:', { id });
       
       const response = await api.delete(`/api/portfolios/${id}`);
       
@@ -174,7 +151,6 @@ export function PortfolioProvider({ children }) {
         ...filters 
       });
       
-      console.log('PortfolioContext - Portfolio deleted successfully:', response.data);
       
       return response.data;
     } catch (err) {
@@ -188,12 +164,10 @@ export function PortfolioProvider({ children }) {
   }, [fetchPortfolios, pagination, filters]);
 
   const updateFilters = useCallback((newFilters) => {
-    console.log('PortfolioContext - Updating filters:', newFilters);
     setFilters(newFilters || {});
   }, []);
 
   const updatePagination = useCallback((newPagination) => {
-    console.log('PortfolioContext - Updating pagination:', newPagination);
     setPagination(prevPagination => ({ ...prevPagination, ...newPagination }));
   }, []);
 

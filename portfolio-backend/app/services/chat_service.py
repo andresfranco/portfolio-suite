@@ -989,7 +989,6 @@ def run_agent_chat(
         savepoint.commit()
     except Exception as e:
         # If enrichment fails, rollback ONLY the savepoint (not the main transaction)
-        print(f"Warning: Citation enrichment failed, using basic citations: {e}")
         if savepoint:
             try:
                 savepoint.rollback()

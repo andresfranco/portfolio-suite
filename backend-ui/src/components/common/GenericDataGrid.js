@@ -12,11 +12,9 @@ const CustomToolbar = ({
   onSearch = null,
   CustomFilterComponent = null
 }) => {
-  console.log('CustomToolbar rendering with filters:', filters);
   
   // Function to handle search button click
   const handleSearchClick = () => {
-    console.log('Search triggered from CustomToolbar with filters:', filters);
     if (onSearch) {
       onSearch();
     }
@@ -24,7 +22,6 @@ const CustomToolbar = ({
   
   // Function to handle filter changes
   const handleFiltersChange = (newFilters) => {
-    console.log('Filters changed in CustomToolbar:', newFilters);
     if (onFiltersChange) {
       onFiltersChange(newFilters);
     }

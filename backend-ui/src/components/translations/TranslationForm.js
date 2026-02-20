@@ -61,7 +61,6 @@ function TranslationForm({ open, onClose, translation, mode = 'create' }) {
   useEffect(() => {
     if (mode === 'edit' || mode === 'delete') {
       if (translation) {
-        console.log('Setting form data from translation:', translation);
 
         // Get the first language from the language array
         const firstLanguage = translation.language?.[0];
@@ -162,7 +161,6 @@ function TranslationForm({ open, onClose, translation, mode = 'create' }) {
         }
       }
 
-      console.log('Sending request:', { url, method, body });
 
       const response = await fetch(url, {
         method,

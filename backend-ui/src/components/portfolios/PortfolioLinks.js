@@ -129,8 +129,6 @@ export default function PortfolioLinks({ portfolioId }) {
   const fetchLanguages = async () => {
     try {
       const response = await languagesApi.getLanguages();
-      console.log('Languages API response:', response);
-      console.log('response.data type:', typeof response.data, 'isArray:', Array.isArray(response.data));
 
       // Handle the various response shapes returned by languages endpoints
       const data = response.data;
@@ -148,7 +146,6 @@ export default function PortfolioLinks({ portfolioId }) {
         languagesData = data.results;
       }
 
-      console.log('Processed languages data:', languagesData);
       setLanguages(languagesData);
     } catch (error) {
       console.error('Error fetching languages:', error);

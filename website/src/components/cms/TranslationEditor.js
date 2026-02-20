@@ -69,12 +69,10 @@ export const TranslationEditor = ({
       const translation = await portfolioApi.getTranslationByIdentifier(identifier, languageCode);
       
       if (translation && translation.id) {
-        console.log(`Found translation ID ${translation.id} for ${identifier} in ${languageCode}`);
         setTranslationId(translation.id);
         return translation.id;
       } else {
         const errorMsg = `Translation not found for identifier: ${identifier} (language: ${languageCode})`;
-        console.warn(errorMsg);
         setError(errorMsg);
         showNotification(
           'Translation Not Found',
