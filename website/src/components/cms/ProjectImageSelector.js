@@ -147,7 +147,6 @@ export const ProjectImageSelector = ({
       // This is intentional for logo/thumbnail to maintain one image per language
       if (existingImage) {
         try {
-          console.log(`Deleting existing ${category} image (ID: ${existingImage.id}) before uploading new one`);
           const deleteResponse = await fetch(
             `${API_BASE_URL}/api/projects/${project.id}/images/${existingImage.id}`,
             {
@@ -159,12 +158,9 @@ export const ProjectImageSelector = ({
           );
           
           if (!deleteResponse.ok) {
-            console.warn('Failed to delete old image, backend will handle it');
           } else {
-            console.log('Successfully deleted old image');
           }
         } catch (deleteErr) {
-          console.warn('Error deleting old image, backend will handle it:', deleteErr);
         }
       }
       
@@ -257,7 +253,6 @@ export const ProjectImageSelector = ({
     // the ones being shown. Clicking on them doesn't change anything.
     // If you want to switch between images, you'd need to upload a new one
     // or delete the current one.
-    console.log('Image already displayed:', image);
     setIsModalOpen(false);
   };
 

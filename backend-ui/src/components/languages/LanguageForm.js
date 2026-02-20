@@ -53,13 +53,8 @@ function LanguageForm({ open, onClose, language, mode = 'create' }) {
           // IMPORTANT: The backend serves static files from /uploads
           const imageUrl = `${API_CONFIG.BASE_URL}/uploads/${language.image.replace(/^.*language_images\//, "language_images/")}`;
           setImagePreview(imageUrl);
-          console.log(`Language ${language.name} image URL:`, {
-            original: language.image,
-            constructed: imageUrl
-          });
         } else {
           setImagePreview('');
-          console.log(`Language ${language.name} has no image`);
         }
       }
     } else {
@@ -110,12 +105,6 @@ function LanguageForm({ open, onClose, language, mode = 'create' }) {
     
     try {
       // Debug logs to check what's being sent
-      console.log('Language form values being sent:', {
-        name: formData.name,
-        code: formData.code,
-        is_default: formData.is_default,
-        enabled: formData.enabled
-      });
       
       let result;
       let successMsg;
@@ -178,13 +167,11 @@ function LanguageForm({ open, onClose, language, mode = 'create' }) {
   const handleChange = (e) => {
     const { name, value, checked, type } = e.target;
     const newValue = type === 'checkbox' ? checked : value;
-    console.log(`Field ${name} changed to:`, newValue);
     setFormData(prev => {
       const updated = {
         ...prev,
         [name]: newValue
       };
-      console.log('Updated formData:', updated);
       return updated;
     });
     if (errors[name]) {

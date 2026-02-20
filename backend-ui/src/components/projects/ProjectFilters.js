@@ -135,7 +135,6 @@ function ProjectFilters({ filters, onFiltersChange, onSearch }) {
         }
         
         const languagesData = await languagesResponse.json();
-        console.log('Languages data:', languagesData);
         const languages = languagesData.items || [];
         setAvailableLanguages(languages);
         
@@ -150,7 +149,6 @@ function ProjectFilters({ filters, onFiltersChange, onSearch }) {
         }
         
         const categoriesData = await categoriesResponse.json();
-        console.log('Categories data:', categoriesData);
         
         // Extract categories from response
         let categoriesList = [];
@@ -173,7 +171,6 @@ function ProjectFilters({ filters, onFiltersChange, onSearch }) {
           category && category.type_code === "PROJ"
         );
         
-        console.log('Filtered PROJ categories:', projectCategories);
         
         // Process categories to get proper names from default language
         const processedCategories = projectCategories.map(category => {
@@ -211,14 +208,12 @@ function ProjectFilters({ filters, onFiltersChange, onSearch }) {
   // Update tempFilters when filters prop changes
   useEffect(() => {
     if (filters) {
-      console.log('ProjectFilters - filters prop changed:', filters);
       
       // Create a copy of the current filters
       const updatedTempFilters = { ...tempFilters };
       
       // Process filter arrays (filterField, filterValue, filterOperator)
       if (filters.filterField && Array.isArray(filters.filterField)) {
-        console.log('ProjectFilters - Processing filter arrays from filters prop');
         
         // Process 'category_id' filters
         const categoryIndices = filters.filterField.reduce((indices, field, index) => {
@@ -232,7 +227,6 @@ function ProjectFilters({ filters, onFiltersChange, onSearch }) {
             return typeof categoryValue === 'string' ? parseInt(categoryValue, 10) : categoryValue;
           });
           updatedTempFilters.category_id = categoryIds;
-          console.log('ProjectFilters - Restored category filters:', categoryIds);
         }
         
         // Process 'language_id' filters
@@ -247,7 +241,6 @@ function ProjectFilters({ filters, onFiltersChange, onSearch }) {
             return typeof languageValue === 'string' ? parseInt(languageValue, 10) : languageValue;
           });
           updatedTempFilters.language_id = languageIds;
-          console.log('ProjectFilters - Restored language_id filters:', languageIds);
         }
       }
       
@@ -340,7 +333,6 @@ function ProjectFilters({ filters, onFiltersChange, onSearch }) {
     // Create a clean copy of filters with only non-empty values
     const cleanFilters = {};
     
-    console.log('ProjectFilters - Processing filter values:', tempFilters);
     
     Object.entries(tempFilters).forEach(([key, value]) => {
       if (value) {
@@ -349,40 +341,32 @@ function ProjectFilters({ filters, onFiltersChange, onSearch }) {
             // For arrays, make sure we're using the correct field names to match backend expectations
             if (key === 'category_id') {
               cleanFilters['category_id'] = value.map(id => typeof id === 'string' ? parseInt(id, 10) : id);
-              console.log(`ProjectFilters - Set category filter with ${value.length} values:`, value);
             } else if (key === 'language_id') {
               // Make sure language_id values are numbers
               cleanFilters['language_id'] = value.map(id => typeof id === 'string' ? parseInt(id, 10) : id);
-              console.log(`ProjectFilters - Set language_id filter with ${value.length} values:`, cleanFilters['language_id']);
             } else {
               cleanFilters[key] = value;
-              console.log(`ProjectFilters - Set ${key} filter with array values:`, value);
             }
           }
         } else if (value.toString().trim() !== '') {
           cleanFilters[key] = value.toString().trim();
-          console.log(`ProjectFilters - Set ${key} filter with value:`, value.toString().trim());
         }
       }
     });
     
-    console.log('ProjectFilters - Final filters for search:', cleanFilters);
     
     // Update parent component with new filters
     if (onFiltersChange) {
-      console.log('ProjectFilters - Calling onFiltersChange with:', cleanFilters);
       onFiltersChange(cleanFilters);
     }
     
     // Trigger search
     if (onSearch) {
-      console.log('ProjectFilters - Calling onSearch with:', cleanFilters);
       onSearch(cleanFilters);
     }
     
     // For debugging - log the structure that will be sent to the backend
     if (cleanFilters.category_id || cleanFilters.language_id || cleanFilters.name) {
-      console.log('ProjectFilters - DEBUG - Expected backend query structure:');
       const params = new URLSearchParams();
       params.append('page', '1');
       params.append('pageSize', '10');
@@ -390,7 +374,6 @@ function ProjectFilters({ filters, onFiltersChange, onSearch }) {
       // Add name filter if present
       if (cleanFilters.name) {
         params.append('name', cleanFilters.name);
-        console.log(`Added name filter: name=${cleanFilters.name}`);
       }
       
       // Add categories
@@ -411,7 +394,6 @@ function ProjectFilters({ filters, onFiltersChange, onSearch }) {
         });
       }
       
-      console.log(`Expected API request: /api/projects/full?${params.toString()}`);
     }
   };
 

@@ -103,11 +103,6 @@ if __name__ == "__main__":
         ("List all projects with their technologies", QueryComplexity.COMPREHENSIVE, 7),
     ]
     
-    print("Query Complexity Analysis Tests:")
-    print("=" * 80)
     for query, expected_complexity, expected_k in test_queries:
         complexity, top_k, max_tokens = analyze_query_complexity(query)
         status = "✓" if complexity == expected_complexity and top_k == expected_k else "✗"
-        print(f"{status} '{query}'")
-        print(f"   → {complexity.value} (k={top_k}, max_tokens={max_tokens})")
-        print()

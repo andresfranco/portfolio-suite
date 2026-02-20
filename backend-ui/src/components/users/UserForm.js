@@ -140,7 +140,6 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
 
     if (selectedUser && (mode === 'edit' || mode === 'delete')) {
       // Log the raw selectedUser data for debugging
-      console.log('Selected user data:', selectedUser);
       
       setValue('username', selectedUser.username || '');
       setValue('email', selectedUser.email || '');
@@ -150,7 +149,6 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
       const isActive = selectedUser.is_active === true || 
                       selectedUser.is_active === 'true' || 
                       selectedUser.is_active === 1;
-      console.log('Setting is_active from', selectedUser.is_active, 'to', isActive, 'type:', typeof selectedUser.is_active);
       
       // Force a boolean value
       setValue('is_active', isActive);
@@ -279,8 +277,6 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
         };
         
         // Log the data being sent for debugging
-        console.log('Updating user with data:', userData);
-        console.log('User status value being sent:', isActiveValue, 'type:', typeof isActiveValue);
         
         // Set closing state immediately to prevent re-renders of the form
         setIsClosing(true);
@@ -325,12 +321,10 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
             errorMsg = `A user with this username or email already exists.`;
           } else if (error.response.status === 422) {
             // Handle validation error details
-            console.log('Processing 422 validation error:', error.response.data?.detail);
             
             if (Array.isArray(error.response.data?.detail)) {
               // Extract specific validation error messages
               const errorDetails = error.response.data.detail.map(err => {
-                console.log('Processing error object:', err);
                 
                 // Safely handle error object structure
                 const field = err && err.loc && Array.isArray(err.loc) && err.loc.length > 1 ? err.loc[1] : '';
@@ -340,7 +334,6 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
               }).join('. ');
               
               errorMsg = `Validation error: ${errorDetails}`;
-              console.log('Final error message:', errorMsg);
             } else {
               // Handle non-array detail
               const detail = error.response.data?.detail;
@@ -390,7 +383,6 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
         errorMsg = `Failed to ${isDeleteMode ? 'delete' : isEditMode ? 'update' : 'create'} user. Please try again.`;
       }
       
-      console.log('Setting API error (form-local only):', errorMsg);
       setApiError(errorMsg);
     }
   };
@@ -450,7 +442,6 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
   
   // Handle close with transition
   const handleClose = (refresh = false) => {
-    console.log('handleClose called with refresh:', refresh);
     setIsClosing(true);
     clearError?.();
     // Clear form errors and reset form values on close
@@ -1028,11 +1019,8 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
                           displayEmpty
                           value={field.value === true || field.value === 'true' || field.value === 1 ? true : false}
                           onChange={(e) => {
-                            console.log('Status changed to:', e.target.value);
-                            console.log('Status type:', typeof e.target.value);
                             // Ensure we pass a boolean value
                             const boolValue = Boolean(e.target.value === true || e.target.value === 'true' || e.target.value === 1);
-                            console.log('Converted status value:', boolValue, 'type:', typeof boolValue);
                             field.onChange(boolValue);
                           }}
                           disabled={loading}
@@ -1089,7 +1077,6 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
                   user={selectedUser}
                   onMfaChange={() => {
                     // Optionally refresh user data
-                    console.log('MFA status changed');
                   }}
                 />
               </Box>
@@ -1601,11 +1588,8 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
                       displayEmpty
                       value={field.value === true || field.value === 'true' || field.value === 1 ? true : false}
                       onChange={(e) => {
-                        console.log('Status changed to:', e.target.value);
-                        console.log('Status type:', typeof e.target.value);
                         // Ensure we pass a boolean value
                         const boolValue = Boolean(e.target.value === true || e.target.value === 'true' || e.target.value === 1);
-                        console.log('Converted status value:', boolValue, 'type:', typeof boolValue);
                         field.onChange(boolValue);
                       }}
                       disabled={loading}

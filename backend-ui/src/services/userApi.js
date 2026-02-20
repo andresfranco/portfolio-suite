@@ -25,8 +25,6 @@ const userApi = {
       ...otherParams
     } = params;
 
-    console.log('userApi.getUsers - Raw params:', params);
-    console.log('userApi.getUsers - Extracted page_size:', page_size);
 
     // Initialize request parameters
     const requestParams = {
@@ -35,7 +33,6 @@ const userApi = {
       ...otherParams
     };
 
-    console.log('userApi.getUsers - Using page_size:', requestParams.page_size);
 
     // Handle sorting if provided
     if (sort_by && sort_order) {
@@ -98,7 +95,6 @@ const userApi = {
       // Handle roles filter - support both simple id and array of ids
       if (params.roles) {
         if (Array.isArray(params.roles) && params.roles.length > 0) {
-          console.log('userApi.getUsers - Processing roles array:', params.roles);
           // Use 'in' operator for array of role IDs
           filters.push({
             field: 'roles.id',
@@ -115,7 +111,6 @@ const userApi = {
         }
       }
       
-      console.log('userApi.getUsers - Built filters array:', filters);
       
       // Add filters to request params as JSON string
       if (filters.length > 0) {
@@ -123,17 +118,9 @@ const userApi = {
       }
     }
     
-    console.log('userApi.getUsers - Final request params:', requestParams);
     
     try {
       const response = await api.get(`${API_CONFIG.ENDPOINTS.users.list}/`, { params: requestParams });
-      console.log('userApi.getUsers - Response:', response.data);
-      console.log('userApi.getUsers - Response page_size/pageSize:', { 
-        page_size: response.data.page_size,
-        pageSize: response.data.pageSize,
-        requestedSize: page_size,
-        actualItems: response.data.items?.length
-      });
       return response;
     } catch (error) {
       console.error('Error fetching users:', error);

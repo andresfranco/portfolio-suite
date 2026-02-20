@@ -146,7 +146,6 @@ def vector_search(db: Session, *, qvec: List[float], model: str, k: int, score_t
             db.rollback()
         except Exception:
             pass
-        print(f"Warning: Vector search failed: {str(e)[:100]}")
         return []
     
     items: List[Dict[str, Any]] = []

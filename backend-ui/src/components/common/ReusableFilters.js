@@ -61,7 +61,6 @@ function ReusableFilters({
     mode: 'onChange'
   });
 
-  console.log('ReusableFilters - Form initialized with defaultValues:', defaultValues);
 
   const [activeFilters, setActiveFilters] = useState(() => {
     const arr = [];
@@ -74,7 +73,6 @@ function ReusableFilters({
     if (arr.length === 0 && Object.keys(filterTypes).length > 0) {
       arr.push({ id: 1, type: Object.keys(filterTypes)[0] });
     }
-    console.log('ReusableFilters - Initial activeFilters:', arr);
     return arr;
   });
 
@@ -82,7 +80,6 @@ function ReusableFilters({
 
   // Synchronize activeFilters state with filters prop
   useEffect(() => {
-    console.log('ReusableFilters - Synchronizing activeFilters with filters prop:', filters);
     
     const newActiveFilters = [];
     let id = 1;
@@ -107,26 +104,19 @@ function ReusableFilters({
       newActiveFilters.push({ id: 1, type: Object.keys(filterTypes)[0] });
     }
     
-    console.log('ReusableFilters - Updated activeFilters:', newActiveFilters);
     setActiveFilters(newActiveFilters);
     setNextFilterId(newActiveFilters.length + 1);
   }, [filters, filterTypes]);
 
   useEffect(() => {
-    console.log('ReusableFilters - useEffect triggered by filters change:', { 
-      filters, 
-      filterTypes: Object.keys(filterTypes) 
-    });
     
     Object.keys(filterTypes).forEach((key) => {
       // Handle different field types when setting values
       if (filterTypes[key].type === 'multiselect') {
         const newValue = filters[key] && Array.isArray(filters[key]) ? filters[key] : [];
-        console.log(`ReusableFilters - Setting ${key} (multiselect) to:`, newValue);
         setValue(key, newValue);
       } else {
         const newValue = filters[key] || '';
-        console.log(`ReusableFilters - Setting ${key} (text) to:`, newValue);
         setValue(key, newValue);
       }
     });
@@ -134,7 +124,6 @@ function ReusableFilters({
     // Verify values were set
     setTimeout(() => {
       const currentValues = getValues();
-      console.log('ReusableFilters - Current form values after setValue:', currentValues);
     }, 10);
   }, [filters, filterTypes, setValue, getValues]);
 
@@ -186,7 +175,6 @@ function ReusableFilters({
       }
     }
     
-    console.log('ReusableFilters - Filter removed, cleaned filters:', cleaned);
     
     // Trigger search with remaining filters
     if (onFiltersChange) onFiltersChange(cleaned);
@@ -198,12 +186,10 @@ function ReusableFilters({
   };
 
   const onSubmit = (data) => {
-    console.log('ReusableFilters - onSubmit called with data:', data);
     
     const cleaned = {};
     activeFilters.forEach(({ type }) => {
       const val = data[type];
-      console.log(`ReusableFilters - Processing filter ${type}:`, { value: val, type: typeof val });
       
       if (filterTypes[type].type === 'multiselect') {
         // For multiselect, only include if it's an array with items
@@ -218,7 +204,6 @@ function ReusableFilters({
       }
     });
     
-    console.log('ReusableFilters - Cleaned filters:', cleaned);
     
     if (onFiltersChange) onFiltersChange(cleaned);
     if (onSearch) onSearch(cleaned);
@@ -239,7 +224,6 @@ function ReusableFilters({
     setActiveFilters([{ id: 1, type: Object.keys(filterTypes)[0] }]);
     setNextFilterId(2);
     
-    console.log('ReusableFilters - Filters cleared');
     
     if (onFiltersChange) onFiltersChange({});
     if (onClearFilters) onClearFilters();
@@ -260,12 +244,6 @@ function ReusableFilters({
           name={filter.type}
           control={control}
           render={({ field, fieldState }) => {
-            console.log('ReusableFilters - Controller render for', filter.type, {
-              fieldValue: field.value,
-              fieldError: fieldState.error,
-              configType: config.type,
-              optionsCount: config.options?.length || 0
-            });
             
             return (
               <TextField
@@ -317,12 +295,6 @@ function ReusableFilters({
           name={filter.type}
           control={control}
           render={({ field, fieldState }) => {
-            console.log('ReusableFilters - Controller render for', filter.type, {
-              fieldValue: field.value,
-              fieldError: fieldState.error,
-              configType: config.type,
-              optionsCount: config.options?.length || 0
-            });
             
             return (
               <FormControl fullWidth error={isDenied} sx={{
@@ -361,37 +333,19 @@ function ReusableFilters({
                   disabled={config.disabled || isDenied || config.options.length === 0}
                   value={Array.isArray(field.value) ? field.value : []}
                   onChange={(e) => {
-                    console.log('ReusableFilters - Multiselect onChange:', {
-                      filterType: filter.type,
-                      newValue: e.target.value,
-                      currentValue: field.value,
-                      valueType: typeof e.target.value,
-                      isArray: Array.isArray(e.target.value),
-                      optionsCount: config.options.length
-                    });
                     
                     // Ensure we're setting an array value
                     const newValue = Array.isArray(e.target.value) ? e.target.value : [e.target.value];
-                    console.log('ReusableFilters - Setting field value to:', newValue);
                     
                     field.onChange(newValue);
                     
                     // Trigger immediate validation to see if value is being set
                     setTimeout(() => {
-                      console.log('ReusableFilters - Field value after onChange:', field.value);
                     }, 10);
                   }}
                   input={<OutlinedInput label={config.label} />}
                   displayEmpty={config.options.length === 0}
                   renderValue={(selected) => {
-                    console.log('ReusableFilters - Multiselect renderValue:', {
-                      filterType: filter.type,
-                      selected,
-                      selectedType: typeof selected,
-                      isArray: Array.isArray(selected),
-                      optionsLength: config.options.length,
-                      fieldValue: field.value
-                    });
                     
                     if (config.options.length === 0) {
                       return <em style={{ color: '#999', fontSize: '13px' }}>Loading options...</em>;
@@ -409,7 +363,6 @@ function ReusableFilters({
                       }}>
                         {selected.slice(0, 2).map((value) => {
                           const option = config.options.find(opt => opt.value === value);
-                          console.log('ReusableFilters - Rendering chip for value:', { value, option });
                           return (
                             <Chip
                               key={value}
@@ -459,7 +412,6 @@ function ReusableFilters({
                     </MenuItem>
                   ) : (
                     config.options.map((option) => {
-                      console.log('ReusableFilters - Rendering option:', option);
                       return (
                         <MenuItem 
                           key={option.value} 
