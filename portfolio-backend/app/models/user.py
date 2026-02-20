@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Table, ForeignKey, DateTime, Boolean  
+from sqlalchemy import Column, Integer, String, Table, ForeignKey, DateTime, Boolean, Text, JSON  
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func  
 from app.core.database import Base
@@ -29,6 +29,25 @@ class User(Base):
     is_active = Column(Boolean, default=True, index=True)
     # Each user can have one or more roles
     roles = relationship("Role", secondary=user_roles, back_populates="users")
+    
+    # Multi-Factor Authentication (MFA) fields
+    mfa_enabled = Column(Boolean, default=False, nullable=False, index=True)
+    mfa_secret = Column(String(32), nullable=True)  # TOTP secret (encrypted in production)
+    mfa_backup_codes = Column(JSON, nullable=True)  # List of hashed backup codes
+    mfa_enrolled_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Account Security fields
+    failed_login_attempts = Column(Integer, default=0, nullable=False)
+    account_locked_until = Column(DateTime(timezone=True), nullable=True)
+    last_login_at = Column(DateTime(timezone=True), nullable=True)
+    last_login_ip = Column(String(45), nullable=True)  # IPv6 support (45 chars)
+    password_changed_at = Column(DateTime(timezone=True), server_default=func.now())
+    force_password_change = Column(Boolean, default=False, nullable=False)
+    email_verified = Column(Boolean, default=False, nullable=False)
+    email_verification_token = Column(String(255), nullable=True)
+    email_verification_sent_at = Column(DateTime(timezone=True), nullable=True)
+    password_reset_token = Column(String(255), nullable=True)
+    password_reset_sent_at = Column(DateTime(timezone=True), nullable=True)
 
     def set_password(self, password: str) -> None:
         self.hashed_password = pwd_context.hash(password)

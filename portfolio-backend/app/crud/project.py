@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import asc, desc, or_, func
 from app.models.project import Project, ProjectText, ProjectImage, ProjectAttachment
-from app.models.category import Category
+from app.models.category import Category, CategoryText
 from app.models.skill import Skill
 from app.models.language import Language
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectTextCreate, ProjectTextUpdate, ProjectImageCreate, ProjectAttachmentCreate, Filter, ProjectOut
@@ -15,31 +15,36 @@ logger = setup_logger("app.crud.project")
 def get_project(db: Session, project_id: int) -> Optional[Project]:
     """
     Retrieve a project by ID with all relationships loaded
-    
+
     Args:
         db: Database session
         project_id: ID of the project to retrieve
-        
+
     Returns:
         Project object if found, None otherwise
     """
     logger.debug(f"Fetching project with ID {project_id}")
+    from app.models.section import Section, SectionText, SectionImage, SectionAttachment
     return db.query(Project).options(
         selectinload(Project.project_texts).selectinload(ProjectText.language),
         selectinload(Project.categories),
         selectinload(Project.skills).selectinload(Skill.skill_texts),
         selectinload(Project.images),
-        selectinload(Project.attachments)
+        selectinload(Project.attachments),
+        selectinload(Project.sections).selectinload(Section.section_texts).selectinload(SectionText.language),
+        selectinload(Project.sections).selectinload(Section.images),
+        selectinload(Project.sections).selectinload(Section.attachments)
     ).filter(Project.id == project_id).first()
 
 def create_project(db: Session, project: ProjectCreate):
     logger.debug(f"Starting project creation with {len(project.project_texts)} texts")
-    
+
     try:
         # Create the project
         db_project = Project(
             repository_url=project.repository_url,
-            website_url=project.website_url
+            website_url=project.website_url,
+            project_date=project.project_date
         )
         db.add(db_project)
         db.flush()  # Flush to get the project ID
@@ -113,10 +118,13 @@ def update_project(db: Session, project_id: int, project: ProjectUpdate):
     # Update fields if provided
     if project.repository_url is not None:
         db_project.repository_url = project.repository_url
-    
+
     if project.website_url is not None:
         db_project.website_url = project.website_url
-    
+
+    if project.project_date is not None:
+        db_project.project_date = project.project_date
+
     # Update categories if provided
     if project.categories is not None:
         categories = db.query(Category).filter(Category.id.in_(project.categories)).all()
@@ -207,7 +215,7 @@ def delete_project_image(db: Session, image_id: int):
     logger.debug(f"Project image with ID {image_id} successfully deleted")
     return db_image
 
-def add_project_attachment(db: Session, project_id: int, attachment: ProjectAttachmentCreate):
+def add_project_attachment(db: Session, project_id: int, attachment: ProjectAttachmentCreate, created_by: int = None):
     logger.debug(f"Adding attachment to project with ID {project_id}")
     db_project = get_project(db, project_id)
     
@@ -217,7 +225,11 @@ def add_project_attachment(db: Session, project_id: int, attachment: ProjectAtta
     db_project_attachment = ProjectAttachment(
         project_id=project_id,
         file_path=attachment.file_path,
-        file_name=attachment.file_name
+        file_name=attachment.file_name,
+        category_id=attachment.category_id,
+        language_id=attachment.language_id,
+        created_by=created_by,
+        updated_by=created_by
     )
     db.add(db_project_attachment)
     db.commit()  # Commit the transaction to save to database
@@ -245,7 +257,11 @@ def get_project_attachments_paginated(
     """
     logger.debug(f"Fetching paginated attachments for project {project_id}, page={page}, page_size={page_size}")
     
-    query = db.query(ProjectAttachment).filter(ProjectAttachment.project_id == project_id)
+    # Eagerly load language and category relationships
+    query = db.query(ProjectAttachment)\
+        .options(selectinload(ProjectAttachment.language))\
+        .options(selectinload(ProjectAttachment.category).selectinload(Category.category_texts).selectinload(CategoryText.language))\
+        .filter(ProjectAttachment.project_id == project_id)
     
     # Apply filename filter
     if filename_filter:
@@ -264,7 +280,7 @@ def get_project_attachments_paginated(
     offset = (page - 1) * page_size
     attachments = query.offset(offset).limit(page_size).all()
     
-    logger.debug(f"Found {len(attachments)} attachments out of {total} total")
+    logger.debug(f"Found {len(attachments)} attachments out of {total} total for project {project_id}")
     return attachments, total
 
 def get_project_attachment(db: Session, attachment_id: int) -> Optional[ProjectAttachment]:
@@ -273,6 +289,40 @@ def get_project_attachment(db: Session, attachment_id: int) -> Optional[ProjectA
     """
     logger.debug(f"Fetching attachment with ID {attachment_id}")
     return db.query(ProjectAttachment).filter(ProjectAttachment.id == attachment_id).first()
+
+def update_project_attachment(
+    db: Session, 
+    attachment_id: int, 
+    category_id: Optional[int] = None,
+    language_id: Optional[int] = None,
+    is_default: Optional[bool] = None,
+    updated_by: Optional[int] = None
+) -> Optional[ProjectAttachment]:
+    """
+    Update a project attachment's metadata (category, language, is_default)
+    """
+    logger.debug(f"Updating attachment {attachment_id}: category_id={category_id}, language_id={language_id}, is_default={is_default}")
+    
+    attachment = db.query(ProjectAttachment).filter(ProjectAttachment.id == attachment_id).first()
+    if not attachment:
+        logger.warning(f"Attachment {attachment_id} not found")
+        return None
+    
+    # Update fields if provided
+    if category_id is not None:
+        attachment.category_id = category_id
+    if language_id is not None:
+        attachment.language_id = language_id
+    if is_default is not None:
+        attachment.is_default = is_default
+    if updated_by is not None:
+        attachment.updated_by = updated_by
+    
+    db.commit()
+    db.refresh(attachment)
+    
+    logger.info(f"Successfully updated attachment {attachment_id}")
+    return attachment
 
 def delete_project_attachment(db: Session, attachment_id: int):
     logger.debug(f"Deleting project attachment with ID {attachment_id}")
@@ -490,21 +540,56 @@ def get_project_images(db: Session, project_id: int):
     """
     return db.query(ProjectImage).filter(ProjectImage.project_id == project_id).all()
 
-def create_project_image(db: Session, project_id: int, image_path: str, category: str = "gallery"):
+def get_project_images_by_category_and_language(
+    db: Session, 
+    project_id: int, 
+    category: str, 
+    language_id: int = None
+):
+    """
+    Get project images filtered by category and optionally by language.
+    This is useful for enforcing uniqueness constraints (one image per category per language).
+    
+    Args:
+        db: Database session
+        project_id: Project ID
+        category: Image category code (e.g., 'PROI-LOGO', 'PROI-THUMBNAIL')
+        language_id: Optional language ID. If None, will match images with NULL language_id
+    
+    Returns:
+        List of ProjectImage objects matching the criteria
+    """
+    query = db.query(ProjectImage).filter(
+        ProjectImage.project_id == project_id,
+        ProjectImage.category == category
+    )
+    
+    # Handle language_id filter
+    if language_id is not None:
+        query = query.filter(ProjectImage.language_id == language_id)
+    else:
+        query = query.filter(ProjectImage.language_id.is_(None))
+    
+    return query.all()
+
+def create_project_image(db: Session, project_id: int, image_path: str, category: str = "gallery", language_id: int = None, created_by: int = None):
     """
     Create a new project image
     """
     db_project_image = ProjectImage(
         project_id=project_id,
         image_path=image_path,
-        category=category
+        category=category,
+        language_id=language_id,
+        created_by=created_by,
+        updated_by=created_by  # Same user for initial creation
     )
     db.add(db_project_image)
     db.commit()
     db.refresh(db_project_image)
     return db_project_image
 
-def update_project_image(db: Session, project_image_id: int, image_path: str = None, category: str = None):
+def update_project_image(db: Session, project_image_id: int, image_path: str = None, category: str = None, language_id: int = None, updated_by: int = None):
     """
     Update a project image
     """
@@ -517,6 +602,12 @@ def update_project_image(db: Session, project_image_id: int, image_path: str = N
     
     if category:
         db_project_image.category = category
+    
+    if language_id is not None:
+        db_project_image.language_id = language_id
+    
+    if updated_by:
+        db_project_image.updated_by = updated_by
     
     db.commit()
     db.refresh(db_project_image)

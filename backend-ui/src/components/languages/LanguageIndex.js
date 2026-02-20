@@ -247,7 +247,6 @@ function LanguageIndexContent() {
             }}
             onError={(e) => {
               // On error, show language code instead
-              console.warn(`Failed to load flag image for ${params.row.name}: ${imageUrl}`);
               e.target.style.display = 'none';
             }}
           >

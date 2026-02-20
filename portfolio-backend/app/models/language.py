@@ -13,6 +13,7 @@ class Language(Base):
     name = Column(String(100), nullable=False)
     image = Column(String(255), nullable=True)
     is_default = Column(Boolean, default=False, nullable=False)
+    enabled = Column(Boolean, default=True, nullable=False)
     
     # Audit fields
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -29,4 +30,4 @@ class Language(Base):
     skill_texts = relationship("SkillText", back_populates="language")
     
     def __repr__(self):
-        return f"<Language(id={self.id}, code='{self.code}', name='{self.name}', is_default={self.is_default})>"
+        return f"<Language(id={self.id}, code='{self.code}', name='{self.name}', is_default={self.is_default}, enabled={self.enabled})>"

@@ -12,6 +12,7 @@ from app.core.logging import setup_logger
 from app.core.security_decorators import require_permission
 from app import models
 from app.schemas.skill_type import SkillTypeCreate, SkillTypeUpdate, SkillTypeOut, PaginatedSkillTypeResponse, Filter
+from app.rag.rag_events import stage_event
 
 # Set up logger using centralized logging
 logger = setup_logger("app.api.endpoints.skill_types")
@@ -207,6 +208,7 @@ def create_skill_type(
         # Attempt to create the skill type
         skill_type = skill_type_crud.create_skill_type(db, skill_type=skill_type_in)
         logger.info(f"Skill type created successfully with code: {skill_type.code}")
+        stage_event(db, {"op":"insert","source_table":"skill_types","source_id":skill_type.code,"changed_fields":["code"]})
         return skill_type
     except ValueError as e:
         # Handle validation errors (e.g., duplicate code)
@@ -313,6 +315,7 @@ def update_skill_type(
             )
         
         logger.info(f"Skill type updated successfully: {code}")
+        stage_event(db, {"op":"update","source_table":"skill_types","source_id":skill_type.code,"changed_fields":list(skill_type_in.model_dump(exclude_unset=True).keys())})
         return skill_type
     except ValueError as e:
         # Handle validation errors
@@ -361,6 +364,7 @@ def delete_skill_type(
             )
         
         logger.info(f"Skill type deleted successfully: {code}")
+        stage_event(db, {"op":"delete","source_table":"skill_types","source_id":skill_type.code,"changed_fields":[]})
     except ValueError as e:
         # Handle validation errors
         logger.warning(f"Error deleting skill type: {str(e)}")

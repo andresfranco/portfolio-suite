@@ -9,6 +9,7 @@ from app.crud import category as category_crud
 from app.core.logging import setup_logger
 from app.core.security_decorators import require_permission
 from app.schemas.category import CategoryCreate, CategoryUpdate, CategoryOut, PaginatedCategoryResponse, Filter
+from app.rag.rag_events import stage_event
 
 # Set up logger using centralized logging
 logger = setup_logger("app.api.endpoints.categories")
@@ -89,6 +90,14 @@ def read_categories(
     logger.info(f"Fetching categories with page={page}, page_size={page_size}, filters={filters}, code={code}, name={name}, type_code={type_code}, sort={sort_field} {sort_order}")
     
     try:
+        # Ensure PROA categories exist if filtering by PROA type
+        if type_code == 'PROA':
+            category_crud.ensure_project_attachment_category_exists(db)
+        
+        # Ensure PROI categories exist if filtering by PROI type
+        if type_code == 'PROI':
+            category_crud.ensure_project_image_category_exists(db)
+        
         parsed_filters = None
         
         # Handle individual query parameters first
@@ -122,48 +131,63 @@ def read_categories(
         logger.debug(f"Final filters to apply: {parsed_filters}")
         
         # Get categories with pagination, filtering, and sorting
-        categories, total = category_crud.get_categories_paginated(
-            db=db,
-            page=page,
-            page_size=page_size,
-            filters=parsed_filters,
-            sort_field=sort_field,
-            sort_order=sort_order
-        )
+        try:
+            categories, total = category_crud.get_categories_paginated(
+                db=db,
+                page=page,
+                page_size=page_size,
+                filters=parsed_filters,
+                sort_field=sort_field,
+                sort_order=sort_order
+            )
+        except Exception as crud_error:
+            logger.exception(f"Error calling get_categories_paginated: {str(crud_error)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Database error while fetching categories: {str(crud_error)}"
+            )
         
         # Process categories to ensure language objects are properly serialized as dictionaries
         processed_categories = []
-        for category in categories:
-            # Create a dict representation of the category
-            category_dict = {
-                "id": category.id,
-                "code": category.code,
-                "type_code": category.type_code,
-                "category_texts": []
-            }
-            
-            # Process each category_text to ensure language is a dictionary
-            for text in category.category_texts:
-                text_dict = {
-                    "id": text.id,
-                    "language_id": text.language_id,
-                    "name": text.name,
-                    "description": text.description
+        try:
+            for category in categories:
+                # Create a dict representation of the category
+                category_dict = {
+                    "id": category.id,
+                    "code": category.code,
+                    "type_code": category.type_code,
+                    "category_texts": []
                 }
                 
-                # Convert the language object to a dictionary if it exists
-                if hasattr(text, "language") and text.language is not None:
-                    language = text.language
-                    text_dict["language"] = {
-                        "id": language.id,
-                        "code": language.code,
-                        "name": language.name,
-                        "is_default": language.is_default if hasattr(language, "is_default") else False
+                # Process each category_text to ensure language is a dictionary
+                for text in category.category_texts:
+                    text_dict = {
+                        "id": text.id,
+                        "language_id": text.language_id,
+                        "name": text.name,
+                        "description": text.description
                     }
+                    
+                    # Convert the language object to a dictionary if it exists
+                    if hasattr(text, "language") and text.language is not None:
+                        language = text.language
+                        text_dict["language"] = {
+                            "id": language.id,
+                            "code": language.code,
+                            "name": language.name,
+                            "is_default": language.is_default if hasattr(language, "is_default") else False
+                        }
+                    
+                    category_dict["category_texts"].append(text_dict)
                 
-                category_dict["category_texts"].append(text_dict)
-            
-            processed_categories.append(category_dict)
+                processed_categories.append(category_dict)
+        except Exception as serialize_error:
+            logger.exception(f"Error serializing categories: {str(serialize_error)}")
+            logger.error(f"Problem category: {category.id if 'category' in locals() else 'unknown'}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error processing category data: {str(serialize_error)}"
+            )
         
         # Return the paginated response using Pydantic model with processed data
         return PaginatedCategoryResponse(
@@ -353,6 +377,19 @@ def create_category(
         # Attempt to create the category
         category = category_crud.create_category(db, category=category_in)
         
+        # Stage RAG index event after commit
+        stage_event(db, {
+            "op": "insert",
+            "source_table": "categories",
+            "source_id": str(category.id),
+            "changed_fields": ["code", "type_code"]
+        })
+        # Trigger after_commit hook
+        try:
+            db.commit()
+        except Exception:
+            pass
+        
         # Process category to ensure language objects are properly serialized as dictionaries
         category_dict = {
             "id": category.id,
@@ -522,6 +559,18 @@ def update_category(
                 detail="Category not found",
             )
         
+        # Stage RAG update event
+        stage_event(db, {
+            "op": "update",
+            "source_table": "categories",
+            "source_id": str(category.id),
+            "changed_fields": list(category_in.model_dump(exclude_unset=True).keys())
+        })
+        try:
+            db.commit()
+        except Exception:
+            pass
+        
         # Process category to ensure language objects are properly serialized as dictionaries
         category_dict = {
             "id": category.id,
@@ -598,6 +647,18 @@ def delete_category(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Category not found",
             )
+        
+        # Stage RAG delete event
+        stage_event(db, {
+            "op": "delete",
+            "source_table": "categories",
+            "source_id": str(category_id),
+            "changed_fields": []
+        })
+        try:
+            db.commit()
+        except Exception:
+            pass
         
         logger.info(f"Category deleted successfully: {category_id}")
         # Don't return anything for 204 response

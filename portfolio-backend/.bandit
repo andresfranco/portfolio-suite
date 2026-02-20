@@ -1,0 +1,77 @@
+# Bandit configuration file
+# Python SAST (Static Application Security Testing)
+# https://bandit.readthedocs.io/
+
+[bandit]
+# Directories to exclude from scanning
+exclude_dirs = [
+    '/tests/',
+    '/test/',
+    '/.venv/',
+    '/venv/',
+    '/migrations/',
+    '/__pycache__/',
+    '/.pytest_cache/',
+]
+
+# Test IDs to skip (if needed)
+# Format: B101,B102,B103
+skips = []
+
+# Minimum severity level to report
+# Options: LOW, MEDIUM, HIGH
+level = MEDIUM
+
+# Minimum confidence level to report
+# Options: LOW, MEDIUM, HIGH
+confidence = MEDIUM
+
+# Tests to run (empty = all tests)
+# Format: B201,B301
+tests = []
+
+# Output format
+# Options: screen, txt, csv, json, yaml, xml
+format = screen
+
+# Enable verbose output
+verbose = False
+
+# Number of lines of context to show
+number = 3
+
+# Aggregate results by vulnerability type
+aggregate = vuln_by_file
+
+# Tests configuration
+[blacklist_calls]
+# Configurable tests
+
+[blacklist_imports]
+# Import blacklist
+
+# Excluded paths (glob patterns)
+exclude = [
+    '*/test_*.py',
+    '*_test.py',
+    '*/conftest.py',
+]
+
+# Specific security tests to enable
+# Refer to: https://bandit.readthedocs.io/en/latest/plugins/index.html
+
+# B201: Flask app run debug
+# B301-B308: Pickle usage
+# B311: Random for cryptographic purposes
+# B312: Shell command injection
+# B313: XML vulnerabilities
+# B314-B320: Various injection vulnerabilities
+# B321: FTP usage
+# B322: Input validation
+# B323: Unverified SSL context
+# B324-B325: Weak cryptography
+# B401-B413: Import of insecure modules
+# B501-B509: Weak cryptographic algorithms
+# B601-B611: Shell injection
+# B701-B703: Jinja2 auto-escaping
+

@@ -2,25 +2,45 @@ import React, { useState, useContext } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { LanguageContext } from '../context/LanguageContext';
 import { translations } from '../data/translations';
-import usFlag from '../assets/images/us.svg';
-import esFlag from '../assets/images/es.svg';
+import { useEditMode } from '../context/EditModeContext';
+import { useSectionLabel, SECTION_CODES } from '../hooks/useSectionLabel';
+import LanguageSelector from './LanguageSelector';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { language, setLanguage } = useContext(LanguageContext);
+  const { language, setLanguage, languages } = useContext(LanguageContext);
+  const { isEditMode } = useEditMode();
+  
+  // Get editable section labels
+  const homeLabel = useSectionLabel(SECTION_CODES.HOME, 'home');
+  const projectsLabel = useSectionLabel(SECTION_CODES.PROJECTS, 'projects');
+  const contactLabel = useSectionLabel(SECTION_CODES.CONTACT, 'contact');
+  const brandName = useSectionLabel(SECTION_CODES.BRAND_NAME, 'brand_name');
   
   const menuItems = [
-    { name: translations[language].home, path: '/' },
-    { name: translations[language].projects, path: '/projects' },
-    { name: translations[language].contact, path: '/contact' }
+    { label: homeLabel, path: '/' },
+    { label: projectsLabel, path: '/projects' },
+    { label: contactLabel, path: '/contact' }
   ];
 
-  const availableLanguages = [
-    { code: 'en', label: 'English', flag: usFlag },
-    { code: 'es', label: 'Español', flag: esFlag }
+  const languageSwitcherLabel = translations[language]?.language_switcher || 'Language';
+
+  const DEFAULT_LANGS = [
+    { code: 'en', name: 'English' },
+    { code: 'es', name: 'Español' },
   ];
+
+  const availableLanguages = (languages && languages.length > 0) ? languages : DEFAULT_LANGS;
+
+  const getLanguageLabel = (code) => {
+    const found = availableLanguages.find((lang) => lang.code === code);
+    if (found) {
+      return found.name || found.label || code.toUpperCase();
+    }
+    return (translations[language]?.language_names && translations[language].language_names[code]) || code.toUpperCase();
+  };
 
   const handleNavigation = (path) => {
     setIsMenuOpen(false);
@@ -29,43 +49,65 @@ const Header = () => {
 
   return (
     <header className="fixed w-full z-[60] bg-black/70 backdrop-blur-sm">
-      <nav className="container mx-auto px-6 py-4 relative">
+      <nav className="w-full px-6 md:px-12 lg:px-[7vw] xl:px-[5vw] 2xl:px-[10vw] py-4 xl:py-5 2xl:py-6 relative">
         <div className="flex items-center justify-between">
-          <Link to="/" className="text-white text-2xl font-bold">AMFAPPS</Link>
+          <Link 
+            to="/" 
+            className="group"
+            onClick={(e) => {
+              // In edit mode, prevent navigation unless Ctrl/Cmd+Click
+              if (isEditMode && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                e.stopPropagation();
+              }
+            }}
+            title={isEditMode ? "Click to edit • Ctrl/Cmd+Click to go home" : "Go to homepage"}
+          >
+            {isEditMode
+              ? brandName.renderEditable('text-white text-2xl xl:text-3xl 2xl:text-4xl font-bold transition-colors duration-200 group-hover:text-[#14C800]')
+              : (
+                <span className="text-white text-2xl xl:text-3xl 2xl:text-4xl font-bold transition-colors duration-200 group-hover:text-[#14C800]">
+                  {brandName.value}
+                </span>
+              )}
+          </Link>
           
           {/* Desktop Menu */}
-          <ul className="hidden md:flex space-x-4">
+          <ul className="hidden md:flex space-x-2 xl:space-x-4">
             {menuItems.map((item) => (
               <li key={item.path}>
                 <button
-                  onClick={() => handleNavigation(item.path)}
-                  className={`text-white/90 px-4 py-2 rounded-lg text-lg
-                    transition-all duration-300 hover:bg-[#14C800] hover:text-white
-                    hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)]
-                    transform hover:-translate-y-1
-                    ${location.pathname === item.path ? 'bg-[#14C800] text-white' : ''}`}
+                  onClick={(e) => {
+                    // In edit mode, only navigate on Ctrl/Cmd+Click
+                    if (isEditMode && !e.ctrlKey && !e.metaKey) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      return;
+                    }
+                    handleNavigation(item.path);
+                  }}
+                  title={isEditMode ? `Click to edit • Ctrl/Cmd+Click to navigate to ${item.label.value}` : `Navigate to ${item.label.value}`}
+                  className={`btn-flat text-base xl:text-lg 2xl:text-xl ${location.pathname === item.path ? 'btn-flat-active' : ''}`}
                 >
-                  {item.name}
+                  {item.label.renderEditable('text-white/90')}
                 </button>
               </li>
             ))}
           </ul>
 
           {/* Language Selector (Right Corner) */}
-          <div className="hidden md:flex space-x-2">
-            {availableLanguages.map((lang) => (
-              <button
-                key={lang.code}
-                onClick={() => setLanguage(lang.code)}
-                className="focus:outline-none"
-              >
-                <img
-                  src={lang.flag}
-                  alt={lang.label}
-                  className={`w-6 h-6 rounded-full ${language === lang.code ? 'ring-2 ring-[#14C800]' : ''}`}
-                />
-              </button>
-            ))}
+          <div className="hidden md:flex items-center">
+            <label htmlFor="desktop-language-select" className="sr-only">
+              {languageSwitcherLabel}
+            </label>
+            <LanguageSelector
+              id="desktop-language-select"
+              language={language}
+              setLanguage={setLanguage}
+              availableLanguages={availableLanguages}
+              getLanguageLabel={getLanguageLabel}
+              className="w-40 xl:w-48 2xl:w-56 text-base xl:text-lg 2xl:text-xl"
+            />
           </div>
 
           {/* Mobile Menu Button */}
@@ -84,19 +126,17 @@ const Header = () => {
 
         {/* Mobile Menu Overlay */}
         <div 
-          className={`md:hidden fixed inset-0 bg-gray-900 z-[50] transition-all duration-300 
+          className={`md:hidden fixed inset-0 bg-gray-900 z-[50] transition-opacity duration-300 
             ${isMenuOpen 
-              ? 'opacity-100 translate-x-0' 
-              : 'opacity-0 translate-x-full pointer-events-none'
+              ? 'opacity-100 visible pointer-events-auto' 
+              : 'opacity-0 invisible pointer-events-none'
             }`}
           style={{ backgroundColor: '#111827' }}
         >
           {/* Close Button */}
           <button
             onClick={() => setIsMenuOpen(false)}
-            className="absolute top-6 right-6 text-white/90 hover:text-white p-2
-              transition-all duration-300 hover:bg-[#14C800] rounded-lg
-              hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)]"
+          className="absolute top-6 right-6 btn-flat btn-flat-sm hover:text-white"
             aria-label="Close menu"
           >
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -109,33 +149,36 @@ const Header = () => {
               {menuItems.map((item) => (
                 <li key={item.path} className="text-center">
                   <button
-                    onClick={() => handleNavigation(item.path)}
-                    className={`text-white px-8 py-3 rounded-lg text-2xl
-                      transition-all duration-300 hover:bg-[#14C800] hover:text-white
-                      hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)]
-                      transform hover:-translate-y-1 inline-block
-                      ${location.pathname === item.path ? 'bg-[#14C800] text-white' : ''}`}
+                    onClick={(e) => {
+                      // In edit mode, only navigate on Ctrl/Cmd+Click
+                      if (isEditMode && !e.ctrlKey && !e.metaKey) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                      }
+                      handleNavigation(item.path);
+                    }}
+                    title={isEditMode ? `Click to edit • Ctrl/Cmd+Click to navigate to ${item.label.value}` : `Navigate to ${item.label.value}`}
+                  className={`btn-flat px-10 py-3 text-2xl inline-block ${location.pathname === item.path ? 'btn-flat-active' : ''}`}
                   >
-                    {item.name}
+                    {item.label.renderEditable('text-white')}
                   </button>
                 </li>
               ))}
             </ul>
             {/* Mobile Language Selector */}
-            <div className="mt-8 flex space-x-2">
-              {availableLanguages.map((lang) => (
-                <button
-                  key={lang.code}
-                  onClick={() => setLanguage(lang.code)}
-                  className="focus:outline-none"
-                >
-                  <img
-                    src={lang.flag}
-                    alt={lang.label}
-                    className={`w-6 h-6 rounded-full ${language === lang.code ? 'ring-2 ring-[#14C800]' : ''}`}
-                  />
-                </button>
-              ))}
+            <div className="mt-8 w-48">
+              <label htmlFor="mobile-language-select" className="sr-only">
+                {languageSwitcherLabel}
+              </label>
+              <LanguageSelector
+                id="mobile-language-select"
+                language={language}
+                setLanguage={setLanguage}
+                availableLanguages={availableLanguages}
+                getLanguageLabel={getLanguageLabel}
+                className="w-full text-lg"
+              />
             </div>
           </div>
         </div>

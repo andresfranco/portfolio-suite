@@ -106,6 +106,36 @@ function PortfolioImageForm({ open, onClose, portfolio }) {
     setApiError('');
     
     try {
+      // Define categories that should only have one image
+      // Portfolio images use different category names than project images
+      const UNIQUE_CATEGORIES = ['main', 'thumbnail', 'background'];
+      const categoryValue = newImage.category;
+      
+      // For unique categories, check if an image already exists and delete it
+      if (UNIQUE_CATEGORIES.includes(categoryValue)) {
+        const existingImage = images.find(img => img.category === categoryValue);
+        
+        if (existingImage) {
+          
+          try {
+            const deleteResponse = await fetch(
+              `${SERVER_URL}/api/portfolios/${portfolio.id}/images/${existingImage.id}`,
+              {
+                method: 'DELETE'
+              }
+            );
+            
+            if (!deleteResponse.ok) {
+            } else {
+              // Update local state immediately
+              setImages(images.filter(img => img.id !== existingImage.id));
+            }
+          } catch (deleteErr) {
+          }
+        }
+      }
+      
+      // Proceed with upload
       const formData = new FormData();
       formData.append('file', newImage.file);
       formData.append('category', newImage.category);

@@ -1,0 +1,1416 @@
+/* ContentEditable WYSIWYG Editor - Dark Theme */
+
+/* Toolbar Button Styles */
+.wysiwyg-toolbar-btn {
+  padding: 6px 10px;
+  min-width: 36px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wysiwyg-toolbar-btn:hover {
+  background: rgba(20, 200, 0, 0.1);
+  border-color: #14C800;
+  color: #14C800;
+}
+
+.wysiwyg-toolbar-btn.active {
+  background: rgba(20, 200, 0, 0.2);
+  border-color: #14C800;
+  color: #14C800;
+}
+
+.wysiwyg-toolbar-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Content Editor Area */
+.wysiwyg-content-editor {
+  background: #1a1d24;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 20px;
+  color: #e5e7eb;
+  font-size: 16px;
+  line-height: 1.75;
+  outline: none;
+  overflow-y: auto;
+  max-height: 600px;
+}
+
+.wysiwyg-content-editor:focus {
+  border-color: #14C800;
+  box-shadow: 0 0 0 3px rgba(20, 200, 0, 0.1);
+}
+
+.wysiwyg-content-editor:empty::before {
+  content: attr(data-placeholder);
+  color: rgba(255, 255, 255, 0.4);
+  font-style: italic;
+  pointer-events: none;
+}
+
+/* Text Selection */
+.wysiwyg-content-editor ::selection {
+  background: rgba(20, 200, 0, 0.2);
+}
+
+/* Headings */
+.wysiwyg-content-editor h1 {
+  font-size: 2em;
+  font-weight: bold;
+  color: #ffffff;
+  margin: 0.67em 0;
+  line-height: 1.2;
+}
+
+.wysiwyg-content-editor h2 {
+  font-size: 1.5em;
+  font-weight: bold;
+  color: #ffffff;
+  margin: 0.83em 0;
+  line-height: 1.3;
+}
+
+.wysiwyg-content-editor h3 {
+  font-size: 1.17em;
+  font-weight: bold;
+  color: #ffffff;
+  margin: 1em 0;
+  line-height: 1.4;
+}
+
+.wysiwyg-content-editor h4 {
+  font-size: 1em;
+  font-weight: bold;
+  color: #ffffff;
+  margin: 1.33em 0;
+}
+
+.wysiwyg-content-editor h5 {
+  font-size: 0.83em;
+  font-weight: bold;
+  color: #ffffff;
+  margin: 1.67em 0;
+}
+
+.wysiwyg-content-editor h6 {
+  font-size: 0.67em;
+  font-weight: bold;
+  color: #ffffff;
+  margin: 2.33em 0;
+}
+
+/* Paragraphs */
+.wysiwyg-content-editor p {
+  margin: 1em 0;
+  line-height: 1.75;
+}
+
+/* Links */
+.wysiwyg-content-editor a {
+  color: #14C800;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.wysiwyg-content-editor a:hover {
+  color: #1aeb00;
+}
+
+/* Lists */
+.wysiwyg-content-editor ul,
+.wysiwyg-content-editor ol {
+  padding-left: 2em;
+  margin: 1em 0;
+}
+
+.wysiwyg-content-editor ul {
+  list-style-type: disc;
+}
+
+.wysiwyg-content-editor ol {
+  list-style-type: decimal;
+}
+
+.wysiwyg-content-editor li {
+  margin: 0.5em 0;
+  line-height: 1.6;
+}
+
+.wysiwyg-content-editor ul ul,
+.wysiwyg-content-editor ol ol,
+.wysiwyg-content-editor ul ol,
+.wysiwyg-content-editor ol ul {
+  margin: 0.25em 0;
+}
+
+/* Nested lists */
+.wysiwyg-content-editor ul ul {
+  list-style-type: circle;
+}
+
+.wysiwyg-content-editor ul ul ul {
+  list-style-type: square;
+}
+
+/* Images */
+.wysiwyg-content-editor img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin: 1em 0;
+  display: block;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.wysiwyg-content-editor .image-container {
+  display: inline-block;
+  position: relative;
+  margin: 1em 0;
+}
+
+.wysiwyg-content-editor img.image-selected {
+  outline: 2px solid #14C800;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(20, 200, 0, 0.1);
+}
+
+.wysiwyg-content-editor img.image-resizing {
+  opacity: 0.8;
+}
+
+/* Image resize handles */
+.image-resize-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: #14C800;
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  z-index: 10;
+  pointer-events: auto !important;
+}
+
+.image-resize-handle-se {
+  bottom: -6px;
+  right: -6px;
+  cursor: nwse-resize;
+}
+
+.image-resize-handle-sw {
+  bottom: -6px;
+  left: -6px;
+  cursor: nesw-resize;
+}
+
+.image-resize-handle-e {
+  top: 50%;
+  right: -6px;
+  transform: translateY(-50%);
+  cursor: ew-resize;
+}
+
+.image-resize-handle-w {
+  top: 50%;
+  left: -6px;
+  transform: translateY(-50%);
+  cursor: ew-resize;
+}
+
+.image-resize-handle:hover {
+  background: #1aeb00;
+  transform: scale(1.2);
+}
+
+.image-resize-handle-e:hover,
+.image-resize-handle-w:hover {
+  transform: translateY(-50%) scale(1.2);
+}
+
+/* Horizontal Rule */
+.wysiwyg-content-editor hr {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  margin: 1.5em 0;
+}
+
+/* Blockquotes */
+.wysiwyg-content-editor blockquote {
+  border-left: 4px solid #14C800;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  margin: 1em 0;
+  color: rgba(255, 255, 255, 0.8);
+  font-style: italic;
+  background: rgba(20, 200, 0, 0.05);
+  border-radius: 0 4px 4px 0;
+}
+
+/* Code */
+.wysiwyg-content-editor code {
+  background: #0f1117;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  padding: 2px 6px;
+  color: #14C800;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+}
+
+.wysiwyg-content-editor pre {
+  background: #0f1117;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 12px;
+  overflow-x: auto;
+  margin: 1em 0;
+  position: relative;
+}
+
+/* Important: Do NOT set a color here in edit mode either - let Prism.js work */
+.wysiwyg-content-editor pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  /* Removed: color: #14C800; - this was overriding all syntax highlighting */
+}
+
+/* Code block with language indicator */
+.wysiwyg-content-editor pre.code-block {
+  padding-top: 36px;
+  display: block;
+  clear: both;
+  margin: 1.5em 0;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* All code blocks are editable in edit mode - clickable styling */
+/* Apply to ALL pre elements, not just .code-block */
+.wysiwyg-content-editor pre {
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.wysiwyg-content-editor pre * {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  pointer-events: none;
+}
+
+.wysiwyg-content-editor pre:hover {
+  border-color: #14C800;
+  box-shadow: 0 0 0 2px rgba(20, 200, 0, 0.1);
+}
+
+.wysiwyg-content-editor pre:hover::after {
+  content: 'Click to edit';
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  font-size: 10px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 600;
+  color: #14C800;
+  background: rgba(20, 200, 0, 0.1);
+  padding: 2px 8px;
+  border-radius: 3px;
+  border: 1px solid rgba(20, 200, 0, 0.3);
+  z-index: 2;
+}
+
+/* Delete button for code blocks */
+.code-block-delete-btn {
+  position: absolute;
+  top: 8px;
+  right: 120px;
+  width: 24px;
+  height: 24px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 3px;
+  color: #ef4444;
+  font-size: 18px;
+  font-weight: bold;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  opacity: 0;
+  pointer-events: auto !important;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.wysiwyg-content-editor pre:hover .code-block-delete-btn {
+  opacity: 1;
+}
+
+.code-block-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: #ef4444;
+  color: #fff;
+  transform: scale(1.1);
+}
+
+.code-block-delete-btn:active {
+  transform: scale(0.95);
+}
+
+/* Language Badge for ALL pre elements with language class - Elegant Design matching RichTextSectionEditor */
+.wysiwyg-content-editor pre[class*="language-"]::before,
+.wysiwyg-display-content pre[class*="language-"]::before {
+  position: absolute;
+  top: 6px;
+  right: 12px;
+  font-size: 10px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(20, 200, 0, 0.2);
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(20, 200, 0, 0.4);
+  z-index: 10;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Ensure code blocks are visible and not collapsed */
+.wysiwyg-content-editor pre.code-block code {
+  display: block;
+  white-space: pre;
+  overflow-x: auto;
+  min-height: 1.5em;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+/* Language-specific styling for content editor */
+.wysiwyg-content-editor pre.language-javascript::before,
+.wysiwyg-content-editor pre[class*="language-javascript"]::before {
+  content: 'JavaScript';
+  background: rgba(240, 219, 79, 0.15);
+  border-color: rgba(240, 219, 79, 0.3);
+  color: #f0db4f;
+}
+
+.wysiwyg-content-editor pre.language-typescript::before {
+  content: 'TypeScript';
+  background: rgba(49, 120, 198, 0.15);
+  border-color: rgba(49, 120, 198, 0.3);
+  color: #3178c6;
+}
+
+.wysiwyg-content-editor pre.language-python::before {
+  content: 'Python';
+  background: rgba(55, 118, 171, 0.15);
+  border-color: rgba(55, 118, 171, 0.3);
+  color: #3776ab;
+}
+
+.wysiwyg-content-editor pre.language-java::before {
+  content: 'Java';
+  background: rgba(240, 82, 54, 0.15);
+  border-color: rgba(240, 82, 54, 0.3);
+  color: #f05236;
+}
+
+.wysiwyg-content-editor pre.language-csharp::before {
+  content: 'C#';
+  background: rgba(154, 82, 163, 0.15);
+  border-color: rgba(154, 82, 163, 0.3);
+  color: #9a52a3;
+}
+
+.wysiwyg-content-editor pre.language-cpp::before {
+  content: 'C++';
+  background: rgba(0, 89, 156, 0.15);
+  border-color: rgba(0, 89, 156, 0.3);
+  color: #00599c;
+}
+
+.wysiwyg-content-editor pre.language-php::before {
+  content: 'PHP';
+  background: rgba(119, 123, 180, 0.15);
+  border-color: rgba(119, 123, 180, 0.3);
+  color: #777bb4;
+}
+
+.wysiwyg-content-editor pre.language-ruby::before {
+  content: 'Ruby';
+  background: rgba(204, 52, 45, 0.15);
+  border-color: rgba(204, 52, 45, 0.3);
+  color: #cc342d;
+}
+
+.wysiwyg-content-editor pre.language-go::before {
+  content: 'Go';
+  background: rgba(0, 173, 216, 0.15);
+  border-color: rgba(0, 173, 216, 0.3);
+  color: #00add8;
+}
+
+.wysiwyg-content-editor pre.language-rust::before {
+  content: 'Rust';
+  background: rgba(206, 73, 0, 0.15);
+  border-color: rgba(206, 73, 0, 0.3);
+  color: #ce4900;
+}
+
+.wysiwyg-content-editor pre.language-swift::before {
+  content: 'Swift';
+  background: rgba(240, 81, 56, 0.15);
+  border-color: rgba(240, 81, 56, 0.3);
+  color: #f05138;
+}
+
+.wysiwyg-content-editor pre.language-kotlin::before {
+  content: 'Kotlin';
+  background: rgba(124, 77, 255, 0.15);
+  border-color: rgba(124, 77, 255, 0.3);
+  color: #7c4dff;
+}
+
+.wysiwyg-content-editor pre.language-sql::before {
+  content: 'SQL';
+  background: rgba(204, 102, 0, 0.15);
+  border-color: rgba(204, 102, 0, 0.3);
+  color: #cc6600;
+}
+
+.wysiwyg-content-editor pre.language-html::before {
+  content: 'HTML';
+  background: rgba(227, 79, 38, 0.15);
+  border-color: rgba(227, 79, 38, 0.3);
+  color: #e34f26;
+}
+
+.wysiwyg-content-editor pre.language-css::before {
+  content: 'CSS';
+  background: rgba(38, 77, 228, 0.15);
+  border-color: rgba(38, 77, 228, 0.3);
+  color: #264de4;
+}
+
+.wysiwyg-content-editor pre.language-scss::before {
+  content: 'SCSS';
+  background: rgba(207, 100, 154, 0.15);
+  border-color: rgba(207, 100, 154, 0.3);
+  color: #cf649a;
+}
+
+.wysiwyg-content-editor pre.language-json::before {
+  content: 'JSON';
+  background: rgba(41, 128, 185, 0.15);
+  border-color: rgba(41, 128, 185, 0.3);
+  color: #2980b9;
+}
+
+.wysiwyg-content-editor pre.language-yaml::before {
+  content: 'YAML';
+  background: rgba(203, 56, 55, 0.15);
+  border-color: rgba(203, 56, 55, 0.3);
+  color: #cb3837;
+}
+
+.wysiwyg-content-editor pre.language-bash::before {
+  content: 'Bash';
+  background: rgba(76, 175, 80, 0.15);
+  border-color: rgba(76, 175, 80, 0.3);
+  color: #4caf50;
+}
+
+.wysiwyg-content-editor pre.language-shell::before {
+  content: 'Shell';
+  background: rgba(76, 175, 80, 0.15);
+  border-color: rgba(76, 175, 80, 0.3);
+  color: #4caf50;
+}
+
+.wysiwyg-content-editor pre.language-markdown::before {
+  content: 'Markdown';
+  background: rgba(156, 39, 176, 0.15);
+  border-color: rgba(156, 39, 176, 0.3);
+  color: #9c27b0;
+}
+
+.wysiwyg-content-editor pre.language-plaintext::before {
+  content: 'Plain Text';
+  background: rgba(158, 158, 158, 0.15);
+  border-color: rgba(158, 158, 158, 0.3);
+  color: #9e9e9e;
+}
+
+.wysiwyg-display-content pre.code-block {
+  padding-top: 36px;
+  display: block;
+  clear: both;
+  margin: 1.5em 0;
+}
+
+.wysiwyg-display-content pre.code-block::before {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 11px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(20, 200, 0, 0.15);
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(20, 200, 0, 0.3);
+  z-index: 1;
+}
+
+/* Ensure code blocks are visible and not collapsed */
+.wysiwyg-display-content pre.code-block code {
+  display: block;
+  white-space: pre;
+  overflow-x: auto;
+  min-height: 1.5em;
+}
+
+/* Language badges for display content */
+.wysiwyg-display-content pre.language-javascript::before {
+  content: 'JavaScript';
+  background: rgba(240, 219, 79, 0.15);
+  border-color: rgba(240, 219, 79, 0.3);
+  color: #f0db4f;
+}
+
+.wysiwyg-display-content pre.language-typescript::before {
+  content: 'TypeScript';
+  background: rgba(49, 120, 198, 0.15);
+  border-color: rgba(49, 120, 198, 0.3);
+  color: #3178c6;
+}
+
+.wysiwyg-display-content pre.language-python::before {
+  content: 'Python';
+  background: rgba(55, 118, 171, 0.15);
+  border-color: rgba(55, 118, 171, 0.3);
+  color: #3776ab;
+}
+
+.wysiwyg-display-content pre.language-java::before {
+  content: 'Java';
+  background: rgba(240, 82, 54, 0.15);
+  border-color: rgba(240, 82, 54, 0.3);
+  color: #f05236;
+}
+
+.wysiwyg-display-content pre.language-csharp::before {
+  content: 'C#';
+  background: rgba(154, 82, 163, 0.15);
+  border-color: rgba(154, 82, 163, 0.3);
+  color: #9a52a3;
+}
+
+.wysiwyg-display-content pre.language-cpp::before {
+  content: 'C++';
+  background: rgba(0, 89, 156, 0.15);
+  border-color: rgba(0, 89, 156, 0.3);
+  color: #00599c;
+}
+
+.wysiwyg-display-content pre.language-php::before {
+  content: 'PHP';
+  background: rgba(119, 123, 180, 0.15);
+  border-color: rgba(119, 123, 180, 0.3);
+  color: #777bb4;
+}
+
+.wysiwyg-display-content pre.language-ruby::before {
+  content: 'Ruby';
+  background: rgba(204, 52, 45, 0.15);
+  border-color: rgba(204, 52, 45, 0.3);
+  color: #cc342d;
+}
+
+.wysiwyg-display-content pre.language-go::before {
+  content: 'Go';
+  background: rgba(0, 173, 216, 0.15);
+  border-color: rgba(0, 173, 216, 0.3);
+  color: #00add8;
+}
+
+.wysiwyg-display-content pre.language-rust::before {
+  content: 'Rust';
+  background: rgba(206, 73, 0, 0.15);
+  border-color: rgba(206, 73, 0, 0.3);
+  color: #ce4900;
+}
+
+.wysiwyg-display-content pre.language-swift::before {
+  content: 'Swift';
+  background: rgba(240, 81, 56, 0.15);
+  border-color: rgba(240, 81, 56, 0.3);
+  color: #f05138;
+}
+
+.wysiwyg-display-content pre.language-kotlin::before {
+  content: 'Kotlin';
+  background: rgba(124, 77, 255, 0.15);
+  border-color: rgba(124, 77, 255, 0.3);
+  color: #7c4dff;
+}
+
+.wysiwyg-display-content pre.language-sql::before {
+  content: 'SQL';
+  background: rgba(204, 102, 0, 0.15);
+  border-color: rgba(204, 102, 0, 0.3);
+  color: #cc6600;
+}
+
+.wysiwyg-display-content pre.language-html::before {
+  content: 'HTML';
+  background: rgba(227, 79, 38, 0.15);
+  border-color: rgba(227, 79, 38, 0.3);
+  color: #e34f26;
+}
+
+.wysiwyg-display-content pre.language-css::before {
+  content: 'CSS';
+  background: rgba(38, 77, 228, 0.15);
+  border-color: rgba(38, 77, 228, 0.3);
+  color: #264de4;
+}
+
+.wysiwyg-display-content pre.language-scss::before {
+  content: 'SCSS';
+  background: rgba(207, 100, 154, 0.15);
+  border-color: rgba(207, 100, 154, 0.3);
+  color: #cf649a;
+}
+
+.wysiwyg-display-content pre.language-json::before {
+  content: 'JSON';
+  background: rgba(41, 128, 185, 0.15);
+  border-color: rgba(41, 128, 185, 0.3);
+  color: #2980b9;
+}
+
+.wysiwyg-display-content pre.language-yaml::before {
+  content: 'YAML';
+  background: rgba(203, 56, 55, 0.15);
+  border-color: rgba(203, 56, 55, 0.3);
+  color: #cb3837;
+}
+
+.wysiwyg-display-content pre.language-bash::before {
+  content: 'Bash';
+  background: rgba(76, 175, 80, 0.15);
+  border-color: rgba(76, 175, 80, 0.3);
+  color: #4caf50;
+}
+
+.wysiwyg-display-content pre.language-shell::before {
+  content: 'Shell';
+  background: rgba(76, 175, 80, 0.15);
+  border-color: rgba(76, 175, 80, 0.3);
+  color: #4caf50;
+}
+
+.wysiwyg-display-content pre.language-markdown::before {
+  content: 'Markdown';
+  background: rgba(156, 39, 176, 0.15);
+  border-color: rgba(156, 39, 176, 0.3);
+  color: #9c27b0;
+}
+
+.wysiwyg-display-content pre.language-plaintext::before {
+  content: 'Plain Text';
+  background: rgba(158, 158, 158, 0.15);
+  border-color: rgba(158, 158, 158, 0.3);
+  color: #9e9e9e;
+}
+
+.wysiwyg-display-content code {
+  background: #0f1117;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  padding: 2px 6px;
+  color: #14C800;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+}
+
+.wysiwyg-display-content pre {
+  background: #0f1117;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 12px;
+  overflow-x: auto;
+  margin: 1em 0;
+  position: relative;
+}
+
+/* Important: Do NOT set a color here - let Prism.js syntax highlighting work */
+.wysiwyg-display-content pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  /* Removed: color: #14C800; - this was overriding all syntax highlighting */
+}
+
+/* Tables */
+.wysiwyg-content-editor table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+}
+
+.wysiwyg-content-editor td,
+.wysiwyg-content-editor th {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.wysiwyg-content-editor th {
+  background: rgba(20, 200, 0, 0.1);
+  font-weight: bold;
+  color: #ffffff;
+}
+
+.wysiwyg-content-editor tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* Strong and emphasis */
+.wysiwyg-content-editor strong,
+.wysiwyg-content-editor b {
+  font-weight: bold;
+  color: #ffffff;
+}
+
+.wysiwyg-content-editor em,
+.wysiwyg-content-editor i {
+  font-style: italic;
+}
+
+.wysiwyg-content-editor u {
+  text-decoration: underline;
+}
+
+.wysiwyg-content-editor s,
+.wysiwyg-content-editor strike {
+  text-decoration: line-through;
+}
+
+/* Scrollbar styling */
+.wysiwyg-content-editor::-webkit-scrollbar {
+  width: 8px;
+}
+
+.wysiwyg-content-editor::-webkit-scrollbar-track {
+  background: #0f1117;
+  border-radius: 4px;
+}
+
+.wysiwyg-content-editor::-webkit-scrollbar-thumb {
+  background: rgba(20, 200, 0, 0.3);
+  border-radius: 4px;
+}
+
+.wysiwyg-content-editor::-webkit-scrollbar-thumb:hover {
+  background: rgba(20, 200, 0, 0.5);
+}
+
+/* Disabled state */
+.wysiwyg-content-editor[contenteditable="false"] {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: rgba(26, 29, 36, 0.5);
+}
+
+/* Text alignment classes */
+.wysiwyg-content-editor [style*="text-align: left"] {
+  text-align: left;
+}
+
+.wysiwyg-content-editor [style*="text-align: center"] {
+  text-align: center;
+}
+
+.wysiwyg-content-editor [style*="text-align: right"] {
+  text-align: right;
+}
+
+.wysiwyg-content-editor [style*="text-align: justify"] {
+  text-align: justify;
+}
+
+/* Display mode styling - applies to rendered HTML content */
+.wysiwyg-display-content h1 {
+  font-size: 2em;
+  font-weight: bold;
+  color: #ffffff;
+  margin: 0.67em 0;
+  line-height: 1.2;
+}
+
+.wysiwyg-display-content h2 {
+  font-size: 1.5em;
+  font-weight: bold;
+  color: #ffffff;
+  margin: 0.83em 0;
+  line-height: 1.3;
+}
+
+.wysiwyg-display-content h3 {
+  font-size: 1.17em;
+  font-weight: bold;
+  color: #ffffff;
+  margin: 1em 0;
+  line-height: 1.4;
+}
+
+.wysiwyg-display-content p {
+  margin: 1.25em 0;
+  line-height: 1.8;
+  letter-spacing: 0.01em;
+}
+
+.wysiwyg-display-content a {
+  color: #14C800;
+  text-decoration: underline;
+  transition: color 0.2s ease;
+}
+
+.wysiwyg-display-content a:hover {
+  color: #1aeb00;
+}
+
+.wysiwyg-display-content ul,
+.wysiwyg-display-content ol {
+  padding-left: 2em;
+  margin: 1.25em 0;
+  line-height: 1.8;
+}
+
+.wysiwyg-display-content ul {
+  list-style-type: disc;
+}
+
+.wysiwyg-display-content ol {
+  list-style-type: decimal;
+}
+
+.wysiwyg-display-content li {
+  margin: 0.75em 0;
+  line-height: 1.8;
+}
+
+.wysiwyg-display-content strong,
+.wysiwyg-display-content b {
+  font-weight: bold;
+  color: #ffffff;
+}
+
+.wysiwyg-display-content em,
+.wysiwyg-display-content i {
+  font-style: italic;
+}
+
+.wysiwyg-display-content u {
+  text-decoration: underline;
+}
+
+/* High Resolution Improvements (1920px and above) */
+@media (min-width: 1920px) {
+  .wysiwyg-display-content p {
+    line-height: 1.9;
+    letter-spacing: 0.015em;
+  }
+
+  .wysiwyg-display-content li {
+    line-height: 1.9;
+  }
+
+  .wysiwyg-display-content ul,
+  .wysiwyg-display-content ol {
+    line-height: 1.9;
+  }
+
+  .wysiwyg-display-content h1 {
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+  }
+
+  .wysiwyg-display-content h2 {
+    line-height: 1.35;
+    letter-spacing: -0.005em;
+  }
+
+  .wysiwyg-display-content h3 {
+    line-height: 1.45;
+  }
+}
+
+/* Super High Resolution Improvements (2560px and above - 2K/4K) */
+@media (min-width: 2560px) {
+  .wysiwyg-display-content p {
+    line-height: 2;
+    letter-spacing: 0.02em;
+  }
+
+  .wysiwyg-display-content li {
+    line-height: 2;
+  }
+
+  .wysiwyg-display-content ul,
+  .wysiwyg-display-content ol {
+    line-height: 2;
+    padding-left: 2.5em;
+  }
+
+  .wysiwyg-display-content h1 {
+    line-height: 1.3;
+  }
+
+  .wysiwyg-display-content h2 {
+    line-height: 1.4;
+  }
+}
+
+.wysiwyg-display-content s,
+.wysiwyg-display-content strike {
+  text-decoration: line-through;
+}
+
+.wysiwyg-display-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin: 1.5em 0;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease;
+}
+
+.wysiwyg-display-content img:hover {
+  transform: scale(1.01);
+}
+
+/* High resolution image improvements */
+@media (min-width: 1920px) {
+  .wysiwyg-display-content img {
+    border-radius: 6px;
+    margin: 2em 0;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+  }
+}
+
+@media (min-width: 2560px) {
+  .wysiwyg-display-content img {
+    border-radius: 8px;
+    margin: 2.5em 0;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+  }
+}
+
+.wysiwyg-display-content hr {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  margin: 1.5em 0;
+}
+
+.wysiwyg-display-content blockquote {
+  border-left: 4px solid #14C800;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  margin: 1em 0;
+  color: rgba(255, 255, 255, 0.8);
+  font-style: italic;
+  background: rgba(20, 200, 0, 0.05);
+  border-radius: 0 4px 4px 0;
+  line-height: 1.8;
+}
+
+/* High resolution blockquote improvements */
+@media (min-width: 1920px) {
+  .wysiwyg-display-content blockquote {
+    padding-left: 20px;
+    padding-right: 20px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+    border-left-width: 5px;
+    line-height: 1.9;
+  }
+}
+
+@media (min-width: 2560px) {
+  .wysiwyg-display-content blockquote {
+    padding-left: 24px;
+    padding-right: 24px;
+    padding-top: 16px;
+    padding-bottom: 16px;
+    border-left-width: 6px;
+    line-height: 2;
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .wysiwyg-toolbar-btn {
+    padding: 5px 8px;
+    min-width: 32px;
+    font-size: 13px;
+  }
+
+  .wysiwyg-content-editor {
+    padding: 12px;
+    font-size: 14px;
+  }
+
+  .wysiwyg-content-editor h1,
+  .wysiwyg-display-content h1 {
+    font-size: 1.5em;
+  }
+
+  .wysiwyg-content-editor h2,
+  .wysiwyg-display-content h2 {
+    font-size: 1.25em;
+  }
+}
+
+/* Enhanced Prism.js code highlighting - VS Code Dark+ theme (matches Monaco Editor and RichTextSectionEditor) */
+.wysiwyg-content-editor pre[class*="language-"],
+.wysiwyg-display-content pre[class*="language-"] {
+  background: linear-gradient(135deg, rgba(30, 30, 30, 0.98) 0%, rgba(20, 20, 20, 0.98) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 20px;
+  padding-top: 44px;
+  margin: 20px 0;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.7;
+  position: relative;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  box-shadow:
+    0 4px 6px rgba(0, 0, 0, 0.3),
+    0 1px 3px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Subtle top bar decoration */
+.wysiwyg-content-editor pre[class*="language-"]::after,
+.wysiwyg-display-content pre[class*="language-"]::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  pointer-events: none;
+}
+
+.wysiwyg-content-editor code[class*="language-"],
+.wysiwyg-display-content code[class*="language-"] {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 14px;
+  /* Base color for all code - individual tokens will override */
+  color: #d4d4d4;
+  text-shadow: none;
+  background: transparent !important;
+  display: block;
+  white-space: pre;
+  overflow-x: auto;
+  min-height: 1.5em;
+  line-height: 1.7;
+}
+
+/* High resolution code block improvements */
+@media (min-width: 1920px) {
+  .wysiwyg-display-content pre[class*="language-"] {
+    padding: 20px;
+    padding-top: 48px;
+    font-size: 15px;
+    line-height: 1.65;
+    border-radius: 8px;
+  }
+
+  .wysiwyg-display-content code[class*="language-"] {
+    font-size: 15px;
+  }
+}
+
+@media (min-width: 2560px) {
+  .wysiwyg-display-content pre[class*="language-"] {
+    padding: 24px;
+    padding-top: 52px;
+    font-size: 16px;
+    line-height: 1.7;
+    border-radius: 10px;
+  }
+
+  .wysiwyg-display-content code[class*="language-"] {
+    font-size: 16px;
+  }
+}
+
+/* GitHub-like scrollbar for code blocks */
+.wysiwyg-content-editor pre[class*="language-"]::-webkit-scrollbar,
+.wysiwyg-display-content pre[class*="language-"]::-webkit-scrollbar {
+  height: 8px;
+}
+
+.wysiwyg-content-editor pre[class*="language-"]::-webkit-scrollbar-track,
+.wysiwyg-display-content pre[class*="language-"]::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.wysiwyg-content-editor pre[class*="language-"]::-webkit-scrollbar-thumb,
+.wysiwyg-display-content pre[class*="language-"]::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.wysiwyg-content-editor pre[class*="language-"]::-webkit-scrollbar-thumb:hover,
+.wysiwyg-display-content pre[class*="language-"]::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Inline code styling */
+.wysiwyg-content-editor :not(pre) > code[class*="language-"],
+.wysiwyg-display-content :not(pre) > code[class*="language-"] {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.9em;
+  color: #14C800;
+}
+
+/* Syntax highlighting tokens - VS Code Dark+ theme colors (matches Monaco Editor vs-dark) */
+/* Ensure these apply within both edit and display contexts */
+.wysiwyg-content-editor .token.comment,
+.wysiwyg-display-content .token.comment,
+.wysiwyg-content-editor .token.prolog,
+.wysiwyg-display-content .token.prolog,
+.wysiwyg-content-editor .token.doctype,
+.wysiwyg-display-content .token.doctype,
+.wysiwyg-content-editor .token.cdata,
+.wysiwyg-display-content .token.cdata,
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: #6a9955 !important;
+  font-style: italic;
+}
+
+.wysiwyg-content-editor .token.punctuation,
+.wysiwyg-display-content .token.punctuation,
+.wysiwyg-content-editor .token.bracket,
+.wysiwyg-display-content .token.bracket,
+.wysiwyg-content-editor .token.brace,
+.wysiwyg-display-content .token.brace,
+.wysiwyg-content-editor .token.paren,
+.wysiwyg-display-content .token.paren,
+.token.punctuation,
+.token.bracket,
+.token.brace,
+.token.paren {
+  color: #ffd700 !important;
+}
+
+.wysiwyg-content-editor .token.property,
+.wysiwyg-display-content .token.property,
+.wysiwyg-content-editor .token.tag,
+.wysiwyg-display-content .token.tag,
+.wysiwyg-content-editor .token.boolean,
+.wysiwyg-display-content .token.boolean,
+.wysiwyg-content-editor .token.number,
+.wysiwyg-display-content .token.number,
+.wysiwyg-content-editor .token.constant,
+.wysiwyg-display-content .token.constant,
+.wysiwyg-content-editor .token.symbol,
+.wysiwyg-display-content .token.symbol,
+.wysiwyg-content-editor .token.deleted,
+.wysiwyg-display-content .token.deleted,
+.token.property,
+.token.tag,
+.token.boolean,
+.token.number,
+.token.constant,
+.token.symbol,
+.token.deleted {
+  color: #b5cea8 !important;
+}
+
+.wysiwyg-content-editor .token.selector,
+.wysiwyg-display-content .token.selector,
+.wysiwyg-content-editor .token.attr-name,
+.wysiwyg-display-content .token.attr-name,
+.wysiwyg-content-editor .token.string,
+.wysiwyg-display-content .token.string,
+.wysiwyg-content-editor .token.char,
+.wysiwyg-display-content .token.char,
+.wysiwyg-content-editor .token.builtin,
+.wysiwyg-display-content .token.builtin,
+.wysiwyg-content-editor .token.inserted,
+.wysiwyg-display-content .token.inserted,
+.token.selector,
+.token.attr-name,
+.token.string,
+.token.char,
+.token.builtin,
+.token.inserted {
+  color: #ce9178 !important;
+}
+
+.wysiwyg-content-editor .token.operator,
+.wysiwyg-display-content .token.operator,
+.wysiwyg-content-editor .token.entity,
+.wysiwyg-display-content .token.entity,
+.wysiwyg-content-editor .token.url,
+.wysiwyg-display-content .token.url,
+.wysiwyg-content-editor .language-css .token.string,
+.wysiwyg-display-content .language-css .token.string,
+.wysiwyg-content-editor .style .token.string,
+.wysiwyg-display-content .style .token.string,
+.token.operator,
+.token.entity,
+.token.url,
+.language-css .token.string,
+.style .token.string {
+  color: #d4d4d4 !important;
+}
+
+.wysiwyg-content-editor .token.atrule,
+.wysiwyg-display-content .token.atrule,
+.wysiwyg-content-editor .token.attr-value,
+.wysiwyg-display-content .token.attr-value,
+.wysiwyg-content-editor .token.keyword,
+.wysiwyg-display-content .token.keyword,
+.token.atrule,
+.token.attr-value,
+.token.keyword {
+  color: #c586c0 !important;
+}
+
+.wysiwyg-content-editor .token.function,
+.wysiwyg-display-content .token.function,
+.wysiwyg-content-editor .token.function-variable,
+.wysiwyg-display-content .token.function-variable,
+.token.function,
+.token.function-variable {
+  color: #dcdcaa !important;
+}
+
+/* Using attribute selector to avoid webpack parse issues with hyphenated class names */
+.wysiwyg-content-editor .token[class~="class-name"],
+.wysiwyg-display-content .token[class~="class-name"],
+.token[class~="class-name"] {
+  color: #4ec9b0 !important;
+}
+
+.wysiwyg-content-editor .token.regex,
+.wysiwyg-display-content .token.regex,
+.wysiwyg-content-editor .token.important,
+.wysiwyg-display-content .token.important,
+.wysiwyg-content-editor .token.variable,
+.wysiwyg-display-content .token.variable,
+.token.regex,
+.token.important,
+.token.variable {
+  color: #d16969 !important;
+}
+
+/* Python specific tokens */
+.wysiwyg-content-editor .language-python .token.keyword,
+.wysiwyg-display-content .language-python .token.keyword,
+.language-python .token.keyword {
+  color: #569cd6 !important;
+}
+
+.wysiwyg-content-editor .language-python .token.builtin,
+.wysiwyg-display-content .language-python .token.builtin,
+.language-python .token.builtin {
+  color: #dcdcaa !important;
+}
+
+.wysiwyg-content-editor .language-python .token.function,
+.wysiwyg-display-content .language-python .token.function,
+.language-python .token.function {
+  color: #dcdcaa !important;
+}
+
+.wysiwyg-content-editor .language-python .token.decorator,
+.wysiwyg-display-content .language-python .token.decorator,
+.language-python .token.decorator {
+  color: #dcdcaa !important;
+}
+
+/* JavaScript/TypeScript specific */
+.wysiwyg-content-editor .language-javascript .token.keyword,
+.wysiwyg-display-content .language-javascript .token.keyword,
+.wysiwyg-content-editor .language-typescript .token.keyword,
+.wysiwyg-display-content .language-typescript .token.keyword,
+.language-javascript .token.keyword,
+.language-typescript .token.keyword {
+  color: #569cd6 !important;
+}
+
+.wysiwyg-content-editor .language-javascript .token.class-name,
+.wysiwyg-display-content .language-javascript .token.class-name,
+.wysiwyg-content-editor .language-typescript .token.class-name,
+.wysiwyg-display-content .language-typescript .token.class-name,
+.language-javascript .token.class-name,
+.language-typescript .token.class-name {
+  color: #4ec9b0 !important;
+}
+
+.token.important,
+.token.bold {
+  font-weight: bold;
+}
+
+.token.italic {
+  font-style: italic;
+}
+
+.token.entity {
+  cursor: help;
+}

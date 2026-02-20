@@ -24,6 +24,9 @@ import {
   Divider,
   InputAdornment
 } from '@mui/material';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
@@ -40,6 +43,7 @@ function ProjectForm({ open, onClose, project, mode = 'create' }) {
     id: '',
     repository_url: '',
     website_url: '',
+    project_date: null,
     project_texts: [],
     categories: [],
     skills: []
@@ -79,94 +83,142 @@ function ProjectForm({ open, onClose, project, mode = 'create' }) {
     try {
       // Fetch languages
       setLoadingLanguages(true);
-      const languagesResponse = await languagesApi.getLanguages({ page: 1, page_size: 100 });
-      const languages = languagesResponse.data.items || languagesResponse.data || [];
-      
-      logInfo('ProjectForm', 'Languages fetched:', languages);
-      setAvailableLanguages(languages);
-      
-      // Find default language
-      const defaultLang = languages.find(lang => lang.is_default || lang.isDefault) || 
-                        (languages.length > 0 ? languages[0] : null);
-      setDefaultLanguage(defaultLang);
-      setLoadingLanguages(false);
+      try {
+        const languagesResponse = await languagesApi.getLanguages({ page: 1, page_size: 100 });
+        const languages = languagesResponse.data.items || languagesResponse.data || [];
+        
+        logInfo('ProjectForm', 'Languages fetched:', languages);
+        setAvailableLanguages(languages);
+        
+        // Find default language
+        const defaultLang = languages.find(lang => lang.is_default || lang.isDefault) || 
+                          (languages.length > 0 ? languages[0] : null);
+        setDefaultLanguage(defaultLang);
+      } catch (langError) {
+        logError('ProjectForm', 'Error fetching languages:', langError);
+        console.error('Languages API error details:', {
+          message: langError.message,
+          response: langError.response?.data,
+          status: langError.response?.status
+        });
+        setAvailableLanguages([]);
+      } finally {
+        setLoadingLanguages(false);
+      }
 
       // Fetch categories
       setLoadingCategories(true);
-      const categoriesResponse = await categoriesApi.getCategories({ page: 1, page_size: 100 });
-      
-      let categoriesList = [];
-      if (categoriesResponse.data && categoriesResponse.data.items) {
-        categoriesList = categoriesResponse.data.items;
-      } else if (categoriesResponse.data && Array.isArray(categoriesResponse.data)) {
-        categoriesList = categoriesResponse.data;
-      } else if (Array.isArray(categoriesResponse)) {
-        categoriesList = categoriesResponse;
-      }
-      
-      logInfo('ProjectForm', 'Total categories fetched:', categoriesList.length);
-      
-      // Filter for project categories (PROJ type)
-      const projectCategories = categoriesList.filter(category => 
-        category && category.type_code === "PROJ"
-      );
-      
-      logInfo('ProjectForm', 'Project categories filtered:', {
-        total: categoriesList.length,
-        projectCategories: projectCategories.length,
-        availableTypes: [...new Set(categoriesList.map(c => c.type_code))]
-      });
-      
-      if (projectCategories.length === 0) {
-        logError('ProjectForm', 'No PROJ type categories found in database', {
-          totalCategories: categoriesList.length,
-          availableTypes: [...new Set(categoriesList.map(c => c.type_code))]
+      try {
+        const categoriesResponse = await categoriesApi.getCategories({ page: 1, page_size: 100 });
+        
+        let categoriesList = [];
+        if (categoriesResponse.data && categoriesResponse.data.items) {
+          categoriesList = categoriesResponse.data.items;
+        } else if (categoriesResponse.data && Array.isArray(categoriesResponse.data)) {
+          categoriesList = categoriesResponse.data;
+        } else if (Array.isArray(categoriesResponse)) {
+          categoriesList = categoriesResponse;
+        }
+        
+        logInfo('ProjectForm', 'Total categories fetched:', categoriesList.length);
+        
+        // Filter for project categories (PROJ type)
+        const projectCategories = categoriesList.filter(category => 
+          category && category.type_code === "PROJ"
+        );
+        
+        logInfo('ProjectForm', 'Project categories filtered:', {
+          total: categoriesList.length,
+          projectCategories: projectCategories.length,
+          availableTypes: [...new Set(categoriesList.map(c => c.type_code))],
+          sampleCategories: projectCategories.slice(0, 3).map(c => ({
+            id: c.id,
+            code: c.code,
+            type_code: c.type_code,
+            hasTexts: c.category_texts?.length > 0,
+            textCount: c.category_texts?.length || 0
+          }))
         });
+        
+        if (projectCategories.length === 0) {
+          logError('ProjectForm', 'No PROJ type categories found in database', {
+            totalCategories: categoriesList.length,
+            availableTypes: [...new Set(categoriesList.map(c => c.type_code))]
+          });
+        }
+        
+        setAvailableCategories(projectCategories);
+      } catch (catError) {
+        logError('ProjectForm', 'Error fetching categories:', catError);
+        console.error('Categories API error details:', {
+          message: catError.message,
+          response: catError.response?.data,
+          status: catError.response?.status
+        });
+        // Don't fail the entire form load if categories fail
+        setAvailableCategories([]);
+      } finally {
+        setLoadingCategories(false);
       }
-      
-      setAvailableCategories(projectCategories);
-      setLoadingCategories(false);
       
       // Fetch skills
       setLoadingSkills(true);
-      const skillsResponse = await skillsApi.getSkills({ page: 1, page_size: 100 });
-      
-      let skillsList = [];
-      if (skillsResponse.data && skillsResponse.data.items) {
-        skillsList = skillsResponse.data.items;
-      } else if (skillsResponse.data && Array.isArray(skillsResponse.data)) {
-        skillsList = skillsResponse.data;
-      } else if (Array.isArray(skillsResponse)) {
-        skillsList = skillsResponse;
-      }
-      
-      logInfo('ProjectForm', 'Total skills fetched:', skillsList.length);
-      
-      if (skillsList.length === 0) {
-        logError('ProjectForm', 'No skills found in database', {
-          totalSkills: skillsList.length
+      try {
+        const skillsResponse = await skillsApi.getSkills({ page: 1, page_size: 100 });
+        
+        let skillsList = [];
+        if (skillsResponse.data && skillsResponse.data.items) {
+          skillsList = skillsResponse.data.items;
+        } else if (skillsResponse.data && Array.isArray(skillsResponse.data)) {
+          skillsList = skillsResponse.data;
+        } else if (Array.isArray(skillsResponse)) {
+          skillsList = skillsResponse;
+        }
+        
+        logInfo('ProjectForm', 'Total skills fetched:', skillsList.length);
+        
+        if (skillsList.length === 0) {
+          logError('ProjectForm', 'No skills found in database', {
+            totalSkills: skillsList.length
+          });
+        }
+        
+        setAvailableSkills(skillsList);
+      } catch (skillError) {
+        logError('ProjectForm', 'Error fetching skills:', skillError);
+        console.error('Skills API error details:', {
+          message: skillError.message,
+          response: skillError.response?.data,
+          status: skillError.response?.status
         });
+        // Don't fail the entire form load if skills fail
+        setAvailableSkills([]);
+      } finally {
+        setLoadingSkills(false);
       }
-      
-      setAvailableSkills(skillsList);
-      setLoadingSkills(false);
       
       // Auto-add default language in create mode
-      if (mode === 'create' && defaultLang && selectedLanguages.length === 0) {
-        setSelectedLanguages([defaultLang]);
+      if (mode === 'create' && defaultLanguage && selectedLanguages.length === 0) {
+        setSelectedLanguages([defaultLanguage]);
         setLanguageTexts({
-          [defaultLang.id]: { name: '', description: '' }
+          [defaultLanguage.id]: { name: '', description: '' }
         });
       }
       
     } catch (error) {
-      logError('ProjectForm', 'Error fetching form data:', error);
-      setApiError('Failed to load form data: ' + error.message);
+      // This catch block should rarely be hit now since we handle errors individually
+      logError('ProjectForm', 'Unexpected error in fetchFormData:', error);
+      console.error('Form data fetch error:', error);
+      // Set a warning instead of a hard error so form can still be used
+      if (availableLanguages.length === 0 && availableCategories.length === 0 && availableSkills.length === 0) {
+        setApiError('Warning: Some form data could not be loaded. Please check your connection and try again.');
+      }
+    } finally {
+      setLoading(false);
+      // Ensure all loading states are cleared
       setLoadingLanguages(false);
       setLoadingCategories(false);
       setLoadingSkills(false);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -234,6 +286,7 @@ function ProjectForm({ open, onClose, project, mode = 'create' }) {
           id: project.id || '',
           repository_url: project.repository_url || '',
           website_url: project.website_url || '',
+          project_date: project.project_date ? new Date(project.project_date) : null,
           project_texts: project.project_texts || [],
           categories: project.categories || [],
           skills: project.skills || []
@@ -245,6 +298,7 @@ function ProjectForm({ open, onClose, project, mode = 'create' }) {
         id: '',
         repository_url: '',
         website_url: '',
+        project_date: null,
         project_texts: [],
         categories: [],
         skills: []
@@ -297,6 +351,7 @@ function ProjectForm({ open, onClose, project, mode = 'create' }) {
       const requestData = {
         repository_url: formData.repository_url,
         website_url: formData.website_url,
+        project_date: formData.project_date ? formData.project_date.toISOString().split('T')[0] : null,
         categories: selectedCategories,
         project_texts: selectedLanguages.map(lang => ({
           language_id: lang.id,
@@ -335,9 +390,20 @@ function ProjectForm({ open, onClose, project, mode = 'create' }) {
       ...prev,
       [name]: value
     }));
-    
+
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: null }));
+    }
+  };
+
+  const handleDateChange = (newDate) => {
+    setFormData(prev => ({
+      ...prev,
+      project_date: newDate
+    }));
+
+    if (errors.project_date) {
+      setErrors(prev => ({ ...prev, project_date: null }));
     }
   };
 
@@ -500,9 +566,9 @@ function ProjectForm({ open, onClose, project, mode = 'create' }) {
             
             {/* Website URL */}
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-              <Typography 
-                variant="body2" 
-                sx={{ 
+              <Typography
+                variant="body2"
+                sx={{
                   color: '#505050',
                   fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
                   fontSize: '13px'
@@ -511,7 +577,23 @@ function ProjectForm({ open, onClose, project, mode = 'create' }) {
                 <strong>Website URL:</strong> {formData.website_url || 'None'}
               </Typography>
             </Box>
-            
+
+            {/* Project Date */}
+            {formData.project_date && (
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: '#505050',
+                    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+                    fontSize: '13px'
+                  }}
+                >
+                  <strong>Project Date:</strong> {new Date(formData.project_date).toLocaleDateString()}
+                </Typography>
+              </Box>
+            )}
+
             {/* Categories */}
             {selectedCategories.length > 0 && (
               <Box sx={{ mb: 1 }}>
@@ -646,7 +728,25 @@ function ProjectForm({ open, onClose, project, mode = 'create' }) {
               size="small"
             />
           </Grid>
-          
+
+          <Grid item xs={12}>
+            <LocalizationProvider dateAdapter={AdapterDateFns}>
+              <DatePicker
+                label="Project Date"
+                value={formData.project_date}
+                onChange={handleDateChange}
+                disabled={isSubmitting || mode === 'delete'}
+                slotProps={{
+                  textField: {
+                    fullWidth: true,
+                    size: "small",
+                    helperText: "Optional: Date associated with this project"
+                  }
+                }}
+              />
+            </LocalizationProvider>
+          </Grid>
+
           {/* Categories Section */}
           <Grid item xs={12}>
             <FormControl fullWidth size="small">
@@ -689,9 +789,14 @@ function ProjectForm({ open, onClose, project, mode = 'create' }) {
               {loadingCategories && (
                 <FormHelperText>Loading available categories...</FormHelperText>
               )}
-              {!loadingCategories && availableCategories.length === 0 && (
+              {!loadingCategories && availableCategories.length === 0 && selectedCategories.length === 0 && (
                 <FormHelperText error>
                   No project categories found. Please create categories with type_code 'PROJ' using the Categories management page.
+                </FormHelperText>
+              )}
+              {!loadingCategories && availableCategories.length > 0 && (
+                <FormHelperText>
+                  {availableCategories.length} project {availableCategories.length === 1 ? 'category' : 'categories'} available
                 </FormHelperText>
               )}
             </FormControl>
@@ -739,9 +844,14 @@ function ProjectForm({ open, onClose, project, mode = 'create' }) {
               {loadingSkills && (
                 <FormHelperText>Loading available skills...</FormHelperText>
               )}
-              {!loadingSkills && availableSkills.length === 0 && (
+              {!loadingSkills && availableSkills.length === 0 && selectedSkills.length === 0 && (
                 <FormHelperText>
                   No skills found. You can create skills using the Skills management page.
+                </FormHelperText>
+              )}
+              {!loadingSkills && availableSkills.length > 0 && (
+                <FormHelperText>
+                  {availableSkills.length} {availableSkills.length === 1 ? 'skill' : 'skills'} available
                 </FormHelperText>
               )}
             </FormControl>
