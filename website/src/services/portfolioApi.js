@@ -17,13 +17,10 @@ const getCsrfToken = () => {
     cookie = cookie.trim();
     if (cookie.startsWith(name + '=')) {
       const token = cookie.substring(name.length + 1);
-      console.log('[CSRF] Token found:', token ? '✓' : '✗');
       return token;
     }
   }
   
-  console.warn('[CSRF] Token not found in cookies. Available cookies:', 
-    cookies.map(c => c.split('=')[0].trim()));
   return null;
 };
 
@@ -86,7 +83,6 @@ const handleResponse = async (response) => {
     try {
       return await response.json();
     } catch (jsonError) {
-      console.warn('Response was successful but JSON parsing failed:', jsonError);
       // Return a basic success object if JSON parsing fails
       return { success: true };
     }
@@ -395,18 +391,8 @@ export const portfolioApi = {
       if (languageCode) {
         const languageId = getLanguageId(languageCode);
         queryParams.append('language_id', languageId);
-        console.log('[Upload] Adding language_id:', languageId, 'for language:', languageCode);
       }
       
-      console.log('[Upload] Sending image upload request:', {
-        entityType,
-        entityId,
-        category,
-        languageCode,
-        headers: Object.keys(headers),
-        hasAuthToken: !!token,
-        hasCsrfToken: !!headers['X-CSRF-Token']
-      });
 
       const response = await fetch(
         `${API_BASE_URL}/api/cms/content/images?${queryParams.toString()}`,
@@ -510,15 +496,11 @@ export const portfolioApi = {
    * @returns {Promise<Object>} - Reorder confirmation
    */
   reorderProjectSections: async (projectId, sectionIds, token) => {
-    console.log('[API] reorderProjectSections called with:', { projectId, sectionIds, token: token ? 'present' : 'missing' });
     
     try {
       const url = `${API_BASE_URL}/api/cms/content/project/${projectId}/sections/order`;
       const body = JSON.stringify({ section_ids: sectionIds });
       
-      console.log('[API] Making PATCH request to:', url);
-      console.log('[API] Request body:', body);
-      console.log('[API] Headers:', getHeaders(token));
       
       const response = await fetch(url, {
         method: 'PATCH',
@@ -527,11 +509,8 @@ export const portfolioApi = {
         body: body,
       });
       
-      console.log('[API] Response status:', response.status);
-      console.log('[API] Response headers:', Object.fromEntries(response.headers.entries()));
       
       const result = await handleResponse(response);
-      console.log('[API] Reorder successful, result:', result);
       return result;
     } catch (error) {
       console.error('[API] Error reordering project sections:', error);
@@ -575,9 +554,6 @@ export const portfolioApi = {
    * @returns {Promise<Object>} - Updated portfolio
    */
   updatePortfolio: async (portfolioId, data, token) => {
-    console.log('Updating portfolio:', portfolioId, 'with data:', data);
-    console.log('API URL:', `${API_BASE_URL}/api/portfolios/${portfolioId}`);
-    console.log('Auth token present:', !!token);
     
     let response;
     let fetchFailed = false;
@@ -592,11 +568,9 @@ export const portfolioApi = {
           body: JSON.stringify(data),
         }
       );
-      console.log('Portfolio update response received:', response.status, response.statusText);
     } catch (fetchError) {
       fetchFailed = true;
       console.error('Fetch failed but request may have been processed:', fetchError);
-      console.warn('Request was sent but response was blocked/failed. The update may have succeeded on the server.');
       
       // Return a success object - the request was likely processed even if response failed
       // This is a workaround for CORS/network issues where request completes but response is blocked
@@ -611,13 +585,11 @@ export const portfolioApi = {
     // If we got a response object, try to handle it
     try {
       const result = await handleResponse(response);
-      console.log('Portfolio update successful:', result);
       return result;
     } catch (handleError) {
       console.error('Error handling response:', handleError);
       // If response was OK but parsing failed, treat as success
       if (response && response.ok) {
-        console.warn('Response was OK but parsing failed, treating as success');
         return { success: true, id: portfolioId, ...data };
       }
       throw handleError;
@@ -1121,18 +1093,10 @@ export const portfolioApi = {
       if (languageCode) {
         const languageId = getLanguageId(languageCode);
         formData.append('language_id', languageId);
-        console.log('[Upload Project Image] Adding language_id:', languageId, 'for language:', languageCode);
       }
 
       const headers = getHeaders(token, false); // Don't include Content-Type for FormData
       
-      console.log('[Upload Project Image] Sending request:', {
-        projectId,
-        category,
-        languageCode,
-        hasAuthToken: !!token,
-        hasCsrfToken: !!headers['X-CSRF-Token']
-      });
 
       const response = await fetch(
         `${API_BASE_URL}/api/projects/${projectId}/images`,
@@ -1171,12 +1135,6 @@ export const portfolioApi = {
         entity_id: entityId
       });
 
-      console.log('[Upload Attachment] Sending file upload request:', {
-        entityType,
-        entityId,
-        fileName: file.name,
-        hasAuthToken: !!token
-      });
 
       const response = await fetch(
         `${API_BASE_URL}/api/cms/content/attachments?${queryParams.toString()}`,
@@ -1215,18 +1173,10 @@ export const portfolioApi = {
       if (languageCode) {
         const languageId = getLanguageId(languageCode);
         formData.append('language_id', languageId);
-        console.log('[Upload Project Attachment] Adding language_id:', languageId, 'for language:', languageCode);
       }
 
       const headers = getHeaders(token, false); // Don't include Content-Type for FormData
       
-      console.log('[Upload Project Attachment] Sending request:', {
-        projectId,
-        categoryId,
-        languageCode,
-        hasAuthToken: !!token,
-        hasCsrfToken: !!headers['X-CSRF-Token']
-      });
 
       const response = await fetch(
         `${API_BASE_URL}/api/projects/${projectId}/attachments`,

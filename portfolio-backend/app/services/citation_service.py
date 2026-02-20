@@ -51,7 +51,6 @@ def enrich_citations(
             metadata = _get_source_metadata(db, source_table, source_id, language_id=language_id)
         except Exception as e:
             # If metadata fetch fails, use defaults and continue
-            print(f"Warning: Failed to enrich citation for {source_table}#{source_id}: {e}")
             metadata = {
                 "title": f"{source_table} #{source_id}",
                 "type": source_table.replace("_", " ").title(),
@@ -143,7 +142,6 @@ def _get_source_metadata(
                 except Exception:
                     pass
             # Log error but continue with fallback
-            print(f"Warning: Could not fetch project metadata for {source_id}: {str(e)[:100]}")
     
     # Experiences
     elif source_table == "experiences":
@@ -189,7 +187,6 @@ def _get_source_metadata(
                     savepoint.rollback()
                 except Exception:
                     pass
-            print(f"Warning: Could not fetch experience metadata for {source_id}: {str(e)[:100]}")
     
     # Portfolios
     elif source_table == "portfolios":
@@ -220,7 +217,6 @@ def _get_source_metadata(
                     savepoint.rollback()
                 except Exception:
                     pass
-            print(f"Warning: Could not fetch portfolio metadata for {source_id}: {str(e)[:100]}")
     
     # Sections
     elif source_table == "sections":
@@ -261,7 +257,6 @@ def _get_source_metadata(
                     savepoint.rollback()
                 except Exception:
                     pass
-            print(f"Warning: Could not fetch section metadata for {source_id}: {str(e)[:100]}")
     
     # Portfolio Attachments
     elif source_table == "portfolio_attachments":
@@ -294,7 +289,6 @@ def _get_source_metadata(
                     savepoint.rollback()
                 except Exception:
                     pass
-            print(f"Warning: Could not fetch portfolio attachment metadata for {source_id}: {str(e)[:100]}")
     
     # Project Attachments
     elif source_table == "project_attachments":
@@ -336,7 +330,6 @@ def _get_source_metadata(
                     savepoint.rollback()
                 except Exception:
                     pass
-            print(f"Warning: Could not fetch project attachment metadata for {source_id}: {str(e)[:100]}")
     
     # Skills
     elif source_table == "skills":
@@ -379,7 +372,6 @@ def _get_source_metadata(
                     savepoint.rollback()
                 except Exception:
                     pass
-            print(f"Warning: Could not fetch skill metadata for {source_id}: {str(e)[:100]}")
     
     # Fallback for unknown or unsupported source types
     return {

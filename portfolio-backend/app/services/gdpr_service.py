@@ -631,31 +631,4 @@ def cleanup_expired_data(db: Session) -> Dict[str, int]:
 
 
 if __name__ == "__main__":
-    # Self-test / demonstration
-    print("=" * 70)
-    print("GDPR Service - Feature Overview")
-    print("=" * 70)
-    
-    print("\n✅ Implemented GDPR Rights:")
-    print("   1. Right to Access (Article 15) - export_user_data()")
-    print("   2. Right to Erasure (Article 17) - delete_user_data()")
-    print("   3. Right to Data Portability (Article 20) - JSON export format")
-    print("   4. Right to Rectification (Article 16) - via standard update endpoints")
-    print("   5. Right to Object (Article 21) - update_consent()")
-    
-    print("\n🔒 Data Protection Features:")
-    print("   • Soft delete with 30-day grace period")
-    print("   • PII anonymization")
-    print("   • Audit trail preservation (compliance)")
-    print("   • Consent management")
-    print("   • Data retention policies")
-    print("   • Inactive account detection")
-    print("   • Automated data cleanup")
-    
-    print("\n📋 Compliance Coverage:")
-    print("   • GDPR (EU) - 95%")
-    print("   • CCPA (California) - 90%")
-    print("   • LGPD (Brazil) - 85%")
-    print("   • PIPEDA (Canada) - 80%")
-    
-    print("\n" + "=" * 70)
+    pass

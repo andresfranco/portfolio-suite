@@ -144,7 +144,6 @@ const Projects = () => {
         });
       
       if (hasChanged) {
-        console.log('Syncing projects from API:', apiProjects);
         setProjects(apiProjects);
         prevApiProjectsRef.current = apiProjects;
       }
@@ -155,21 +154,16 @@ const Projects = () => {
    * Handle drag end event to reorder projects
    */
   const handleDragEnd = async (result) => {
-    console.log('Drag end result:', result);
     
     // If dropped outside the list or no movement
     if (!result.destination) {
-      console.log('No destination - dropped outside');
       return;
     }
     
     if (result.destination.index === result.source.index) {
-      console.log('No movement - same position');
       return;
     }
 
-    console.log(`Moving from index ${result.source.index} to ${result.destination.index}`);
-    console.log('Current projects:', projects);
 
     // Set flag to prevent useEffect from resetting our optimistic update
     isReorderingRef.current = true;
@@ -179,14 +173,12 @@ const Projects = () => {
     const [movedItem] = reorderedProjects.splice(result.source.index, 1);
     reorderedProjects.splice(result.destination.index, 0, movedItem);
     
-    console.log('Reordered projects:', reorderedProjects);
     
     // Update local state immediately for instant feedback
     setProjects(reorderedProjects);
 
     // Get the new order of IDs
     const newOrderIds = reorderedProjects.map(proj => proj.id);
-    console.log('New order IDs:', newOrderIds);
 
     try {
       // Persist the new order to the backend

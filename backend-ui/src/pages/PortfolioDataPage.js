@@ -210,13 +210,8 @@ function PortfolioDataPage() {
 
   // Fetch portfolio data
   const fetchPortfolioData = useCallback(async () => {
-    console.log('============================================');
-    console.log('FETCHPORTFOLIODATA FUNCTION CALLED!');
-    console.log('portfolioId:', portfolioId);
-    console.log('============================================');
     
     if (!portfolioId) {
-      console.warn('fetchPortfolioData: No portfolioId, returning early');
       return;
     }
     
@@ -224,33 +219,16 @@ function PortfolioDataPage() {
       setLoading(true);
       setError(null);
       
-      console.log('============================================');
-      console.log('ABOUT TO MAKE API CALL');
-      console.log('URL:', `/api/portfolios/${portfolioId}`);
-      console.log('Params:', { include_full_details: true });
-      console.log('============================================');
       
       // Fetch portfolio details with all related data (MUST include full_details to load relationships)
       const response = await api.get(`/api/portfolios/${portfolioId}`, { 
         params: { include_full_details: true } 
       });
       
-      console.log('============================================');
-      console.log('API RESPONSE RECEIVED!');
-      console.log('Response status:', response.status);
-      console.log('Response data:', response.data);
-      console.log('============================================');
       
       const portfolio = response.data;
       
       // Debug: log portfolio data structure
-      console.log('Portfolio data received:', portfolio);
-      console.log('Portfolio categories:', portfolio.categories);
-      console.log('Portfolio experiences:', portfolio.experiences);
-      console.log('Portfolio projects:', portfolio.projects);
-      console.log('Portfolio sections:', portfolio.sections);
-      console.log('Portfolio images:', portfolio.images);
-      console.log('Portfolio attachments:', portfolio.attachments);
       
       setPortfolioData(portfolio);
       setCategories(portfolio.categories || []);
@@ -261,10 +239,6 @@ function PortfolioDataPage() {
       setAttachments(portfolio.attachments || []);
       setSelectedAgentId(portfolio.default_agent_id ? String(portfolio.default_agent_id) : '');
       
-      console.log('============================================');
-      console.log('STATE UPDATED SUCCESSFULLY');
-      console.log('categories state:', portfolio.categories || []);
-      console.log('============================================');
       
     } catch (err) {
       console.error('============================================');
@@ -279,9 +253,6 @@ function PortfolioDataPage() {
       enqueueSnackbar(`Error: ${errorMessage}`, { variant: 'error' });
     } finally {
       setLoading(false);
-      console.log('============================================');
-      console.log('FETCHPORTFOLIODATA COMPLETE (finally block)');
-      console.log('============================================');
     }
   }, [portfolioId, enqueueSnackbar]);
 
@@ -377,20 +348,13 @@ function PortfolioDataPage() {
 
   // Initialize data on component mount
   useEffect(() => {
-    console.log('PortfolioDataPage mounted with portfolioId:', portfolioId);
     if (portfolioId) {
-      console.log('Calling fetchPortfolioData...');
       fetchPortfolioData();
-      console.log('Calling fetchAvailableOptions...');
       fetchAvailableOptions();
-      console.log('Calling fetchAttachmentCategories...');
       fetchAttachmentCategories();
-      console.log('Calling fetchLanguages...');
       fetchLanguages();
-      console.log('Calling fetchAvailableAgents...');
       fetchAvailableAgents();
     } else {
-      console.warn('No portfolioId provided to PortfolioDataPage!');
     }
   }, [portfolioId, fetchPortfolioData, fetchAvailableOptions, fetchAttachmentCategories, fetchLanguages, fetchAvailableAgents]);
 
@@ -530,16 +494,8 @@ function PortfolioDataPage() {
 
     try {
       setUploadLoading(true);
-      console.log('Uploading image with:', { 
-        portfolioId, 
-        fileName: uploadFile.name, 
-        category: imageCategory, 
-        languageId: imageLanguage,
-        languageIdType: typeof imageLanguage
-      });
       // Ensure languageId is a number or null
       const languageIdToSend = imageLanguage ? parseInt(imageLanguage, 10) : null;
-      console.log('Parsed languageId:', languageIdToSend, 'Type:', typeof languageIdToSend);
       await projectsApi.uploadPortfolioImage(portfolioId, uploadFile, imageCategory, languageIdToSend);
       await fetchPortfolioData();
       enqueueSnackbar('Image uploaded successfully', { variant: 'success' });
@@ -772,13 +728,6 @@ function PortfolioDataPage() {
       setEditLoading(true);
       
       // Debug: log what we're sending
-      console.log('Updating attachment:', {
-        portfolioId,
-        attachmentId: selectedAttachment.id,
-        categoryId: editAttachmentCategory || null,
-        isDefault: editSetAsDefault,
-        languageId: editAttachmentLanguage || null
-      });
       
       await projectsApi.updatePortfolioAttachment(
         portfolioId,
@@ -825,13 +774,6 @@ function PortfolioDataPage() {
       setEditLoading(true);
       
       // Debug: log what we're sending
-      console.log('Updating image:', {
-        portfolioId,
-        imageId: selectedImageForEdit.id,
-        fileName: editImageFileName.trim(),
-        category: editImageCategory || null,
-        languageId: editImageLanguage || null
-      });
       
       // Single API call with all updates
       await projectsApi.renamePortfolioImage(portfolioId, selectedImageForEdit.id, {
@@ -3008,7 +2950,6 @@ function PortfolioDataPage() {
               value={imageLanguage}
               label="Language (Optional)"
               onChange={(e) => {
-                console.log('Language selected:', e.target.value, 'Type:', typeof e.target.value);
                 setImageLanguage(e.target.value);
               }}
               disabled={uploadLoading || languagesLoading}

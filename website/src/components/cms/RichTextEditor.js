@@ -137,7 +137,6 @@ export const RichTextEditor = ({
       try {
         await refreshPortfolio();
       } catch (refreshError) {
-        console.warn('Content saved but refresh failed:', refreshError);
         // Don't throw - the save was successful
       }
       

@@ -103,7 +103,6 @@ function PortfolioIndexContent() {
       return;
     }
     
-    console.log('PortfolioIndex - Filters changed, refetching data:', filters);
     const currentFilters = filters && Object.keys(filters).length > 0 ? filters : {};
     fetchPortfolios({
       page: pagination.page || 1,
@@ -114,7 +113,6 @@ function PortfolioIndexContent() {
   }, [filters, fetchPortfolios, pagination.page, pagination.pageSize]);
 
   const handlePaginationChange = (model) => {
-    console.log('PortfolioIndex - Pagination change:', model);
     const currentFilters = filters && Object.keys(filters).length > 0 ? filters : {};
     
     // Update context pagination
@@ -133,7 +131,6 @@ function PortfolioIndexContent() {
   };
 
   const handleSortModelChange = (newModel) => {
-    console.log('PortfolioIndex - Sort model change:', newModel);
     const updated = newModel.length > 0 ? [newModel[0]] : [{ field: 'name', sort: 'asc' }];
     setSortModel(updated);
     const currentFilters = filters && Object.keys(filters).length > 0 ? filters : {};
@@ -148,12 +145,10 @@ function PortfolioIndexContent() {
   };
 
   const handleFiltersChange = (newFilters) => {
-    console.log('PortfolioIndex - Filters changed:', newFilters);
     updateFilters(newFilters);
   };
 
   const handleSearch = (searchFilters) => {
-    console.log('PortfolioIndex - Search triggered with filters:', searchFilters);
     updateFilters(searchFilters);
     
     // Reset to first page when searching
@@ -172,7 +167,6 @@ function PortfolioIndexContent() {
 
   // Custom fetch function for ReusableDataGrid
   const customFetchData = useCallback(async (page, pageSize, sortModel, searchFilters) => {
-    console.log('PortfolioIndex - customFetchData called:', { page, pageSize, sortModel, searchFilters });
     
     const params = {
       page: page + 1, // Convert 0-indexed to 1-indexed
@@ -402,7 +396,6 @@ function PortfolioIndexContent() {
       event.stopPropagation();
     }
     
-    console.log('🌐 Opening portfolio in website edit mode:', portfolio);
     
     try {
       // Call backend API to generate a JWT token from the cookie session
@@ -414,7 +407,6 @@ function PortfolioIndexContent() {
         }
       });
 
-      console.log('🌐 Token generation response:', response.status);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ detail: 'Failed to generate token' }));
@@ -429,7 +421,6 @@ function PortfolioIndexContent() {
       const data = await response.json();
       const token = data.access_token;
 
-      console.log('🌐 Token received:', token ? 'Yes' : 'No');
 
       if (!token) {
         setErrorDialog({
@@ -444,7 +435,6 @@ function PortfolioIndexContent() {
       const websiteUrl = process.env.REACT_APP_WEBSITE_URL || 'http://localhost:3000';
       const editUrl = `${websiteUrl}?edit=true&token=${encodeURIComponent(token)}&portfolio_id=${portfolio.id}`;
 
-      console.log('🌐 Opening URL:', editUrl);
 
       // Open in new tab
       window.open(editUrl, '_blank');

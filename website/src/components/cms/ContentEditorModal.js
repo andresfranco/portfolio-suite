@@ -223,7 +223,6 @@ export const ContentEditorModal = ({
             try {
               await portfolioApi.addExperienceToPortfolio(portfolio.id, createdExperience.id, authToken);
             } catch (addError) {
-              console.warn('Experience created but failed to add to portfolio:', addError);
               // Don't fail the whole operation
             }
           }
@@ -288,7 +287,6 @@ export const ContentEditorModal = ({
       try {
         await refreshPortfolio();
       } catch (refreshError) {
-        console.warn('Changes saved but refresh failed:', refreshError);
         // Don't throw - the save was successful
       }
       

@@ -170,14 +170,12 @@ function PortfolioAttachments() {
   const fetchCategories = async () => {
     setCategoriesLoading(true);
     try {
-      console.log('PortfolioAttachments - Starting to fetch categories...');
       // Fetch categories of type PDOC and RESU with full details
       const response = await fetch(`${SERVER_URL}/api/categories/full?page_size=100`, {
         credentials: 'include',
         mode: 'cors'
       });
       if (!response.ok) {
-        console.warn('PortfolioAttachments - Full categories endpoint failed, trying basic endpoint');
         // Fallback to basic endpoint
         const basicResponse = await fetch(`${SERVER_URL}/api/categories/?page_size=100`, {
           credentials: 'include',
@@ -187,28 +185,24 @@ function PortfolioAttachments() {
           throw new Error('Failed to fetch categories');
         }
         const basicData = await basicResponse.json();
-        console.log('PortfolioAttachments - Basic categories data:', basicData);
         
         // Filter for PDOC and RESU type categories
         const docResumeCategories = (basicData.items || basicData || []).filter(cat => 
           cat.type_code === 'PDOC' || cat.type_code === 'RESU'
         );
         
-        console.log('PortfolioAttachments - Filtered PDOC/RESU categories:', docResumeCategories);
         setCategories(docResumeCategories);
         setCategoriesLoading(false);
         return;
       }
       
       const data = await response.json();
-      console.log('PortfolioAttachments - Full categories data:', data);
       
       // Filter for PDOC and RESU type categories
       const docResumeCategories = (data.items || data || []).filter(cat => 
         cat.type_code === 'PDOC' || cat.type_code === 'RESU'
       );
       
-      console.log('PortfolioAttachments - Filtered PDOC/RESU categories:', docResumeCategories);
       setCategories(docResumeCategories);
     } catch (error) {
       console.error('PortfolioAttachments - Error fetching categories:', error);
@@ -221,7 +215,6 @@ function PortfolioAttachments() {
 
   const fetchAttachments = async () => {
     try {
-      console.log(`PortfolioAttachments - Fetching attachments for portfolio ${portfolioId}`);
       const attachmentsResponse = await fetch(`${SERVER_URL}/api/portfolios/${portfolioId}/attachments`, {
         credentials: 'include',
         mode: 'cors'
@@ -231,7 +224,6 @@ function PortfolioAttachments() {
       }
       
       const attachmentsData = await attachmentsResponse.json();
-      console.log(`PortfolioAttachments - Fetched ${attachmentsData.length} attachments:`, attachmentsData);
       setAttachments(attachmentsData);
     } catch (error) {
       console.error('PortfolioAttachments - Error fetching attachments:', error);
@@ -383,7 +375,6 @@ function PortfolioAttachments() {
           formData.append('file', fileObj.file);
         }
 
-        console.log(`PortfolioAttachments - Uploading file: ${fileObj.name} to ${uploadUrl}`);
         const response = await fetch(uploadUrl, {
           method: 'POST',
           credentials: 'include',
@@ -397,7 +388,6 @@ function PortfolioAttachments() {
         }
 
         const uploadedAttachment = await response.json();
-        console.log(`PortfolioAttachments - Successfully uploaded: ${fileObj.name}`, uploadedAttachment);
         successfulUploads.push(uploadedAttachment);
         setUploadProgress(prev => ({ ...prev, [fileObj.id]: 100 }));
         
@@ -408,13 +398,10 @@ function PortfolioAttachments() {
       }
     }
 
-    console.log(`PortfolioAttachments - Upload results: ${successfulUploads.length} successful, ${failedUploads.length} failed`);
 
     // Update state based on results
     if (successfulUploads.length > 0) {
-      console.log('PortfolioAttachments - Refreshing attachments list...');
       await fetchAttachments(); // Refresh attachments list
-      console.log('PortfolioAttachments - Attachments list refreshed');
     }
 
     if (failedUploads.length > 0) {
@@ -422,7 +409,6 @@ function PortfolioAttachments() {
       setUploadError(`Some files failed to upload: ${errorMessage}`);
     } else {
       // All uploads successful (no failed uploads)
-      console.log('PortfolioAttachments - All uploads successful, closing dialog');
       setIsUploadDialogOpen(false);
       setSelectedFiles([]);
       setUploadProgress({});
@@ -791,10 +777,6 @@ function PortfolioAttachments() {
     fullWidth
     TransitionProps={{
       onEntered: () => {
-        console.log('PortfolioAttachments - Upload dialog opened');
-        console.log('PortfolioAttachments - Current categories state:', categories);
-        console.log('PortfolioAttachments - Categories length:', categories.length);
-        console.log('PortfolioAttachments - Categories loading:', categoriesLoading);
       }
     }}
   >
