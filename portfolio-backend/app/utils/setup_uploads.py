@@ -14,6 +14,4 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 from app.utils.file_utils import ensure_upload_dirs
 
 if __name__ == "__main__":
-    print("Setting up upload directories...")
     ensure_upload_dirs()
-    print("Upload directories have been set up successfully.")

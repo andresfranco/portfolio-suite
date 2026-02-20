@@ -67,3 +67,9 @@ applyTo: ["portfolio-backend/**", "backend-ui/**"]
 - Error envelope: `{ code, message, details? }`, consistent across BE/FE.
 - Backward-compatible changes; document deprecations.
 
+---
+applyTo: "**"
+---
+## Backend python and Unit tests
+- Before running python commands in the terminal activate the virtual environment located in the backend folder /porfolio-backend  
+

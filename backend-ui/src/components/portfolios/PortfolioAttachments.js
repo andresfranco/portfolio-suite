@@ -22,7 +22,12 @@ import {
   Checkbox,
   Toolbar,
   Tooltip,
-  LinearProgress
+  LinearProgress,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  FormControlLabel
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -108,6 +113,12 @@ function PortfolioAttachments() {
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadError, setUploadError] = useState(null);
   const [uploadProgress, setUploadProgress] = useState({});
+  
+  // Category states
+  const [categories, setCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [setAsDefault, setSetAsDefault] = useState(false);
 
   // Selection states
   const [selectionMode, setSelectionMode] = useState(false);
@@ -138,6 +149,9 @@ function PortfolioAttachments() {
         const portfolioData = await portfolioResponse.json();
         setPortfolio(portfolioData);
 
+        // Fetch document/resume categories
+        await fetchCategories();
+
         // Fetch attachments
         await fetchAttachments();
       } catch (error) {
@@ -153,9 +167,54 @@ function PortfolioAttachments() {
     }
   }, [portfolioId]);
 
+  const fetchCategories = async () => {
+    setCategoriesLoading(true);
+    try {
+      // Fetch categories of type PDOC and RESU with full details
+      const response = await fetch(`${SERVER_URL}/api/categories/full?page_size=100`, {
+        credentials: 'include',
+        mode: 'cors'
+      });
+      if (!response.ok) {
+        // Fallback to basic endpoint
+        const basicResponse = await fetch(`${SERVER_URL}/api/categories/?page_size=100`, {
+          credentials: 'include',
+          mode: 'cors'
+        });
+        if (!basicResponse.ok) {
+          throw new Error('Failed to fetch categories');
+        }
+        const basicData = await basicResponse.json();
+        
+        // Filter for PDOC and RESU type categories
+        const docResumeCategories = (basicData.items || basicData || []).filter(cat => 
+          cat.type_code === 'PDOC' || cat.type_code === 'RESU'
+        );
+        
+        setCategories(docResumeCategories);
+        setCategoriesLoading(false);
+        return;
+      }
+      
+      const data = await response.json();
+      
+      // Filter for PDOC and RESU type categories
+      const docResumeCategories = (data.items || data || []).filter(cat => 
+        cat.type_code === 'PDOC' || cat.type_code === 'RESU'
+      );
+      
+      setCategories(docResumeCategories);
+    } catch (error) {
+      console.error('PortfolioAttachments - Error fetching categories:', error);
+      // Don't throw - categories are optional
+      setCategories([]); // Set empty array on error
+    } finally {
+      setCategoriesLoading(false);
+    }
+  };
+
   const fetchAttachments = async () => {
     try {
-      console.log(`PortfolioAttachments - Fetching attachments for portfolio ${portfolioId}`);
       const attachmentsResponse = await fetch(`${SERVER_URL}/api/portfolios/${portfolioId}/attachments`, {
         credentials: 'include',
         mode: 'cors'
@@ -165,12 +224,23 @@ function PortfolioAttachments() {
       }
       
       const attachmentsData = await attachmentsResponse.json();
-      console.log(`PortfolioAttachments - Fetched ${attachmentsData.length} attachments:`, attachmentsData);
       setAttachments(attachmentsData);
     } catch (error) {
       console.error('PortfolioAttachments - Error fetching attachments:', error);
       setError(error.message);
     }
+  };
+
+  // Get category display name
+  const getCategoryDisplayName = (category) => {
+    // If category has texts array (from /full endpoint), use the first text
+    if (category.texts && category.texts.length > 0) {
+      const englishText = category.texts.find(t => t.language_code === 'en');
+      if (englishText) return `${englishText.text} (${category.type_code === 'PDOC' ? 'Document' : 'Resume'})`;
+      return `${category.texts[0].text} (${category.type_code === 'PDOC' ? 'Document' : 'Resume'})`;
+    }
+    // Fallback to code
+    return `${category.code} - ${category.type_code === 'PDOC' ? 'Document' : 'Resume'}`;
   };
 
   // Handle file input change
@@ -223,6 +293,8 @@ function PortfolioAttachments() {
 
     if (validFiles.length > 0) {
       setSelectedFiles(validFiles);
+      setSelectedCategory(''); // Reset category selection
+      setSetAsDefault(false); // Reset default checkbox
       setIsUploadDialogOpen(true);
     }
   };
@@ -278,6 +350,21 @@ function PortfolioAttachments() {
       try {
         setUploadProgress(prev => ({ ...prev, [fileObj.id]: 0 }));
         
+        // Build URL with query parameters
+        let uploadUrl = `${SERVER_URL}/api/portfolios/${portfolioId}/attachments`;
+        const params = new URLSearchParams();
+        
+        if (selectedCategory) {
+          params.append('category_id', selectedCategory);
+        }
+        if (setAsDefault) {
+          params.append('is_default', 'true');
+        }
+        
+        if (params.toString()) {
+          uploadUrl += `?${params.toString()}`;
+        }
+        
         const formData = new FormData();
         
         // If filename was edited, create a new file with the new name
@@ -288,8 +375,7 @@ function PortfolioAttachments() {
           formData.append('file', fileObj.file);
         }
 
-        console.log(`PortfolioAttachments - Uploading file: ${fileObj.name}`);
-        const response = await fetch(`${SERVER_URL}/api/portfolios/${portfolioId}/attachments`, {
+        const response = await fetch(uploadUrl, {
           method: 'POST',
           credentials: 'include',
           mode: 'cors',
@@ -302,7 +388,6 @@ function PortfolioAttachments() {
         }
 
         const uploadedAttachment = await response.json();
-        console.log(`PortfolioAttachments - Successfully uploaded: ${fileObj.name}`, uploadedAttachment);
         successfulUploads.push(uploadedAttachment);
         setUploadProgress(prev => ({ ...prev, [fileObj.id]: 100 }));
         
@@ -313,13 +398,10 @@ function PortfolioAttachments() {
       }
     }
 
-    console.log(`PortfolioAttachments - Upload results: ${successfulUploads.length} successful, ${failedUploads.length} failed`);
 
     // Update state based on results
     if (successfulUploads.length > 0) {
-      console.log('PortfolioAttachments - Refreshing attachments list...');
       await fetchAttachments(); // Refresh attachments list
-      console.log('PortfolioAttachments - Attachments list refreshed');
     }
 
     if (failedUploads.length > 0) {
@@ -327,10 +409,11 @@ function PortfolioAttachments() {
       setUploadError(`Some files failed to upload: ${errorMessage}`);
     } else {
       // All uploads successful (no failed uploads)
-      console.log('PortfolioAttachments - All uploads successful, closing dialog');
       setIsUploadDialogOpen(false);
       setSelectedFiles([]);
       setUploadProgress({});
+      setSelectedCategory('');
+      setSetAsDefault(false);
     }
 
     setUploadLoading(false);
@@ -687,7 +770,16 @@ function PortfolioAttachments() {
 
       {/* Upload Dialog */}
   <PermissionGate permission="MANAGE_PORTFOLIO_ATTACHMENTS">
-  <Dialog open={isUploadDialogOpen} onClose={() => setIsUploadDialogOpen(false)} maxWidth="md" fullWidth>
+  <Dialog 
+    open={isUploadDialogOpen} 
+    onClose={() => setIsUploadDialogOpen(false)} 
+    maxWidth="md" 
+    fullWidth
+    TransitionProps={{
+      onEntered: () => {
+      }
+    }}
+  >
         <DialogTitle>Upload Attachments</DialogTitle>
         <DialogContent>
           {uploadError && (
@@ -699,6 +791,59 @@ function PortfolioAttachments() {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             {selectedFiles.length} file(s) selected for upload
           </Typography>
+          
+          {/* Category Selection */}
+          <Box sx={{ mb: 3 }}>
+            <FormControl fullWidth sx={{ mb: 2 }}>
+              <InputLabel id="category-select-label">Category (Optional)</InputLabel>
+              <Select
+                labelId="category-select-label"
+                id="category-select"
+                value={selectedCategory}
+                label="Category (Optional)"
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                disabled={uploadLoading || categoriesLoading}
+              >
+                {categoriesLoading ? (
+                  <MenuItem disabled>
+                    <CircularProgress size={20} sx={{ mr: 1 }} />
+                    <em>Loading categories...</em>
+                  </MenuItem>
+                ) : (
+                  <>
+                    <MenuItem value="">
+                      <em>None</em>
+                    </MenuItem>
+                    {categories.length === 0 ? (
+                      <MenuItem disabled>
+                        <em>No categories available</em>
+                      </MenuItem>
+                    ) : (
+                      categories.map((category) => (
+                        <MenuItem key={category.id} value={category.id}>
+                          {getCategoryDisplayName(category)}
+                        </MenuItem>
+                      ))
+                    )}
+                  </>
+                )}
+              </Select>
+            </FormControl>
+            
+            {/* Set as Default checkbox - only show for RESU categories */}
+            {selectedCategory && categories.find(c => c.id === parseInt(selectedCategory))?.type_code === 'RESU' && (
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={setAsDefault}
+                    onChange={(e) => setSetAsDefault(e.target.checked)}
+                    disabled={uploadLoading}
+                  />
+                }
+                label="Set as default resume (for website download button)"
+              />
+            )}
+          </Box>
           
           <List>
             {selectedFiles.map((fileObj, index) => (

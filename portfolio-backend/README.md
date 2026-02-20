@@ -1,15 +1,72 @@
 # Portfolio Backend
 
-## Overview
-This is the backend API for the Portfolio AI project, built with FastAPI and PostgreSQL.
+FastAPI-based REST API with PostgreSQL, featuring enterprise-grade security, RAG/AI capabilities, and comprehensive documentation.
 
-## Features
-- User authentication and authorization
+## 📋 Table of Contents
+
+- [Features](#features)
+- [Project Structure](#project-structure)
+- [Quick Start](#quick-start)
+- [Documentation](#documentation)
+- [Development](#development)
+- [Testing](#testing)
+- [Deployment](#deployment)
+- [Scripts & Utilities](#scripts--utilities)
+
+---
+
+## ✨ Features
+- User authentication and authorization (JWT with RS256/HS256)
+- Multi-factor authentication (TOTP-based 2FA)
+- Role-based access control (RBAC)
 - Project management with images and attachments
-- Multilingual content support
+- Multilingual content support (English/Spanish)
 - Category and skill management
-- File upload and management
+- File upload with ClamAV scanning
+- GDPR compliance (data export, erasure, consent)
+- Security audit logging
+- RAG/AI search capabilities
 - **External Document Preview** - Support for previewing DOCX/XLSX files using temporary tokens
+
+---
+
+## 📁 Project Structure
+
+```
+portfolio-backend/
+├── app/                    # Application code
+│   ├── api/               # API routes and endpoints
+│   ├── core/              # Core functionality (config, security)
+│   ├── db/                # Database models and repositories
+│   └── schemas/           # Pydantic schemas
+├── docs/                   # 📚 Documentation (organized by topic)
+│   ├── security/          # Security implementation guides
+│   ├── deployment/        # Deployment and infrastructure
+│   ├── development/       # Development guides
+│   ├── api/               # API documentation
+│   └── README.md          # Documentation index
+├── scripts/                # 🛠️ Utility scripts (organized by purpose)
+│   ├── admin/             # User/admin management
+│   ├── backup/            # Backup and restore
+│   ├── database/          # Database utilities
+│   ├── generate_rsa_keys.py  # RSA key generation
+│   └── README.md          # Scripts documentation
+├── tests/                  # Test suite
+│   ├── unit/              # Unit tests
+│   └── integration/       # Integration tests
+├── alembic/               # Database migrations
+├── static/                # Static files
+├── uploads/               # User uploads (gitignored)
+├── .env.example           # Environment variables template
+├── .gitignore             # Git ignore rules
+├── requirements.txt       # Python dependencies
+├── run.py                 # Development server
+└── README.md              # This file
+```
+
+---
+
+## 🚀 Quick Start
 
 ## Document Preview System
 
@@ -220,6 +277,142 @@ To run a specific test:
 python -m pytest tests/unit/test_permission_model.py::TestPermissionModel::test_create_permission
 ```
 
+---
+
+## 📚 Documentation
+
+Comprehensive documentation is available in the `docs/` directory:
+
+### By Topic
+
+- **Security**: `docs/security/` - MFA, JWT, input validation, encryption
+- **Deployment**: `docs/deployment/` - Production deployment, ClamAV, backups
+- **Development**: `docs/development/` - Permissions, roles, user management
+- **API**: `docs/api/` - Endpoints guide, filtering, pagination
+
+### Quick Links
+
+| Topic | Document | Description |
+|-------|----------|-------------|
+| **Getting Started** | `README.md` (this file) | Quick start and overview |
+| **API Reference** | `docs/api/endpoints_guide.txt` | Complete API endpoints |
+| **Security Guide** | `docs/security/SECURITY.md` | Security policy and practices |
+| **MFA Setup** | `docs/security/MFA_IMPLEMENTATION_GUIDE.md` | Two-factor authentication |
+| **Deployment** | `docs/deployment/DEPLOYMENT.md` | Production deployment guide |
+| **Backup** | `docs/deployment/BACKUP_RECOVERY.md` | Backup and recovery procedures |
+
+**See**: `docs/README.md` for complete documentation index
+
+### API Documentation
+
+- **Swagger UI**: http://localhost:8000/docs (when running)
+- **ReDoc**: http://localhost:8000/redoc (when running)
+- **OpenAPI JSON**: http://localhost:8000/openapi.json
+
+---
+
+## 🛠️ Scripts & Utilities
+
+Utility scripts are organized in the `scripts/` directory:
+
+### Admin Scripts (`scripts/admin/`)
+
+- **create_admin.py** - Create admin users
+- **create_user_directly.py** - Create standard users
+- **setup_systemadmin.py** - Setup system administrator
+- **reset_systemadmin_password.py** - Emergency password reset
+
+**Example:**
+```bash
+source venv/bin/activate
+python scripts/admin/create_admin.py
+```
+
+### Backup Scripts (`scripts/backup/`)
+
+- **backup.py** - Database backup
+- **restore.py** - Database restore
+- **backup.cron.example** - Cron configuration
+- **portfolio-backup.service** - Systemd service
+- **portfolio-backup.timer** - Systemd timer
+
+**Example:**
+```bash
+python scripts/backup/backup.py
+```
+
+### Database Scripts (`scripts/database/`)
+
+- **backfill_rag.py** - Generate RAG embeddings for existing content
+
+**Example:**
+```bash
+python scripts/database/backfill_rag.py --table categories --limit 100
+```
+
+### Security Scripts
+
+- **generate_rsa_keys.py** - Generate RSA keys for JWT RS256
+
+**Example:**
+```bash
+python scripts/generate_rsa_keys.py --key-size 4096
+```
+
+**See**: `scripts/README.md` for complete scripts documentation
+
+---
+
+## 🚀 Deployment
+
+### Production Checklist
+
+- [ ] Generate RSA keys for JWT (`scripts/generate_rsa_keys.py`)
+- [ ] Configure environment variables (`.env`)
+- [ ] Setup PostgreSQL with SSL
+- [ ] Configure ClamAV for file scanning
+- [ ] Setup HTTPS with TLS 1.3
+- [ ] Configure Nginx reverse proxy
+- [ ] Setup automated backups
+- [ ] Enable security audit logging
+- [ ] Configure monitoring and alerts
+- [ ] Review security documentation
+
+### Deployment Guides
+
+- **Complete Guide**: `docs/deployment/DEPLOYMENT.md`
+- **ClamAV Setup**: `docs/deployment/CLAMAV_DEPLOYMENT_GUIDE.md`
+- **Backup Guide**: `docs/deployment/BACKUP_RECOVERY.md`
+- **Nginx Config**: `/deployment/README.md` (repository root)
+
+---
+
+## 🔒 Security
+
+### Features Implemented
+
+- ✅ JWT authentication (HS256/RS256)
+- ✅ Multi-factor authentication (2FA/TOTP)
+- ✅ Role-based access control
+- ✅ Input validation and sanitization
+- ✅ File upload scanning (ClamAV)
+- ✅ GDPR compliance
+- ✅ Security audit logging
+- ✅ Rate limiting
+- ✅ HTTPS/TLS 1.3
+
+### Security Documentation
+
+- **Security Policy**: `docs/security/SECURITY.md`
+- **MFA Guide**: `docs/security/MFA_IMPLEMENTATION_GUIDE.md`
+- **JWT Guide**: `docs/security/JWT_SECURITY_GUIDE.md`
+- **Input Validation**: `docs/security/INPUT_VALIDATION_GUIDE.md`
+- **Data Encryption**: `docs/security/DATA_ENCRYPTION_GUIDE.md`
+
+---
+
+## 📊 Document Preview System
+
 ### Running Tests Without Warnings
 
 To run tests without seeing deprecation warnings:
@@ -249,94 +442,60 @@ test data from accumulating in the database.
 For unit tests, all test data is prefixed with `TEST_` to make it easy to identify and clean up. Integration tests 
 using the API typically prefix test data with `TEST_API_`.
 
-## Directory Structure
+## RAG Indexing Quickstart
 
-The directory structure of the backend is organized as follows:
-
-- `app/`: Main application code
-- `scripts/`: Utility scripts for database setup and management
-  - `db/`: Database-specific scripts
-- `static/`: Static files served by the application
-- `tests/`: Test suite
-  - `unit/`: Unit tests
-  - `integration/`: Integration tests
-  - `examples/`: Example code for testing
-- `alembic/`: Database migrations
-- `docs/`: Documentation
-
-## Project Structure
-
-- `app/`: Main application package
-  - `api/`: API endpoints and routers
-  - `core/`: Core functionality (config, security, database)
-    - `db_config.py`: Environment-aware PostgreSQL database configuration
-    - `database.py`: SQLAlchemy setup and session management
-  - `crud/`: Database CRUD operations
-  - `db/`: Database session and utilities
-  - `models/`: SQLAlchemy ORM models
-  - `schemas/`: Pydantic schemas for validation
-- `tests/`: Test suite
-  - `api/`: API endpoint tests
-  - `conftest.py`: Test configuration and fixtures
-- `alembic/`: Database migrations
-- `scripts/`: Utility scripts
-  - `db_init.py`: PostgreSQL database environment initialization script
-- `init_postgres_db.py`: Script to initialize PostgreSQL database with permissions and roles
-
-## Permissions
-
-The application uses a role-based access control system with the following standard permissions:
-
-- VIEW_DASHBOARD: Permission to view the dashboard
-- MANAGE_USERS: Permission to manage users
-- MANAGE_ROLES: Permission to manage roles
-- MANAGE_PERMISSIONS: Permission to manage permissions
-- MANAGE_PORTFOLIOS: Permission to manage portfolios
-- MANAGE_PROJECTS: Permission to manage projects
-- MANAGE_SKILLS: Permission to manage skills
-- MANAGE_CATEGORIES: Permission to manage categories
-- MANAGE_EXPERIENCES: Permission to manage experiences
-- SYSTEM_ADMIN: Full system administration permissions
-
-## Authentication
-
-The API uses JWT (JSON Web Tokens) for authentication. Protected endpoints require a valid token in the Authorization header.
-
-### Obtaining a Token
-
-To authenticate, send a POST request to the login endpoint:
+1) Apply migrations and run API
 
 ```bash
-curl -X POST "http://localhost:8000/api/auth/login" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "username=your_username&password=your_password"
+cd portfolio-backend
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+alembic upgrade head
+uvicorn app.main:app --reload
 ```
 
-The response will include an access token:
-
-```json
-{
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "bearer"
-}
-```
-
-### Using the Token
-
-Include the token in the Authorization header for all protected API requests:
+2) Backfill existing rows
 
 ```bash
-curl -X GET "http://localhost:8000/api/users/" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+source venv/bin/activate
+python scripts/backfill_rag.py --table categories --limit 100
 ```
 
-### Creating an Admin User
-
-To create an admin user for initial setup:
+3) Test retrieval endpoints
 
 ```bash
-python create_user_directly.py admin admin@example.com secure_password
+curl 'http://127.0.0.1:8000/api/search/embedding?limit=5' -H 'Authorization: Bearer <token>'
+curl 'http://127.0.0.1:8000/api/search/vector?q=hello&limit=5' -H 'Authorization: Bearer <token>'
+curl 'http://127.0.0.1:8000/api/search/hybrid?q=hello&limit=5' -H 'Authorization: Bearer <token>'
 ```
 
-This will create a user with administrator privileges that can manage other users, roles, and permissions.
+4) Optional: run async worker
+
+```bash
+cd portfolio-backend
+docker compose up -d redis
+source venv/bin/activate
+export CELERY_BROKER_URL=redis://localhost:6379/0
+export CELERY_RESULT_BACKEND=redis://localhost:6379/1
+celery -A app.queue.celery_app:get_celery worker --loglevel=INFO
+```
+
+5) Metrics & readiness
+
+- Readiness: `GET /readyz`
+- Prometheus metrics: `GET /metrics`
+
+Multiprocess metrics (API + worker):
+
+```bash
+# In both API and worker shells
+export PROMETHEUS_MULTIPROC_DIR=/tmp/prom_multiproc
+rm -rf "$PROMETHEUS_MULTIPROC_DIR"; mkdir -p "$PROMETHEUS_MULTIPROC_DIR"
+```
+
+6) Tuning
+
+- Chunk sizes: `CHUNK_CHARS` (default 4000), `CHUNK_OVERLAP` (default 500)
+- Embeddings: `EMBED_PROVIDER` (e.g., openai), `EMBED_MODEL`
+- Default ACL: `DEFAULT_TENANT_ID` (default `default`), `DEFAULT_VISIBILITY` (default `public`)

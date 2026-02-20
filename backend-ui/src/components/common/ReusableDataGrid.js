@@ -106,12 +106,6 @@ function ReusableDataGrid({
         
         // Only update if values actually changed to avoid infinite loops
         if (prev.pageSize !== newModel.pageSize) {
-          console.log('ReusableDataGrid - Syncing pagination model with external data:', {
-            previous: prev,
-            new: newModel,
-            defaultPageSize,
-            reason: 'pageSize prop changed'
-          });
           return newModel;
         }
         
@@ -221,15 +215,9 @@ function ReusableDataGrid({
   }, [isExternalDataMode, onFiltersChange, currentFilters, filters]);
 
   const handlePaginationModelChange = useCallback((newModel) => {
-    console.log('ReusableDataGrid - handlePaginationModelChange called:', {
-      newModel,
-      isExternalDataMode,
-      currentPaginationModel: paginationModel
-    });
     
     setPaginationModel(newModel);
     if (onPaginationModelChange) {
-      console.log('ReusableDataGrid - Calling external onPaginationModelChange');
       onPaginationModelChange(newModel);
     }
   }, [onPaginationModelChange, isExternalDataMode, paginationModel]);

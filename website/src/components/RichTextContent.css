@@ -1,0 +1,819 @@
+/* Rich Text Content Display Styles */
+/* Styles for rendering HTML content from TipTap editor */
+
+.rich-text-content {
+  color: #d1d5db;
+  line-height: 1.75;
+}
+
+.rich-text-content p {
+  margin: 0.75rem 0;
+}
+
+.rich-text-content p:first-child {
+  margin-top: 0;
+}
+
+.rich-text-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* Headings */
+.rich-text-content h1,
+.rich-text-content h2,
+.rich-text-content h3,
+.rich-text-content h4,
+.rich-text-content h5,
+.rich-text-content h6 {
+  font-weight: 700;
+  color: #ffffff;
+  margin: 1.5rem 0 0.75rem;
+  line-height: 1.3;
+}
+
+.rich-text-content h1:first-child,
+.rich-text-content h2:first-child,
+.rich-text-content h3:first-child,
+.rich-text-content h4:first-child,
+.rich-text-content h5:first-child,
+.rich-text-content h6:first-child {
+  margin-top: 0;
+}
+
+.rich-text-content h1 {
+  font-size: 2rem;
+  line-height: 1.2;
+}
+
+.rich-text-content h2 {
+  font-size: 1.5rem;
+}
+
+.rich-text-content h3 {
+  font-size: 1.25rem;
+}
+
+.rich-text-content h4 {
+  font-size: 1.1rem;
+}
+
+.rich-text-content h5 {
+  font-size: 1rem;
+}
+
+.rich-text-content h6 {
+  font-size: 0.9rem;
+}
+
+/* Lists */
+.rich-text-content ul,
+.rich-text-content ol {
+  padding-left: 1.5rem;
+  margin: 0.75rem 0;
+}
+
+.rich-text-content li {
+  margin: 0.25rem 0;
+  color: #d1d5db;
+}
+
+.rich-text-content ul {
+  list-style-type: disc;
+}
+
+.rich-text-content ol {
+  list-style-type: decimal;
+}
+
+.rich-text-content ul ul,
+.rich-text-content ol ul {
+  list-style-type: circle;
+}
+
+.rich-text-content ol ol,
+.rich-text-content ul ol {
+  list-style-type: lower-alpha;
+}
+
+/* Blockquote */
+.rich-text-content blockquote {
+  border-left: 4px solid #14C800;
+  padding-left: 1rem;
+  margin: 1rem 0;
+  font-style: italic;
+  color: #9ca3af;
+}
+
+/* Code */
+.rich-text-content code {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #14C800;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.9em;
+}
+
+.rich-text-content pre {
+  background-color: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin: 1rem 0;
+  overflow-x: auto;
+}
+
+.rich-text-content pre code {
+  background-color: transparent;
+  padding: 0;
+  color: #e5e7eb;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* Monaco Editor Syntax Highlighting - VS Code Dark+ Theme */
+/* Matching the ContentEditableWYSIWG color scheme */
+
+/* Base code token styles */
+.rich-text-content .token.comment,
+.rich-text-content .token.prolog,
+.rich-text-content .token.doctype,
+.rich-text-content .token.cdata {
+  color: #6a9955 !important;
+  font-style: italic !important;
+}
+
+.rich-text-content .token.punctuation {
+  color: #ffd700 !important; /* Golden parentheses like Monaco */
+}
+
+.rich-text-content .token.property,
+.rich-text-content .token.tag,
+.rich-text-content .token.boolean,
+.rich-text-content .token.number,
+.rich-text-content .token.constant,
+.rich-text-content .token.symbol,
+.rich-text-content .token.deleted {
+  color: #b5cea8 !important;
+}
+
+.rich-text-content .token.selector,
+.rich-text-content .token.attr-name,
+.rich-text-content .token.string,
+.rich-text-content .token.char,
+.rich-text-content .token.builtin,
+.rich-text-content .token.inserted {
+  color: #ce9178 !important;
+}
+
+.rich-text-content .token.operator,
+.rich-text-content .token.entity,
+.rich-text-content .token.url,
+.rich-text-content .language-css .token.string,
+.rich-text-content .style .token.string {
+  color: #d4d4d4 !important;
+}
+
+.rich-text-content .token.atrule,
+.rich-text-content .token.attr-value,
+.rich-text-content .token.keyword {
+  color: #569cd6 !important;
+}
+
+.rich-text-content .token.function {
+  color: #dcdcaa !important;
+}
+
+.rich-text-content .token.class-name {
+  color: #4ec9b0 !important; /* Teal for classes */
+}
+
+.rich-text-content .token.regex,
+.rich-text-content .token.important,
+.rich-text-content .token.variable {
+  color: #d16969 !important;
+}
+
+.rich-text-content .token.important,
+.rich-text-content .token.bold {
+  font-weight: bold !important;
+}
+
+.rich-text-content .token.italic {
+  font-style: italic !important;
+}
+
+/* Language-specific refinements */
+
+/* JavaScript/TypeScript */
+.rich-text-content .language-javascript .token.keyword,
+.rich-text-content .language-typescript .token.keyword,
+.rich-text-content .language-jsx .token.keyword,
+.rich-text-content .language-tsx .token.keyword {
+  color: #569cd6 !important;
+}
+
+.rich-text-content .language-javascript .token.function,
+.rich-text-content .language-typescript .token.function {
+  color: #dcdcaa !important;
+}
+
+.rich-text-content .language-javascript .token.string,
+.rich-text-content .language-typescript .token.string {
+  color: #ce9178 !important;
+}
+
+/* Python */
+.rich-text-content .language-python .token.keyword {
+  color: #569cd6 !important;
+}
+
+.rich-text-content .language-python .token.builtin {
+  color: #4ec9b0 !important;
+}
+
+.rich-text-content .language-python .token.decorator {
+  color: #dcdcaa !important;
+}
+
+/* JSON */
+.rich-text-content .language-json .token.property {
+  color: #9cdcfe !important;
+}
+
+.rich-text-content .language-json .token.string {
+  color: #ce9178 !important;
+}
+
+/* CSS/SCSS */
+.rich-text-content .language-css .token.selector,
+.rich-text-content .language-scss .token.selector {
+  color: #d7ba7d !important;
+}
+
+.rich-text-content .language-css .token.property,
+.rich-text-content .language-scss .token.property {
+  color: #9cdcfe !important;
+}
+
+/* HTML/JSX */
+.rich-text-content .language-markup .token.tag,
+.rich-text-content .language-html .token.tag,
+.rich-text-content .language-jsx .token.tag,
+.rich-text-content .language-tsx .token.tag {
+  color: #569cd6 !important;
+}
+
+.rich-text-content .language-markup .token.attr-name,
+.rich-text-content .language-html .token.attr-name {
+  color: #9cdcfe !important;
+}
+
+.rich-text-content .language-markup .token.attr-value,
+.rich-text-content .language-html .token.attr-value {
+  color: #ce9178 !important;
+}
+
+/* Links */
+.rich-text-content a {
+  color: #14C800;
+  text-decoration: underline;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.rich-text-content a:hover {
+  color: #12b000;
+}
+
+/* File Attachment - Compact Button Style */
+.rich-text-content .file-attachment-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.5rem;
+  background: rgba(20, 200, 0, 0.1);
+  border: 1px solid rgba(20, 200, 0, 0.3);
+  border-radius: 20px;
+  margin: 0.25rem 0.25rem;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  max-width: 250px;
+}
+
+.rich-text-content .file-attachment-card:hover {
+  background: rgba(20, 200, 0, 0.15);
+  border-color: rgba(20, 200, 0, 0.5);
+  box-shadow: 0 2px 8px rgba(20, 200, 0, 0.2);
+}
+
+/* File attachment link */
+.rich-text-content .file-attachment-card > a {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  text-decoration: none;
+  color: inherit;
+  flex: 1;
+  min-width: 0;
+}
+
+/* File icon */
+.rich-text-content .file-attachment-card .file-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rich-text-content .file-attachment-card .file-icon svg {
+  width: 16px;
+  height: 16px;
+  color: #14C800;
+}
+
+/* File info */
+.rich-text-content .file-attachment-card .file-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.rich-text-content .file-attachment-card .file-name {
+  color: #ffffff;
+  font-weight: 500;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+.rich-text-content .file-attachment-card:hover .file-name {
+  color: #14C800;
+}
+
+.rich-text-content .file-attachment-card .file-ext {
+  flex-shrink: 0;
+  padding: 1px 4px;
+  background: rgba(20, 200, 0, 0.2);
+  border: 1px solid rgba(20, 200, 0, 0.4);
+  border-radius: 3px;
+  font-size: 8px;
+  font-weight: 700;
+  color: #14C800;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.rich-text-content .file-attachment-card .file-size {
+  flex-shrink: 0;
+  color: #9ca3af;
+  font-size: 9px;
+  margin: 0;
+}
+
+/* Hide delete button in public view */
+.rich-text-content .file-attachment-card .file-delete-btn {
+  display: none;
+}
+
+/* Legacy support - hide old structure elements if they exist */
+.rich-text-content .file-attachment-card .file-icon-container,
+.rich-text-content .file-attachment-card .download-icon-container {
+  display: none;
+}
+
+/* Override any old large card styles */
+.rich-text-content .file-attachment-card[contenteditable="false"] {
+  display: inline-flex !important;
+  max-width: 250px !important;
+  padding: 0.375rem 0.5rem !important;
+}
+
+/* Images */
+.rich-text-content img,
+.rich-text-content img.tiptap-image {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+  display: block;
+}
+
+/* Horizontal Rule */
+.rich-text-content hr {
+  border: none;
+  border-top: 2px solid rgba(255, 255, 255, 0.1);
+  margin: 2rem 0;
+}
+
+/* Tables */
+.rich-text-content table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 1.5rem 0;
+  overflow: hidden;
+  border-radius: 4px;
+  border: 2px solid #374151;
+  background-color: #1f2937;
+}
+
+.rich-text-content table td,
+.rich-text-content table th {
+  min-width: 100px;
+  border: 1px solid #4b5563;
+  padding: 0.75rem;
+  vertical-align: top;
+  box-sizing: border-box;
+  position: relative;
+  background-color: #1f2937;
+  color: #e5e7eb;
+}
+
+.rich-text-content table th {
+  font-weight: 600;
+  text-align: left;
+  background-color: #374151;
+  color: #14C800;
+}
+
+/* Borderless table variant - hide all borders in display mode */
+/* CRITICAL: Must override any inline styles that might have been saved */
+/* Target tables with borderless class */
+.rich-text-content .tableWrapper table.borderless,
+.rich-text-content .tableWrapper table[class*="borderless"],
+.rich-text-content table.borderless,
+.rich-text-content table[class*="borderless"],
+.rich-text-content table.tiptap-table.borderless,
+.rich-text-content table[class*="tiptap-table"][class*="borderless"],
+.rich-text-content .tableWrapper table.tiptap-table.borderless,
+.rich-text-content .tableWrapper table[class*="tiptap-table"][class*="borderless"] {
+  border: none !important;
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+/* AGGRESSIVE: Target ALL tables inside .tableWrapper in display mode */
+/* This ensures tables without the borderless class also get cleaned */
+.rich-text-content .tableWrapper table,
+.rich-text-content .tableWrapper table.tiptap-table {
+  border: none !important;
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+.rich-text-content .tableWrapper table.borderless td,
+.rich-text-content .tableWrapper table.borderless th,
+.rich-text-content .tableWrapper table[class*="borderless"] td,
+.rich-text-content .tableWrapper table[class*="borderless"] th,
+.rich-text-content .tableWrapper table.tiptap-table.borderless td,
+.rich-text-content .tableWrapper table.tiptap-table.borderless th,
+.rich-text-content .tableWrapper table[class*="tiptap-table"][class*="borderless"] td,
+.rich-text-content .tableWrapper table[class*="tiptap-table"][class*="borderless"] th,
+.rich-text-content table.borderless td,
+.rich-text-content table.borderless th,
+.rich-text-content table[class*="borderless"] td,
+.rich-text-content table[class*="borderless"] th,
+.rich-text-content table.tiptap-table.borderless td,
+.rich-text-content table.tiptap-table.borderless th,
+.rich-text-content table[class*="tiptap-table"][class*="borderless"] td,
+.rich-text-content table[class*="tiptap-table"][class*="borderless"] th {
+  border: none !important;
+  border-width: 0 !important;
+  border-style: none !important;
+  border-color: transparent !important;
+  background-color: transparent !important;
+  background: transparent !important;
+  /* Override any inline styles that might have been saved */
+  border: none !important;
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+/* AGGRESSIVE: Target ALL cells inside .tableWrapper tables in display mode */
+/* This ensures cells without the borderless class also get cleaned */
+.rich-text-content .tableWrapper table td,
+.rich-text-content .tableWrapper table th,
+.rich-text-content .tableWrapper table.tiptap-table td,
+.rich-text-content .tableWrapper table.tiptap-table th {
+  border: none !important;
+  border-width: 0 !important;
+  border-style: none !important;
+  border-color: transparent !important;
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+/* ULTRA-AGGRESSIVE: Target ALL tables and cells in .rich-text-content in display mode */
+/* This is a catch-all to ensure no borders/backgrounds appear, regardless of structure */
+/* These rules MUST come after the default table styles (lines 416-444) to override them */
+.rich-text-content table,
+.rich-text-content table.tiptap-table,
+.rich-text-content .tableWrapper table,
+.rich-text-content .tableWrapper table.tiptap-table {
+  border: none !important;
+  border-width: 0 !important;
+  border-style: none !important;
+  border-color: transparent !important;
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+.rich-text-content table td,
+.rich-text-content table th,
+.rich-text-content table.tiptap-table td,
+.rich-text-content table.tiptap-table th,
+.rich-text-content .tableWrapper table td,
+.rich-text-content .tableWrapper table th,
+.rich-text-content .tableWrapper table.tiptap-table td,
+.rich-text-content .tableWrapper table.tiptap-table th {
+  border: none !important;
+  border-width: 0 !important;
+  border-style: none !important;
+  border-color: transparent !important;
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+.rich-text-content table.borderless th,
+.rich-text-content table[class*="borderless"] th,
+.rich-text-content table.tiptap-table.borderless th,
+.rich-text-content table[class*="tiptap-table"][class*="borderless"] th {
+  background-color: transparent !important;
+  border-bottom: none !important;
+}
+
+/* Table paragraph spacing */
+.rich-text-content table p {
+  margin: 0;
+}
+
+/* Table responsive wrapper */
+.rich-text-content .tableWrapper {
+  overflow-x: auto;
+  margin: 1.5rem 0;
+}
+
+/* Allow images and files inside table cells */
+.rich-text-content table td img,
+.rich-text-content table th img {
+  max-width: 100%;
+  height: auto;
+  margin: 0.5rem 0;
+  display: block;
+}
+
+.rich-text-content table td .image-resize-wrapper,
+.rich-text-content table th .image-resize-wrapper {
+  margin: 0.5rem 0;
+  max-width: 100%;
+}
+
+.rich-text-content table td .file-attachment-card,
+.rich-text-content table th .file-attachment-card {
+  margin: 0.25rem 0;
+}
+
+.rich-text-content table td .code-block-wrapper,
+.rich-text-content table th .code-block-wrapper {
+  margin: 0.5rem 0;
+}
+
+/* Make tables responsive on mobile */
+@media (max-width: 768px) {
+  .rich-text-content table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}
+
+/* Text alignment */
+.rich-text-content [style*="text-align: left"] {
+  text-align: left;
+}
+
+.rich-text-content [style*="text-align: center"] {
+  text-align: center;
+}
+
+.rich-text-content [style*="text-align: right"] {
+  text-align: right;
+}
+
+.rich-text-content [style*="text-align: justify"] {
+  text-align: justify;
+}
+
+/* Strong and emphasis */
+.rich-text-content strong {
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.rich-text-content em {
+  font-style: italic;
+}
+
+.rich-text-content u {
+  text-decoration: underline;
+}
+
+.rich-text-content s {
+  text-decoration: line-through;
+}
+
+/* Font sizes (inline styles from editor are preserved automatically) */
+
+/* High-Resolution Display Optimizations */
+/* Enhanced typography and spacing for 1920px+ displays */
+@media (min-width: 1920px) {
+  .rich-text-content {
+    line-height: 1.8;
+  }
+
+  .rich-text-content h1 {
+    font-size: 2.25rem;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    margin: 2rem 0 1rem;
+  }
+
+  .rich-text-content h2 {
+    font-size: 1.75rem;
+    letter-spacing: -0.01em;
+    margin: 1.75rem 0 0.875rem;
+  }
+
+  .rich-text-content h3 {
+    font-size: 1.375rem;
+    margin: 1.5rem 0 0.75rem;
+  }
+
+  .rich-text-content h4 {
+    font-size: 1.125rem;
+  }
+
+  .rich-text-content p {
+    margin: 1rem 0;
+    font-size: 1.0625rem;
+  }
+
+  .rich-text-content pre {
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    border-radius: 0.625rem;
+  }
+
+  .rich-text-content pre code {
+    font-size: 0.9375rem;
+    line-height: 1.6;
+  }
+
+  .rich-text-content blockquote {
+    padding-left: 1.5rem;
+    margin: 1.5rem 0;
+    font-size: 1.0625rem;
+  }
+
+  .rich-text-content ul,
+  .rich-text-content ol {
+    padding-left: 2rem;
+    margin: 1rem 0;
+  }
+
+  .rich-text-content li {
+    margin: 0.375rem 0;
+  }
+
+  .rich-text-content img,
+  .rich-text-content img.tiptap-image {
+    margin: 1.5rem 0;
+  }
+}
+
+/* Super high-resolution displays (2560px+) */
+@media (min-width: 2560px) {
+  .rich-text-content {
+    line-height: 1.85;
+  }
+
+  .rich-text-content h1 {
+    font-size: 2.5rem;
+    margin: 2.5rem 0 1.25rem;
+  }
+
+  .rich-text-content h2 {
+    font-size: 2rem;
+    margin: 2rem 0 1rem;
+  }
+
+  .rich-text-content h3 {
+    font-size: 1.5rem;
+    margin: 1.75rem 0 0.875rem;
+  }
+
+  .rich-text-content h4 {
+    font-size: 1.25rem;
+  }
+
+  .rich-text-content p {
+    margin: 1.25rem 0;
+    font-size: 1.125rem;
+  }
+
+  .rich-text-content pre {
+    padding: 2rem;
+    margin: 2rem 0;
+  }
+
+  .rich-text-content pre code {
+    font-size: 1rem;
+    line-height: 1.7;
+  }
+
+  .rich-text-content blockquote {
+    padding-left: 2rem;
+    margin: 2rem 0;
+    font-size: 1.125rem;
+  }
+
+  .rich-text-content ul,
+  .rich-text-content ol {
+    padding-left: 2.5rem;
+    margin: 1.25rem 0;
+  }
+
+  .rich-text-content li {
+    margin: 0.5rem 0;
+  }
+
+  .rich-text-content img,
+  .rich-text-content img.tiptap-image {
+    margin: 2rem 0;
+  }
+}
+
+/* Consistent code theme with CMS editor (Monaco Dark+ aligned) */
+.rich-text-content .token.comment,
+.rich-text-content .token.prolog,
+.rich-text-content .token.doctype,
+.rich-text-content .token.cdata {
+  color: #6a9955 !important;
+  font-style: italic !important;
+}
+
+.rich-text-content .token.punctuation {
+  color: #ffd700 !important;
+}
+
+.rich-text-content .token.property,
+.rich-text-content .token.tag,
+.rich-text-content .token.boolean,
+.rich-text-content .token.number,
+.rich-text-content .token.constant,
+.rich-text-content .token.symbol,
+.rich-text-content .token.deleted {
+  color: #b5cea8 !important;
+}
+
+.rich-text-content .token.selector,
+.rich-text-content .token.attr-name,
+.rich-text-content .token.string,
+.rich-text-content .token.char,
+.rich-text-content .token.builtin,
+.rich-text-content .token.inserted {
+  color: #ce9178 !important;
+}
+
+.rich-text-content .token.operator,
+.rich-text-content .token.entity,
+.rich-text-content .token.url {
+  color: #d4d4d4 !important;
+}
+
+.rich-text-content .token.atrule,
+.rich-text-content .token.attr-value,
+.rich-text-content .token.keyword {
+  color: #569cd6 !important;
+}
+
+.rich-text-content .token.function {
+  color: #dcdcaa !important;
+}
+
+.rich-text-content .token.class-name {
+  color: #4ec9b0 !important;
+}
+
+.rich-text-content .token.regex,
+.rich-text-content .token.important,
+.rich-text-content .token.variable {
+  color: #d16969 !important;
+}

@@ -148,12 +148,10 @@ function TranslationIndex() {
   };
 
   const handleFiltersChange = useCallback((newFilters) => {
-    console.log('TranslationIndex - Filters changed:', newFilters);
     setFilters(newFilters);
   }, []);
 
   const handleSearch = useCallback((searchFilters) => {
-    console.log('TranslationIndex - Search triggered with filters:', searchFilters);
     setFilters(searchFilters);
     setGridKey(prevKey => prevKey + 1);
   }, []);

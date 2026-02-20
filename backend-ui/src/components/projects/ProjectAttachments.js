@@ -30,6 +30,10 @@ import {
   Checkbox,
   Toolbar,
   FormControlLabel,
+  FormControl,
+  Select,
+  InputLabel,
+  MenuItem,
   alpha,
   Pagination,
   Stack,
@@ -166,24 +170,14 @@ function ProjectAttachmentsContent() {
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
 
+  // Languages and categories for file metadata
+  const [languages, setLanguages] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loadingLanguages, setLoadingLanguages] = useState(false);
+  const [loadingCategories, setLoadingCategories] = useState(false);
+
   // Debug logging
   useEffect(() => {
-    console.log('[PROJECT ATTACHMENTS DEBUG] Authentication Status:');
-    console.log('  - Auth Loading:', authLoading);
-    console.log('  - Permissions:', permissions);
-    console.log('  - Is System Admin:', isSystemAdmin());
-    console.log('  - Has VIEW_PROJECT_ATTACHMENTS:', hasPermission('VIEW_PROJECT_ATTACHMENTS'));
-    console.log('  - Has UPLOAD_PROJECT_ATTACHMENTS:', hasPermission('UPLOAD_PROJECT_ATTACHMENTS'));
-    console.log('  - Has DELETE_PROJECT_ATTACHMENTS:', hasPermission('DELETE_PROJECT_ATTACHMENTS'));
-    console.log('  - Has MANAGE_PROJECT_ATTACHMENTS:', hasPermission('MANAGE_PROJECT_ATTACHMENTS'));
-    console.log('  - Has MANAGE_PROJECTS:', hasPermission('MANAGE_PROJECTS'));
-    console.log('  - Has SYSTEM_ADMIN:', hasPermission('SYSTEM_ADMIN'));
-    console.log('  - Can Access (any of above):', 
-      hasPermission('VIEW_PROJECT_ATTACHMENTS') || 
-      hasPermission('MANAGE_PROJECT_ATTACHMENTS') || 
-      hasPermission('MANAGE_PROJECTS') || 
-      hasPermission('SYSTEM_ADMIN')
-    );
   }, [authLoading, permissions, hasPermission, isSystemAdmin]);
 
   // Permission checking helpers
@@ -225,18 +219,12 @@ function ProjectAttachmentsContent() {
         setError(null);
         
         // First, verify authentication by checking current user permissions
-        console.log('[PROJECT ATTACHMENTS DEBUG] Testing authentication...');
         const authTestResponse = await api.get('/api/users/me/permissions');
         
-        console.log('[PROJECT ATTACHMENTS DEBUG] Auth test response status:', authTestResponse.status);
-        console.log('[PROJECT ATTACHMENTS DEBUG] Auth test response data:', authTestResponse.data);
         
         // Fetch project details
-        console.log('[PROJECT ATTACHMENTS DEBUG] Fetching project details for ID:', projectId);
         const projectResponse = await api.get(`/api/projects/${projectId}`);
         
-        console.log('[PROJECT ATTACHMENTS DEBUG] Project response status:', projectResponse.status);
-        console.log('[PROJECT ATTACHMENTS DEBUG] Project response data:', projectResponse.data);
         
         setProject(projectResponse.data);
         
@@ -254,9 +242,52 @@ function ProjectAttachmentsContent() {
     fetchData();
   }, [projectId]);
 
+  // Fetch languages and categories for file metadata
+  useEffect(() => {
+    const fetchLanguagesAndCategories = async () => {
+      try {
+        // Fetch languages
+        setLoadingLanguages(true);
+        const languagesResponse = await api.get('/api/languages', {
+          params: { 
+            page: 1,
+            page_size: 100  // Get all languages
+          }
+        });
+        // Languages endpoint returns paginated response
+        setLanguages(languagesResponse.data.items || []);
+        setLoadingLanguages(false);
+
+        // Fetch project attachment categories (type_code='PROA')
+        setLoadingCategories(true);
+        const categoriesResponse = await api.get('/api/categories', {
+          params: { 
+            type_code: 'PROA',
+            page: 1,
+            page_size: 100  // Get all project attachment categories
+          }
+        });
+        // Categories endpoint returns paginated response with category_texts
+        // Transform to extract name from category_texts
+        const rawCategories = categoriesResponse.data.items || [];
+        const transformedCategories = rawCategories.map(cat => ({
+          ...cat,
+          name: cat.category_texts?.[0]?.name || cat.code // Use first text's name or fallback to code
+        }));
+        setCategories(transformedCategories);
+        setLoadingCategories(false);
+      } catch (error) {
+        console.error('Error fetching languages or categories:', error);
+        setLoadingLanguages(false);
+        setLoadingCategories(false);
+      }
+    };
+
+    fetchLanguagesAndCategories();
+  }, []);
+
   const fetchAttachments = async (currentPage = page, filters = appliedFilters) => {
     try {
-      console.log(`ProjectAttachments - Fetching attachments for project ${projectId}`);
       
       // Build query parameters
       const params = new URLSearchParams({
@@ -273,10 +304,8 @@ function ProjectAttachmentsContent() {
       }
       
       const attachmentsResponse = await api.get(`/api/projects/${projectId}/attachments?${params}`);
-      console.log('ProjectAttachments - API response received');
       
       const attachmentsData = attachmentsResponse.data;
-      console.log(`ProjectAttachments - Fetched ${attachmentsData.items?.length || 0} attachments out of ${attachmentsData.total || 0}:`, attachmentsData);
       
       setAttachments(attachmentsData.items || []);
       setTotal(attachmentsData.total || 0);
@@ -327,7 +356,9 @@ function ProjectAttachmentsContent() {
         name: file.name,
         size: file.size,
         type: file.type,
-        nameEdited: false
+        nameEdited: false,
+        language_id: '',
+        category_id: ''
       });
     });
 
@@ -375,6 +406,18 @@ function ProjectAttachmentsContent() {
     });
   };
 
+  // Handle language/category change for file metadata
+  const handleFileMetadataChange = (index, field, value) => {
+    setSelectedFiles(prev => {
+      const newFiles = [...prev];
+      newFiles[index] = {
+        ...newFiles[index],
+        [field]: value
+      };
+      return newFiles;
+    });
+  };
+
   // Handle upload files
   const handleUploadFiles = async () => {
     if (selectedFiles.length === 0) {
@@ -402,17 +445,18 @@ function ProjectAttachmentsContent() {
           formData.append('file', fileObj.file);
         }
 
-        console.log(`ProjectAttachments - Uploading file: ${fileObj.name}`);
-        const response = await api.post(`/api/projects/${projectId}/attachments`, formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data'
-          }
-        });
+        // Add language_id and category_id if selected
+        if (fileObj.language_id) {
+          formData.append('language_id', fileObj.language_id);
+        }
+        if (fileObj.category_id) {
+          formData.append('category_id', fileObj.category_id);
+        }
 
-        console.log(`ProjectAttachments - Upload response status: ${response.status} for file: ${fileObj.name}`);
+        const response = await api.post(`/api/projects/${projectId}/attachments`, formData);
+
 
         const uploadedAttachment = response.data;
-        console.log(`ProjectAttachments - Successfully uploaded: ${fileObj.name}`, uploadedAttachment);
         successfulUploads.push(uploadedAttachment);
         setUploadProgress(prev => ({ ...prev, [fileObj.id]: 100 }));
         
@@ -432,13 +476,10 @@ function ProjectAttachmentsContent() {
       }
     }
 
-    console.log(`ProjectAttachments - Upload results: ${successfulUploads.length} successful, ${failedUploads.length} failed`);
 
     // Update state based on results
     if (successfulUploads.length > 0) {
-      console.log('ProjectAttachments - Refreshing attachments list...');
       await fetchAttachments(page, appliedFilters); // Refresh attachments list
-      console.log('ProjectAttachments - Attachments list refreshed');
     }
 
     if (failedUploads.length > 0) {
@@ -446,7 +487,6 @@ function ProjectAttachmentsContent() {
       setUploadError(`Some files failed to upload: ${errorMessage}`);
     } else {
       // All uploads successful (no failed uploads)
-      console.log('ProjectAttachments - All uploads successful, closing dialog');
       setIsUploadDialogOpen(false);
       setSelectedFiles([]);
       setUploadProgress({});
@@ -593,7 +633,6 @@ function ProjectAttachmentsContent() {
           const tokenResponse = await api.post(`/api/projects/${projectId}/attachments/${attachment.id}/preview-token`);
           
           const tokenData = tokenResponse.data;
-          console.log('Generated preview token:', tokenData);
           
           // Store the public URL for external viewers
           setPreviewContent(tokenData.full_url);
@@ -1159,6 +1198,18 @@ function ProjectAttachmentsContent() {
                   <Typography variant="body2" color="text.secondary">
                     Uploaded: {attachment.created_at ? new Date(attachment.created_at).toLocaleDateString() : 'Unknown'}
                   </Typography>
+                  
+                  {attachment.language_id && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      Language: {languages.find(l => l.id === attachment.language_id)?.name || 'Unknown'}
+                    </Typography>
+                  )}
+                  
+                  {attachment.category_id && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      Category: {categories.find(c => c.id === attachment.category_id)?.name || 'Unknown'}
+                    </Typography>
+                  )}
                 </CardContent>
                 
                 <CardActions sx={{ pt: 0, justifyContent: 'space-between' }}>
@@ -1238,27 +1289,30 @@ function ProjectAttachmentsContent() {
           
           <List>
             {selectedFiles.map((fileObj, index) => (
-              <ListItem key={fileObj.id} divider>
-                <Grid container spacing={2} alignItems="center">
-                  <Grid item xs={1}>
-                    {getFileIcon(fileObj.name, fileObj.type)}
-                  </Grid>
-                  
-                  <Grid item xs={7}>
-                    <TextField
-                      fullWidth
-                      value={fileObj.name}
-                      onChange={(e) => handleFilenameChange(index, e.target.value)}
-                      disabled={uploadLoading}
-                      size="small"
-                      variant="outlined"
-                    />
-                    <Typography variant="caption" color="text.secondary">
+              <ListItem key={fileObj.id} divider sx={{ display: 'block', py: 2 }}>
+                <Grid container spacing={2}>
+                  {/* File icon and name */}
+                  <Grid item xs={12} sm={8}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      {getFileIcon(fileObj.name, fileObj.type)}
+                      <TextField
+                        fullWidth
+                        value={fileObj.name}
+                        onChange={(e) => handleFilenameChange(index, e.target.value)}
+                        disabled={uploadLoading}
+                        size="small"
+                        variant="outlined"
+                        label="Filename"
+                        sx={{ ml: 1 }}
+                      />
+                    </Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ ml: 5 }}>
                       {formatFileSize(fileObj.size)}
                     </Typography>
                   </Grid>
                   
-                  <Grid item xs={4}>
+                  {/* Upload progress/status */}
+                  <Grid item xs={12} sm={4}>
                     {uploadProgress[fileObj.id] !== undefined && (
                       <Box>
                         {uploadProgress[fileObj.id] === -1 ? (
@@ -1292,6 +1346,64 @@ function ProjectAttachmentsContent() {
                         )}
                       </Box>
                     )}
+                  </Grid>
+
+                  {/* Category selector */}
+                  <Grid item xs={12} sm={6}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel id={`file-category-label-${index}`}>Category (Optional)</InputLabel>
+                      <Select
+                        labelId={`file-category-label-${index}`}
+                        value={fileObj.category_id}
+                        onChange={(e) => handleFileMetadataChange(index, 'category_id', e.target.value)}
+                        label="Category (Optional)"
+                        disabled={uploadLoading || loadingCategories}
+                      >
+                        <MenuItem value="">
+                          <em>None (Default)</em>
+                        </MenuItem>
+                        {loadingCategories ? (
+                          <MenuItem disabled>
+                            <CircularProgress size={16} sx={{ mr: 1 }} /> Loading...
+                          </MenuItem>
+                        ) : (
+                          categories.map((category) => (
+                            <MenuItem key={category.id} value={category.id}>
+                              {category.name}
+                            </MenuItem>
+                          ))
+                        )}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+
+                  {/* Language selector */}
+                  <Grid item xs={12} sm={6}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel id={`file-language-label-${index}`}>Language (Optional)</InputLabel>
+                      <Select
+                        labelId={`file-language-label-${index}`}
+                        value={fileObj.language_id}
+                        onChange={(e) => handleFileMetadataChange(index, 'language_id', e.target.value)}
+                        label="Language (Optional)"
+                        disabled={uploadLoading || loadingLanguages}
+                      >
+                        <MenuItem value="">
+                          <em>None (Default)</em>
+                        </MenuItem>
+                        {loadingLanguages ? (
+                          <MenuItem disabled>
+                            <CircularProgress size={16} sx={{ mr: 1 }} /> Loading...
+                          </MenuItem>
+                        ) : (
+                          languages.map((language) => (
+                            <MenuItem key={language.id} value={language.id}>
+                              {language.name}
+                            </MenuItem>
+                          ))
+                        )}
+                      </Select>
+                    </FormControl>
                   </Grid>
                 </Grid>
               </ListItem>
@@ -1689,15 +1801,12 @@ function ProjectAttachmentsContent() {
                         }}
                         title="Document Preview"
                         onLoad={(e) => {
-                          console.log('Google Docs viewer iframe loaded');
                           // Check if the iframe shows "No preview available" after a delay
                           setTimeout(() => {
                             try {
                               // This is a workaround since we can't directly check iframe content due to CORS
                               // We'll rely on user feedback or implement a different approach
-                              console.log('Google Docs viewer loaded, checking for content...');
                             } catch (error) {
-                              console.log('Cannot check iframe content due to CORS restrictions');
                             }
                           }, 3000);
                         }}

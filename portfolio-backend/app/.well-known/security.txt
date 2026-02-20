@@ -1,0 +1,22 @@
+# Our security policy and vulnerability disclosure program
+# RFC 9116 compliant security.txt file
+# https://securitytxt.org/
+
+Contact: mailto:security@your-domain.com
+Contact: https://github.com/YOUR-ORG/portfolio-suite/security/advisories/new
+Expires: 2026-10-22T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://your-domain.com/.well-known/security.txt
+
+# Security Policy
+Policy: https://github.com/YOUR-ORG/portfolio-suite/blob/main/SECURITY.md
+
+# Acknowledgments
+Acknowledgments: https://github.com/YOUR-ORG/portfolio-suite/blob/main/SECURITY.md#acknowledgments
+
+# Encryption
+# Encryption: https://your-domain.com/pgp-key.txt
+
+# Hiring (optional)
+# Hiring: https://your-domain.com/careers
+

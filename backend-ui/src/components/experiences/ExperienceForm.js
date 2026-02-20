@@ -70,7 +70,6 @@ function ExperienceForm({ open, onClose, experience, mode = 'create' }) {
   useEffect(() => {
     if (open) {
       fetchLanguages(1, 100, {}).then(() => {
-        console.log('Languages fetched successfully');
       }).catch(error => {
         console.error('Error fetching languages:', error);
         setApiError('Failed to load languages: ' + error.message);
@@ -90,7 +89,6 @@ function ExperienceForm({ open, onClose, experience, mode = 'create' }) {
       const defaultLanguage = availableLanguages.find(lang => lang.is_default) || availableLanguages[0];
       
       if (defaultLanguage) {
-        console.log(`Auto-adding default language in create mode: ${defaultLanguage.name}`);
         
         // Add the default language
         setSelectedLanguages([defaultLanguage]);
@@ -121,15 +119,6 @@ function ExperienceForm({ open, onClose, experience, mode = 'create' }) {
   // Effect to load experience data if in edit or delete mode
   useEffect(() => {
     if ((mode === 'edit' || mode === 'delete') && experience) {
-      console.log(`ExperienceForm - Processing provided experience data for ${mode}:`, experience);
-      console.log('ExperienceForm - Experience prop details:', {
-        id: experience.id,
-        code: experience.code,
-        years: experience.years,
-        codeType: typeof experience.code,
-        yearsType: typeof experience.years,
-        fullObject: experience
-      });
       
       // Directly process the experience prop
       const formattedData = {
@@ -137,14 +126,6 @@ function ExperienceForm({ open, onClose, experience, mode = 'create' }) {
         experience_texts: Array.isArray(experience.experience_texts) ? experience.experience_texts : []
       };
       
-      console.log('ExperienceForm - Formatted data for form:', {
-        id: formattedData.id,
-        code: formattedData.code,
-        years: formattedData.years,
-        codeType: typeof formattedData.code,
-        yearsType: typeof formattedData.years,
-        experienceTextsLength: formattedData.experience_texts.length
-      });
       
       // Extract all languages and texts from experience_texts
       const textsMap = {};
@@ -194,23 +175,12 @@ function ExperienceForm({ open, onClose, experience, mode = 'create' }) {
         }
       });
 
-      console.log('Experience form - setting initial data:', {
-        languages: languageList,
-        texts: textsMap,
-        originalIds
-      });
 
       // Set the form data
-      console.log('ExperienceForm - About to set formData with:', formattedData);
       setFormData(formattedData);
       
       // Add a timeout to check if the formData was set correctly
       setTimeout(() => {
-        console.log('ExperienceForm - FormData after setting (async check):', {
-          currentFormData: formData,
-          expectedCode: formattedData.code,
-          expectedYears: formattedData.years
-        });
       }, 100);
       
       setSelectedLanguages(languageList);
@@ -234,11 +204,6 @@ function ExperienceForm({ open, onClose, experience, mode = 'create' }) {
 
   // Debug: Log formData whenever it changes
   useEffect(() => {
-    console.log('ExperienceForm - formData state changed:', {
-      formData,
-      mode,
-      timestamp: new Date().toISOString()
-    });
   }, [formData, mode]);
 
   // Check if code exists when code changes
@@ -249,21 +214,10 @@ function ExperienceForm({ open, onClose, experience, mode = 'create' }) {
         return;
       }
 
-      console.log('ExperienceForm - Checking code existence:', {
-        code: formData.code,
-        formDataId: formData.id,
-        mode,
-        excludeId: formData.id || null
-      });
 
       setIsCheckingCode(true);
       try {
         const result = await checkCodeExists(formData.code, formData.id || null);
-        console.log('ExperienceForm - Code check result:', {
-          code: formData.code,
-          exists: result.exists,
-          excludeId: formData.id || null
-        });
         
         setCodeExists(result.exists);
         if (result.exists) {
@@ -292,46 +246,26 @@ function ExperienceForm({ open, onClose, experience, mode = 'create' }) {
 
   // Validate form
   const validateForm = async () => {
-    console.log('ExperienceForm - Starting validation:', {
-      formDataCode: formData.code,
-      formDataYears: formData.years,
-      formDataId: formData.id,
-      codeExists,
-      selectedLanguagesCount: selectedLanguages.length,
-      mode
-    });
     
     const newErrors = {};
     
     // Validate code
     if (!formData.code) {
       newErrors.code = 'Code is required';
-      console.log('ExperienceForm - Validation error: Code is required');
     } else if (codeExists) {
       newErrors.code = 'Code already exists';
-      console.log('ExperienceForm - Validation error: Code already exists', {
-        code: formData.code,
-        codeExists,
-        formDataId: formData.id
-      });
     }
     
     // Validate years
     if (!formData.years) {
       newErrors.years = 'Years is required';
-      console.log('ExperienceForm - Validation error: Years is required');
     } else if (isNaN(formData.years) || parseInt(formData.years) < 0) {
       newErrors.years = 'Years must be a positive number';
-      console.log('ExperienceForm - Validation error: Years must be positive', {
-        years: formData.years,
-        parsedYears: parseInt(formData.years)
-      });
     }
     
     // Validate that at least one language is selected
     if (selectedLanguages.length === 0) {
       newErrors.languages = 'At least one language must be selected';
-      console.log('ExperienceForm - Validation error: No languages selected');
     }
     
     // Validate each language has name and description
@@ -342,23 +276,16 @@ function ExperienceForm({ open, onClose, experience, mode = 'create' }) {
       
       if (!langTexts.name || langTexts.name.trim() === '') {
         languageErrors[`${langId}_name`] = 'Name is required';
-        console.log(`ExperienceForm - Validation error: Name required for language ${lang.name}`);
       }
       
       if (!langTexts.description || langTexts.description.trim() === '') {
         languageErrors[`${langId}_description`] = 'Description is required';
-        console.log(`ExperienceForm - Validation error: Description required for language ${lang.name}`);
       }
     });
     
     const allErrors = { ...newErrors, ...languageErrors };
     const isValid = Object.keys(newErrors).length === 0 && Object.keys(languageErrors).length === 0;
     
-    console.log('ExperienceForm - Validation complete:', {
-      isValid,
-      errors: allErrors,
-      errorCount: Object.keys(allErrors).length
-    });
     
     setErrors(allErrors);
     return isValid;
@@ -385,7 +312,6 @@ function ExperienceForm({ open, onClose, experience, mode = 'create' }) {
     
     try {
       const submitData = prepareSubmitData();
-      console.log('Submitting experience data:', submitData);
       
       let result;
       
@@ -395,7 +321,6 @@ function ExperienceForm({ open, onClose, experience, mode = 'create' }) {
         result = await updateExperience(formData.id, submitData);
       }
       
-      console.log('Experience submission result:', result);
       onClose(true); // Close and refresh data
     } catch (error) {
       console.error('Error saving experience:', error);
@@ -425,22 +350,16 @@ function ExperienceForm({ open, onClose, experience, mode = 'create' }) {
     // Get the already selected language IDs
     const selectedLangIds = selectedLanguages.map(lang => lang.id);
     
-    console.log('Adding language - current state:', {
-      availableLanguages: availableLanguages?.length || 0, 
-      selectedLanguages: selectedLangIds
-    });
     
     // Find available languages that are not already selected
     const availableToAdd = availableLanguages.filter(
       lang => !selectedLangIds.includes(lang.id)
     );
     
-    console.log(`Found ${availableToAdd.length} available languages to add`);
     
     if (availableToAdd.length > 0) {
       // Add the first available language
       const langToAdd = availableToAdd[0];
-      console.log(`Adding language: ${langToAdd.name} (${langToAdd.id})`);
       
       // Update the selected languages array
       setSelectedLanguages(prev => [...prev, langToAdd]);
@@ -526,12 +445,10 @@ function ExperienceForm({ open, onClose, experience, mode = 'create' }) {
     });
     setErrors(newErrors);
     
-    console.log(`Removed language with ID: ${langId}`);
   };
 
   // Handle text changes for a language
   const handleTextChange = (langId, field, value) => {
-    console.log(`Updating ${field} for language ${langId}:`, value);
     
     // Update the languageTexts state
     setLanguageTexts(prev => {
@@ -543,10 +460,6 @@ function ExperienceForm({ open, onClose, experience, mode = 'create' }) {
         }
       };
       
-      console.log('Updated languageTexts state:', {
-        before: prev[langId],
-        after: updatedTexts[langId]
-      });
       
       return updatedTexts;
     });
@@ -747,12 +660,6 @@ function ExperienceForm({ open, onClose, experience, mode = 'create' }) {
   const handleChange = (e) => {
     const { name, value } = e.target;
     
-    console.log('ExperienceForm - handleChange called:', {
-      name,
-      value,
-      valueType: typeof value,
-      currentFormData: formData
-    });
     
     setFormData(prev => {
       const newFormData = {
@@ -760,12 +667,6 @@ function ExperienceForm({ open, onClose, experience, mode = 'create' }) {
         [name]: value
       };
       
-      console.log('ExperienceForm - Updated formData:', {
-        before: prev,
-        after: newFormData,
-        fieldChanged: name,
-        newValue: value
-      });
       
       return newFormData;
     });
@@ -792,19 +693,7 @@ function ExperienceForm({ open, onClose, experience, mode = 'create' }) {
       }
     });
     
-    console.log('ExperienceForm - prepareSubmitData debug:', {
-      formDataCode: formData.code,
-      formDataYears: formData.years,
-      formDataId: formData.id,
-      mode,
-      currentLanguageIds,
-      filteredLanguageTexts,
-      removedLanguageIds,
-      fullFormData: formData
-    });
     
-    console.log('Filtered language texts (excluding removed languages):', filteredLanguageTexts);
-    console.log('Removed language IDs:', removedLanguageIds);
     
     // Prepare data for submission
     const submitData = {
@@ -832,7 +721,6 @@ function ExperienceForm({ open, onClose, experience, mode = 'create' }) {
       submitData.removed_language_ids = removedLanguageIds;
     }
     
-    console.log('ExperienceForm - Final submitData:', submitData);
     
     return submitData;
   };
@@ -899,10 +787,6 @@ function ExperienceForm({ open, onClose, experience, mode = 'create' }) {
       const nameError = errors[`${langId}_name`];
       const descError = errors[`${langId}_description`];
 
-      console.log(`Rendering language section for language ${lang.name} (${langId})`, { 
-        texts: langTexts,
-        hasErrors: !!nameError || !!descError 
-      });
 
       return (
         <Grid item xs={12} key={langId}>

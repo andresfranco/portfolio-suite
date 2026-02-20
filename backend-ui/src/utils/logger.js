@@ -48,12 +48,6 @@ const formatValue = (value) => {
 // Debug level logging - only in development
 export const logDebug = (...args) => {
   if (currentLogLevel <= LOG_LEVEL.DEBUG) {
-    console.debug(
-      '%c[DEBUG]%c',
-      'color: #6c757d; font-weight: bold',
-      'color: inherit',
-      ...args.map(formatValue)
-    );
   }
 };
 
@@ -72,12 +66,6 @@ export const logInfo = (...args) => {
 // Warning level logging
 export const logWarn = (...args) => {
   if (currentLogLevel <= LOG_LEVEL.WARN) {
-    console.warn(
-      '%c[WARN]%c',
-      'color: #fd7e14; font-weight: bold',
-      'color: inherit',
-      ...args.map(formatValue)
-    );
   }
 };
 
@@ -115,12 +103,6 @@ export const logPerformance = (label, fn) => {
 // Force log to console regardless of log level settings
 // Useful for debugging critical issues
 export const logForce = (...args) => {
-  console.log(
-    '%c[FORCE]%c',
-    'color: #ff5722; font-weight: bold; font-size: 1.1em',
-    'color: inherit',
-    ...args.map(formatValue)
-  );
 };
 
 // Default logger object with all methods
