@@ -229,8 +229,8 @@ function SkillForm({ open, onClose, skill, mode = 'create' }) {
             };
           }
           
-          // Add to language list if valid and not already added
-          if (langObj && !languageList.some(l => l.id === langObj.id)) {
+          // Add to language list if not already added
+          if (!languageList.some(l => l.id === langObj.id)) {
             languageList.push(langObj);
           }
           

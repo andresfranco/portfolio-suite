@@ -30,11 +30,6 @@ updates:
       include: "scope"
     # Group updates
     groups:
-      security-updates:
-        patterns:
-          - "*"
-        update-types:
-          - "security"
       minor-updates:
         patterns:
           - "*"
@@ -69,11 +64,6 @@ updates:
       prefix: "deps(frontend)"
       include: "scope"
     groups:
-      security-updates:
-        patterns:
-          - "*"
-        update-types:
-          - "security"
       react-ecosystem:
         patterns:
           - "react*"

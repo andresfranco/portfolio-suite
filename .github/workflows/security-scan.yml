@@ -59,7 +59,7 @@ jobs:
           bandit -r app/ -f json -o bandit-report.json || true
           # Fail on high severity issues
           bandit -r app/ -ll -f txt | tee bandit-output.txt
-          if grep -q "High:" bandit-output.txt; then
+          if grep -q "Severity: High" bandit-output.txt; then
             echo "::error::High severity security issues found by Bandit"
             echo "has_high_severity=true" >> $GITHUB_OUTPUT
             exit 1
