@@ -46,19 +46,19 @@ jobs:
           cd portfolio-backend
           pip install --upgrade pip
           pip install -r requirements.txt
-          pip install safety pip-audit
-          
+          pip install pip-audit
+
           echo "## Python Dependency Security Check" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # Run safety check
-          if safety check --bare 2>&1 | grep -iE "critical|high"; then
-            echo "❌ **FAILED:** Critical/High vulnerabilities found" >> $GITHUB_STEP_SUMMARY
-            echo "critical_found=true" >> $GITHUB_OUTPUT
-            safety check || true
-            exit 1
+
+          # Run pip-audit (replaces deprecated safety check)
+          if pip-audit --desc 2>&1 | tee /tmp/pip-audit-output.txt; then
+            echo "✅ **PASSED:** No known vulnerabilities" >> $GITHUB_STEP_SUMMARY
           else
-            echo "✅ **PASSED:** No critical vulnerabilities" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **FAILED:** Vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+            echo "critical_found=true" >> $GITHUB_OUTPUT
+            cat /tmp/pip-audit-output.txt >> $GITHUB_STEP_SUMMARY
+            exit 1
           fi
       
       # Critical Vulnerability Check - NPM
