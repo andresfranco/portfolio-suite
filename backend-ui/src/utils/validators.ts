@@ -31,7 +31,7 @@ const XSS_PATTERNS = [
 // SQL injection patterns
 const SQL_PATTERNS = [
   /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE|UNION|SCRIPT)\b)/gi,
-  /(--|\#|\/\*|\*\/)/g,
+  /(--|#|\/\*|\*\/)/g,
   /(\bOR\b.*=.*)/gi,
   /(\bAND\b.*=.*)/gi,
 ];
@@ -475,7 +475,7 @@ export function validateCreditCard(cardNumber: string): ValidationResult {
   return { isValid: true };
 }
 
-export default {
+const validators = {
   validateEmail,
   validateUsername,
   validatePassword,
@@ -495,4 +495,6 @@ export default {
   getRemainingChars,
   validateCreditCard,
 };
+
+export default validators;
 
