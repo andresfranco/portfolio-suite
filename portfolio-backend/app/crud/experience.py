@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import asc, desc, or_
-from app.models.experience import Experience, ExperienceText
+from sqlalchemy import asc, desc, or_, inspect
+from app.models.experience import Experience, ExperienceText, ExperienceImage
 from app.models.language import Language
 from app.schemas.experience import ExperienceCreate, ExperienceUpdate, ExperienceTextCreate, Filter
 from typing import List, Optional, Tuple
@@ -11,18 +11,56 @@ from app.core.db import db_transaction
 # Set up logger using centralized logging
 logger = setup_logger("app.crud.experience")
 
+# Helper to detect optional table support
+EXPERIENCE_IMAGES_TABLE = "experience_images"
+
+def experience_images_supported(db: Session) -> bool:
+    """
+    Detect whether the experience_images table exists.
+    """
+    try:
+        engine = db.get_bind()
+        inspector = inspect(engine)
+        exists = inspector.has_table(EXPERIENCE_IMAGES_TABLE)
+        if not exists:
+            logger.debug("%s table not found; skipping experience image joins", EXPERIENCE_IMAGES_TABLE)
+        return exists
+    except Exception as exc:
+        logger.warning(
+            "Unable to inspect for %s table (assuming unavailable): %s",
+            EXPERIENCE_IMAGES_TABLE,
+            exc,
+        )
+        return False
+
 # CRUD Functions
 def get_experience(db: Session, experience_id: int):
     logger.debug(f"Fetching experience with ID {experience_id}")
-    return db.query(Experience).options(
+    loader_options = [
         joinedload(Experience.experience_texts).joinedload(ExperienceText.language)
-    ).filter(Experience.id == experience_id).first()
+    ]
+    if experience_images_supported(db):
+        loader_options.append(joinedload(Experience.images))
+    return (
+        db.query(Experience)
+        .options(*loader_options)
+        .filter(Experience.id == experience_id)
+        .first()
+    )
 
 def get_experience_by_code(db: Session, code: str):
     logger.debug(f"Fetching experience by code: {code}")
-    return db.query(Experience).options(
+    loader_options = [
         joinedload(Experience.experience_texts).joinedload(ExperienceText.language)
-    ).filter(Experience.code == code).first()
+    ]
+    if experience_images_supported(db):
+        loader_options.append(joinedload(Experience.images))
+    return (
+        db.query(Experience)
+        .options(*loader_options)
+        .filter(Experience.code == code)
+        .first()
+    )
 
 @db_transaction
 def create_experience(db: Session, experience: ExperienceCreate):
@@ -182,6 +220,92 @@ def update_experience(db: Session, experience_id: int, experience: ExperienceUpd
         logger.error(f"Transaction rolled back for update_experience: {str(e)}")
         raise
 
+
+def get_experience_image(db: Session, experience_image_id: int) -> Optional[ExperienceImage]:
+    """Retrieve a single experience image by ID."""
+    if not experience_images_supported(db):
+        return None
+    return (
+        db.query(ExperienceImage)
+        .filter(ExperienceImage.id == experience_image_id)
+        .first()
+    )
+
+
+def get_experience_images(
+    db: Session,
+    experience_id: int,
+    category: Optional[str] = None,
+    language_id: Optional[int] = None,
+) -> List[ExperienceImage]:
+    """
+    Retrieve images for an experience, optionally filtered by category and language.
+    Falls back to language-agnostic images when language_id is provided.
+    """
+    if not experience_images_supported(db):
+        logger.debug("experience_images table unavailable; returning empty image list")
+        return []
+
+    query = db.query(ExperienceImage).filter(ExperienceImage.experience_id == experience_id)
+
+    if category:
+        query = query.filter(ExperienceImage.category == category)
+
+    if language_id is not None:
+        query = query.filter(
+            or_(
+                ExperienceImage.language_id == language_id,
+                ExperienceImage.language_id.is_(None),
+            )
+        )
+
+    return query.order_by(ExperienceImage.created_at.desc()).all()
+
+
+def create_experience_image(
+    db: Session,
+    *,
+    experience_id: int,
+    image_path: str,
+    file_name: Optional[str] = None,
+    category: str = "content",
+    language_id: Optional[int] = None,
+    experience_text_id: Optional[int] = None,
+    created_by: Optional[int] = None,
+) -> ExperienceImage:
+    """Persist a new experience image record."""
+    if not experience_images_supported(db):
+        raise ValueError("Experience images table is not available. Run migrations before uploading images.")
+
+    db_image = ExperienceImage(
+        experience_id=experience_id,
+        experience_text_id=experience_text_id,
+        image_path=image_path,
+        file_name=file_name,
+        category=category,
+        language_id=language_id,
+        created_by=created_by,
+        updated_by=created_by,
+    )
+    db.add(db_image)
+    db.commit()
+    db.refresh(db_image)
+    return db_image
+
+
+def delete_experience_image(db: Session, experience_image_id: int) -> bool:
+    """Delete an experience image by ID."""
+    if not experience_images_supported(db):
+        return False
+
+    image = get_experience_image(db, experience_image_id)
+    if not image:
+        return False
+
+    db.delete(image)
+    db.commit()
+    return True
+
 @db_transaction
 def delete_experience(db: Session, experience_id: int):
     logger.debug(f"Deleting experience with ID {experience_id}")
@@ -239,9 +363,14 @@ def get_experiences_paginated(
     
     try:
         # Start with base query, including eager loading of related data
-        base_query = db.query(Experience).options(
+        loader_options = [
             joinedload(Experience.experience_texts).joinedload(ExperienceText.language)
-        )
+        ]
+        include_images = experience_images_supported(db)
+        if include_images:
+            loader_options.append(joinedload(Experience.images))
+
+        base_query = db.query(Experience).options(*loader_options)
         
         # Use the QueryBuilder with the base query
         query_builder = QueryBuilder(

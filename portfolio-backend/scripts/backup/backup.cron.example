@@ -1,0 +1,23 @@
+# Cron job configuration for automated database backups
+# Copy this file to /etc/cron.d/portfolio-backup (requires root)
+# Or add to user crontab with: crontab -e
+
+# Run backups daily at 2 AM
+0 2 * * * /usr/bin/python3 /path/to/portfolio-backend/scripts/backup.py --upload-s3 >> /var/log/portfolio/backup.log 2>&1
+
+# Run backup verification daily at 3 AM
+0 3 * * * /usr/bin/python3 /path/to/portfolio-backend/scripts/backup.py --verify /path/to/latest/backup >> /var/log/portfolio/backup-verify.log 2>&1
+
+# Cleanup old backups weekly on Sunday at 4 AM
+0 4 * * 0 /usr/bin/python3 /path/to/portfolio-backend/scripts/backup.py --cleanup >> /var/log/portfolio/backup-cleanup.log 2>&1
+
+# Alternative schedules:
+# Every 6 hours:
+# 0 */6 * * * /usr/bin/python3 /path/to/portfolio-backend/scripts/backup.py --upload-s3
+#
+# Every hour:
+# 0 * * * * /usr/bin/python3 /path/to/portfolio-backend/scripts/backup.py --upload-s3
+#
+# Twice daily (2 AM and 2 PM):
+# 0 2,14 * * * /usr/bin/python3 /path/to/portfolio-backend/scripts/backup.py --upload-s3
+

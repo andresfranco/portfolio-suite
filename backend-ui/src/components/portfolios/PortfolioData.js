@@ -56,12 +56,14 @@ import {
   CloudUpload as CloudUploadIcon,
   Download as DownloadIcon,
   Visibility as VisibilityIcon,
-  Language as LanguageIcon
+  Language as LanguageIcon,
+  DriveFileRenameOutline as DriveFileRenameOutlineIcon
 } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
-import { api, projectsApi } from '../../services/api';
+import { api, projectsApi, experiencesApi, sectionsApi } from '../../services/api';
 import { useSnackbar } from 'notistack';
 import SERVER_URL from '../common/BackendServerData';
+import PermissionGate from '../common/PermissionGate';
 
 // Tab Panel Component
 function TabPanel({ children, value, index, ...other }) {
@@ -108,11 +110,34 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
   const [attachmentUploadOpen, setAttachmentUploadOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState(null);
   const [imageCategory, setImageCategory] = useState('gallery');
+  const [imageLanguage, setImageLanguage] = useState('');
   const [uploadLoading, setUploadLoading] = useState(false);
+  
+  // Attachment category states
+  const [attachmentCategory, setAttachmentCategory] = useState('');
+  const [attachmentCategories, setAttachmentCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [setAsDefaultResume, setSetAsDefaultResume] = useState(false);
+  
+  // Attachment language state
+  const [attachmentLanguage, setAttachmentLanguage] = useState('');
+  const [availableLanguages, setAvailableLanguages] = useState([]);
+  const [languagesLoading, setLanguagesLoading] = useState(false);
 
   // Section modal states
   const [sectionModalOpen, setSectionModalOpen] = useState(false);
   const [selectedSection, setSelectedSection] = useState(null);
+
+  // Category modal states
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  // Experience modal states
+  const [experienceModalOpen, setExperienceModalOpen] = useState(false);
+  const [selectedExperience, setSelectedExperience] = useState(null);
+
+  // Project modal states
+  const [projectModalOpen, setProjectModalOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState(null);
 
   // Image rename states
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
@@ -128,6 +153,22 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
   const [itemToDelete, setItemToDelete] = useState(null);
   const [deleteType, setDeleteType] = useState(null); // 'image' or 'attachment'
   const [deleting, setDeleting] = useState(false);
+  const [downloadingAttachmentId, setDownloadingAttachmentId] = useState(null);
+  
+  // Edit attachment states
+  const [editAttachmentOpen, setEditAttachmentOpen] = useState(false);
+  const [selectedAttachment, setSelectedAttachment] = useState(null);
+  const [editAttachmentCategory, setEditAttachmentCategory] = useState('');
+  const [editAttachmentLanguage, setEditAttachmentLanguage] = useState('');
+  const [editSetAsDefault, setEditSetAsDefault] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+
+  // Edit image states
+  const [editImageOpen, setEditImageOpen] = useState(false);
+  const [selectedImageForEdit, setSelectedImageForEdit] = useState(null);
+  const [editImageFileName, setEditImageFileName] = useState('');
+  const [editImageCategory, setEditImageCategory] = useState('');
+  const [editImageLanguage, setEditImageLanguage] = useState('');
 
   // Fetch portfolio data
   const fetchPortfolioData = useCallback(async () => {
@@ -137,9 +178,15 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
       setLoading(true);
       setError(null);
       
-      // Fetch portfolio details with all related data
-      const response = await api.get(`/api/portfolios/${portfolioId}`);
+      // Fetch portfolio details with all related data (MUST include full_details to load relationships)
+      const response = await api.get(`/api/portfolios/${portfolioId}`, { 
+        params: { include_full_details: true } 
+      });
       const portfolio = response.data;
+      
+      // Debug: log attachments to see their structure
+      if (portfolio.attachments && portfolio.attachments.length > 0) {
+      }
       
       setPortfolioData(portfolio);
       setCategories(portfolio.categories || []);
@@ -163,19 +210,74 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
     try {
       const [categoriesRes, experiencesRes, projectsRes, sectionsRes] = await Promise.all([
         api.get('/api/categories/by-type/PORT'),
-        api.get('/api/experiences/'),
-        api.get('/api/projects/'),
-        api.get('/api/sections/')
+        api.get('/api/experiences/', { params: { page: 1, page_size: 100 } }),
+        api.get('/api/projects/', { params: { page: 1, page_size: 100, include_full_details: true } }),
+        api.get('/api/sections/', { params: { page: 1, page_size: 100 } })
       ]);
       
       // Categories by-type endpoint returns array directly
-      setAvailableCategories(categoriesRes.data || []);
-      setAvailableExperiences(experiencesRes.data.items || experiencesRes.data || []);
-      setAvailableProjects(projectsRes.data.items || projectsRes.data || []);
-      setAvailableSections(sectionsRes.data.items || sectionsRes.data || []);
+      const rawCategories = categoriesRes.data || [];
+      // Ensure only Portfolio-type categories are available (by name or code fallback)
+      const portfolioCategories = rawCategories.filter(cat => {
+        const byName = cat.category_type?.name && String(cat.category_type.name).toLowerCase() === 'portfolio';
+        const byCode = cat.type_code && ['PORT', 'PORTF'].includes(String(cat.type_code).toUpperCase());
+        return byName || byCode;
+      });
+      setAvailableCategories(portfolioCategories);
+  setAvailableExperiences(experiencesRes.data.items || experiencesRes.data || []);
+  setAvailableProjects(projectsRes.data.items || projectsRes.data || []);
+  setAvailableSections(sectionsRes.data.items || sectionsRes.data || []);
       
     } catch (err) {
       console.error('Error fetching available options:', err);
+    }
+  }, []);
+
+  // Fetch attachment categories (PDOC and RESU types)
+  const fetchAttachmentCategories = useCallback(async () => {
+    setCategoriesLoading(true);
+    try {
+      const response = await fetch(`${SERVER_URL}/api/categories/?page_size=100`, {
+        credentials: 'include',
+        mode: 'cors'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch categories');
+      }
+      const data = await response.json();
+      
+      // Filter for PDOC and RESU type categories
+      const docResumeCategories = (data.items || data || []).filter(cat => 
+        cat.type_code === 'PDOC' || cat.type_code === 'RESU'
+      );
+      
+      setAttachmentCategories(docResumeCategories);
+    } catch (error) {
+      console.error('Error fetching attachment categories:', error);
+      setAttachmentCategories([]);
+    } finally {
+      setCategoriesLoading(false);
+    }
+  }, []);
+
+  // Fetch available languages
+  const fetchLanguages = useCallback(async () => {
+    setLanguagesLoading(true);
+    try {
+      const response = await fetch(`${SERVER_URL}/api/languages/?page_size=100`, {
+        credentials: 'include',
+        mode: 'cors'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch languages');
+      }
+      const data = await response.json();
+      setAvailableLanguages(data.items || data || []);
+    } catch (error) {
+      console.error('Error fetching languages:', error);
+      setAvailableLanguages([]);
+    } finally {
+      setLanguagesLoading(false);
     }
   }, []);
 
@@ -184,8 +286,10 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
     if (open && portfolioId) {
       fetchPortfolioData();
       fetchAvailableOptions();
+      fetchAttachmentCategories();
+      fetchLanguages();
     }
-  }, [open, portfolioId, fetchPortfolioData, fetchAvailableOptions]);
+  }, [open, portfolioId, fetchPortfolioData, fetchAvailableOptions, fetchAttachmentCategories, fetchLanguages]);
 
   // Handle tab change
   const handleTabChange = (event, newValue) => {
@@ -292,12 +396,15 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
 
     try {
       setUploadLoading(true);
-      await projectsApi.uploadPortfolioImage(portfolioId, uploadFile, imageCategory);
+      // Ensure languageId is a number or null
+      const languageIdToSend = imageLanguage ? parseInt(imageLanguage, 10) : null;
+      await projectsApi.uploadPortfolioImage(portfolioId, uploadFile, imageCategory, languageIdToSend);
       await fetchPortfolioData();
       enqueueSnackbar('Image uploaded successfully', { variant: 'success' });
       setImageUploadOpen(false);
       setUploadFile(null);
       setImageCategory('gallery');
+      setImageLanguage('');
     } catch (err) {
       const errorMessage = err.response?.data?.detail || 'Failed to upload image';
       enqueueSnackbar(`Error: ${errorMessage}`, { variant: 'error' });
@@ -395,17 +502,46 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
 
     try {
       setUploadLoading(true);
-      await projectsApi.uploadPortfolioAttachment(portfolioId, uploadFile);
+      await projectsApi.uploadPortfolioAttachment(
+        portfolioId, 
+        uploadFile,
+        attachmentCategory || null,
+        setAsDefaultResume,
+        attachmentLanguage || null
+      );
       await fetchPortfolioData();
       enqueueSnackbar('Attachment uploaded successfully', { variant: 'success' });
       setAttachmentUploadOpen(false);
       setUploadFile(null);
+      setAttachmentCategory('');
+      setSetAsDefaultResume(false);
+      setAttachmentLanguage('');
     } catch (err) {
       const errorMessage = err.response?.data?.detail || 'Failed to upload attachment';
       enqueueSnackbar(`Error: ${errorMessage}`, { variant: 'error' });
     } finally {
       setUploadLoading(false);
     }
+  };
+  
+  // Helper to get category display name
+  const getCategoryDisplayName = (category) => {
+    if (!category) return '';
+    
+    // Try to get English name from texts array
+    if (category.texts && Array.isArray(category.texts)) {
+      const englishText = category.texts.find(t => t.language?.code === 'en' || t.language_id === 1);
+      if (englishText?.name) return englishText.name;
+    }
+    
+    // Try category_texts array (alternative structure)
+    if (category.category_texts && Array.isArray(category.category_texts)) {
+      const englishText = category.category_texts.find(t => t.language?.code === 'en' || t.language_id === 1);
+      if (englishText?.name) return englishText.name;
+    }
+    
+    // Fallback to name or code
+    return category.name || category.code || `Category ${category.id}`;
   };
 
   const handleAttachmentDelete = (attachment) => {
@@ -414,10 +550,178 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
     setDeleteDialogOpen(true);
   };
 
+  // Force file download without opening a new tab
+  const handleAttachmentDownload = async (attachment) => {
+    if (!attachment) return;
+    try {
+      setDownloadingAttachmentId(attachment.id);
+      const url = attachment.file_url
+        ? `${SERVER_URL}${attachment.file_url}`
+        : (attachment.file_path.startsWith('static/')
+            ? `${SERVER_URL}/${attachment.file_path}`
+            : `${SERVER_URL}/static/${attachment.file_path}`);
+
+      // Cookies are sent automatically with credentials: 'include'
+      const response = await fetch(url, { credentials: 'include' });
+      if (!response.ok) {
+        throw new Error(`Download failed (${response.status})`);
+      }
+      const blob = await response.blob();
+
+      // Try to get filename from Content-Disposition, fallback to attachment.file_name
+      let filename = attachment.file_name || 'download';
+      const disposition = response.headers.get('content-disposition');
+      if (disposition) {
+        const match = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(disposition);
+        if (match) {
+          filename = decodeURIComponent(match[1] || match[2] || filename);
+        }
+      }
+
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      const msg = err?.message || 'Failed to download file';
+      enqueueSnackbar(`Error: ${msg}`, { variant: 'error' });
+      // Fallback: attempt basic anchor download
+      try {
+        const fallbackUrl = attachment.file_url
+          ? `${SERVER_URL}${attachment.file_url}`
+          : (attachment.file_path.startsWith('static/')
+              ? `${SERVER_URL}/${attachment.file_path}`
+              : `${SERVER_URL}/static/${attachment.file_path}`);
+        const a = document.createElement('a');
+        a.href = fallbackUrl;
+        a.download = attachment.file_name || '';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } catch (_) {
+        // ignore
+      }
+    } finally {
+      setDownloadingAttachmentId(null);
+    }
+  };
+
+  // Edit attachment handlers
+  const handleEditAttachment = (attachment) => {
+    setSelectedAttachment(attachment);
+    setEditAttachmentCategory(attachment.category_id || '');
+    setEditAttachmentLanguage(attachment.language_id || '');
+    setEditSetAsDefault(attachment.is_default || false);
+    setEditAttachmentOpen(true);
+  };
+
+  const handleAttachmentUpdate = async () => {
+    if (!selectedAttachment) return;
+    
+    try {
+      setEditLoading(true);
+      
+      // Debug: log what we're sending
+      
+      await projectsApi.updatePortfolioAttachment(
+        portfolioId,
+        selectedAttachment.id,
+        editAttachmentCategory || null,
+        editSetAsDefault,
+        editAttachmentLanguage || null
+      );
+      
+      enqueueSnackbar('Attachment updated successfully', { variant: 'success' });
+      setEditAttachmentOpen(false);
+      setSelectedAttachment(null);
+      setEditAttachmentCategory('');
+      setEditAttachmentLanguage('');
+      setEditSetAsDefault(false);
+      await fetchPortfolioData();
+    } catch (err) {
+      console.error('Update attachment error:', err);
+      console.error('Error response:', err.response?.data);
+      enqueueSnackbar(err.response?.data?.detail || 'Failed to update attachment', { variant: 'error' });
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  // Edit image handlers
+  const handleEditImage = (image) => {
+    setSelectedImageForEdit(image);
+    setEditImageFileName(image.file_name || '');
+    setEditImageCategory(image.category || '');
+    setEditImageLanguage(image.language_id || image.language?.id || '');
+    setEditImageOpen(true);
+  };
+
+  const handleImageUpdate = async () => {
+    if (!selectedImageForEdit) return;
+    
+    if (!editImageFileName.trim()) {
+      enqueueSnackbar('Please enter a valid filename', { variant: 'error' });
+      return;
+    }
+    
+    try {
+      setEditLoading(true);
+      
+      // Debug: log what we're sending
+      
+      // Single API call with all updates
+      await projectsApi.renamePortfolioImage(portfolioId, selectedImageForEdit.id, {
+        file_name: editImageFileName.trim(),
+        category: editImageCategory || null,
+        language_id: editImageLanguage || null
+      });
+      
+      enqueueSnackbar('Image updated successfully', { variant: 'success' });
+      setEditImageOpen(false);
+      setSelectedImageForEdit(null);
+      setEditImageFileName('');
+      setEditImageCategory('');
+      setEditImageLanguage('');
+      await fetchPortfolioData();
+    } catch (err) {
+      console.error('Update image error:', err);
+      console.error('Error response:', err.response?.data);
+      console.error('Error detail:', JSON.stringify(err.response?.data?.detail, null, 2));
+      const errorMsg = Array.isArray(err.response?.data?.detail) 
+        ? err.response.data.detail.map(e => e.msg || e).join(', ')
+        : err.response?.data?.detail || 'Failed to update image';
+      enqueueSnackbar(errorMsg, { variant: 'error' });
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
   // Section modal handlers
   const handleViewSection = (section) => {
     setSelectedSection(section);
     setSectionModalOpen(true);
+  };
+
+  // Category modal handlers
+  const handleViewCategory = (category) => {
+    setSelectedCategory(category);
+    setCategoryModalOpen(true);
+  };
+
+  // Experience modal handlers
+  const handleViewExperience = (experience) => {
+    setSelectedExperience(experience);
+    setExperienceModalOpen(true);
+  };
+
+  // Project modal handlers
+  const handleViewProject = (project) => {
+    setSelectedProject(project);
+    setProjectModalOpen(true);
   };
 
   // Bulk operations
@@ -450,11 +754,14 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
     onAdd, 
     onRemove, 
     getItemLabel,
-    getItemId 
+    getItemId,
+    defaultShowConnected
   }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedItems, setSelectedItems] = useState([]);
-    const [showConnected, setShowConnected] = useState(true);
+    const [showConnected, setShowConnected] = useState(
+      typeof defaultShowConnected === 'boolean' ? defaultShowConnected : true
+    );
     
     const connectedIds = items.map(item => getItemId(item));
     const availableToAdd = availableItems.filter(item => !connectedIds.includes(getItemId(item)));
@@ -675,6 +982,474 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
     );
   };
 
+  // Multi-select add manager for Categories
+  const CategoryAddManager = ({ categories, availableCategories, onAddMany }) => {
+    const [selectedOptions, setSelectedOptions] = useState([]);
+
+    const connectedIds = categories.map(c => c.id);
+    const options = (availableCategories || []).filter(opt => !connectedIds.includes(opt.id));
+
+    const getLabel = (item) => item?.category_texts?.[0]?.name || item?.code || `Category ${item?.id}`;
+
+    const handleAdd = async () => {
+      if (!selectedOptions.length) return;
+      const ids = selectedOptions.map(o => o.id);
+      await onAddMany(ids);
+      setSelectedOptions([]);
+    };
+
+    const handleRemoveSelected = (id) => {
+      setSelectedOptions(prev => prev.filter(o => o.id !== id));
+    };
+
+    return (
+      <Card>
+        <CardHeader
+          avatar={<Avatar sx={{ bgcolor: '#1976d2' }}><CategoryIcon /></Avatar>}
+          title="Add Categories"
+          subheader={`${options.length} available to add`}
+          action={
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleAdd}
+              disabled={selectedOptions.length === 0}
+              sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
+            >
+              Add {selectedOptions.length > 0 ? `(${selectedOptions.length})` : ''}
+            </Button>
+          }
+        />
+        <CardContent>
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <Autocomplete
+                multiple
+                options={options}
+                value={selectedOptions}
+                onChange={(e, newValue) => setSelectedOptions(newValue)}
+                getOptionLabel={getLabel}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                filterSelectedOptions
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    size="small"
+                    placeholder="Search categories to add…"
+                    InputProps={{
+                      ...params.InputProps,
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                )}
+              />
+            </Grid>
+            {selectedOptions.length > 0 && (
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>Selected:</Typography>
+                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                  {selectedOptions.map(opt => (
+                    <Chip
+                      key={opt.id}
+                      label={getLabel(opt)}
+                      onDelete={() => handleRemoveSelected(opt.id)}
+                    />
+                  ))}
+                </Stack>
+              </Grid>
+            )}
+            {options.length === 0 && (
+              <Grid item xs={12}>
+                <Typography variant="body2" color="text.secondary">
+                  All available categories are already connected.
+                </Typography>
+              </Grid>
+            )}
+          </Grid>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  // Multi-select add manager for Experiences (loads all, client filters)
+  const ExperienceAddManager = ({ experiences, onAddMany }) => {
+    const [selectedOptions, setSelectedOptions] = useState([]);
+    const [options, setOptions] = useState([]);
+    const [loadingOptions, setLoadingOptions] = useState(false);
+
+    const connectedIds = experiences.map(e => e.id);
+    const filteredOptions = (options || []).filter(opt => !connectedIds.includes(opt.id));
+
+    const getLabel = (item) => item?.experience_texts?.[0]?.name || item?.code || `Experience ${item?.id}`;
+
+    const loadAll = async () => {
+      try {
+        setLoadingOptions(true);
+        const res = await experiencesApi.getExperiences({ page: 1, page_size: 100 });
+        const list = res.data?.items || res.data || [];
+        setOptions(list);
+      } catch (e) {
+        // noop
+      } finally {
+        setLoadingOptions(false);
+      }
+    };
+
+    const handleInputChange = async (_e, value, reason) => {
+      if (reason === 'input' && typeof value === 'string') {
+        try {
+          setLoadingOptions(true);
+          // Use backend filters (name contains)
+          const params = { page: 1, page_size: 100, name: value };
+          const res = await experiencesApi.getExperiences(params);
+          const list = res.data?.items || res.data || [];
+          setOptions(list);
+        } catch (_) {
+          // ignore
+        } finally {
+          setLoadingOptions(false);
+        }
+      }
+    };
+
+    const handleAdd = async () => {
+      if (!selectedOptions.length) return;
+      const ids = selectedOptions.map(o => o.id);
+      await onAddMany(ids);
+      setSelectedOptions([]);
+    };
+
+    const handleRemoveSelected = (id) => {
+      setSelectedOptions(prev => prev.filter(o => o.id !== id));
+    };
+
+    return (
+      <Card>
+        <CardHeader
+          avatar={<Avatar sx={{ bgcolor: '#1976d2' }}><WorkIcon /></Avatar>}
+          title="Add Experiences"
+          subheader={`${filteredOptions.length} available to add`}
+          action={
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleAdd}
+              disabled={selectedOptions.length === 0}
+              sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
+            >
+              Add {selectedOptions.length > 0 ? `(${selectedOptions.length})` : ''}
+            </Button>
+          }
+        />
+        <CardContent>
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <Autocomplete
+                multiple
+                options={filteredOptions}
+                value={selectedOptions}
+                onChange={(e, newValue) => setSelectedOptions(newValue)}
+                onOpen={loadAll}
+                onInputChange={handleInputChange}
+                getOptionLabel={getLabel}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                filterSelectedOptions
+                loading={loadingOptions}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    size="small"
+                    placeholder="Search experiences to add…"
+                    InputProps={{
+                      ...params.InputProps,
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                )}
+              />
+            </Grid>
+            {selectedOptions.length > 0 && (
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>Selected:</Typography>
+                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                  {selectedOptions.map(opt => (
+                    <Chip
+                      key={opt.id}
+                      label={getLabel(opt)}
+                      onDelete={() => handleRemoveSelected(opt.id)}
+                    />
+                  ))}
+                </Stack>
+              </Grid>
+            )}
+          </Grid>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  // Multi-select add manager for Projects
+  const ProjectAddManager = ({ projects, onAddMany }) => {
+    const [selectedOptions, setSelectedOptions] = useState([]);
+    const [options, setOptions] = useState([]);
+    const [loadingOptions, setLoadingOptions] = useState(false);
+
+    const connectedIds = projects.map(p => p.id);
+    const filteredOptions = (options || []).filter(opt => !connectedIds.includes(opt.id));
+
+    const getLabel = (item) => item?.project_texts?.[0]?.name || item?.project_texts?.[0]?.title || item?.code || `Project ${item?.id}`;
+
+    const loadAll = async () => {
+      try {
+        setLoadingOptions(true);
+        const res = await projectsApi.getProjects({ page: 1, page_size: 100, include_full_details: true });
+        const list = res.data?.items || res.data || [];
+        setOptions(list);
+      } catch (e) {
+        // noop
+      } finally {
+        setLoadingOptions(false);
+      }
+    };
+
+    const handleInputChange = async (_e, value, reason) => {
+      if (reason === 'input' && typeof value === 'string') {
+        try {
+          setLoadingOptions(true);
+          // Backend accepts name_filter or legacy name
+          const res = await projectsApi.getProjects({ page: 1, page_size: 100, include_full_details: true, name_filter: value });
+          const list = res.data?.items || res.data || [];
+          setOptions(list);
+        } catch (_) {
+          // ignore
+        } finally {
+          setLoadingOptions(false);
+        }
+      }
+    };
+
+    const handleAdd = async () => {
+      if (!selectedOptions.length) return;
+      const ids = selectedOptions.map(o => o.id);
+      await onAddMany(ids);
+      setSelectedOptions([]);
+    };
+
+    const handleRemoveSelected = (id) => {
+      setSelectedOptions(prev => prev.filter(o => o.id !== id));
+    };
+
+    return (
+      <Card>
+        <CardHeader
+          avatar={<Avatar sx={{ bgcolor: '#1976d2' }}><ProjectIcon /></Avatar>}
+          title="Add Projects"
+          subheader={`${filteredOptions.length} available to add`}
+          action={
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleAdd}
+              disabled={selectedOptions.length === 0}
+              sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
+            >
+              Add {selectedOptions.length > 0 ? `(${selectedOptions.length})` : ''}
+            </Button>
+          }
+        />
+        <CardContent>
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <Autocomplete
+                multiple
+                options={filteredOptions}
+                value={selectedOptions}
+                onChange={(e, newValue) => setSelectedOptions(newValue)}
+                onOpen={loadAll}
+                onInputChange={handleInputChange}
+                getOptionLabel={getLabel}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                filterSelectedOptions
+                loading={loadingOptions}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    size="small"
+                    placeholder="Search projects to add…"
+                    InputProps={{
+                      ...params.InputProps,
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                )}
+              />
+            </Grid>
+            {selectedOptions.length > 0 && (
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>Selected:</Typography>
+                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                  {selectedOptions.map(opt => (
+                    <Chip
+                      key={opt.id}
+                      label={getLabel(opt)}
+                      onDelete={() => handleRemoveSelected(opt.id)}
+                    />
+                  ))}
+                </Stack>
+              </Grid>
+            )}
+          </Grid>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  // Multi-select add manager for Sections
+  const SectionAddManager = ({ sectionsConnected, onAddMany }) => {
+    const [selectedOptions, setSelectedOptions] = useState([]);
+    const [options, setOptions] = useState([]);
+    const [loadingOptions, setLoadingOptions] = useState(false);
+
+    const connectedIds = sectionsConnected.map(s => s.id);
+    const filteredOptions = (options || []).filter(opt => !connectedIds.includes(opt.id));
+
+    const getLabel = (item) => item?.code || `Section ${item?.id}`;
+
+    const loadAll = async () => {
+      try {
+        setLoadingOptions(true);
+        const res = await sectionsApi.getSections({ page: 1, page_size: 100 });
+        const list = res.data?.items || res.data || [];
+        setOptions(list);
+      } catch (e) {
+        // noop
+      } finally {
+        setLoadingOptions(false);
+      }
+    };
+
+    const handleInputChange = async (_e, value, reason) => {
+      if (reason === 'input' && typeof value === 'string') {
+        try {
+          setLoadingOptions(true);
+          // Backend supports code or text filters; use filter_field/value pairs
+          const params = {
+            page: 1,
+            page_size: 100,
+            filter_field: ['code','text'],
+            filter_value: [value, value],
+            filter_operator: ['contains','contains']
+          };
+          const res = await sectionsApi.getSections(params);
+          const list = res.data?.items || res.data || [];
+          setOptions(list);
+        } catch (_) {
+          // ignore
+        } finally {
+          setLoadingOptions(false);
+        }
+      }
+    };
+
+    const handleAdd = async () => {
+      if (!selectedOptions.length) return;
+      const ids = selectedOptions.map(o => o.id);
+      await onAddMany(ids);
+      setSelectedOptions([]);
+    };
+
+    const handleRemoveSelected = (id) => {
+      setSelectedOptions(prev => prev.filter(o => o.id !== id));
+    };
+
+    return (
+      <Card>
+        <CardHeader
+          avatar={<Avatar sx={{ bgcolor: '#1976d2' }}><SectionIcon /></Avatar>}
+          title="Add Sections"
+          subheader={`${filteredOptions.length} available to add`}
+          action={
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleAdd}
+              disabled={selectedOptions.length === 0}
+              sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
+            >
+              Add {selectedOptions.length > 0 ? `(${selectedOptions.length})` : ''}
+            </Button>
+          }
+        />
+        <CardContent>
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <Autocomplete
+                multiple
+                options={filteredOptions}
+                value={selectedOptions}
+                onChange={(e, newValue) => setSelectedOptions(newValue)}
+                onOpen={loadAll}
+                onInputChange={handleInputChange}
+                getOptionLabel={getLabel}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                filterSelectedOptions
+                loading={loadingOptions}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    size="small"
+                    placeholder="Search sections to add…"
+                    InputProps={{
+                      ...params.InputProps,
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                )}
+              />
+            </Grid>
+            {selectedOptions.length > 0 && (
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>Selected:</Typography>
+                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                  {selectedOptions.map(opt => (
+                    <Chip
+                      key={opt.id}
+                      label={getLabel(opt)}
+                      onDelete={() => handleRemoveSelected(opt.id)}
+                    />
+                  ))}
+                </Stack>
+              </Grid>
+            )}
+            {filteredOptions.length === 0 && (
+              <Grid item xs={12}>
+                <Typography variant="body2" color="text.secondary">
+                  All available sections are already connected.
+                </Typography>
+              </Grid>
+            )}
+          </Grid>
+        </CardContent>
+      </Card>
+    );
+  };
+
   return (
     <>
       <Dialog
@@ -733,204 +1508,370 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
           <>
             {/* Overview Tab */}
             <TabPanel value={tabValue} index={0}>
-              <Card>
-                <CardHeader
-                  avatar={<Avatar sx={{ bgcolor: '#1976d2' }}><InfoIcon /></Avatar>}
-                  title="Portfolio Information"
-                  subheader="Basic portfolio details"
-                />
-                <CardContent>
-                  <Grid container spacing={3}>
-                    <Grid item xs={12} md={6}>
-                      <Typography variant="subtitle2" color="text.secondary">Name</Typography>
-                      <Typography variant="body1" sx={{ mb: 2 }}>{portfolioData?.name || '-'}</Typography>
+              <PermissionGate 
+                permission="VIEW_PORTFOLIOS" 
+                showError 
+                errorMessage="You do not have permission to see Portfolio information, please contact your system administrator."
+              >
+                <Card>
+                  <CardHeader
+                    avatar={<Avatar sx={{ bgcolor: '#1976d2' }}><InfoIcon /></Avatar>}
+                    title="Portfolio Information"
+                    subheader="Basic portfolio details"
+                  />
+                  <CardContent>
+                    <Grid container spacing={3}>
+                      <Grid item xs={12} md={6}>
+                        <Typography variant="subtitle2" color="text.secondary">Name</Typography>
+                        <Typography variant="body1" sx={{ mb: 2 }}>{portfolioData?.name || '-'}</Typography>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Typography variant="subtitle2" color="text.secondary">ID</Typography>
+                        <Typography variant="body1" sx={{ mb: 2 }}>{portfolioData?.id || '-'}</Typography>
+                      </Grid>
+                      <Grid item xs={12}>
+                        <Typography variant="subtitle2" color="text.secondary">Description</Typography>
+                        <Typography variant="body1" sx={{ mb: 2 }}>
+                          {portfolioData?.description || 'No description provided'}
+                        </Typography>
+                      </Grid>
                     </Grid>
-                    <Grid item xs={12} md={6}>
-                      <Typography variant="subtitle2" color="text.secondary">ID</Typography>
-                      <Typography variant="body1" sx={{ mb: 2 }}>{portfolioData?.id || '-'}</Typography>
+                    
+                    <Divider sx={{ my: 3 }} />
+                    
+                    <Typography variant="h6" sx={{ mb: 2 }}>Quick Stats</Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={6} sm={4} md={2}>
+                        <Paper sx={{ p: 2, textAlign: 'center' }}>
+                          <Typography variant="h4" color="primary">{categories.length}</Typography>
+                          <Typography variant="caption">Categories</Typography>
+                        </Paper>
+                      </Grid>
+                      <Grid item xs={6} sm={4} md={2}>
+                        <Paper sx={{ p: 2, textAlign: 'center' }}>
+                          <Typography variant="h4" color="primary">{experiences.length}</Typography>
+                          <Typography variant="caption">Experiences</Typography>
+                        </Paper>
+                      </Grid>
+                      <Grid item xs={6} sm={4} md={2}>
+                        <Paper sx={{ p: 2, textAlign: 'center' }}>
+                          <Typography variant="h4" color="primary">{projects.length}</Typography>
+                          <Typography variant="caption">Projects</Typography>
+                        </Paper>
+                      </Grid>
+                      <Grid item xs={6} sm={4} md={2}>
+                        <Paper sx={{ p: 2, textAlign: 'center' }}>
+                          <Typography variant="h4" color="primary">{sections.length}</Typography>
+                          <Typography variant="caption">Sections</Typography>
+                        </Paper>
+                      </Grid>
+                      <Grid item xs={6} sm={4} md={2}>
+                        <Paper sx={{ p: 2, textAlign: 'center' }}>
+                          <Typography variant="h4" color="primary">{images.length}</Typography>
+                          <Typography variant="caption">Images</Typography>
+                        </Paper>
+                      </Grid>
+                      <Grid item xs={6} sm={4} md={2}>
+                        <Paper sx={{ p: 2, textAlign: 'center' }}>
+                          <Typography variant="h4" color="primary">{attachments.length}</Typography>
+                          <Typography variant="caption">Attachments</Typography>
+                        </Paper>
+                      </Grid>
                     </Grid>
-                    <Grid item xs={12}>
-                      <Typography variant="subtitle2" color="text.secondary">Description</Typography>
-                      <Typography variant="body1" sx={{ mb: 2 }}>
-                        {portfolioData?.description || 'No description provided'}
-                      </Typography>
-                    </Grid>
-                  </Grid>
-                  
-                  <Divider sx={{ my: 3 }} />
-                  
-                  <Typography variant="h6" sx={{ mb: 2 }}>Quick Stats</Typography>
-                  <Grid container spacing={2}>
-                    <Grid item xs={6} sm={4} md={2}>
-                      <Paper sx={{ p: 2, textAlign: 'center' }}>
-                        <Typography variant="h4" color="primary">{categories.length}</Typography>
-                        <Typography variant="caption">Categories</Typography>
-                      </Paper>
-                    </Grid>
-                    <Grid item xs={6} sm={4} md={2}>
-                      <Paper sx={{ p: 2, textAlign: 'center' }}>
-                        <Typography variant="h4" color="primary">{experiences.length}</Typography>
-                        <Typography variant="caption">Experiences</Typography>
-                      </Paper>
-                    </Grid>
-                    <Grid item xs={6} sm={4} md={2}>
-                      <Paper sx={{ p: 2, textAlign: 'center' }}>
-                        <Typography variant="h4" color="primary">{projects.length}</Typography>
-                        <Typography variant="caption">Projects</Typography>
-                      </Paper>
-                    </Grid>
-                    <Grid item xs={6} sm={4} md={2}>
-                      <Paper sx={{ p: 2, textAlign: 'center' }}>
-                        <Typography variant="h4" color="primary">{sections.length}</Typography>
-                        <Typography variant="caption">Sections</Typography>
-                      </Paper>
-                    </Grid>
-                    <Grid item xs={6} sm={4} md={2}>
-                      <Paper sx={{ p: 2, textAlign: 'center' }}>
-                        <Typography variant="h4" color="primary">{images.length}</Typography>
-                        <Typography variant="caption">Images</Typography>
-                      </Paper>
-                    </Grid>
-                    <Grid item xs={6} sm={4} md={2}>
-                      <Paper sx={{ p: 2, textAlign: 'center' }}>
-                        <Typography variant="h4" color="primary">{attachments.length}</Typography>
-                        <Typography variant="caption">Attachments</Typography>
-                      </Paper>
-                    </Grid>
-                  </Grid>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </PermissionGate>
             </TabPanel>
 
             {/* Categories Tab */}
             <TabPanel value={tabValue} index={1}>
-              <AssociationManager
-                title="Categories"
-                icon={<CategoryIcon />}
-                items={categories}
-                availableItems={availableCategories}
-                onAdd={handleAddCategory}
-                onRemove={handleRemoveCategory}
-                getItemLabel={(item) => {
-                  // Try to get name from category_texts, fallback to code
-                  const name = item.category_texts?.[0]?.name || item.code || `Category ${item.id}`;
-                  return name;
-                }}
-                getItemId={(item) => item.id}
-              />
+              <PermissionGate 
+                permission="VIEW_CATEGORIES" 
+                showError 
+                errorMessage="You do not have permission to see Categories, please contact your system administrator."
+              >
+                {/* Connected Categories (visible list like Sections) */}
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                    <CategoryIcon sx={{ mr: 1 }} />
+                    Connected Categories
+                  </Typography>
+                  {categories.length > 0 ? (
+                    <List>
+                      {categories.map((cat) => {
+                        const name = cat.category_texts?.[0]?.name || cat.code || `Category ${cat.id}`;
+                        return (
+                          <ListItem key={cat.id} divider>
+                            <ListItemIcon>
+                              <CategoryIcon />
+                            </ListItemIcon>
+                            <ListItemText
+                              primary={name}
+                              secondary={`ID: ${cat.id}${cat.type_code ? ` • Type: ${cat.type_code}` : ''}`}
+                            />
+                            <IconButton
+                              size="small"
+                              onClick={() => handleViewCategory(cat)}
+                              sx={{ mr: 1 }}
+                            >
+                              <VisibilityIcon />
+                            </IconButton>
+                            <PermissionGate permission="EDIT_PORTFOLIO">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => handleRemoveCategory(cat.id)}
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </PermissionGate>
+                          </ListItem>
+                        );
+                      })}
+                    </List>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      No categories connected yet.
+                    </Typography>
+                  )}
+                </Box>
+
+                <Divider sx={{ my: 3 }} />
+
+                {/* Add Categories using multi-select search */}
+                <PermissionGate permissions={["EDIT_PORTFOLIO", "VIEW_CATEGORIES"]} requireAll>
+                  <CategoryAddManager
+                    categories={categories}
+                    availableCategories={availableCategories}
+                    onAddMany={async (ids) => {
+                      await handleBulkAdd(ids, handleAddCategory);
+                    }}
+                  />
+                </PermissionGate>
+              </PermissionGate>
             </TabPanel>
 
             {/* Experiences Tab */}
             <TabPanel value={tabValue} index={2}>
-              <AssociationManager
-                title="Experiences"
-                icon={<WorkIcon />}
-                items={experiences}
-                availableItems={availableExperiences}
-                onAdd={handleAddExperience}
-                onRemove={handleRemoveExperience}
-                getItemLabel={(item) => {
-                  // Try to get name from experience_texts, fallback to code
-                  const name = item.experience_texts?.[0]?.name || item.code || `Experience ${item.id}`;
-                  const years = item.years ? ` (${item.years} years)` : '';
-                  return `${name}${years}`;
-                }}
-                getItemId={(item) => item.id}
-              />
+              <PermissionGate 
+                permission="VIEW_EXPERIENCES" 
+                showError 
+                errorMessage="You do not have permission to see Experiences, please contact your system administrator."
+              >
+                {/* Connected Experiences */}
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                    <WorkIcon sx={{ mr: 1 }} />
+                    Connected Experiences
+                  </Typography>
+                  {experiences.length > 0 ? (
+                    <List>
+                      {experiences.map((exp) => {
+                        const base = exp.experience_texts?.[0]?.name || exp.code || `Experience ${exp.id}`;
+                        const years = exp.years ? ` (${exp.years} years)` : '';
+                        const label = `${base}${years}`;
+                        return (
+                          <ListItem key={exp.id} divider>
+                            <ListItemIcon>
+                              <WorkIcon />
+                            </ListItemIcon>
+                            <ListItemText
+                              primary={label}
+                              secondary={`ID: ${exp.id}`}
+                            />
+                            <IconButton
+                              size="small"
+                              onClick={() => handleViewExperience(exp)}
+                              sx={{ mr: 1 }}
+                            >
+                              <VisibilityIcon />
+                            </IconButton>
+                            <PermissionGate permission="EDIT_PORTFOLIO">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => handleRemoveExperience(exp.id)}
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </PermissionGate>
+                          </ListItem>
+                        );
+                      })}
+                    </List>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      No experiences connected yet.
+                    </Typography>
+                  )}
+                </Box>
+
+                <Divider sx={{ my: 3 }} />
+
+                <PermissionGate permissions={["EDIT_PORTFOLIO", "VIEW_EXPERIENCES"]} requireAll>
+                  <ExperienceAddManager
+                    experiences={experiences}
+                    onAddMany={async (ids) => {
+                      await handleBulkAdd(ids, handleAddExperience);
+                    }}
+                  />
+                </PermissionGate>
+              </PermissionGate>
             </TabPanel>
 
             {/* Projects Tab */}
             <TabPanel value={tabValue} index={3}>
-              <AssociationManager
-                title="Projects"
-                icon={<ProjectIcon />}
-                items={projects}
-                availableItems={availableProjects}
-                onAdd={handleAddProject}
-                onRemove={handleRemoveProject}
-                getItemLabel={(item) => {
-                  // Try to get name/title from project_texts, fallback to a generic name
-                  const title = item.project_texts?.[0]?.name || item.project_texts?.[0]?.title || `Project ${item.id}`;
-                  return title;
-                }}
-                getItemId={(item) => item.id}
-              />
+              <PermissionGate 
+                permission="VIEW_PROJECTS" 
+                showError 
+                errorMessage="You do not have permission to see Projects, please contact your system administrator."
+              >
+                {/* Connected Projects */}
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                    <ProjectIcon sx={{ mr: 1 }} />
+                    Connected Projects
+                  </Typography>
+                  {projects.length > 0 ? (
+                    <List>
+                      {projects.map((proj) => {
+                        const title = proj.project_texts?.[0]?.name || proj.project_texts?.[0]?.title || `Project ${proj.id}`;
+                        return (
+                          <ListItem key={proj.id} divider>
+                            <ListItemIcon>
+                              <ProjectIcon />
+                            </ListItemIcon>
+                            <ListItemText
+                              primary={title}
+                              secondary={`ID: ${proj.id}`}
+                            />
+                            <IconButton
+                              size="small"
+                              onClick={() => handleViewProject(proj)}
+                              sx={{ mr: 1 }}
+                            >
+                              <VisibilityIcon />
+                            </IconButton>
+                            <PermissionGate permission="EDIT_PORTFOLIO">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => handleRemoveProject(proj.id)}
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </PermissionGate>
+                          </ListItem>
+                        );
+                      })}
+                    </List>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      No projects connected yet.
+                    </Typography>
+                  )}
+                </Box>
+
+                <Divider sx={{ my: 3 }} />
+
+                <PermissionGate permissions={["EDIT_PORTFOLIO", "VIEW_PROJECTS"]} requireAll>
+                  <ProjectAddManager
+                    projects={projects}
+                    onAddMany={async (ids) => {
+                      await handleBulkAdd(ids, handleAddProject);
+                    }}
+                  />
+                </PermissionGate>
+              </PermissionGate>
             </TabPanel>
 
             {/* Sections Tab */}
             <TabPanel value={tabValue} index={4}>
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
-                  <SectionIcon sx={{ mr: 1 }} />
-                  Connected Sections
-                </Typography>
-                {sections.length > 0 ? (
-                  <List>
-                    {sections.map((section) => (
-                      <ListItem key={section.id} divider>
-                        <ListItemIcon>
-                          <SectionIcon />
-                        </ListItemIcon>
-                        <ListItemText
-                          primary={section.code || `Section ${section.id}`}
-                          secondary={`ID: ${section.id}`}
-                        />
-                        <IconButton
-                          size="small"
-                          onClick={() => handleViewSection(section)}
-                          sx={{ mr: 1 }}
-                        >
-                          <VisibilityIcon />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => handleRemoveSection(section.id)}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </ListItem>
-                    ))}
-                  </List>
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    No sections connected yet.
+              <PermissionGate 
+                permission="VIEW_SECTIONS" 
+                showError 
+                errorMessage="You do not have permission to see Sections, please contact your system administrator."
+              >
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                    <SectionIcon sx={{ mr: 1 }} />
+                    Connected Sections
                   </Typography>
-                )}
-              </Box>
+                  {sections.length > 0 ? (
+                    <List>
+                      {sections.map((section) => (
+                        <ListItem key={section.id} divider>
+                          <ListItemIcon>
+                            <SectionIcon />
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={section.code || `Section ${section.id}`}
+                            secondary={`ID: ${section.id}`}
+                          />
+                          <IconButton
+                            size="small"
+                            onClick={() => handleViewSection(section)}
+                            sx={{ mr: 1 }}
+                          >
+                            <VisibilityIcon />
+                          </IconButton>
+                          <PermissionGate permission="EDIT_PORTFOLIO">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleRemoveSection(section.id)}
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </PermissionGate>
+                        </ListItem>
+                      ))}
+                    </List>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      No sections connected yet.
+                    </Typography>
+                  )}
+                </Box>
 
-              <Divider sx={{ my: 3 }} />
+                <Divider sx={{ my: 3 }} />
 
-              <AssociationManager
-                title="Available Sections"
-                icon={<SectionIcon />}
-                items={[]}
-                availableItems={availableSections.filter(item => !sections.some(s => s.id === item.id))}
-                onAdd={handleAddSection}
-                onRemove={handleRemoveSection}
-                getItemLabel={(item) => {
-                  return item.code || `Section ${item.id}`;
-                }}
-                getItemId={(item) => item.id}
-              />
+                <PermissionGate permissions={["EDIT_PORTFOLIO", "VIEW_SECTIONS"]} requireAll>
+                  <SectionAddManager
+                    sectionsConnected={sections}
+                    onAddMany={async (ids) => {
+                      await handleBulkAdd(ids, handleAddSection);
+                    }}
+                  />
+                </PermissionGate>
+              </PermissionGate>
             </TabPanel>
 
             {/* Images Tab */}
             <TabPanel value={tabValue} index={5}>
+              <PermissionGate 
+                permissions={["VIEW_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}
+                showError
+                errorMessage="You do not have permission to see Portfolio Images, please contact your system administrator."
+              >
               <Card>
                 <CardHeader
                   avatar={<Avatar sx={{ bgcolor: '#1976d2' }}><PhotoLibraryIcon /></Avatar>}
                   title="Portfolio Images"
                   subheader={`${images.length} images uploaded`}
                   action={
-                    <Button
-                      variant="contained"
-                      startIcon={<CloudUploadIcon />}
-                      onClick={() => setImageUploadOpen(true)}
-                      sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
+                    <PermissionGate 
+                      permissions={["UPLOAD_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}
                     >
-                      Upload Image
-                    </Button>
+                      <Button
+                        variant="contained"
+                        startIcon={<CloudUploadIcon />}
+                        onClick={() => setImageUploadOpen(true)}
+                        sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
+                      >
+                        Upload Image
+                      </Button>
+                    </PermissionGate>
                   }
                 />
                 <CardContent>
@@ -1032,6 +1973,21 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
                                 {image.file_name || 'Unnamed file'}
                               </Typography>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                                {image.language && (
+                                  <Chip
+                                    size="small"
+                                    icon={image.language.image ? (
+                                      <Box
+                                        component="img"
+                                        src={`${SERVER_URL}/uploads/${image.language.image.replace(/^.*language_images\//, "language_images/")}`}
+                                        alt={image.language.name}
+                                        sx={{ width: 16, height: 12, objectFit: 'cover' }}
+                                      />
+                                    ) : <LanguageIcon />}
+                                    label={image.language.name}
+                                    sx={{ height: 20 }}
+                                  />
+                                )}
                                 <Chip 
                                   label={image.category || 'Uncategorized'} 
                                   size="small" 
@@ -1061,25 +2017,29 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
                                 {new Date(image.created_at).toLocaleDateString()}
                               </Typography>
                               <Box>
-                                <Tooltip title="Rename image">
-                                  <IconButton
-                                    size="small"
-                                    color="primary"
-                                    onClick={() => handleImageRename(image)}
-                                    sx={{ mr: 0.5 }}
-                                  >
-                                    <EditIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                                <Tooltip title="Delete image">
-                                  <IconButton
-                                    size="small"
-                                    color="error"
-                                    onClick={() => handleImageDelete(image)}
-                                  >
-                                    <DeleteIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
+                                <PermissionGate permissions={["EDIT_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}>
+                                  <Tooltip title="Edit image">
+                                    <IconButton
+                                      size="small"
+                                      color="primary"
+                                      onClick={() => handleEditImage(image)}
+                                      sx={{ mr: 0.5 }}
+                                    >
+                                      <EditIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                </PermissionGate>
+                                <PermissionGate permissions={["DELETE_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}>
+                                  <Tooltip title="Delete image">
+                                    <IconButton
+                                      size="small"
+                                      color="error"
+                                      onClick={() => handleImageDelete(image)}
+                                    >
+                                      <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                </PermissionGate>
                               </Box>
                             </CardActions>
                           </Card>
@@ -1093,24 +2053,32 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
                   )}
                 </CardContent>
               </Card>
+              </PermissionGate>
             </TabPanel>
 
             {/* Attachments Tab */}
             <TabPanel value={tabValue} index={6}>
+              <PermissionGate 
+                permissions={["VIEW_PORTFOLIO_ATTACHMENTS", "MANAGE_PORTFOLIO_ATTACHMENTS", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}
+                showError
+                errorMessage="You do not have permission to see Portfolio Attachments, please contact your system administrator."
+              >
               <Card>
                 <CardHeader
                   avatar={<Avatar sx={{ bgcolor: '#1976d2' }}><AttachFileIcon /></Avatar>}
                   title="Portfolio Attachments"
                   subheader={`${attachments.length} files attached`}
                   action={
-                    <Button
-                      variant="contained"
-                      startIcon={<CloudUploadIcon />}
-                      onClick={() => setAttachmentUploadOpen(true)}
-                      sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
-                    >
-                      Upload File
-                    </Button>
+                    <PermissionGate permissions={["UPLOAD_PORTFOLIO_ATTACHMENTS", "MANAGE_PORTFOLIO_ATTACHMENTS", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}>
+                      <Button
+                        variant="contained"
+                        startIcon={<CloudUploadIcon />}
+                        onClick={() => setAttachmentUploadOpen(true)}
+                        sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
+                      >
+                        Upload File
+                      </Button>
+                    </PermissionGate>
                   }
                 />
                 <CardContent>
@@ -1124,30 +2092,74 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
                               <Typography variant="body2" fontWeight={500}>
                                 {attachment.file_name}
                               </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                ID: {attachment.id}
-                              </Typography>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
+                                <Typography variant="caption" color="text.secondary">
+                                  ID: {attachment.id}
+                                </Typography>
+                                {attachment.language && (
+                                  <Chip
+                                    size="small"
+                                    icon={attachment.language.image ? (
+                                      <Box
+                                        component="img"
+                                        src={`${SERVER_URL}/uploads/${attachment.language.image.replace(/^.*language_images\//, "language_images/")}`}
+                                        alt={attachment.language.name}
+                                        sx={{ width: 16, height: 12, objectFit: 'cover' }}
+                                      />
+                                    ) : <LanguageIcon />}
+                                    label={attachment.language.name}
+                                    sx={{ height: 20 }}
+                                  />
+                                )}
+                                {attachment.category && (
+                                  <Chip
+                                    size="small"
+                                    icon={<CategoryIcon />}
+                                    label={getCategoryDisplayName(attachment.category)}
+                                    color="primary"
+                                    variant="outlined"
+                                    sx={{ height: 20 }}
+                                  />
+                                )}
+                                {attachment.is_default && (
+                                  <Chip
+                                    size="small"
+                                    label="Default"
+                                    color="success"
+                                    sx={{ height: 20 }}
+                                  />
+                                )}
+                              </Box>
                             </Box>
+                            <PermissionGate permissions={["MANAGE_PORTFOLIO_ATTACHMENTS", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}>
+                              <Tooltip title="Edit">
+                                <IconButton
+                                  size="small"
+                                  color="primary"
+                                  onClick={() => handleEditAttachment(attachment)}
+                                >
+                                  <EditIcon />
+                                </IconButton>
+                              </Tooltip>
+                            </PermissionGate>
                             <Button
                               size="small"
-                              startIcon={<DownloadIcon />}
-                              href={attachment.file_url ? `${SERVER_URL}${attachment.file_url}` :
-                                   (attachment.file_path.startsWith('static/') 
-                                    ? `${SERVER_URL}/${attachment.file_path}` 
-                                    : `${SERVER_URL}/static/${attachment.file_path}`)}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                              startIcon={downloadingAttachmentId === attachment.id ? <CircularProgress size={16} /> : <DownloadIcon />}
+                              onClick={() => handleAttachmentDownload(attachment)}
+                              disabled={downloadingAttachmentId === attachment.id}
                               sx={{ mr: 1 }}
                             >
-                              Download
+                              {downloadingAttachmentId === attachment.id ? 'Downloading…' : 'Download'}
                             </Button>
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => handleAttachmentDelete(attachment)}
-                            >
-                              <DeleteIcon />
-                            </IconButton>
+                            <PermissionGate permissions={["DELETE_PORTFOLIO_ATTACHMENTS", "MANAGE_PORTFOLIO_ATTACHMENTS", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}>
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => handleAttachmentDelete(attachment)}
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </PermissionGate>
                           </Box>
                         </Paper>
                       ))}
@@ -1159,6 +2171,7 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
                   )}
                 </CardContent>
               </Card>
+              </PermissionGate>
             </TabPanel>
           </>
         )}
@@ -1172,7 +2185,8 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
     </Dialog>
 
     {/* Image Upload Dialog */}
-    <Dialog open={imageUploadOpen} onClose={() => setImageUploadOpen(false)} maxWidth="sm" fullWidth>
+  <PermissionGate permissions={["UPLOAD_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}>
+  <Dialog open={imageUploadOpen} onClose={() => setImageUploadOpen(false)} maxWidth="sm" fullWidth>
       <DialogTitle>Upload Portfolio Image</DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, pt: 2 }}>
@@ -1210,6 +2224,58 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
               <MenuItem value="background">Background</MenuItem>
             </Select>
           </FormControl>
+          
+          {/* Language Selection */}
+          <FormControl fullWidth>
+            <InputLabel id="image-language-label">Language (Optional)</InputLabel>
+            <Select
+              labelId="image-language-label"
+              id="image-language-select"
+              value={imageLanguage}
+              label="Language (Optional)"
+              onChange={(e) => {
+                setImageLanguage(e.target.value);
+              }}
+              disabled={uploadLoading || languagesLoading}
+            >
+              <MenuItem value="">
+                <em>None</em>
+              </MenuItem>
+              {languagesLoading ? (
+                <MenuItem disabled>
+                  <CircularProgress size={20} sx={{ mr: 1 }} />
+                  <em>Loading languages...</em>
+                </MenuItem>
+              ) : availableLanguages.length === 0 ? (
+                <MenuItem disabled>
+                  <em>No languages available</em>
+                </MenuItem>
+              ) : (
+                availableLanguages.map((language) => (
+                  <MenuItem key={language.id} value={language.id}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      {language.image && (
+                        <Box
+                          component="img"
+                          src={`${SERVER_URL}/uploads/${language.image.replace(/^.*language_images\//, "language_images/")}`}
+                          alt={language.name}
+                          sx={{
+                            width: 24,
+                            height: 16,
+                            border: '1px solid #eee',
+                            borderRadius: 0.5,
+                            objectFit: 'cover'
+                          }}
+                          onError={(e) => { e.target.style.display = 'none'; }}
+                        />
+                      )}
+                      <Typography>{language.name}</Typography>
+                    </Box>
+                  </MenuItem>
+                ))
+              )}
+            </Select>
+          </FormControl>
         </Box>
       </DialogContent>
       <DialogActions>
@@ -1224,9 +2290,11 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
         </Button>
       </DialogActions>
     </Dialog>
+  </PermissionGate>
 
     {/* Attachment Upload Dialog */}
-    <Dialog open={attachmentUploadOpen} onClose={() => setAttachmentUploadOpen(false)} maxWidth="sm" fullWidth>
+  <PermissionGate permissions={["UPLOAD_PORTFOLIO_ATTACHMENTS", "MANAGE_PORTFOLIO_ATTACHMENTS", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}>
+  <Dialog open={attachmentUploadOpen} onClose={() => setAttachmentUploadOpen(false)} maxWidth="sm" fullWidth>
       <DialogTitle>Upload Portfolio Attachment</DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
@@ -1252,6 +2320,103 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
           <Typography variant="caption" color="text.secondary">
             Supported formats: PDF, Word, Excel, CSV, Text, JSON, XML, ZIP (max 10MB)
           </Typography>
+          
+          {/* Language Selection */}
+          <FormControl fullWidth>
+            <InputLabel id="attachment-language-label">Language (Optional)</InputLabel>
+            <Select
+              labelId="attachment-language-label"
+              id="attachment-language-select"
+              value={attachmentLanguage}
+              label="Language (Optional)"
+              onChange={(e) => setAttachmentLanguage(e.target.value)}
+              disabled={uploadLoading || languagesLoading}
+            >
+              <MenuItem value="">
+                <em>None</em>
+              </MenuItem>
+              {languagesLoading ? (
+                <MenuItem disabled>
+                  <CircularProgress size={20} sx={{ mr: 1 }} />
+                  <em>Loading languages...</em>
+                </MenuItem>
+              ) : availableLanguages.length === 0 ? (
+                <MenuItem disabled>
+                  <em>No languages available</em>
+                </MenuItem>
+              ) : (
+                availableLanguages.map((language) => (
+                  <MenuItem key={language.id} value={language.id}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      {language.image && (
+                        <Box
+                          component="img"
+                          src={`${SERVER_URL}/uploads/${language.image.replace(/^.*language_images\//, "language_images/")}`}
+                          alt={language.name}
+                          sx={{
+                            width: 24,
+                            height: 16,
+                            border: '1px solid #eee',
+                            borderRadius: 0.5,
+                            objectFit: 'cover'
+                          }}
+                          onError={(e) => { e.target.style.display = 'none'; }}
+                        />
+                      )}
+                      <Typography>{language.name}</Typography>
+                    </Box>
+                  </MenuItem>
+                ))
+              )}
+            </Select>
+          </FormControl>
+          
+          {/* Category Selection */}
+          <FormControl fullWidth>
+            <InputLabel id="attachment-category-label">Category (Optional)</InputLabel>
+            <Select
+              labelId="attachment-category-label"
+              id="attachment-category-select"
+              value={attachmentCategory}
+              label="Category (Optional)"
+              onChange={(e) => setAttachmentCategory(e.target.value)}
+              disabled={uploadLoading || categoriesLoading}
+            >
+              <MenuItem value="">
+                <em>None</em>
+              </MenuItem>
+              {categoriesLoading ? (
+                <MenuItem disabled>
+                  <CircularProgress size={20} sx={{ mr: 1 }} />
+                  <em>Loading categories...</em>
+                </MenuItem>
+              ) : attachmentCategories.length === 0 ? (
+                <MenuItem disabled>
+                  <em>No categories available</em>
+                </MenuItem>
+              ) : (
+                attachmentCategories.map((category) => (
+                  <MenuItem key={category.id} value={category.id}>
+                    {getCategoryDisplayName(category)}
+                  </MenuItem>
+                ))
+              )}
+            </Select>
+          </FormControl>
+          
+          {/* Set as Default checkbox - only show for RESU categories */}
+          {attachmentCategory && attachmentCategories.find(c => c.id === parseInt(attachmentCategory))?.type_code === 'RESU' && (
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={setAsDefaultResume}
+                  onChange={(e) => setSetAsDefaultResume(e.target.checked)}
+                  disabled={uploadLoading}
+                />
+              }
+              label="Set as default resume (for website download button)"
+            />
+          )}
         </Box>
       </DialogContent>
       <DialogActions>
@@ -1265,7 +2430,233 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
           {uploadLoading ? 'Uploading...' : 'Upload'}
         </Button>
       </DialogActions>
-    </Dialog>
+  </Dialog>
+  </PermissionGate>
+
+    {/* Edit Attachment Dialog */}
+  <PermissionGate permissions={["MANAGE_PORTFOLIO_ATTACHMENTS", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}>
+  <Dialog open={editAttachmentOpen} onClose={() => setEditAttachmentOpen(false)} maxWidth="sm" fullWidth>
+      <DialogTitle>Edit Attachment</DialogTitle>
+      <DialogContent>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+          <Typography variant="body2" color="text.secondary">
+            <strong>File:</strong> {selectedAttachment?.file_name}
+          </Typography>
+          
+          {/* Language Selection */}
+          <FormControl fullWidth>
+            <InputLabel id="edit-attachment-language-label">Language (Optional)</InputLabel>
+            <Select
+              labelId="edit-attachment-language-label"
+              id="edit-attachment-language-select"
+              value={editAttachmentLanguage}
+              label="Language (Optional)"
+              onChange={(e) => setEditAttachmentLanguage(e.target.value)}
+              disabled={editLoading || languagesLoading}
+            >
+              <MenuItem value="">
+                <em>None</em>
+              </MenuItem>
+              {languagesLoading ? (
+                <MenuItem disabled>
+                  <CircularProgress size={20} sx={{ mr: 1 }} />
+                  <em>Loading languages...</em>
+                </MenuItem>
+              ) : availableLanguages.length === 0 ? (
+                <MenuItem disabled>
+                  <em>No languages available</em>
+                </MenuItem>
+              ) : (
+                availableLanguages.map((language) => (
+                  <MenuItem key={language.id} value={language.id}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      {language.image && (
+                        <Box
+                          component="img"
+                          src={`${SERVER_URL}/uploads/${language.image.replace(/^.*language_images\//, "language_images/")}`}
+                          alt={language.name}
+                          sx={{
+                            width: 24,
+                            height: 16,
+                            border: '1px solid #eee',
+                            borderRadius: 0.5,
+                            objectFit: 'cover'
+                          }}
+                          onError={(e) => { e.target.style.display = 'none'; }}
+                        />
+                      )}
+                      <Typography>{language.name}</Typography>
+                    </Box>
+                  </MenuItem>
+                ))
+              )}
+            </Select>
+          </FormControl>
+          
+          {/* Category Selection */}
+          <FormControl fullWidth>
+            <InputLabel id="edit-attachment-category-label">Category (Optional)</InputLabel>
+            <Select
+              labelId="edit-attachment-category-label"
+              id="edit-attachment-category-select"
+              value={editAttachmentCategory}
+              label="Category (Optional)"
+              onChange={(e) => setEditAttachmentCategory(e.target.value)}
+              disabled={editLoading || categoriesLoading}
+            >
+              <MenuItem value="">
+                <em>None</em>
+              </MenuItem>
+              {categoriesLoading ? (
+                <MenuItem disabled>
+                  <CircularProgress size={20} sx={{ mr: 1 }} />
+                  <em>Loading categories...</em>
+                </MenuItem>
+              ) : attachmentCategories.length === 0 ? (
+                <MenuItem disabled>
+                  <em>No categories available</em>
+                </MenuItem>
+              ) : (
+                attachmentCategories.map((category) => (
+                  <MenuItem key={category.id} value={category.id}>
+                    {getCategoryDisplayName(category)}
+                  </MenuItem>
+                ))
+              )}
+            </Select>
+          </FormControl>
+          
+          {/* Set as Default checkbox - only show for RESU categories */}
+          {editAttachmentCategory && attachmentCategories.find(c => c.id === parseInt(editAttachmentCategory))?.type_code === 'RESU' && (
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={editSetAsDefault}
+                  onChange={(e) => setEditSetAsDefault(e.target.checked)}
+                  disabled={editLoading}
+                />
+              }
+              label="Set as default resume (for website download button)"
+            />
+          )}
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setEditAttachmentOpen(false)}>Cancel</Button>
+        <Button
+          onClick={handleAttachmentUpdate}
+          variant="contained"
+          disabled={editLoading}
+          startIcon={editLoading ? <CircularProgress size={16} /> : <EditIcon />}
+        >
+          {editLoading ? 'Updating...' : 'Update'}
+        </Button>
+      </DialogActions>
+  </Dialog>
+  </PermissionGate>
+
+    {/* Edit Image Dialog */}
+  <PermissionGate permissions={["EDIT_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIO_IMAGES", "MANAGE_PORTFOLIOS", "SYSTEM_ADMIN"]}>
+  <Dialog open={editImageOpen} onClose={() => setEditImageOpen(false)} maxWidth="sm" fullWidth>
+      <DialogTitle>Edit Image</DialogTitle>
+      <DialogContent>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+          {/* Filename Field */}
+          <TextField
+            label="File Name"
+            value={editImageFileName}
+            onChange={(e) => setEditImageFileName(e.target.value)}
+            fullWidth
+            required
+            disabled={editLoading}
+            helperText="Enter the new filename for this image"
+          />
+          
+          {/* Language Selection */}
+          <FormControl fullWidth>
+            <InputLabel id="edit-image-language-label">Language (Optional)</InputLabel>
+            <Select
+              labelId="edit-image-language-label"
+              id="edit-image-language-select"
+              value={editImageLanguage}
+              label="Language (Optional)"
+              onChange={(e) => setEditImageLanguage(e.target.value)}
+              disabled={editLoading || languagesLoading}
+            >
+              <MenuItem value="">
+                <em>None</em>
+              </MenuItem>
+              {languagesLoading ? (
+                <MenuItem disabled>
+                  <CircularProgress size={20} sx={{ mr: 1 }} />
+                  <em>Loading languages...</em>
+                </MenuItem>
+              ) : availableLanguages.length === 0 ? (
+                <MenuItem disabled>
+                  <em>No languages available</em>
+                </MenuItem>
+              ) : (
+                availableLanguages.map((language) => (
+                  <MenuItem key={language.id} value={language.id}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      {language.image && (
+                        <Box
+                          component="img"
+                          src={`${SERVER_URL}/uploads/${language.image.replace(/^.*language_images\//, "language_images/")}`}
+                          alt={language.name}
+                          sx={{
+                            width: 24,
+                            height: 16,
+                            border: '1px solid #eee',
+                            borderRadius: 0.5,
+                            objectFit: 'cover'
+                          }}
+                          onError={(e) => { e.target.style.display = 'none'; }}
+                        />
+                      )}
+                      <Typography>{language.name}</Typography>
+                    </Box>
+                  </MenuItem>
+                ))
+              )}
+            </Select>
+          </FormControl>
+          
+          {/* Category Selection */}
+          <FormControl fullWidth>
+            <InputLabel id="edit-image-category-label">Category</InputLabel>
+            <Select
+              labelId="edit-image-category-label"
+              id="edit-image-category-select"
+              value={editImageCategory}
+              label="Category"
+              onChange={(e) => setEditImageCategory(e.target.value)}
+              disabled={editLoading}
+            >
+              <MenuItem value="">
+                <em>Uncategorized</em>
+              </MenuItem>
+              <MenuItem value="main">Main</MenuItem>
+              <MenuItem value="thumbnail">Thumbnail</MenuItem>
+              <MenuItem value="gallery">Gallery</MenuItem>
+              <MenuItem value="background">Background</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setEditImageOpen(false)}>Cancel</Button>
+        <Button
+          onClick={handleImageUpdate}
+          variant="contained"
+          disabled={editLoading}
+          startIcon={editLoading ? <CircularProgress size={16} /> : <EditIcon />}
+        >
+          {editLoading ? 'Updating...' : 'Update'}
+        </Button>
+      </DialogActions>
+  </Dialog>
+  </PermissionGate>
 
     {/* Section Content Modal */}
     <Dialog 
@@ -1338,6 +2729,182 @@ function PortfolioData({ open, onClose, portfolioId, portfolioName }) {
       </DialogContent>
       <DialogActions>
         <Button onClick={() => setSectionModalOpen(false)}>Close</Button>
+      </DialogActions>
+    </Dialog>
+
+    {/* Category Translations Modal */}
+    <Dialog 
+      open={categoryModalOpen} 
+      onClose={() => setCategoryModalOpen(false)} 
+      maxWidth="md" 
+      fullWidth
+    >
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center' }}>
+        <LanguageIcon sx={{ mr: 1 }} />
+        Category Translations: {selectedCategory?.category_texts?.[0]?.name || selectedCategory?.code || `Category ${selectedCategory?.id ?? ''}`}
+      </DialogTitle>
+      <DialogContent>
+        {selectedCategory?.category_texts && selectedCategory.category_texts.length > 0 ? (
+          <Stack spacing={3}>
+            {selectedCategory.category_texts.map((text, index) => (
+              <Paper key={index} variant="outlined" sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                  {/* Language Flag */}
+                  {text.language?.image ? (
+                    <Box
+                      component="img"
+                      src={`${SERVER_URL}/uploads/${text.language.image.replace(/^.*language_images\//, "language_images/")}`}
+                      alt={`${text.language.name} flag`}
+                      sx={{
+                        width: 32,
+                        height: 24,
+                        border: '1px solid #eee',
+                        borderRadius: 1,
+                        objectFit: 'cover'
+                      }}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'inline-flex';
+                      }}
+                    />
+                  ) : null}
+                  <Box
+                    sx={{
+                      display: text.language?.image ? 'none' : 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 32,
+                      height: 24,
+                      border: '1px solid #eee',
+                      borderRadius: 1,
+                      bgcolor: '#f0f0f0',
+                      fontSize: '10px',
+                      fontWeight: 'bold',
+                      color: '#666'
+                    }}
+                  >
+                    {text.language?.code?.substring(0, 2).toUpperCase() || text.language_code?.substring(0, 2).toUpperCase() || 'XX'}
+                  </Box>
+                  <Typography variant="h6" sx={{ fontWeight: 500 }}>
+                    {text.language?.name || text.language_code || 'Unknown Language'}
+                  </Typography>
+                </Box>
+                <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+                  {text.name || 'No name provided'}
+                </Typography>
+              </Paper>
+            ))}
+          </Stack>
+        ) : (
+          <Alert severity="info">
+            No translations available for this category.
+          </Alert>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setCategoryModalOpen(false)}>Close</Button>
+      </DialogActions>
+    </Dialog>
+
+    {/* Experience Details / Translations Modal */}
+    <Dialog 
+      open={experienceModalOpen} 
+      onClose={() => setExperienceModalOpen(false)} 
+      maxWidth="md" 
+      fullWidth
+    >
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center' }}>
+        <LanguageIcon sx={{ mr: 1 }} />
+        Experience: {selectedExperience?.experience_texts?.[0]?.name || selectedExperience?.code || `Experience ${selectedExperience?.id ?? ''}`}
+      </DialogTitle>
+      <DialogContent>
+        {selectedExperience?.experience_texts && selectedExperience.experience_texts.length > 0 ? (
+          <Stack spacing={3}>
+            {selectedExperience.experience_texts.map((text, index) => (
+              <Paper key={index} variant="outlined" sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                  {text.language?.image ? (
+                    <Box
+                      component="img"
+                      src={`${SERVER_URL}/uploads/${text.language.image.replace(/^.*language_images\//, "language_images/")}`}
+                      alt={`${text.language.name} flag`}
+                      sx={{ width: 32, height: 24, border: '1px solid #eee', borderRadius: 1, objectFit: 'cover' }}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'inline-flex';
+                      }}
+                    />
+                  ) : null}
+                  <Box sx={{ display: text.language?.image ? 'none' : 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 24, border: '1px solid #eee', borderRadius: 1, bgcolor: '#f0f0f0', fontSize: '10px', fontWeight: 'bold', color: '#666' }}>
+                    {text.language?.code?.substring(0, 2).toUpperCase() || text.language_code?.substring(0, 2).toUpperCase() || 'XX'}
+                  </Box>
+                  <Typography variant="h6" sx={{ fontWeight: 500 }}>
+                    {text.language?.name || text.language_code || 'Unknown Language'}
+                  </Typography>
+                </Box>
+                <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+                  {text.name || 'No name provided'}
+                </Typography>
+              </Paper>
+            ))}
+          </Stack>
+        ) : (
+          <Alert severity="info">No multilingual content available for this experience.</Alert>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setExperienceModalOpen(false)}>Close</Button>
+      </DialogActions>
+    </Dialog>
+
+    {/* Project Details / Translations Modal */}
+    <Dialog 
+      open={projectModalOpen} 
+      onClose={() => setProjectModalOpen(false)} 
+      maxWidth="md" 
+      fullWidth
+    >
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center' }}>
+        <LanguageIcon sx={{ mr: 1 }} />
+        Project: {selectedProject?.project_texts?.[0]?.name || selectedProject?.project_texts?.[0]?.title || selectedProject?.code || `Project ${selectedProject?.id ?? ''}`}
+      </DialogTitle>
+      <DialogContent>
+        {selectedProject?.project_texts && selectedProject.project_texts.length > 0 ? (
+          <Stack spacing={3}>
+            {selectedProject.project_texts.map((text, index) => (
+              <Paper key={index} variant="outlined" sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                  {text.language?.image ? (
+                    <Box
+                      component="img"
+                      src={`${SERVER_URL}/uploads/${text.language.image.replace(/^.*language_images\//, "language_images/")}`}
+                      alt={`${text.language.name} flag`}
+                      sx={{ width: 32, height: 24, border: '1px solid #eee', borderRadius: 1, objectFit: 'cover' }}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'inline-flex';
+                      }}
+                    />
+                  ) : null}
+                  <Box sx={{ display: text.language?.image ? 'none' : 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 24, border: '1px solid #eee', borderRadius: 1, bgcolor: '#f0f0f0', fontSize: '10px', fontWeight: 'bold', color: '#666' }}>
+                    {text.language?.code?.substring(0, 2).toUpperCase() || text.language_code?.substring(0, 2).toUpperCase() || 'XX'}
+                  </Box>
+                  <Typography variant="h6" sx={{ fontWeight: 500 }}>
+                    {text.language?.name || text.language_code || 'Unknown Language'}
+                  </Typography>
+                </Box>
+                <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+                  {text.name || text.title || 'No name provided'}
+                </Typography>
+              </Paper>
+            ))}
+          </Stack>
+        ) : (
+          <Alert severity="info">No multilingual content available for this project.</Alert>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setProjectModalOpen(false)}>Close</Button>
       </DialogActions>
     </Dialog>
 

@@ -30,7 +30,6 @@ import {
   Category as CategoryIcon,
   Work as WorkIcon,
   Folder as ProjectIcon,
-  Folder,
   Settings as SettingsIcon,
   Language as LanguageIcon,
   Chat as ChatIcon,
@@ -38,10 +37,13 @@ import {
   FormatListBulleted as ListBulletedIcon,
   ViewModule as SectionIcon,
   AccountCircle as AccountCircleIcon,
-  Logout as LogoutIcon
+  Logout as LogoutIcon,
+  CollectionsBookmark as PortfolioIcon,
+  Shield as ShieldIcon
 } from '@mui/icons-material';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
 import authService from '../../services/authService';
+import userApi from '../../services/userApi';
 import { useAuthorization } from '../../contexts/AuthorizationContext';
 
 const drawerWidth = 240;
@@ -54,7 +56,7 @@ const Layout = () => {
   const navigate = useNavigate();
   
   // Authorization context for permission checking
-  const { permissions, isSystemAdmin, hasPermission } = useAuthorization();
+  const { permissions, isSystemAdmin, hasPermission, loading: permissionsLoading } = useAuthorization();
   
   // User menu state
   const [anchorElUser, setAnchorElUser] = useState(null);
@@ -62,23 +64,20 @@ const Layout = () => {
   
   // Get username on component mount
   useEffect(() => {
-    // You could fetch the user profile here or use a stored username
-    // For now we'll use the username from the token or default to 'Admin'
-    const token = localStorage.getItem('accessToken');
-    if (token) {
+    const fetchUsername = async () => {
       try {
-        // JWT tokens are in the format header.payload.signature
-        // We're interested in the payload part
-        const base64Url = token.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const payload = JSON.parse(window.atob(base64));
-        if (payload.sub) {
-          setUsername(payload.sub);
+        // Fetch current user from API (tokens are in httpOnly cookies)
+        const response = await userApi.getCurrentUser();
+        if (response.data?.username) {
+          setUsername(response.data.username);
         }
-      } catch (e) {
-        console.error('Error parsing token:', e);
+      } catch (error) {
+        console.error('Failed to fetch username:', error);
+        // Keep default 'User' on error
       }
-    }
+    };
+    
+    fetchUsername();
   }, []);
 
   const handleOpenUserMenu = (event) => {
@@ -96,7 +95,7 @@ const Layout = () => {
 
   const handleSettings = () => {
     handleCloseUserMenu();
-    navigate('/settings');
+    navigate('/my-settings');
   };
 
   const handleDrawerToggle = () => {
@@ -171,7 +170,7 @@ const Layout = () => {
     },
     { 
       text: 'Portfolios', 
-      icon: <Folder />, 
+      icon: <PortfolioIcon />, 
       path: '/portfolios', 
       requiredPermission: 'VIEW_PORTFOLIOS' 
     },
@@ -190,25 +189,53 @@ const Layout = () => {
       requiredPermission: 'VIEW_LANGUAGES' 
     },
     { 
-      text: 'Chatbot Config', 
+      text: 'Agents', 
       icon: <ChatIcon />, 
-      path: '/chatbot', 
-      requiredPermission: 'SYSTEM_ADMIN' // Only system admin can access chatbot config
+      path: '/agents', 
+      requiredPermission: 'MANAGE_AGENTS' 
+    },
+    { 
+      text: 'Agent Chat', 
+      icon: <ChatIcon />, 
+      path: '/agent-chat', 
+      requiredPermission: 'MANAGE_AGENTS' 
     },
     { 
       text: 'System Settings', 
       icon: <SettingsIcon />, 
       path: '/settings', 
       requiredPermission: 'SYSTEM_ADMIN' // Only system admin can access system settings
+    },
+    { 
+      text: 'RAG Admin', 
+      icon: <ChatIcon />, 
+      path: '/rag-admin', 
+      requiredPermission: 'SYSTEM_ADMIN' // Only system admin can access RAG admin
+    },
+    { 
+      text: 'Security Dashboard', 
+      icon: <ShieldIcon />, 
+      path: '/security', 
+      requiredPermission: 'SYSTEM_ADMIN' // Only system admin can access security dashboard
     }
   ];
 
   // Filter menu items based on user permissions
   const filterMenuItems = (items) => {
+    // If permissions are still loading, return empty array to avoid flicker
+    if (permissionsLoading) {
+      return [];
+    }
+    
     return items.filter(item => {
       // System admin can see everything
       if (isSystemAdmin()) {
         return true;
+      }
+      
+      // If Agents item, allow SYSTEM_ADMIN too
+      if (item.text === 'Agents') {
+        return hasPermission('MANAGE_AGENTS') || isSystemAdmin();
       }
       
       // Check if user has the required permission for this menu item
@@ -244,7 +271,7 @@ const Layout = () => {
       },
       {
         title: 'System',
-        items: items.filter(item => ['Languages', 'Chatbot Config', 'System Settings'].includes(item.text))
+        items: items.filter(item => ['Languages', 'Agents', 'Agent Chat', 'Chatbot Config', 'System Settings', 'RAG Admin'].includes(item.text))
       }
     ];
 
@@ -287,7 +314,6 @@ const Layout = () => {
           >
             {group.items.map((item) => (
               <ListItem 
-                button 
                 key={item.text} 
                 component={Link} 
                 to={item.path}
@@ -336,14 +362,17 @@ const Layout = () => {
     <Box sx={{ display: 'flex' }}>
       <AppBar 
         position="fixed" 
-        elevation={1}
+        elevation={0}
         sx={{ 
           zIndex: (theme) => theme.zIndex.drawer + 1,
           backgroundColor: 'white',
-          color: '#424242'
+          color: '#424242',
+          boxShadow: 'none',
+          borderBottom: '1px solid #e0e0e0',
+          borderRadius: 0
         }}
       >
-        <Toolbar>
+        <Toolbar sx={{ borderRadius: 0, minHeight: { xs: 56, sm: 64 } }}>
           <IconButton
             color="inherit"
             aria-label="open drawer"
@@ -400,9 +429,9 @@ const Layout = () => {
             >
               <MenuItem onClick={handleSettings}>
                 <ListItemIcon>
-                  <SettingsIcon fontSize="small" />
+                  <AccountCircleIcon fontSize="small" />
                 </ListItemIcon>
-                <ListItemText primary="Settings" />
+                <ListItemText primary="My Settings" />
               </MenuItem>
               <MenuItem onClick={handleLogout}>
                 <ListItemIcon>
@@ -429,7 +458,7 @@ const Layout = () => {
           }}
           sx={{
             display: { xs: 'block', md: 'none' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth, borderRadius: 0 },
           }}
         >
           {drawer}
@@ -440,7 +469,7 @@ const Layout = () => {
           variant="permanent"
           sx={{
             display: { xs: 'none', md: 'block' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth, borderRadius: 0 },
           }}
           open
         >
@@ -450,19 +479,20 @@ const Layout = () => {
       
       <Box
         component="main"
+        className="app-main"
         sx={{ 
           flexGrow: 1, 
-          pt: 3, 
+          pt: 0, 
           pr: 3, 
           pb: 3, 
           pl: 0,
           width: { md: `calc(100% - ${drawerWidth}px)` },
-          backgroundColor: '#fafafa',
+          backgroundColor: 'white',
           minHeight: '100vh'
         }}
       >
         <Toolbar />
-        <Box sx={{ mt: 2, width: '100%' }}>
+        <Box sx={{ mt: 0, width: '100%' }}>
           <Outlet />
         </Box>
       </Box>

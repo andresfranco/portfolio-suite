@@ -178,6 +178,10 @@ STANDARD_PERMISSIONS = [
     {"name": "VIEW_EMAIL_TEMPLATES", "description": "Permission to view email templates"},
     {"name": "MODIFY_EMAIL_TEMPLATES", "description": "Permission to modify email templates"},
     
+    # Website CMS
+    {"name": "EDIT_CONTENT", "description": "Permission to edit website content via CMS"},
+    {"name": "PUBLISH_CONTENT", "description": "Permission to publish website content changes"},
+    
     # Import/Export Functionality
     {"name": "IMPORT_DATA", "description": "Permission to import data into the system"},
     {"name": "EXPORT_DATA", "description": "Permission to export data from the system"},
@@ -213,6 +217,7 @@ DEFAULT_ROLES = [
             "MANAGE_LANGUAGES", "VIEW_LANGUAGES", "CREATE_LANGUAGE", "MODIFY_LANGUAGE", "DELETE_LANGUAGE",
             "MANAGE_SECTIONS", "VIEW_SECTIONS", "CREATE_SECTION", "MODIFY_SECTION", "DELETE_SECTION",
             "MANAGE_TRANSLATIONS", "VIEW_TRANSLATIONS", "CREATE_TRANSLATION", "MODIFY_TRANSLATION", "DELETE_TRANSLATION",
+            "EDIT_CONTENT", "PUBLISH_CONTENT",
             "EXPORT_DATA"
         ]
     },
@@ -230,7 +235,8 @@ DEFAULT_ROLES = [
             "VIEW_EXPERIENCES", "MODIFY_EXPERIENCE",
             "VIEW_LANGUAGES", "MODIFY_LANGUAGE",
             "VIEW_SECTIONS", "MODIFY_SECTION",
-            "VIEW_TRANSLATIONS", "MODIFY_TRANSLATION"
+            "VIEW_TRANSLATIONS", "MODIFY_TRANSLATION",
+            "EDIT_CONTENT"
         ]
     },
     {
@@ -428,8 +434,9 @@ def create_admin_user(username, password, email, admin_role):
         # Generate password if not provided
         if not password:
             password = generate_secure_password()
-            logger.info(f"Generated secure password for admin user: {password}")
+            logger.info("Generated secure password for admin user (displayed in terminal output only).")
             logger.info("PLEASE SAVE THIS PASSWORD!")
+            print(f"[init_postgres_db] Admin password: {password}")
         
         # Create default email if not provided
         if not email:

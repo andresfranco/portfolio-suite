@@ -21,28 +21,38 @@ export function SectionProvider({ children }) {
       setLoading(true);
       setError(null);
       
-      logInfo('SectionContext', 'Fetching sections with params:', params);
+      // Normalize pagination params to match backend expectations
+      const apiParams = {
+        ...params,
+        page: params.page ?? 1,
+        page_size: params.page_size ?? params.pageSize ?? pagination.pageSize ?? 10,
+      };
+      // Remove camelCase pageSize to avoid confusion
+      if (apiParams.pageSize !== undefined) delete apiParams.pageSize;
+
+      logInfo('SectionContext', 'Fetching sections with params (normalized):', apiParams);
       
-      const response = await sectionsApi.getSections(params);
+      const response = await sectionsApi.getSections(apiParams);
       
       logInfo('SectionContext', 'Sections fetched successfully:', {
         itemsCount: response.data.items?.length || 0,
         total: response.data.total
       });
       
-      setSections(response.data.items || []);
+    setSections(response.data.items || []);
       
-      // Only update the total from response, keep page and pageSize from params to avoid overriding user choices
+    // Only update the total from response, keep page and pageSize from params to avoid overriding user choices
       setPagination(prevPagination => {
         const newPaginationState = {
           ...prevPagination,
-          page: params.page || prevPagination.page || 1,
-          pageSize: params.pageSize || prevPagination.pageSize || 10,
+      page: (params.page ?? prevPagination.page ?? 1),
+      pageSize: (params.pageSize ?? params.page_size ?? prevPagination.pageSize ?? 10),
           total: response.data.total || 0
         };
         logInfo('SectionContext', 'fetchSections updating pagination:', {
           prevPagination,
-          params,
+      params,
+      apiParams,
           responseTotal: response.data.total,
           newPaginationState
         });
@@ -58,7 +68,7 @@ export function SectionProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [pagination.pageSize]);
 
   const createSection = useCallback(async (sectionData) => {
     try {
@@ -160,7 +170,8 @@ export function SectionProvider({ children }) {
     setPagination(prevPagination => {
       const updatedPagination = {
         ...prevPagination,
-        ...newPagination
+        page: newPagination.page ?? prevPagination.page,
+        pageSize: (newPagination.pageSize ?? newPagination.page_size ?? prevPagination.pageSize)
       };
       logInfo('SectionContext', 'Pagination updated to:', updatedPagination);
       return updatedPagination;

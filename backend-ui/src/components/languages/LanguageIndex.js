@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { 
   Box, 
   IconButton, 
@@ -10,7 +10,9 @@ import {
   DialogTitle,
   DialogContent
 } from '@mui/material';
-import { Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
+import { Edit as EditIcon, Delete as DeleteIcon, InfoOutlined } from '@mui/icons-material';
+import ModuleGate from '../common/ModuleGate';
+import PermissionGate from '../common/PermissionGate';
 import LanguageForm from './LanguageForm';
 import ReusableDataGrid from '../common/ReusableDataGrid';
 import ReusableFilters from '../common/ReusableFilters';
@@ -19,6 +21,9 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { LanguageErrorBoundary } from '../../contexts/LanguageContext';
 import { API_CONFIG } from '../../config/apiConfig';
 import { logInfo } from '../../utils/logger';
+import { useAuthorization } from '../../contexts/AuthorizationContext';
+import { evaluateGridColumnAccess, evaluateFilterAccess } from '../../utils/accessControl';
+import { CONTAINER_PY, SECTION_PX, GRID_WRAPPER_PB } from '../common/layoutTokens';
 
 // Filter types configuration for ReusableFilters
 const FILTER_TYPES = {
@@ -53,6 +58,7 @@ function LanguageIndexContent() {
     fetchLanguages, 
     updateFilters 
   } = useLanguage();
+  const { isSystemAdmin, hasPermission, hasAnyPermission } = useAuthorization();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formMode, setFormMode] = useState(null);
@@ -63,6 +69,8 @@ function LanguageIndexContent() {
       sort: 'asc',
     },
   ]);
+  // Track last request signature to suppress identical consecutive fetches
+  const lastFetchSigRef = useRef(null);
 
   // Helper function to convert filters from UI format to backend format
   const convertFiltersForBackend = useCallback((uiFilters) => {
@@ -97,13 +105,34 @@ function LanguageIndexContent() {
   // Fetch languages on component mount
   useEffect(() => {
     const backendFilters = convertFiltersForBackend(filters);
+    const sig = JSON.stringify({
+      p: pagination.page,
+      ps: pagination.page_size,
+      f: backendFilters,
+      s: sortModel
+    });
+    if (lastFetchSigRef.current === sig) {
+      // Prevent identical immediate refetch loop
+      return;
+    }
+    lastFetchSigRef.current = sig;
     fetchLanguages(
-      pagination.page, 
-      pagination.page_size, 
+      pagination.page,
+      pagination.page_size,
       backendFilters,
       sortModel
     );
   }, [fetchLanguages, pagination.page, pagination.page_size, filters, sortModel, convertFiltersForBackend]);
+
+  // Permission-aware filter notices
+  const { noticesByType } = React.useMemo(() => {
+    const authorization = { isSystemAdmin, hasPermission, hasAnyPermission };
+    return evaluateFilterAccess(Object.keys(FILTER_TYPES), {
+      name: { required: 'VIEW_LANGUAGES', moduleKey: 'languages' },
+      code: { required: 'VIEW_LANGUAGES', moduleKey: 'languages' },
+      is_default: { required: 'VIEW_LANGUAGES', moduleKey: 'languages' }
+    }, authorization);
+  }, [isSystemAdmin, hasPermission, hasAnyPermission]);
 
   // Handle pagination changes
   const handlePaginationChange = useCallback((newPaginationModel) => {
@@ -128,6 +157,10 @@ function LanguageIndexContent() {
 
   // Handle sort model changes
   const handleSortModelChange = useCallback((newSortModel) => {
+    // Avoid unnecessary state updates/fetches if model effectively unchanged
+    if (newSortModel.length === sortModel.length && newSortModel.every((m, i) => m.field === sortModel[i].field && m.sort === sortModel[i].sort)) {
+      return;
+    }
     logInfo('LanguageIndex - Sort model changed:', newSortModel);
     setSortModel(newSortModel);
     
@@ -136,12 +169,12 @@ function LanguageIndexContent() {
     
     // Refresh data with new sort model
     fetchLanguages(
-      pagination.page, 
-      pagination.page_size, 
+      pagination.page,
+      pagination.page_size,
       backendFilters,
       newSortModel
     );
-  }, [fetchLanguages, pagination.page, pagination.page_size, filters, convertFiltersForBackend]);
+  }, [fetchLanguages, pagination.page, pagination.page_size, filters, convertFiltersForBackend, sortModel]);
 
   // Handle filter changes
   const handleFiltersChange = useCallback((newFilters) => {
@@ -179,8 +212,8 @@ function LanguageIndexContent() {
     handleFiltersChange(searchFilters);
   }, [handleFiltersChange]);
 
-  // Define columns for the grid
-  const columns = [
+  // Define base columns for the grid
+  const baseColumns = [
     { 
       field: 'image', 
       headerName: 'Flag', 
@@ -214,7 +247,6 @@ function LanguageIndexContent() {
             }}
             onError={(e) => {
               // On error, show language code instead
-              console.warn(`Failed to load flag image for ${params.row.name}: ${imageUrl}`);
               e.target.style.display = 'none';
             }}
           >
@@ -257,40 +289,68 @@ function LanguageIndexContent() {
       disableColumnMenu: true,
       renderCell: (params) => (
         <Box sx={{ display: 'flex', gap: 1 }}>
-          <Tooltip title="Edit Language">
-            <IconButton 
-              onClick={() => handleEditClick(params.row)} 
-              size="small" 
-              sx={{ 
-                color: '#1976d2',
-                padding: '4px',
-                '&:hover': {
-                  backgroundColor: 'rgba(25, 118, 210, 0.04)'
-                }
-              }}
-            >
-              <EditIcon sx={{ fontSize: '1.1rem' }} />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Delete Language">
-            <IconButton 
-              onClick={() => handleDeleteClick(params.row)} 
-              size="small" 
-              sx={{ 
-                color: '#e53935 !important',
-                padding: '4px',
-                '&:hover': {
-                  backgroundColor: 'rgba(229, 57, 53, 0.04)'
-                }
-              }}
-            >
-              <DeleteIcon sx={{ fontSize: '1rem' }} />
-            </IconButton>
-          </Tooltip>
+          <PermissionGate permission="EDIT_LANGUAGE">
+            <Tooltip title="Edit Language">
+              <IconButton 
+                onClick={() => handleEditClick(params.row)} 
+                size="small" 
+                sx={{ 
+                  color: '#1976d2',
+                  padding: '4px',
+                  '&:hover': {
+                    backgroundColor: 'rgba(25, 118, 210, 0.04)'
+                  }
+                }}
+              >
+                <EditIcon sx={{ fontSize: '1.1rem' }} />
+              </IconButton>
+            </Tooltip>
+          </PermissionGate>
+          <PermissionGate permission="DELETE_LANGUAGE">
+            <Tooltip title="Delete Language">
+              <IconButton 
+                onClick={() => handleDeleteClick(params.row)} 
+                size="small" 
+                sx={{ 
+                  color: '#e53935 !important',
+                  padding: '4px',
+                  '&:hover': {
+                    backgroundColor: 'rgba(229, 57, 53, 0.04)'
+                  }
+                }}
+              >
+                <DeleteIcon sx={{ fontSize: '1rem' }} />
+              </IconButton>
+            </Tooltip>
+          </PermissionGate>
         </Box>
       )
     }
   ];
+
+  // Permission-aware column filtering
+  const COLUMN_ACCESS_MAP = React.useMemo(() => ({
+    image: { required: 'VIEW_LANGUAGES', moduleKey: 'languages' },
+    name: { required: 'VIEW_LANGUAGES', moduleKey: 'languages' },
+    code: { required: 'VIEW_LANGUAGES', moduleKey: 'languages' },
+    is_default: { required: 'VIEW_LANGUAGES', moduleKey: 'languages' },
+    actions: { required: ['EDIT_LANGUAGE', 'DELETE_LANGUAGE', 'MANAGE_LANGUAGES'], moduleKey: 'languages' }
+  }), []);
+
+  const { allowedColumns, deniedColumns } = React.useMemo(() => {
+    const authorization = { isSystemAdmin, hasPermission, hasAnyPermission };
+    return evaluateGridColumnAccess(COLUMN_ACCESS_MAP, authorization);
+  }, [isSystemAdmin, hasPermission, hasAnyPermission, COLUMN_ACCESS_MAP]);
+
+  const columns = React.useMemo(() => {
+    const hideActions = deniedColumns.length > 0;
+    return baseColumns.filter(c => allowedColumns.has(c.field) && (!hideActions || c.field !== 'actions'));
+  }, [baseColumns, allowedColumns, deniedColumns]);
+
+  const deniedColumnTitles = React.useMemo(() => {
+    const titleFor = (field) => baseColumns.find(c => c.field === field)?.headerName || field;
+    return Array.from(new Set(deniedColumns.map(titleFor)));
+  }, [deniedColumns, baseColumns]);
 
   // Handle create button click
   const handleCreateClick = () => {
@@ -323,8 +383,15 @@ function LanguageIndexContent() {
     }
   };
   
+  // Permission: allow create only for CREATE_LANGUAGE, MANAGE_LANGUAGES, or SYSTEM_ADMIN
+  const canCreateLanguage = React.useMemo(() => (
+    isSystemAdmin() ||
+    hasPermission('MANAGE_LANGUAGES') ||
+    hasPermission('CREATE_LANGUAGE')
+  ), [isSystemAdmin, hasPermission]);
+  
   return (
-    <Box sx={{ height: '100%', width: '100%', p: 2 }}>
+    <>
       <ReusableDataGrid
         title="Languages Management"
         columns={columns}
@@ -341,6 +408,7 @@ function LanguageIndexContent() {
             filters={filters}
             onFiltersChange={handleFiltersChange}
             onSearch={handleSearch}
+            accessNotices={noticesByType}
           />
         )}
         PaginationComponent={({ pagination: paginationData, onPaginationChange }) => {
@@ -367,8 +435,8 @@ function LanguageIndexContent() {
             />
           );
         }}
-        createButtonText="Language"
-        onCreateClick={handleCreateClick}
+  createButtonText="Language"
+  onCreateClick={canCreateLanguage ? handleCreateClick : undefined}
         defaultPageSize={pagination.page_size}
         uiVariant="categoryIndex"
         paginationPosition="top"
@@ -395,59 +463,75 @@ function LanguageIndexContent() {
             backgroundColor: 'rgba(25, 118, 210, 0.04)'
           }
         }}
+        topNotice={deniedColumnTitles.length > 0 ? (
+          <Box sx={{ mt: 0.5, mb: 1, display: 'inline-flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
+            <InfoOutlined sx={{ fontSize: 16 }} />
+            <Typography sx={{ fontSize: '12px', lineHeight: 1.4 }}>
+              {`You do not have permission to view the columns ${deniedColumnTitles.join(', ')}`}
+            </Typography>
+          </Box>
+        ) : null}
       />
 
       {isFormOpen && (
-        <Dialog 
-          open={isFormOpen} 
-          onClose={() => handleFormClose(false)} 
-          maxWidth="sm" 
-          fullWidth
-          PaperProps={{
-            sx: {
-              borderRadius: '6px',
-              boxShadow: '0 3px 6px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.08)',
-              overflow: 'hidden'
-            }
-          }}
-        >
-          <DialogTitle 
-            sx={{
-              pb: 1.5, 
-              pt: 2.5,
-              px: 3, 
-              fontWeight: 500,
-              fontSize: '16px',
-              fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-              color: '#1976d2',
-              borderBottom: 1,
-              borderColor: '#f0f0f0',
-              letterSpacing: '0.015em'
+        <ModuleGate moduleName="languages">
+          <Dialog 
+            open={isFormOpen} 
+            onClose={() => handleFormClose(false)} 
+            maxWidth="sm" 
+            fullWidth
+            PaperProps={{
+              sx: {
+                borderRadius: '6px',
+                boxShadow: '0 3px 6px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.08)',
+                overflow: 'hidden'
+              }
             }}
           >
-            {formMode === 'create' ? 'Create Language' : 
-             formMode === 'edit' ? 'Edit Language' : 'Delete Language'}
-          </DialogTitle>
-          <DialogContent sx={{ p: 0 }}>
-            <LanguageForm
-              open={isFormOpen}
-              onClose={handleFormClose}
-              language={selectedLanguage}
-              mode={formMode}
-            />
-          </DialogContent>
-        </Dialog>
+            <DialogTitle 
+              sx={{
+                pb: 1.5, 
+                pt: 2.5,
+                px: 3, 
+                fontWeight: 500,
+                fontSize: '16px',
+                fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+                color: '#1976d2',
+                borderBottom: 1,
+                borderColor: '#f0f0f0',
+                letterSpacing: '0.015em'
+              }}
+            >
+              {formMode === 'create' ? 'Create Language' : 
+               formMode === 'edit' ? 'Edit Language' : 'Delete Language'}
+            </DialogTitle>
+            <DialogContent sx={{ p: 0 }}>
+              <LanguageForm
+                open={isFormOpen}
+                onClose={handleFormClose}
+                language={selectedLanguage}
+                mode={formMode}
+              />
+            </DialogContent>
+          </Dialog>
+        </ModuleGate>
       )}
-    </Box>
+  </>
   );
 }
 
 // Wrap the component with ErrorBoundary
 function LanguageIndex() {
   return (
-    <LanguageErrorBoundary>
-      <LanguageIndexContent />
-    </LanguageErrorBoundary>
+    <ModuleGate moduleName="languages" showError={true}>
+      <Container maxWidth={false} disableGutters sx={{ py: CONTAINER_PY }}>
+        <Box sx={{ px: SECTION_PX, pb: GRID_WRAPPER_PB }}>
+          <LanguageErrorBoundary>
+            <LanguageIndexContent />
+          </LanguageErrorBoundary>
+        </Box>
+      </Container>
+    </ModuleGate>
   );
 }
 

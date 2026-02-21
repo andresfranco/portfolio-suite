@@ -9,9 +9,9 @@ import {
   Tooltip,
   Typography,
   Chip,
-  Stack
+  Stack,
 } from '@mui/material';
-import { Edit as EditIcon, Delete as DeleteIcon, ArrowUpward, ArrowDownward } from '@mui/icons-material';
+import { Edit as EditIcon, Delete as DeleteIcon, ArrowUpward, ArrowDownward, InfoOutlined } from '@mui/icons-material';
 import ReusableDataGrid from '../common/ReusableDataGrid';
 import ExperienceForm from './ExperienceForm';
 import ReusableFilters from '../common/ReusableFilters';
@@ -19,9 +19,11 @@ import ReusablePagination from '../common/ReusablePagination';
 import { useExperience } from '../../contexts/ExperienceContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuthorization } from '../../contexts/AuthorizationContext';
+import { evaluateGridColumnAccess, evaluateFilterAccess } from '../../utils/accessControl';
 import PermissionGate from '../common/PermissionGate';
 import ModuleGate from '../common/ModuleGate';
 import ExperienceErrorBoundary from './ExperienceErrorBoundary';
+import { CONTAINER_PY, SECTION_PX, GRID_WRAPPER_PB } from '../common/layoutTokens';
 
 const ExperienceIndexContent = () => {
   const {
@@ -36,7 +38,7 @@ const ExperienceIndexContent = () => {
   } = useExperience();
 
   const { languages: availableLanguages, loading: loadingLanguages, fetchLanguages } = useLanguage();
-  const { hasAnyPermission } = useAuthorization();
+  const { hasAnyPermission, isSystemAdmin, hasPermission, hasAnyPermission: hasAny } = useAuthorization();
 
   const [sortModel, setSortModel] = useState([{ field: 'code', sort: 'asc' }]);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -48,30 +50,40 @@ const ExperienceIndexContent = () => {
     code: {
       label: 'Code',
       type: 'text',
-      placeholder: 'Filter by experience code'
+      placeholder: 'Filter by experience code',
     },
     name: {
       label: 'Name',
       type: 'text',
-      placeholder: 'Filter by experience name'
+      placeholder: 'Filter by experience name',
     },
     language_id: {
       label: 'Languages',
       type: 'multiselect',
-      options: availableLanguages ? availableLanguages.map(lang => ({
-        value: lang.id.toString(),
-        label: `${lang.name} (${lang.code})`
-      })) : []
-    }
+      options: availableLanguages
+        ? availableLanguages.map((lang) => ({
+            value: lang.id.toString(),
+            label: `${lang.name} (${lang.code})`,
+          }))
+        : [],
+    },
   }), [availableLanguages]);
 
   // Debug logging for language data
-  console.log('ExperienceIndex - Language debug info:', {
-    availableLanguages: availableLanguages?.length || 0,
-    loadingLanguages,
-    languageOptions: FILTER_TYPES.language_id.options,
-    sampleLanguages: availableLanguages?.slice(0, 3)
-  });
+
+  // Build access notices for filters
+  const { noticesByType } = useMemo(() => {
+    const authorization = { isSystemAdmin, hasPermission, hasAnyPermission: hasAny };
+    return evaluateFilterAccess(
+      Object.keys(FILTER_TYPES),
+      {
+        code: { required: 'VIEW_EXPERIENCES', moduleKey: 'experiences' },
+        name: { required: 'VIEW_EXPERIENCES', moduleKey: 'experiences' },
+        language_id: { required: 'VIEW_LANGUAGES', moduleKey: 'languages' },
+      },
+      authorization
+    );
+  }, [isSystemAdmin, hasPermission, hasAny, FILTER_TYPES]);
 
   const FiltersWrapper = useCallback(({ filters: currentFilters, onFiltersChange, onSearch }) => {
     // Create filter types with current language loading state
@@ -80,15 +92,10 @@ const ExperienceIndexContent = () => {
       language_id: {
         ...FILTER_TYPES.language_id,
         options: loadingLanguages ? [] : FILTER_TYPES.language_id.options,
-        disabled: loadingLanguages
-      }
+        disabled: loadingLanguages,
+      },
     };
 
-    console.log('ExperienceIndex - FiltersWrapper render:', {
-      currentFilters,
-      filterTypesLanguages: filterTypesWithLoadingState.language_id,
-      optionsCount: filterTypesWithLoadingState.language_id.options?.length || 0
-    });
 
     return (
       <ReusableFilters
@@ -96,14 +103,15 @@ const ExperienceIndexContent = () => {
         filters={currentFilters}
         onFiltersChange={onFiltersChange}
         onSearch={onSearch}
+        accessNotices={noticesByType}
       />
     );
-  }, [FILTER_TYPES, loadingLanguages]);
+  }, [FILTER_TYPES, loadingLanguages, noticesByType]);
 
   // Fetch languages when component mounts
   useEffect(() => {
     if (!availableLanguages || availableLanguages.length === 0) {
-      fetchLanguages(1, 100, {}).catch(error => {
+      fetchLanguages(1, 100, {}).catch((error) => {
         console.error('Error fetching languages for experience filters:', error);
       });
     }
@@ -116,7 +124,6 @@ const ExperienceIndexContent = () => {
 
   const handlePaginationChange = (model) => {
     const currentFilters = filters && Object.keys(filters).length > 0 ? filters : {};
-    // This function handles pagination changes from other sources (if any)
     // Convert 0-indexed page from DataGrid to 1-indexed page for backend
     fetchExperiences(model.page + 1, model.pageSize, currentFilters, sortModel);
   };
@@ -131,28 +138,25 @@ const ExperienceIndexContent = () => {
   const handleFiltersChange = (newFilters) => {
     // Process language_id filter if present
     let processedFilters = { ...newFilters };
-    
+
     if (newFilters.language_id && Array.isArray(newFilters.language_id) && newFilters.language_id.length === 0) {
       // Remove empty language_id array
       delete processedFilters.language_id;
     }
-    
+
     updateFilters(processedFilters);
   };
 
   const handleSearch = (searchFilters) => {
-    // Handle language_id filter formatting - convert array to individual filters
+    // Handle language_id filter formatting
     let processedFilters = { ...searchFilters };
-    
+
     if (searchFilters.language_id && Array.isArray(searchFilters.language_id) && searchFilters.language_id.length > 0) {
-      // Convert array of language IDs to individual language_id filters for the backend
-      // The backend expects language_id filters to filter experiences that have texts in those languages
       processedFilters.language_id = searchFilters.language_id;
     } else if (searchFilters.language_id) {
-      // Remove empty language_id filter
       delete processedFilters.language_id;
     }
-    
+
     updateFilters(processedFilters);
     fetchExperiences(1, pagination.pageSize, processedFilters, sortModel);
   };
@@ -183,7 +187,7 @@ const ExperienceIndexContent = () => {
     }
   };
 
-  const columns = [
+  const baseColumns = [
     {
       field: 'code',
       headerName: 'Code',
@@ -238,84 +242,66 @@ const ExperienceIndexContent = () => {
         if (!params?.row?.experience_texts) return '-';
         const texts = Array.isArray(params.row.experience_texts) ? params.row.experience_texts : [];
         if (texts.length === 0) return '-';
-        
-        return texts.map(text => {
-          if (!text || !text.name) return '';
-          
-          let languageDisplay = '';
-          if (text.language) {
-            if (typeof text.language === 'object' && text.language !== null) {
-              const lang = text.language;
-              languageDisplay = `${lang.code || ''}`;
+
+        return texts
+          .map((text) => {
+            if (!text || !text.name) return '';
+
+            let languageDisplay = '';
+            if (text.language) {
+              if (typeof text.language === 'object' && text.language !== null) {
+                const lang = text.language;
+                languageDisplay = `${lang.code || ''}`;
+              }
             }
-          }
-          
-          if (!languageDisplay && text.language_id) {
-            languageDisplay = `ID:${text.language_id}`;
-          }
-          
-          return `${text.name} (${languageDisplay})`;
-        }).filter(Boolean).join(', ');
+
+            if (!languageDisplay && text.language_id) {
+              languageDisplay = `ID:${text.language_id}`;
+            }
+
+            return `${text.name} (${languageDisplay})`;
+          })
+          .filter(Boolean)
+          .join(', ');
       },
       renderCell: (params) => {
         if (!params?.row?.experience_texts) return <div>-</div>;
         const texts = Array.isArray(params.row.experience_texts) ? params.row.experience_texts : [];
         if (texts.length === 0) return <div>-</div>;
-        
-        const namesList = texts.map((text, index) => {
-          if (!text || !text.name) return null;
-          
-          let languageDisplay = '';
-          
-          if (text.language) {
-            if (typeof text.language === 'object' && text.language !== null) {
-              const lang = text.language;
-              languageDisplay = lang.code || `ID:${lang.id}`;
+
+        const namesList = texts
+          .map((text) => {
+            if (!text || !text.name) return null;
+
+            let languageDisplay = '';
+
+            if (text.language) {
+              if (typeof text.language === 'object' && text.language !== null) {
+                const lang = text.language;
+                languageDisplay = lang.code || `ID:${lang.id}`;
+              }
             }
-          } 
-          
-          if (!languageDisplay && text.language_id) {
-            languageDisplay = `ID:${text.language_id}`;
-          }
-          
-          if (!languageDisplay) return null;
-          
-          return `${text.name} (${languageDisplay})`;
-        }).filter(Boolean);
-        
+
+            if (!languageDisplay && text.language_id) {
+              languageDisplay = `ID:${text.language_id}`;
+            }
+
+            if (!languageDisplay) return null;
+
+            return `${text.name} (${languageDisplay})`;
+          })
+          .filter(Boolean);
+
         return (
-          <Box sx={{ 
-            width: '100%',
-            wordWrap: 'break-word',
-            whiteSpace: 'normal',
-            lineHeight: 1.4,
-            py: 0.5
-          }}>
-            <Typography 
-              variant="body2" 
-              sx={{ 
-                fontSize: '13px',
-                fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-                color: '#424242',
-                wordBreak: 'break-word',
-                whiteSpace: 'normal'
-              }}
-            >
+          <Box sx={{ width: '100%', wordWrap: 'break-word', whiteSpace: 'normal', lineHeight: 1.4, py: 0.5 }}>
+            <Typography variant="body2" sx={{ fontSize: '13px', fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif', color: '#424242', wordBreak: 'break-word', whiteSpace: 'normal' }}>
               {namesList.join(', ')}
             </Typography>
           </Box>
         );
       },
       renderHeader: (params) => (
-        <Box sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          fontWeight: 500, 
-          fontSize: '13px', 
-          color: '#505050',
-          fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-          letterSpacing: '0.3px'
-        }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', fontWeight: 500, fontSize: '13px', color: '#505050', fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif', letterSpacing: '0.3px' }}>
           {params.colDef.headerName}
         </Box>
       ),
@@ -330,92 +316,76 @@ const ExperienceIndexContent = () => {
         if (!params?.row?.experience_texts) return '-';
         const texts = Array.isArray(params.row.experience_texts) ? params.row.experience_texts : [];
         if (texts.length === 0) return '-';
-        
-        return texts.map(text => {
-          if (!text) return '';
-          
-          if (text.language) {
-            if (typeof text.language === 'object' && text.language !== null) {
-              const lang = text.language;
-              return `${lang.name || ''} (${lang.code || ''})`;
+
+        return texts
+          .map((text) => {
+            if (!text) return '';
+
+            if (text.language) {
+              if (typeof text.language === 'object' && text.language !== null) {
+                const lang = text.language;
+                return `${lang.name || ''} (${lang.code || ''})`;
+              }
             }
-          }
-          
-          if (text.language_id) {
-            return `Language ID: ${text.language_id}`;
-          }
-          
-          return '';
-        }).filter(Boolean).join(', ');
+
+            if (text.language_id) {
+              return `Language ID: ${text.language_id}`;
+            }
+
+            return '';
+          })
+          .filter(Boolean)
+          .join(', ');
       },
       renderCell: (params) => {
         if (!params?.row?.experience_texts) return <div>-</div>;
         const texts = Array.isArray(params.row.experience_texts) ? params.row.experience_texts : [];
         if (texts.length === 0) return <div>-</div>;
-        
+
         return (
-          <Stack 
-            direction="row" 
-            spacing={0.5} 
-            sx={{ 
-              flexWrap: 'wrap', 
-              gap: '4px', 
-              maxWidth: '100%',
-              overflow: 'hidden'
-            }}
-          >
-            {texts.map((text, index) => {
-              if (!text) return null;
-              
-              let languageDisplay = '';
-              let languageId = '';
-              
-              if (text.language) {
-                if (typeof text.language === 'object' && text.language !== null) {
-                  const lang = text.language;
-                  languageDisplay = `${lang.name || ''} (${lang.code || ''})`;
-                  languageId = lang.id;
+          <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: '4px', maxWidth: '100%', overflow: 'hidden' }}>
+            {texts
+              .map((text, index) => {
+                if (!text) return null;
+
+                let languageDisplay = '';
+                let languageId = '';
+
+                if (text.language) {
+                  if (typeof text.language === 'object' && text.language !== null) {
+                    const lang = text.language;
+                    languageDisplay = `${lang.name || ''} (${lang.code || ''})`;
+                    languageId = lang.id;
+                  }
                 }
-              } 
-              
-              if (!languageDisplay && text.language_id) {
-                languageDisplay = `Language ID: ${text.language_id}`;
-                languageId = text.language_id;
-              }
-              
-              if (!languageDisplay) return null;
-              
-              return (
-                <Chip 
-                  key={text.id || `lang-${languageId}-${index}`}
-                  label={languageDisplay}
-                  size="small"
-                  color="primary"
-                  variant="outlined"
-                  sx={{ 
-                    maxWidth: '120px',
-                    '.MuiChip-label': {
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis'
-                    }
-                  }}
-                />
-              );
-            }).filter(Boolean)}
+
+                if (!languageDisplay && text.language_id) {
+                  languageDisplay = `Language ID: ${text.language_id}`;
+                  languageId = text.language_id;
+                }
+
+                if (!languageDisplay) return null;
+
+                return (
+                  <Chip
+                    key={text.id || `lang-${languageId}-${index}`}
+                    label={languageDisplay}
+                    size="small"
+                    color="primary"
+                    variant="outlined"
+                    sx={{
+                      maxWidth: '120px',
+                      '.MuiChip-label': { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+                    }}
+                  />
+                );
+              })
+              .filter(Boolean)}
           </Stack>
         );
       },
       renderHeader: (params) => (
-        <Box sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          fontWeight: 500, 
-          fontSize: '13px', 
-          color: '#505050',
-          fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-          letterSpacing: '0.3px'
-        }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', fontWeight: 500, fontSize: '13px', color: '#505050', fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif', letterSpacing: '0.3px' }}>
           {params.colDef.headerName}
         </Box>
       ),
@@ -429,24 +399,14 @@ const ExperienceIndexContent = () => {
         <Box>
           <PermissionGate permissions={['EDIT_EXPERIENCE', 'MANAGE_EXPERIENCES']}>
             <Tooltip title="Edit">
-              <IconButton
-                aria-label="edit experience"
-                onClick={() => handleOpenEditForm(params.row)}
-                size="small"
-                sx={{ color: '#1976d2', p: 0.5, mr: 0.5 }}
-              >
+              <IconButton aria-label="edit experience" onClick={() => handleOpenEditForm(params.row)} size="small" sx={{ color: '#1976d2', p: 0.5, mr: 0.5 }}>
                 <EditIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           </PermissionGate>
           <PermissionGate permissions={['DELETE_EXPERIENCE', 'MANAGE_EXPERIENCES']}>
             <Tooltip title="Delete">
-              <IconButton
-                aria-label="delete experience"
-                onClick={() => handleOpenDeleteForm(params.row)}
-                size="small"
-                sx={{ color: '#e53935', p: 0.5 }}
-              >
+              <IconButton aria-label="delete experience" onClick={() => handleOpenDeleteForm(params.row)} size="small" sx={{ color: '#e53935', p: 0.5 }}>
                 <DeleteIcon fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -456,91 +416,121 @@ const ExperienceIndexContent = () => {
     },
   ];
 
+  // Permission-aware column visibility
+  const COLUMN_ACCESS_MAP = useMemo(() => ({
+    code: { required: 'VIEW_EXPERIENCES', moduleKey: 'experiences' },
+    years: { required: 'VIEW_EXPERIENCES', moduleKey: 'experiences' },
+    experience_names: { required: 'VIEW_EXPERIENCES', moduleKey: 'experiences' },
+    experience_texts: { required: 'VIEW_LANGUAGES', moduleKey: 'languages' },
+    actions: { required: ['EDIT_EXPERIENCE', 'DELETE_EXPERIENCE', 'MANAGE_EXPERIENCES'], moduleKey: 'experiences' },
+  }), []);
+
+  const { allowedColumns, deniedColumns } = useMemo(() => {
+    const authorization = { isSystemAdmin, hasPermission, hasAnyPermission: hasAny };
+    return evaluateGridColumnAccess(COLUMN_ACCESS_MAP, authorization);
+  }, [isSystemAdmin, hasPermission, hasAny, COLUMN_ACCESS_MAP]);
+
+  const columns = useMemo(() => {
+    const hideActions = deniedColumns.length > 0;
+    return baseColumns.filter((c) => allowedColumns.has(c.field) && (!hideActions || c.field !== 'actions'));
+  }, [baseColumns, allowedColumns, deniedColumns]);
+
+  const deniedColumnTitles = useMemo(() => {
+    const titleFor = (field) => baseColumns.find((c) => c.field === field)?.headerName || field;
+    return Array.from(new Set(deniedColumns.map(titleFor)));
+  }, [deniedColumns, baseColumns]);
+
   if (error) {
     return (
       <Box mt={3} p={3} bgcolor="#ffebee" borderRadius={1}>
-        <Typography color="error" variant="h6">Error loading experiences</Typography>
+        <Typography color="error" variant="h6">
+          Error loading experiences
+        </Typography>
         <Typography color="error">{error}</Typography>
       </Box>
     );
   }
 
   return (
-    <>
-      <ReusableDataGrid
-        title="Experiences Management"
-        columns={columns}
-        rows={experiences || []}
-        loading={loading}
-        totalRows={pagination.total}
-        disableRowSelectionOnClick
-        sortModel={sortModel}
-        onPaginationModelChange={handlePaginationChange}
-        onSortModelChange={handleSortModelChange}
-        currentFilters={filters}
-        FiltersComponent={FiltersWrapper}
-        onFiltersChange={handleFiltersChange}
-        onSearch={handleSearch}
-        PaginationComponent={({ pagination: paginationData, onPaginationChange }) => {
-          console.log('ExperienceIndex - PaginationComponent rendered with data:', {
-            paginationData,
-            contextPagination: pagination,
-            contextFilters: filters
-          });
-          
-          const adjustedPaginationData = {
-            // Convert 1-indexed page from context to 0-indexed for ReusablePagination
-            page: Math.max(0, (paginationData.page || pagination.page || 1) - 1),
-            pageSize: paginationData.pageSize || pagination.pageSize || 10,
-            total: paginationData.total || pagination.total || 0
-          };
-          
-          console.log('ExperienceIndex - Adjusted pagination data:', adjustedPaginationData);
-          
-          return (
-            <ReusablePagination
-              pagination={adjustedPaginationData}
-              onPaginationChange={(newPaginationModel) => {
-                console.log('ExperienceIndex - Pagination change requested:', {
-                  newPaginationModel,
-                  converting: `${newPaginationModel.page} -> ${newPaginationModel.page + 1}`,
-                  currentContextPagination: pagination,
-                  currentFilters: filters
-                });
-                
-                // Convert 0-indexed page from ReusablePagination to 1-indexed for backend
-                const backendPaginationModel = {
-                  ...newPaginationModel,
-                  page: newPaginationModel.page + 1
-                };
-                
-                console.log('ExperienceIndex - Calling fetchExperiences with:', {
-                  page: backendPaginationModel.page,
-                  pageSize: backendPaginationModel.pageSize,
-                  filters: filters && Object.keys(filters).length > 0 ? filters : {},
-                  sortModel
-                });
-                
-                // Call fetchExperiences directly with the new pagination
-                const currentFilters = filters && Object.keys(filters).length > 0 ? filters : {};
-                fetchExperiences(backendPaginationModel.page, backendPaginationModel.pageSize, currentFilters, sortModel);
-              }}
-            />
-          );
-        }}
-        createButtonText="Experience"
-        onCreateClick={hasAnyPermission(['CREATE_EXPERIENCE', 'MANAGE_EXPERIENCES']) ? handleOpenCreateForm : undefined}
-        defaultPageSize={pagination.pageSize}
-        uiVariant="categoryIndex"
-        paginationPosition="top"
-        gridSx={{
-          '.MuiDataGrid-iconButtonContainer': { display: 'none', visibility: 'hidden', width: 0, opacity: 0 },
-          '.MuiDataGrid-sortIcon': { display: 'none', visibility: 'hidden', opacity: 0 },
-          '.MuiDataGrid-columnHeader': { display: 'flex', visibility: 'visible', opacity: 1 },
-          '.MuiDataGrid-columnHeaderTitle': { display: 'block', visibility: 'visible', opacity: 1, fontWeight: 500, color: '#505050' },
-          '& .MuiDataGrid-footerContainer': { display: 'none' }
-        }}
-      />
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: '650px',
+        overflow: 'hidden',
+        backgroundColor: '#ffffff',
+        borderRadius: '6px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+      }}
+    >
+      <Box sx={{ px: SECTION_PX, pb: GRID_WRAPPER_PB }}>
+        <ReusableDataGrid
+          title="Experiences Management"
+          columns={columns}
+          rows={experiences || []}
+          loading={loading}
+          totalRows={pagination.total}
+          disableRowSelectionOnClick
+          sortModel={sortModel}
+          onPaginationModelChange={handlePaginationChange}
+          onSortModelChange={handleSortModelChange}
+          currentFilters={filters}
+          FiltersComponent={FiltersWrapper}
+          onFiltersChange={handleFiltersChange}
+          onSearch={handleSearch}
+          topNotice={
+            deniedColumnTitles.length > 0 ? (
+              <Box sx={{ mt: 0.5, mb: 1, display: 'inline-flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
+                <InfoOutlined sx={{ fontSize: 16 }} />
+                <Typography sx={{ fontSize: '12px', lineHeight: 1.4 }}>
+                  {`You do not have permission to view the columns ${deniedColumnTitles.join(', ')}`}
+                </Typography>
+              </Box>
+            ) : null
+          }
+          PaginationComponent={({ pagination: paginationData }) => {
+            const adjustedPaginationData = {
+              // Convert 1-indexed page from context to 0-indexed for ReusablePagination
+              page: Math.max(0, (paginationData.page || pagination.page || 1) - 1),
+              pageSize: paginationData.pageSize || pagination.pageSize || 10,
+              total: paginationData.total || pagination.total || 0,
+            };
+
+            return (
+              <ReusablePagination
+                pagination={adjustedPaginationData}
+                onPaginationChange={(newPaginationModel) => {
+                  // Convert 0-indexed page from ReusablePagination to 1-indexed for backend
+                  const backendPaginationModel = {
+                    ...newPaginationModel,
+                    page: newPaginationModel.page + 1,
+                  };
+
+                  const currentFilters = filters && Object.keys(filters).length > 0 ? filters : {};
+                  fetchExperiences(
+                    backendPaginationModel.page,
+                    backendPaginationModel.pageSize,
+                    currentFilters,
+                    sortModel
+                  );
+                }}
+              />
+            );
+          }}
+          createButtonText="Experience"
+          onCreateClick={hasAnyPermission(['CREATE_EXPERIENCE', 'MANAGE_EXPERIENCES']) ? handleOpenCreateForm : undefined}
+          defaultPageSize={pagination.pageSize}
+          uiVariant="categoryIndex"
+          paginationPosition="top"
+          gridSx={{
+            '.MuiDataGrid-iconButtonContainer': { display: 'none', visibility: 'hidden', width: 0, opacity: 0 },
+            '.MuiDataGrid-sortIcon': { display: 'none', visibility: 'hidden', opacity: 0 },
+            '.MuiDataGrid-columnHeader': { display: 'flex', visibility: 'visible', opacity: 1 },
+            '.MuiDataGrid-columnHeaderTitle': { display: 'block', visibility: 'visible', opacity: 1, fontWeight: 500, color: '#505050' },
+            '& .MuiDataGrid-footerContainer': { display: 'none' },
+          }}
+        />
+      </Box>
 
       {isFormOpen && (
         <Dialog
@@ -586,13 +576,13 @@ const ExperienceIndexContent = () => {
           </DialogContent>
         </Dialog>
       )}
-    </>
+    </Box>
   );
 };
 
 const ExperienceIndex = () => (
   <ModuleGate moduleName="experiences" showError={true}>
-    <Container maxWidth={false} sx={{ py: 0 }}>
+  <Container maxWidth={false} disableGutters sx={{ py: CONTAINER_PY }}>
       <ExperienceErrorBoundary>
         <ExperienceIndexContent />
       </ExperienceErrorBoundary>

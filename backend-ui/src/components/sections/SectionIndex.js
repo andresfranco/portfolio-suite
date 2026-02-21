@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { Box, IconButton, Tooltip, Chip, Stack, Typography } from '@mui/material';
-import { Edit as EditIcon, Delete as DeleteIcon, ArrowUpward, ArrowDownward } from '@mui/icons-material';
+import { Box, IconButton, Tooltip, Chip, Stack, Typography, Container } from '@mui/material';
+import { Edit as EditIcon, Delete as DeleteIcon, ArrowUpward, ArrowDownward, InfoOutlined } from '@mui/icons-material';
 import SectionForm from './SectionForm';
 import ReusableDataGrid from '../common/ReusableDataGrid';
 import ReusableFilters from '../common/ReusableFilters';
@@ -12,6 +12,8 @@ import { useAuthorization } from '../../contexts/AuthorizationContext';
 import ModuleGate from '../common/ModuleGate';
 import PermissionGate from '../common/PermissionGate';
 import { logInfo, logError } from '../../utils/logger';
+import { evaluateGridColumnAccess, evaluateFilterAccess } from '../../utils/accessControl';
+import { CONTAINER_PY, SECTION_PX, GRID_WRAPPER_PB } from '../common/layoutTokens';
 
 // Filter type definitions matching the backend API parameters
 const FILTER_TYPES = {
@@ -43,7 +45,7 @@ function SectionIndexContent() {
     updatePagination
   } = useSections();
 
-  const { hasPermission, loading: authLoading, permissions } = useAuthorization();
+  const { hasPermission, hasAnyPermission, isSystemAdmin, loading: authLoading, permissions } = useAuthorization();
 
   const [sortModel, setSortModel] = useState([{ field: 'code', sort: 'asc' }]);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -81,17 +83,29 @@ function SectionIndexContent() {
     return types;
   }, [availableLanguages]);
 
+  // Build filter access notices (code requires viewing sections, language filter requires viewing languages)
+  const filterAccessNotices = useMemo(() => {
+    const authorization = { isSystemAdmin, hasPermission, hasAnyPermission };
+    const { noticesByType } = evaluateFilterAccess(Object.keys(dynamicFilterTypes), {
+      code: { required: 'VIEW_SECTIONS', moduleKey: 'sections' },
+      language_id: { required: 'VIEW_LANGUAGES', moduleKey: 'languages' }
+    }, authorization);
+    return noticesByType;
+  }, [dynamicFilterTypes, isSystemAdmin, hasPermission, hasAnyPermission]);
+
   const FiltersWrapper = ({ filters: currentFilters, onFiltersChange, onSearch }) => (
     <ReusableFilters
       filterTypes={dynamicFilterTypes}
       filters={currentFilters}
       onFiltersChange={onFiltersChange}
       onSearch={onSearch}
+      accessNotices={filterAccessNotices}
     />
   );
 
   // Define columns for the grid
-  const columns = [
+  // Base columns for the grid
+  const baseColumns = [
     { 
       field: 'code', 
       headerName: 'Code', 
@@ -218,6 +232,28 @@ function SectionIndexContent() {
     }
   ];
 
+  // Column access mapping and evaluation (hide Actions when any denial exists)
+  const COLUMN_ACCESS_MAP = useMemo(() => ({
+    code: { required: 'VIEW_SECTIONS', moduleKey: 'sections' },
+    section_texts: { required: 'VIEW_SECTIONS', moduleKey: 'sections' },
+    actions: { required: ['EDIT_SECTION', 'DELETE_SECTION', 'MANAGE_SECTIONS'], moduleKey: 'sections' }
+  }), []);
+
+  const { allowedColumns, deniedColumns } = useMemo(() => {
+    const authorization = { isSystemAdmin, hasPermission, hasAnyPermission };
+    return evaluateGridColumnAccess(COLUMN_ACCESS_MAP, authorization);
+  }, [isSystemAdmin, hasPermission, hasAnyPermission, COLUMN_ACCESS_MAP]);
+
+  const columns = useMemo(() => {
+    const hideActions = deniedColumns.length > 0;
+    return baseColumns.filter(col => allowedColumns.has(col.field) && (!hideActions || col.field !== 'actions'));
+  }, [baseColumns, allowedColumns, deniedColumns]);
+
+  const deniedColumnTitles = useMemo(() => {
+    const mapTitle = (field) => baseColumns.find(c => c.field === field)?.headerName || field;
+    return Array.from(new Set(deniedColumns.map(mapTitle)));
+  }, [deniedColumns, baseColumns]);
+
   // Initial fetch
   useEffect(() => {
     const initialFilters = filters && Object.keys(filters).length > 0 ? filters : {};
@@ -341,7 +377,7 @@ function SectionIndexContent() {
   }
 
   return (
-    <Box sx={{ height: '100%', width: '100%', p: 2 }}>
+    <Box sx={{ height: '100%', width: '100%', px: SECTION_PX, pb: GRID_WRAPPER_PB }}>
       <ReusableDataGrid
         key={gridKey}
         title="Sections Management"
@@ -357,6 +393,14 @@ function SectionIndexContent() {
         FiltersComponent={FiltersWrapper}
         onFiltersChange={handleFiltersChange}
         onSearch={handleSearch}
+        topNotice={deniedColumnTitles.length > 0 ? (
+          <Box sx={{ mt: 0.5, mb: 1, display: 'inline-flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
+            <InfoOutlined sx={{ fontSize: 16 }} />
+            <Typography sx={{ fontSize: '12px', lineHeight: 1.4 }}>
+              {`You do not have permission to view the columns ${deniedColumnTitles.join(', ')}`}
+            </Typography>
+          </Box>
+        ) : null}
         PaginationComponent={({ pagination: paginationData, onPaginationChange }) => {
           const adjustedPaginationData = {
             // Convert 1-indexed page from context to 0-indexed for ReusablePagination
@@ -402,7 +446,7 @@ function SectionIndexContent() {
           createButtonText: "Section",
           onCreateClick: handleCreateClick
         } : {})}
-        defaultPageSize={pagination.pageSize}
+  defaultPageSize={pagination.pageSize || 10}
         uiVariant="categoryIndex"
         paginationPosition="top"
         gridSx={{
@@ -432,7 +476,9 @@ function SectionIndex() {
     <ModuleGate moduleName="sections" showError={true}>
       <SectionErrorBoundary>
         <SectionProvider>
-          <SectionIndexContent />
+          <Container maxWidth={false} disableGutters sx={{ py: CONTAINER_PY }}>
+            <SectionIndexContent />
+          </Container>
         </SectionProvider>
       </SectionErrorBoundary>
     </ModuleGate>

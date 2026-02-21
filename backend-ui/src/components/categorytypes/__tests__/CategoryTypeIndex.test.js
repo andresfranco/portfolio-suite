@@ -2,43 +2,89 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { CategoryTypeProvider } from '../../../contexts/CategoryTypeContext';
+import TestProviders from '../../../test-utils/TestProviders';
 import CategoryTypeIndex from '../CategoryTypeIndex';
-import { CategoryTypeErrorBoundary } from '../CategoryTypeErrorBoundary';
+import CategoryTypeErrorBoundary from '../CategoryTypeErrorBoundary';
+
+// Mock Authorization context to avoid requiring the real provider in tests
+jest.mock('../../../contexts/AuthorizationContext', () => ({
+  AuthorizationProvider: ({ children }) => children,
+  useAuthorization: () => ({
+    canAccessModule: () => true,
+    canPerformOperation: () => true,
+  hasPermission: () => true,
+  hasAnyPermission: () => true,
+  hasAllPermissions: () => true,
+    loading: false,
+    isAuthenticated: () => true,
+  }),
+}));
+
+// Mock auth service to simulate an authenticated session with a token
+jest.mock('../../../services/authService', () => ({
+  getToken: () => 'test-token',
+  isAuthenticated: () => true,
+  logout: jest.fn(),
+}));
 
 // Mock the API services
-jest.mock('../../../services/categoryTypeApi', () => ({
-  getCategoryTypes: jest.fn(() => Promise.resolve({
-    data: {
-      items: [
-        { code: 'GEN', name: 'General' },
-        { code: 'TECH', name: 'Technology' },
-        { code: 'SOFT', name: 'Soft Skills' }
-      ],
-      total: 3,
-      page: 1,
-      pageSize: 10
-    }
-  })),
-  createCategoryType: jest.fn(() => Promise.resolve({
-    data: { code: 'NEW', name: 'New Type' }
-  })),
-  updateCategoryType: jest.fn(() => Promise.resolve({
-    data: { code: 'UPD', name: 'Updated Type' }
-  })),
-  deleteCategoryType: jest.fn(() => Promise.resolve({ data: {} })),
-  checkCodeExists: jest.fn(() => Promise.resolve({ exists: false }))
-}));
+jest.mock('../../../services/categoryTypeApi', () => {
+  const mock = {
+    getCategoryTypes: jest.fn(() => Promise.resolve({
+      data: {
+        items: [
+          { code: 'GEN', name: 'General' },
+          { code: 'TECH', name: 'Technology' },
+          { code: 'SOFT', name: 'Soft Skills' }
+        ],
+        total: 3,
+        page: 1,
+        pageSize: 10
+      }
+    })),
+    createCategoryType: jest.fn(() => Promise.resolve({
+      data: { code: 'NEW', name: 'New Type' }
+    })),
+    updateCategoryType: jest.fn(() => Promise.resolve({
+      data: { code: 'UPD', name: 'Updated Type' }
+    })),
+    deleteCategoryType: jest.fn(() => Promise.resolve({ data: {} })),
+    checkCodeExists: jest.fn(() => Promise.resolve({ exists: false })),
+  };
+  return { __esModule: true, default: mock, categoryTypeApi: mock };
+});
 
 // Helper component to provide context
 const TestWrapper = ({ children }) => (
-  <CategoryTypeProvider>
-    {children}
-  </CategoryTypeProvider>
+  <TestProviders>
+    <CategoryTypeProvider>
+      {children}
+    </CategoryTypeProvider>
+  </TestProviders>
 );
 
 describe('CategoryTypeIndex Component', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Re-seed default mock implementations after clearAllMocks
+    const mod = require('../../../services/categoryTypeApi');
+    const api = mod.default;
+    api.getCategoryTypes.mockResolvedValue({
+      data: {
+        items: [
+          { code: 'GEN', name: 'General' },
+          { code: 'TECH', name: 'Technology' },
+          { code: 'SOFT', name: 'Soft Skills' }
+        ],
+        total: 3,
+        page: 1,
+        pageSize: 10
+      }
+    });
+    api.createCategoryType.mockResolvedValue({ data: { code: 'NEW', name: 'New Type' } });
+    api.updateCategoryType.mockResolvedValue({ data: { code: 'UPD', name: 'Updated Type' } });
+    api.deleteCategoryType.mockResolvedValue({ data: {} });
+    api.checkCodeExists.mockResolvedValue({ exists: false });
   });
 
   test('renders category types management heading', async () => {
@@ -265,7 +311,8 @@ describe('CategoryTypeErrorBoundary', () => {
       </CategoryTypeErrorBoundary>
     );
 
-    expect(screen.getByText('Something went wrong in the CategoryType component')).toBeInTheDocument();
+  // Component text: "Something went wrong in the Category Type component"
+  expect(screen.getByText(/Something went wrong in the Category\s*Type component/i)).toBeInTheDocument();
     expect(screen.getByText('Test error')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
 
@@ -292,7 +339,7 @@ describe('CategoryTypeErrorBoundary', () => {
       </CategoryTypeErrorBoundary>
     );
 
-    expect(screen.getByText('Something went wrong in the CategoryType component')).toBeInTheDocument();
+  expect(screen.getByText(/Something went wrong in the Category\s*Type component/i)).toBeInTheDocument();
 
     // Change the component to not throw
     shouldThrow = false;
@@ -321,5 +368,25 @@ describe('CategoryTypeErrorBoundary', () => {
     );
 
     expect(screen.getByText('Test content')).toBeInTheDocument();
+  });
+
+  test('stops on 403 and shows access denied message', async () => {
+    const mod = require('../../../services/categoryTypeApi');
+    const api = mod.default;
+    // Force a 403 response for this test case (first call)
+    api.getCategoryTypes.mockRejectedValueOnce({ response: { status: 403 } });
+
+    render(
+      <TestWrapper>
+        <CategoryTypeIndex />
+      </TestWrapper>
+    );
+
+    // Error from context should be surfaced in the UI
+    await waitFor(() => {
+      expect(
+        screen.getByText(/You do not have permission to view category types\./i)
+      ).toBeInTheDocument();
+    });
   });
 }); 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Path, Body, status
 from sqlalchemy.orm import Session
 from typing import Any, List, Optional
 
@@ -7,6 +7,7 @@ from app.api import deps
 from app.crud import section as section_crud
 from app.core.logging import setup_logger
 from app.core.security_decorators import require_permission
+from app.rag.rag_events import stage_event
 
 # Set up logger using centralized logging
 logger = setup_logger("app.api.endpoints.sections")
@@ -154,11 +155,12 @@ def create_section(
                 detail="A section with this code already exists in the system.",
             )
         
-        section = section_crud.create_section(db, section=section_in)
+        section = section_crud.create_section(db, section_in)
         db.commit()
         db.refresh(section)
         
         logger.info(f"Successfully created section with ID {section.id} and code {section.code}")
+        stage_event(db, {"op":"insert","source_table":"sections","source_id":str(section.id),"changed_fields":["code"]})
         return section
     except HTTPException:
         db.rollback()
@@ -239,6 +241,7 @@ def update_section(
         db.refresh(section)
         
         logger.info(f"Successfully updated section with ID {section.id}")
+        stage_event(db, {"op":"update","source_table":"sections","source_id":str(section_id),"changed_fields":list(section_in.model_dump(exclude_unset=True).keys())})
         return section
     except HTTPException:
         db.rollback()
@@ -256,14 +259,14 @@ def update_section(
         )
 
 
-@router.delete("/{section_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{section_id}", status_code=status.HTTP_200_OK)
 @require_permission("DELETE_SECTION")
 def delete_section(
     *,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user),
     section_id: int,
-) -> None:
+) -> Any:
     """
     Delete a section.
     """
@@ -279,6 +282,7 @@ def delete_section(
         db.commit()
         
         logger.info(f"Successfully deleted section with ID {section_id}")
+        stage_event(db, {"op":"delete","source_table":"sections","source_id":str(section_id),"changed_fields":[]})
         # No return value for 204 status code
     except HTTPException:
         db.rollback()

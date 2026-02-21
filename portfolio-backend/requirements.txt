@@ -3,10 +3,53 @@ uvicorn
 sqlalchemy
 alembic
 passlib[bcrypt]
-python-jose[cryptography]
+PyJWT[cryptography]>=2.8.0
 python-multipart
 email-validator
 pydantic
 pydantic-settings
 python-dotenv
 psycopg2-binary
+
+# Redis for caching and rate limiting
+redis>=5.0.0
+hiredis>=2.2.0
+
+# Rate limiting
+slowapi>=0.1.9
+
+# Testing
+pytest
+testcontainers
+alembic
+
+# Optional RAG parsers (safe defaults)
+pypdf>=4.0.0
+beautifulsoup4
+markdown-it-py
+html2text
+
+# Optional worker
+celery
+prometheus_client
+
+# Multi-Factor Authentication (MFA)
+pyotp>=2.9.0
+qrcode>=7.4.2
+Pillow>=10.0.0
+
+# File Upload Security
+python-magic>=0.4.27
+python-magic-bin>=0.4.14; sys_platform == 'win32'  # Windows support
+clamd>=1.0.2  # ClamAV integration (optional)
+
+# Input Validation & Sanitization
+bleach>=6.1.0  # HTML sanitization
+html5lib>=1.1  # HTML parser for bleach
+tinycss2>=1.2.1  # CSS parser for bleach
+
+# Security Monitoring & Alerting
+aiohttp>=3.9.0  # Async HTTP client for webhooks
+
+# Field-Level Encryption
+cryptography>=41.0.0  # Fernet encryption for PII

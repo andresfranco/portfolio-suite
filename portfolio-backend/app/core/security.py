@@ -5,18 +5,42 @@ import hmac
 import time
 import base64
 
-from jose import jwt, JWTError
+import jwt
+from jwt.exceptions import PyJWTError as JWTError
 from passlib.context import CryptContext
 
 from app.core.config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+
+def _get_jwt_key_for_operation(operation: str = "encode") -> str:
+    """
+    Get the appropriate key for JWT operations based on algorithm.
+    
+    Args:
+        operation: 'encode' for signing, 'decode' for verification
+        
+    Returns:
+        Secret key (HS256) or private/public key (RS256)
+    """
+    if settings.ALGORITHM == "RS256":
+        if operation == "encode":
+            return settings.get_private_key()
+        else:  # decode/verify
+            return settings.get_public_key()
+    else:  # HS256 or other symmetric algorithms
+        return settings.SECRET_KEY
+
+
 def create_access_token(
     subject: Union[str, Any], expires_delta: Optional[timedelta] = None
 ) -> str:
     """
     Create a JWT access token.
+    
+    Supports both HS256 (symmetric) and RS256 (asymmetric) algorithms.
+    Algorithm is configured via settings.ALGORITHM.
     """
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
@@ -25,7 +49,10 @@ def create_access_token(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
     to_encode = {"exp": expire, "sub": str(subject)}
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    
+    # Get appropriate key based on algorithm
+    key = _get_jwt_key_for_operation("encode")
+    encoded_jwt = jwt.encode(to_encode, key, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
 def create_refresh_token(
@@ -33,6 +60,8 @@ def create_refresh_token(
 ) -> str:
     """
     Create a JWT refresh token.
+    
+    Supports both HS256 (symmetric) and RS256 (asymmetric) algorithms.
     """
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
@@ -41,7 +70,10 @@ def create_refresh_token(
             minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES
         )
     to_encode = {"exp": expire, "sub": str(subject), "type": "refresh"}
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    
+    # Get appropriate key based on algorithm
+    key = _get_jwt_key_for_operation("encode")
+    encoded_jwt = jwt.encode(to_encode, key, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
 def create_temp_token(resource_id: str, expires_in: int = 3600) -> str:

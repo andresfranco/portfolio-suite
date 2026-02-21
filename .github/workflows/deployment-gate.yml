@@ -1,0 +1,240 @@
+name: Deployment Security Gate
+
+on:
+  pull_request:
+    branches: [ main, production ]
+  workflow_dispatch:
+    inputs:
+      deploy_environment:
+        description: 'Target deployment environment'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  security-gate:
+    name: Security Pre-Deployment Gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'backend-ui/package-lock.json'
+      
+      # Critical Vulnerability Check - Python
+      - name: Check Python Dependencies for Critical Vulnerabilities
+        id: python-critical
+        run: |
+          cd portfolio-backend
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pip-audit
+
+          echo "## Python Dependency Security Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Run pip-audit (replaces deprecated safety check)
+          if pip-audit --desc 2>&1 | tee /tmp/pip-audit-output.txt; then
+            echo "✅ **PASSED:** No known vulnerabilities" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **FAILED:** Vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+            echo "critical_found=true" >> $GITHUB_OUTPUT
+            cat /tmp/pip-audit-output.txt >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+      
+      # Critical Vulnerability Check - NPM
+      - name: Check NPM Dependencies for Critical Vulnerabilities
+        id: npm-critical
+        run: |
+          cd backend-ui
+          npm ci
+          
+          echo "## NPM Dependency Security Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if npm audit --audit-level=critical 2>&1; then
+            echo "✅ **PASSED:** No critical vulnerabilities" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **FAILED:** Critical vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+            echo "critical_found=true" >> $GITHUB_OUTPUT
+            npm audit
+            exit 1
+          fi
+      
+      # Code Quality Gate - Bandit
+      - name: Static Analysis Security Gate (Bandit)
+        id: bandit-gate
+        run: |
+          pip install bandit[toml]
+          cd portfolio-backend
+          
+          echo "## Static Analysis Security (Bandit)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Run Bandit and check for high/critical issues
+          bandit -r app/ -ll -f txt | tee bandit-output.txt
+          if grep -qE "Severity: High|Severity: Critical" bandit-output.txt; then
+            echo "❌ **FAILED:** High/Critical severity issues found" >> $GITHUB_STEP_SUMMARY
+            cat bandit-output.txt >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "✅ **PASSED:** No high/critical issues" >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      # Secret Scanning Gate
+      - name: Secret Scanning Gate
+        id: secret-scan
+        run: |
+          # Install TruffleHog
+          curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin
+          
+          echo "## Secret Scanning" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Scan for secrets (verified only to reduce false positives)
+          if trufflehog filesystem . --only-verified --fail 2>&1 | tee trufflehog-output.txt; then
+            echo "✅ **PASSED:** No secrets found" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **FAILED:** Secrets detected in codebase" >> $GITHUB_STEP_SUMMARY
+            cat trufflehog-output.txt >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+      
+      # Configuration Validation
+      - name: Production Configuration Validation
+        if: github.event.inputs.deploy_environment == 'production' || github.base_ref == 'main'
+        run: |
+          echo "## Production Configuration Validation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Check .env.example exists
+          if [ ! -f "portfolio-backend/.env.example" ]; then
+            echo "❌ **FAILED:** Missing .env.example" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          
+          # Check for hardcoded secrets in config
+          if grep -rE "SECRET_KEY.*=.*['\"][^'\"]{32,}['\"]" portfolio-backend/app/core/config.py; then
+            echo "❌ **FAILED:** Hardcoded SECRET_KEY found" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          
+          # Check DEBUG is not hardcoded to True
+          if grep -E "DEBUG.*=.*True" portfolio-backend/app/core/config.py | grep -v "os.getenv"; then
+            echo "❌ **FAILED:** DEBUG hardcoded to True" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          
+          # Check ALLOWED_HOSTS is not hardcoded to *
+          if grep -E 'ALLOWED_HOSTS.*=.*"\*"' portfolio-backend/app/core/config.py | grep -v "os.getenv"; then
+            echo "❌ **FAILED:** ALLOWED_HOSTS hardcoded to wildcard" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          
+          echo "✅ **PASSED:** Production configuration is secure" >> $GITHUB_STEP_SUMMARY
+      
+      # Database Migration Check
+      - name: Database Migration Validation
+        run: |
+          echo "## Database Migration Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Check if migrations directory exists and has migrations
+          if [ -d "portfolio-backend/alembic/versions" ]; then
+            migration_count=$(find portfolio-backend/alembic/versions -name "*.py" ! -name "__init__.py" | wc -l)
+            echo "Found $migration_count migrations" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **PASSED:** Migration system configured" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ **WARNING:** No migrations directory found" >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      # SSL/TLS Configuration Check
+      - name: SSL/TLS Configuration Validation
+        if: github.event.inputs.deploy_environment == 'production' || github.base_ref == 'main'
+        run: |
+          echo "## SSL/TLS Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Check for HSTS configuration
+          if grep -q "HSTS_ENABLED" portfolio-backend/.env.example; then
+            echo "✅ HSTS configuration present" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ WARNING: HSTS not configured" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Check for nginx configuration
+          if [ -f "nginx.conf" ]; then
+            if grep -q "TLSv1.3" nginx.conf; then
+              echo "✅ TLS 1.3 configured in nginx" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "⚠️ WARNING: TLS 1.3 not found in nginx config" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "⚠️ WARNING: nginx.conf not found" >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      # Generate Security Report
+      - name: Generate Security Gate Summary
+        if: always()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "## 🔒 Security Gate Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Check if any critical issues found
+          if [ "${{ steps.python-critical.outputs.critical_found }}" == "true" ] || \
+             [ "${{ steps.npm-critical.outputs.critical_found }}" == "true" ]; then
+            echo "### ❌ DEPLOYMENT BLOCKED" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Critical security vulnerabilities detected. Fix issues before deploying." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "### ✅ SECURITY GATE PASSED" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "All security checks passed. Safe to deploy." >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployment Environment:** ${{ github.event.inputs.deploy_environment || 'N/A' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit SHA:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+      
+      # Comment on PR with results
+      - name: Comment PR with Security Gate Results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = `## 🔒 Security Gate Results
+            
+            ${process.env.STEPS_SUMMARY}
+            
+            ---
+            *Automated security check completed at ${new Date().toISOString()}*`;
+            
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });

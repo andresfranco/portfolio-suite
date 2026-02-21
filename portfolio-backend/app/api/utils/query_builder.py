@@ -47,7 +47,7 @@ class QueryBuilder:
         """Apply filters to the query"""
         if not filters:
             return self
-            
+        
         for filter_item in filters:
             # Handle both Filter objects and dictionary format
             if isinstance(filter_item, dict):
@@ -58,20 +58,74 @@ class QueryBuilder:
                 field_name = getattr(filter_item, 'field', None)
                 value = getattr(filter_item, 'value', None)
                 operator = getattr(filter_item, 'operator', 'contains')
-            
+
             if not field_name or value is None:
                 continue
-                
+
+            logger.debug(f"QueryBuilder apply_filters processing: field={field_name} operator={operator} value={value}")
             field_parts = field_name.split('.')
-            if len(field_parts) == 1:
+            # Support dot notation for relationships (e.g., roles.id)
+            if len(field_parts) > 1:
+                current_model = self.model
+                # Traverse relationships except last part
+                for rel_part in field_parts[:-1]:
+                    rel_attr = getattr(current_model, rel_part, None)
+                    if rel_attr is None:
+                        current_model = None
+                        break
+                    # Only join once per relationship name
+                    if rel_part not in self.joins_applied:
+                        try:
+                            self.query = self.query.join(rel_attr)
+                            self.joins_applied.add(rel_part)
+                            logger.debug(f"QueryBuilder joined relationship: {rel_part}")
+                        except Exception:
+                            # If join fails, skip this filter safely
+                            current_model = None
+                            break
+                    try:
+                        # Advance model to related class
+                        current_model = rel_attr.property.mapper.class_
+                    except Exception:
+                        current_model = None
+                        break
+                if not current_model:
+                    continue
+                field = getattr(current_model, field_parts[-1], None)
+                if field is None:
+                    continue
+                # Apply operator including 'in'
+                if operator in ['eq', 'equals']:
+                    self.query = self.query.filter(field == value)
+                elif operator == 'in' and isinstance(value, (list, tuple, set)) and len(value) > 0:
+                    self.query = self.query.filter(field.in_(list(value)))
+                elif operator == 'contains':
+                    self.query = self.query.filter(field.ilike(f"%{value}%"))
+                elif operator in ['startswith', 'startsWith']:
+                    self.query = self.query.filter(field.ilike(f"{value}%"))
+                elif operator in ['endswith', 'endsWith']:
+                    self.query = self.query.filter(field.ilike(f"%{value}"))
+                elif operator == 'ne':
+                    self.query = self.query.filter(field != value)
+                elif operator == 'gt':
+                    self.query = self.query.filter(field > value)
+                elif operator == 'lt':
+                    self.query = self.query.filter(field < value)
+                elif operator == 'gte':
+                    self.query = self.query.filter(field >= value)
+                elif operator == 'lte':
+                    self.query = self.query.filter(field <= value)
+                continue
+            else:
                 # Direct model attribute
                 field = getattr(self.model, field_parts[0], None)
                 if field is None:
                     continue
-                    
                 # Apply operator
                 if operator in ['eq', 'equals']:
                     self.query = self.query.filter(field == value)
+                elif operator == 'in' and isinstance(value, (list, tuple, set)) and len(value) > 0:
+                    self.query = self.query.filter(field.in_(list(value)))
                 elif operator == 'contains':
                     self.query = self.query.filter(field.ilike(f"%{value}%"))
                 elif operator in ['startswith', 'startsWith']:

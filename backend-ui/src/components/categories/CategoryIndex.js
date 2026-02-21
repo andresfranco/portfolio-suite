@@ -1,7 +1,8 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Box, IconButton, Tooltip, Chip, Stack, CircularProgress, Button, Typography, Container, Paper } from '@mui/material';
-import { Edit as EditIcon, Delete as DeleteIcon, Add, KeyboardArrowLeft, KeyboardArrowRight, ArrowUpward, ArrowDownward } from '@mui/icons-material';
-import { DataGrid } from '@mui/x-data-grid';
+import { CONTAINER_PY, SECTION_PX } from '../common/layoutTokens';
+import { Edit as EditIcon, Delete as DeleteIcon, Add, KeyboardArrowLeft, KeyboardArrowRight, ArrowUpward, ArrowDownward, InfoOutlined } from '@mui/icons-material';
+import ReusableDataGrid from '../common/ReusableDataGrid';
 import CategoryForm from './CategoryForm';
 import CategoryFilters from './CategoryFilters';
 import CategoryErrorBoundary from './CategoryErrorBoundary';
@@ -9,6 +10,7 @@ import { useCategory } from '../../contexts/CategoryContext';
 import { useCategoryType } from '../../contexts/CategoryTypeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuthorization } from '../../contexts/AuthorizationContext';
+import { evaluateGridColumnAccess } from '../../utils/accessControl';
 import ModuleGate from '../common/ModuleGate';
 import PermissionGate from '../common/PermissionGate';
 import { logInfo, logError } from '../../utils/logger';
@@ -149,7 +151,7 @@ function CategoryIndexContent() {
   
   const { categoryTypes, loading: categoryTypesLoading } = useCategoryType();
   const { languages, loading: languagesLoading } = useLanguage();
-  const { canPerformOperation } = useAuthorization();
+  const { canPerformOperation, isSystemAdmin, hasPermission, hasAnyPermission } = useAuthorization();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formMode, setFormMode] = useState(null);
@@ -186,8 +188,8 @@ function CategoryIndexContent() {
       : { name: 'Unknown', code: `ID:${langId}` };
   }, [languages]);
 
-  // Define columns for the grid
-  const columns = [
+  // Define base columns for the grid
+  const baseColumns = [
     { 
       field: 'code', 
       headerName: 'Code', 
@@ -526,6 +528,33 @@ function CategoryIndexContent() {
     }
   ];
 
+  // Column access mapping for Categories grid
+  const COLUMN_ACCESS_MAP = useMemo(() => ({
+    code: { required: 'VIEW_CATEGORIES', moduleKey: 'categories' },
+    type_code: { required: 'VIEW_CATEGORY_TYPES', moduleKey: 'categorytypes' },
+    category_names: { required: 'VIEW_CATEGORIES', moduleKey: 'categories' },
+    category_texts: { required: 'VIEW_LANGUAGES', moduleKey: 'languages' },
+    actions: { required: ['EDIT_CATEGORY', 'DELETE_CATEGORY', 'MANAGE_CATEGORIES'], moduleKey: 'categories' }
+  }), []);
+
+  // Compute allowed/denied columns based on permissions
+  const { allowedColumns, deniedColumns } = useMemo(() => {
+    const authorization = { isSystemAdmin, hasPermission, hasAnyPermission };
+    return evaluateGridColumnAccess(COLUMN_ACCESS_MAP, authorization);
+  }, [isSystemAdmin, hasPermission, hasAnyPermission, COLUMN_ACCESS_MAP]);
+
+  // Filter visible columns and hide actions when any denial exists
+  const columns = useMemo(() => {
+    const hideActions = deniedColumns.length > 0;
+    return baseColumns.filter(col => allowedColumns.has(col.field) && (!hideActions || col.field !== 'actions'));
+  }, [baseColumns, allowedColumns, deniedColumns]);
+
+  // Friendly titles for denied columns
+  const deniedColumnTitles = useMemo(() => {
+    const titleFor = (field) => baseColumns.find(c => c.field === field)?.headerName || field;
+    return Array.from(new Set(deniedColumns.map(titleFor)));
+  }, [deniedColumns, baseColumns]);
+
   // Handle create button click
   const handleCreateClick = () => {
     logInfo('CategoryIndex', 'Create category button clicked');
@@ -646,552 +675,38 @@ function CategoryIndexContent() {
   const isLoading = categoriesLoading || categoryTypesLoading || languagesLoading;
 
   return (
-    <Box 
-      sx={{ 
-        display: 'flex', 
-        flexDirection: 'column',
-        minHeight: '650px',
-        overflow: 'hidden',
-        backgroundColor: '#ffffff',
-        borderRadius: '6px',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-      }}
-    >
-      <Box sx={{ p: 3, pb: 2 }}>
-        <Typography 
-          variant="h5" 
-          sx={{ 
-            fontWeight: 600, 
-            color: '#1976d2',
-            mb: 1,
-            letterSpacing: '0.015em'
-          }}
-        >
-          Categories Management
-        </Typography>
-        <Box 
-          sx={{ 
-            height: '2px', 
-            width: '100%', 
-            bgcolor: '#1976d2', 
-            opacity: 0.7,
-            mb: 2
-          }} 
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '650px', overflow: 'hidden', backgroundColor: '#ffffff', borderRadius: '6px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+      <Box sx={{ px: SECTION_PX, pb: 2 }}>
+        <ReusableDataGrid
+          title="Categories Management"
+          columns={columns}
+          rows={categories || []}
+          loading={isLoading}
+          totalRows={pagination.total || 0}
+          onPaginationModelChange={handlePaginationChange}
+          sortModel={sortModel}
+          onSortModelChange={handleSortModelChange}
+          disableRowSelectionOnClick
+          PaginationComponent={CustomPagination}
+          paginationPosition="top"
+          FiltersComponent={CategoryFilters}
+          currentFilters={filters}
+          onFiltersChange={handleFiltersChange}
+          onSearch={handleSearch}
+          createButtonText="Category"
+          onCreateClick={hasPermission('CREATE_CATEGORY') ? handleCreateClick : undefined}
+          topNotice={deniedColumnTitles.length > 0 ? (
+            <Box sx={{ mt: 1, display: 'inline-flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
+              <InfoOutlined sx={{ fontSize: 16 }} />
+              <Typography sx={{ fontSize: '12px', lineHeight: 1.4 }}>
+                {`You do not have permission to view the columns ${deniedColumnTitles.join(', ')}`}
+              </Typography>
+            </Box>
+          ) : null}
+          uiVariant="categoryIndex"
         />
       </Box>
 
-      {isLoading ? (
-        <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-          <CircularProgress size={60} thickness={4} />
-          <Box sx={{ mt: 2, typography: 'subtitle1' }}>Loading data...</Box>
-        </Box>
-      ) : (
-        <>
-          <Box sx={{ px: 3 }}>
-            <CategoryFilters 
-              onFiltersChange={handleFiltersChange} 
-              onSearch={handleSearch}
-            />
-          </Box>
-          
-          <Box sx={{ 
-            flex: 1,
-            minHeight: 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            px: 3,
-            pb: 3,
-            '& .css-19midj6': {
-              padding: '0px !important',
-            },
-            '&::-webkit-scrollbar': {
-              display: 'none',
-              width: '0px',
-              height: '0px',
-            },
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
-            '& *': {
-              '&::-webkit-scrollbar': {
-                display: 'none',
-                width: '0px',
-                height: '0px',
-              },
-              scrollbarWidth: 'none',
-              msOverflowStyle: 'none',
-            },
-            '& .MuiDataGrid-root': {
-              borderRadius: '5px',
-              overflow: 'hidden',
-            },
-            '& .MuiDataGrid-main': {
-              borderTopLeftRadius: '5px',
-              borderTopRightRadius: '5px'
-            },
-            '& .MuiDataGrid-columnHeaders': {
-              backgroundColor: 'rgba(250, 250, 250, 0.8)',
-              borderTopLeftRadius: '5px',
-              borderTopRightRadius: '5px'
-            }
-          }}>
-            <style>
-              {`
-                ::-webkit-scrollbar {
-                  display: none !important;
-                  width: 0 !important;
-                  height: 0 !important;
-                }
-                * {
-                  scrollbar-width: none !important;
-                  -ms-overflow-style: none !important;
-                }
-                
-                .MuiDataGrid-root .MuiDataGrid-virtualScroller::-webkit-scrollbar {
-                  width: 8px;
-                  height: 8px;
-                }
-                .MuiDataGrid-root .MuiDataGrid-virtualScroller::-webkit-scrollbar-thumb {
-                  background-color: rgba(0, 0, 0, 0.2);
-                  border-radius: 4px;
-                }
-                .MuiDataGrid-root .MuiDataGrid-virtualScroller::-webkit-scrollbar-track {
-                  background-color: rgba(0, 0, 0, 0.05);
-                }
-                .css-1xs4aeo-MuiContainer-root {
-                  margin: 0 !important;
-                  padding: 0 !important;
-                  max-width: 100% !important;
-                }
-                
-                /* Fix for the fixed height issue */
-                .css-29opl-MuiPaper-root {
-                  height: auto !important;
-                  min-height: 400px !important;
-                  flex-grow: 1 !important;
-                  max-height: none !important;
-                  display: flex !important;
-                  flex-direction: column !important;
-                }
-                
-                /* Additional selector for the Paper component when rendered in the grid container */
-                .MuiContainer-root .css-29opl-MuiPaper-root, 
-                .MuiContainer-root [class*="MuiPaper-root"] {
-                  height: auto !important;
-                  min-height: 400px !important;
-                  flex-grow: 1 !important;
-                  max-height: none !important;
-                }
-                
-                /* Override any fixed heights in the grid wrapper */
-                .MuiDataGrid-root, .MuiDataGrid-root .MuiDataGrid-main {
-                  height: auto !important;
-                  min-height: 400px !important;
-                  flex: 1 !important;
-                }
-                
-                /* Hide bottom pagination completely */
-                .MuiDataGrid-footerContainer {
-                  display: none !important;
-                  visibility: hidden !important;
-                  height: 0 !important;
-                  overflow: hidden !important;
-                  opacity: 0 !important;
-                  position: absolute !important;
-                  pointer-events: none !important;
-                }
-                
-                /* Additional selectors to make sure pagination is hidden */
-                .MuiTablePagination-root {
-                  display: none !important;
-                  visibility: hidden !important;
-                  height: 0 !important;
-                  opacity: 0 !important;
-                }
-
-                /* COMPREHENSIVE ROW AND CELL EXPANSION OVERRIDES */
-                
-                /* Disable all virtual scrolling features */
-                .MuiDataGrid-root .MuiDataGrid-virtualScroller,
-                .MuiDataGrid-virtualScroller,
-                .MuiDataGrid-root .MuiDataGrid-virtualScrollerContent,
-                .MuiDataGrid-virtualScrollerContent,
-                .MuiDataGrid-root .MuiDataGrid-virtualScrollerRenderZone,
-                .MuiDataGrid-virtualScrollerRenderZone {
-                  position: static !important;
-                  transform: none !important;
-                  width: 100% !important; 
-                  height: auto !important;
-                  overflow: visible !important;
-                  display: block !important;
-                }
-                
-                /* Direct targeting of base rows - highest priority */
-                .MuiDataGrid-row,
-                .MuiDataGrid-root .MuiDataGrid-row,
-                div[class*="-MuiDataGrid-row"],
-                .css-1jim79h-MuiDataGrid-root .MuiDataGrid-row,
-                div.MuiDataGrid-root div.MuiDataGrid-row {
-                  height: auto !important;
-                  min-height: 60px !important;
-                  max-height: none !important;
-                  width: 100% !important;
-                  display: flex !important;
-                  align-items: stretch !important;
-                  position: relative !important;
-                  box-sizing: border-box !important;
-                  border-bottom: 1px solid rgba(224, 224, 224, 0.7) !important;
-                  transform: none !important;
-                  overflow: visible !important;
-                }
-                
-                /* Direct targeting of row cells */
-                .MuiDataGrid-cell,
-                .MuiDataGrid-root .MuiDataGrid-cell,
-                div[class*="-MuiDataGrid-cell"],
-                .css-1jim79h-MuiDataGrid-root .MuiDataGrid-cell {
-                  height: auto !important;
-                  min-height: 100% !important;
-                  max-height: none !important;
-                  display: flex !important;
-                  align-items: flex-start !important;
-                  white-space: normal !important;
-                  line-height: 1.5 !important;
-                  position: relative !important;
-                  padding: 12px 16px !important;
-                  box-sizing: border-box !important;
-                  transform: none !important;
-                  overflow: visible !important;
-                  border-right: 1px solid rgba(224, 224, 224, 0.5) !important;
-                  word-wrap: break-word !important;
-                  word-break: break-word !important;
-                }
-                
-                /* Category names cells override */
-                .MuiDataGrid-cell[data-field="category_names"],
-                .MuiDataGrid-root .MuiDataGrid-cell[data-field="category_names"],
-                div[class*="-MuiDataGrid-cell"][data-field="category_names"],
-                .css-1jim79h-MuiDataGrid-root .MuiDataGrid-cell[data-field="category_names"] {
-                  height: auto !important;
-                  min-height: 100% !important;
-                  max-height: none !important;
-                  padding: 12px 16px !important;
-                  align-items: flex-start !important;
-                  overflow: visible !important;
-                  white-space: normal !important;
-                  word-wrap: break-word !important;
-                  word-break: break-word !important;
-                  z-index: 1 !important;
-                }
-                
-                /* Category names cell inner container */
-                .MuiDataGrid-cell[data-field="category_names"] > div,
-                .MuiDataGrid-root .MuiDataGrid-cell[data-field="category_names"] > div,
-                div[class*="-MuiDataGrid-cell"][data-field="category_names"] > div,
-                .css-1jim79h-MuiDataGrid-root .MuiDataGrid-cell[data-field="category_names"] > div {
-                  height: auto !important;
-                  min-height: 100% !important;
-                  max-height: none !important;
-                  width: 100% !important;
-                  overflow: visible !important;
-                  white-space: normal !important;
-                  word-wrap: break-word !important;
-                  word-break: break-word !important;
-                }
-                
-                /* Languages cells override */
-                .MuiDataGrid-cell[data-field="category_texts"],
-                .MuiDataGrid-root .MuiDataGrid-cell[data-field="category_texts"],
-                div[class*="-MuiDataGrid-cell"][data-field="category_texts"],
-                .css-1jim79h-MuiDataGrid-root .MuiDataGrid-cell[data-field="category_texts"] {
-                  height: auto !important;
-                  min-height: 100% !important;
-                  max-height: none !important;
-                  padding: 8px 16px !important;
-                  align-items: flex-start !important;
-                  overflow: visible !important;
-                  z-index: 1 !important;
-                }
-                
-                /* Languages cell inner container */
-                .MuiDataGrid-cell[data-field="category_texts"] > div,
-                .MuiDataGrid-root .MuiDataGrid-cell[data-field="category_texts"] > div,
-                div[class*="-MuiDataGrid-cell"][data-field="category_texts"] > div,
-                .css-1jim79h-MuiDataGrid-root .MuiDataGrid-cell[data-field="category_texts"] > div {
-                  height: auto !important;
-                  min-height: 100% !important;
-                  max-height: none !important;
-                  display: flex !important;
-                  flex-wrap: wrap !important;
-                  gap: 8px !important;
-                  align-items: flex-start !important;
-                  align-content: flex-start !important;
-                  width: 100% !important;
-                  overflow: visible !important;
-                }
-                
-                /* Language chips styling */
-                .MuiDataGrid-cell[data-field="category_texts"] .MuiChip-root,
-                .MuiDataGrid-root .MuiDataGrid-cell[data-field="category_texts"] .MuiChip-root {
-                  height: auto !important;
-                  min-height: 24px !important;
-                  margin: 2px !important;
-                  border-radius: 16px !important;
-                  flex-shrink: 0 !important;
-                  max-width: none !important;
-                }
-                
-                /* Actions cell styling */
-                .MuiDataGrid-cell[data-field="actions"],
-                .MuiDataGrid-root .MuiDataGrid-cell[data-field="actions"],
-                div[class*="-MuiDataGrid-cell"][data-field="actions"],
-                .css-1jim79h-MuiDataGrid-root .MuiDataGrid-cell[data-field="actions"] {
-                  width: 120px !important;
-                  min-width: 120px !important;
-                  max-width: 120px !important;
-                  justify-content: center !important;
-                  align-items: center !important;
-                  flex-shrink: 0 !important;
-                  padding: 8px 0 !important;
-                  overflow: visible !important;
-                  z-index: 2 !important;
-                }
-                
-                /* Base grid styling keeps intact */
-                .MuiDataGrid-root {
-                  border: 1px solid rgba(224, 224, 224, 1) !important;
-                  border-radius: 4px !important;
-                  overflow: visible !important;
-                }
-                
-                /* Structure styles to ensure the grid stays cohesive */
-                .MuiDataGrid-columnHeaders {
-                  background-color: rgba(245, 247, 250, 1) !important;
-                  border-bottom: 1px solid rgba(224, 224, 224, 1) !important;
-                  z-index: 10 !important;
-                  position: sticky !important;
-                  top: 0 !important;
-                }
-                
-                /* Hide default sort icons */
-                .MuiDataGrid-columnHeaderTitleContainer button {
-                  display: none !important;
-                  opacity: 0 !important;
-                  visibility: hidden !important;
-                  width: 0 !important;
-                  margin: 0 !important;
-                  padding: 0 !important;
-                }
-                
-                .MuiDataGrid-columnHeaderTitle {
-                  font-weight: 500 !important;
-                  color: #333 !important;
-                }
-                
-                .MuiDataGrid-columnSeparator {
-                  visibility: visible !important;
-                  color: rgba(224, 224, 224, 1) !important;
-                }
-
-                .MuiDataGrid-root .MuiDataGrid-virtualScroller::-webkit-scrollbar-track {
-                  background-color: rgba(0, 0, 0, 0.05);
-                }
-                
-                /* Hide default sort icons - mirror CategoryTypeIndex */
-                .MuiDataGrid-iconButtonContainer {
-                  display: none !important;
-                  visibility: hidden !important;
-                  width: 0 !important;
-                  opacity: 0 !important;
-                }
-                .MuiDataGrid-sortIcon {
-                  display: none !important;
-                  visibility: hidden !important;
-                  opacity: 0 !important;
-                }
-                
-                .css-1xs4aeo-MuiContainer-root {
-              `}
-            </style>
-            
-            {/* Position the custom pagination at the top right, above the grid */}
-            <Box
-              sx={{
-                position: 'relative',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                width: '100%',
-                marginBottom: '16px',
-                paddingTop: '4px',
-                paddingBottom: '4px',
-              }}
-            >
-              {/* Create Category button placed at the left side */}
-              <PermissionGate permission="CREATE_CATEGORY">
-                <Button 
-                  variant="outlined" 
-                  size="small" 
-                  startIcon={<Add fontSize="small" />} 
-                  onClick={handleCreateClick}
-                  sx={{ 
-                    borderRadius: '4px',
-                    textTransform: 'none',
-                    fontWeight: 400,
-                    boxShadow: 'none',
-                    border: '1px solid #1976d2',
-                    color: '#1976d2',
-                    py: 0.5,
-                    height: '32px',
-                    fontSize: '13px',
-                    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-                    '&:hover': {
-                      backgroundColor: 'rgba(25, 118, 210, 0.04)',
-                      borderColor: '#1976d2'
-                    }
-                  }}
-                >
-                  New Category
-                </Button>
-              </PermissionGate>
-
-              <CustomPagination 
-                pagination={{
-                  page: paginationModel.page,
-                  pageSize: paginationModel.pageSize,
-                  total: pagination.total || 0
-                }}
-                onPaginationChange={handlePaginationChange}
-              />
-            </Box>
-            
-            <Box sx={{
-              backgroundColor: 'rgba(250, 250, 250, 0.8)',
-              borderRadius: '5px',
-              overflow: 'hidden',
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              flex: 1,
-              '& .MuiDataGrid-root, & .MuiDataGrid-main, & .MuiDataGrid-columnHeaders, & .MuiDataGrid-columnHeadersInner': {
-                backgroundColor: 'rgba(250, 250, 250, 0.8) !important',
-                borderTopLeftRadius: '5px !important',
-                borderTopRightRadius: '5px !important',
-              }
-            }}>
-              <DataGrid
-                rows={categories || []}
-                columns={columns}
-                rowCount={pagination.total}
-                loading={categoriesLoading}
-                page={paginationModel.page}
-                pageSize={paginationModel.pageSize}
-                rowsPerPageOptions={[]}
-                disableColumnMenu
-                disableSelectionOnClick
-                disableColumnFilter
-                disableColumnSelector
-                disableDensitySelector
-                disableVirtualization
-                autoHeight
-                headerHeight={50}
-                getRowHeight={() => 'auto'}
-                sortingMode="server"
-                sortModel={sortModel}
-                onSortModelChange={handleSortModelChange}
-                getRowId={(row) => row.id}
-                sx={{
-                  flex: 1,
-                  minHeight: 'auto',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  border: 'none',
-                  backgroundColor: 'rgba(250, 250, 250, 0.8)',
-                  '.MuiDataGrid-main, .MuiDataGrid-columnHeaders, .MuiDataGrid-columnHeadersInner': {
-                    backgroundColor: 'rgba(250, 250, 250, 0.8) !important',
-                  },
-                  '.MuiDataGrid-footerContainer': {
-                    visibility: 'visible !important',
-                    display: 'flex !important',
-                    borderTop: '1px solid #f0f0f0',
-                    backgroundColor: 'white !important'
-                  },
-                  '.css-e8dn0e': {
-                    backgroundColor: 'white !important'
-                  },
-                  '.MuiDataGrid-columnHeaders': {
-                    backgroundColor: 'rgba(250, 250, 250, 0.8) !important',
-                    color: '#505050',
-                    fontWeight: 500,
-                    fontSize: 13,
-                    letterSpacing: '0.3px',
-                    borderBottom: '1px solid #e0e0e0',
-                    borderTopLeftRadius: '5px',
-                    borderTopRightRadius: '5px',
-                  },
-                  '.MuiDataGrid-main': {
-                    backgroundColor: 'rgba(250, 250, 250, 0.8) !important', 
-                    borderTopLeftRadius: '5px',
-                    borderTopRightRadius: '5px'
-                  },
-                  '.MuiDataGrid-columnHeadersInner': {
-                    backgroundColor: 'rgba(250, 250, 250, 0.8) !important',
-                    borderTopLeftRadius: '5px',
-                    borderTopRightRadius: '5px',
-                  },
-                  '.MuiDataGrid-cell': {
-                    fontSize: '13px',
-                    borderBottom: '1px solid #f5f5f5',
-                    backgroundColor: 'white'
-                  },
-                  '.MuiDataGrid-row': {
-                    backgroundColor: 'white'
-                  },
-                  '.MuiDataGrid-row:hover': {
-                    backgroundColor: 'rgba(25, 118, 210, 0.04)'
-                  },
-                  // Ensure sort icons are hidden but headers are visible
-                  '.MuiDataGrid-iconButtonContainer': {
-                    display: 'none',
-                    visibility: 'hidden',
-                    width: 0,
-                    opacity: 0
-                  },
-                  '.MuiDataGrid-sortIcon': {
-                    display: 'none',
-                    visibility: 'hidden',
-                    opacity: 0
-                  },
-                  // Ensure column headers are visible
-                  '.MuiDataGrid-columnHeader': {
-                    display: 'flex',
-                    visibility: 'visible',
-                    opacity: 1
-                  },
-                  '.MuiDataGrid-columnHeaderTitle': {
-                    display: 'block',
-                    visibility: 'visible',
-                    opacity: 1,
-                    fontWeight: 500,
-                    color: '#505050'
-                  },
-                  '& .MuiDataGrid-footerContainer': {
-                    display: 'none', // Hide default pagination
-                  }
-                }}
-                
-                // Important! Set these to null/empty to prevent automatic pagination control
-                paginationMode="server"
-                componentsProps={{
-                  pagination: {
-                    component: () => null, // Disable default pagination component
-                  },
-                }}
-              />
-            </Box>
-          </Box>
-        </>
-      )}
       {isFormOpen && (
         <CategoryForm
           open={isFormOpen}
@@ -1208,7 +723,7 @@ function CategoryIndexContent() {
 const CategoryIndex = () => {
   return (
     <ModuleGate moduleName="categories" showError={true}>
-      <Container maxWidth={false} sx={{ py: 3 }}>
+  <Container maxWidth={false} disableGutters sx={{ py: CONTAINER_PY }}>
         <CategoryErrorBoundary>
           <CategoryIndexContent />
         </CategoryErrorBoundary>

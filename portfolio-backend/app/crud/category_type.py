@@ -6,6 +6,7 @@ from typing import List, Optional, Tuple, Dict, Any
 from app.core.logging import setup_logger
 from app.api.utils.query_builder import QueryBuilder
 from app.core.db import db_transaction
+from app.rag.rag_events import stage_event
 
 # Set up logger using centralized logging
 logger = setup_logger("app.crud.category_type")
@@ -71,9 +72,21 @@ def create_category_type(db: Session, category_type: CategoryTypeCreate) -> Cate
         name=category_type.name
     )
     db.add(db_category_type)
+    # Stage RAG event before commit (handled by @db_transaction)
+    # Flush first to ensure state is applied (even though PK is provided)
+    db.flush()
+    try:
+        stage_event(db, {
+            "op": "insert",
+            "source_table": "category_types",
+            "source_id": str(db_category_type.code),
+            "changed_fields": ["code", "name"]
+        })
+    except Exception:
+        # Do not fail CRUD if staging fails; hook is best-effort
+        pass
     
     # db.commit() is handled by the @db_transaction decorator
-    db.flush() # Flush to get any database-generated values
     logger.info(f"Category type created successfully with code: {db_category_type.code}")
     
     return db_category_type
@@ -120,7 +133,27 @@ def update_category_type(db: Session, code: str, category_type: CategoryTypeUpda
         setattr(db_category_type, field, value)
     
     # db.commit() is handled by the @db_transaction decorator
-    db.flush() # Flush to ensure changes are applied
+    old_code = code
+    new_code = db_category_type.code
+    db.flush()
+    # Stage RAG events before commit
+    try:
+        # If primary key (code) changed, retire old chunks as well
+        if "code" in update_data and update_data["code"] != old_code:
+            stage_event(db, {
+                "op": "delete",
+                "source_table": "category_types",
+                "source_id": str(old_code),
+                "changed_fields": []
+            })
+        stage_event(db, {
+            "op": "update",
+            "source_table": "category_types",
+            "source_id": str(new_code),
+            "changed_fields": list(update_data.keys()) if update_data else []
+        })
+    except Exception:
+        pass
     logger.info(f"Category type updated successfully: {db_category_type.code}")
     
     return db_category_type
@@ -154,6 +187,17 @@ def delete_category_type(db: Session, code: str) -> Optional[CategoryType]:
     # For now, we'll assume it's possible to delete without checking for dependencies
     
     deleted_code = db_category_type.code # Store code for logging
+    
+    # Stage RAG delete event before deletion/commit
+    try:
+        stage_event(db, {
+            "op": "delete",
+            "source_table": "category_types",
+            "source_id": str(deleted_code),
+            "changed_fields": []
+        })
+    except Exception:
+        pass
     
     # Delete the category type
     db.delete(db_category_type)

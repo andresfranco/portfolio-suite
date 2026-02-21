@@ -127,7 +127,8 @@ def create_language(db: Session, language: LanguageCreate, image_path: str = Non
             code=language.code.lower(),  # Ensure lowercase for consistency
             name=language.name,
             image=image_path or "",  # Use the uploaded image path or empty string
-            is_default=language.is_default
+            is_default=language.is_default,
+            enabled=language.enabled
         )
         
         db.add(db_language)
@@ -194,7 +195,11 @@ def update_language(db: Session, language_id: int, language: LanguageUpdate, ima
             db_language.is_default = True
         elif language.is_default is not None:
             db_language.is_default = language.is_default
-        
+
+        # Update enabled field if provided
+        if language.enabled is not None:
+            db_language.enabled = language.enabled
+
         db.flush()  # Flush to ensure changes are applied
         
         # Delete old image if it was replaced

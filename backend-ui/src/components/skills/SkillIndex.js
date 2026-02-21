@@ -1,5 +1,6 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Box, IconButton, Tooltip, Chip, Stack, CircularProgress, Button, Typography, Container, Paper } from '@mui/material';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { Box, IconButton, Tooltip, Stack, CircularProgress, Button, Typography, Container, Paper } from '@mui/material';
+import { CONTAINER_PY, HEADER_SPACER_MT, HEADER_SPACER_MB, SECTION_PX, GRID_WRAPPER_PB } from '../common/layoutTokens';
 import { Edit as EditIcon, Delete as DeleteIcon, Add, KeyboardArrowLeft, KeyboardArrowRight, ArrowUpward, ArrowDownward } from '@mui/icons-material';
 import { DataGrid } from '@mui/x-data-grid';
 import SkillForm from './SkillForm';
@@ -9,6 +10,8 @@ import { useSkill, SkillProvider } from '../../contexts/SkillContext';
 import { useCategoryType } from '../../contexts/CategoryTypeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuthorization } from '../../contexts/AuthorizationContext';
+import { evaluateGridColumnAccess } from '../../utils/accessControl';
+import { InfoOutlined } from '@mui/icons-material';
 import ModuleGate from '../common/ModuleGate';
 import PermissionGate from '../common/PermissionGate';
 import { logInfo, logError } from '../../utils/logger';
@@ -150,7 +153,7 @@ function SkillIndexContent() {
   
   const { categoryTypes, loading: categoryTypesLoading } = useCategoryType();
   const { languages, loading: languagesLoading } = useLanguage();
-  const { canPerformOperation } = useAuthorization();
+  const { canPerformOperation, isSystemAdmin, hasPermission, hasAnyPermission } = useAuthorization();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formMode, setFormMode] = useState(null);
@@ -229,8 +232,8 @@ function SkillIndexContent() {
     return result;
   }, []); // Remove dependency on languages since we're using embedded data
 
-  // Define columns for the grid (mirroring CategoryIndex structure exactly, removing ID column)
-  const columns = [
+  // Base columns for the grid
+  const baseColumns = [
     { 
       field: 'type_code', 
       headerName: 'Type', 
@@ -492,6 +495,35 @@ function SkillIndexContent() {
     }
   ];
 
+  // Column access mapping for Skills grid
+  const COLUMN_ACCESS_MAP = useMemo(() => ({
+    type_code: { required: 'VIEW_SKILL_TYPES', moduleKey: 'skilltypes' },
+    categories: { required: 'VIEW_CATEGORIES', moduleKey: 'categories' },
+    skill_names: { required: 'VIEW_SKILLS', moduleKey: 'skills' },
+    actions: { required: ['EDIT_SKILL', 'DELETE_SKILL', 'MANAGE_SKILLS'], moduleKey: 'skills' }
+  }), []);
+
+  // Compute allowed columns based on permissions
+  const { allowedColumns, deniedColumns } = useMemo(() => {
+    const authorization = { isSystemAdmin, hasPermission, hasAnyPermission };
+    return evaluateGridColumnAccess(COLUMN_ACCESS_MAP, authorization);
+  }, [isSystemAdmin, hasPermission, hasAnyPermission]);
+
+  const columns = useMemo(() => {
+    const hideActions = deniedColumns.length > 0; // hide actions if any permission error exists
+    const visible = baseColumns.filter(col => allowedColumns.has(col.field) && (!hideActions || col.field !== 'actions'));
+    return visible;
+  }, [baseColumns, allowedColumns, deniedColumns]);
+
+  // Friendly titles for denied columns (use headerName, not field keys)
+  const deniedColumnTitles = useMemo(() => {
+    const mapTitle = (field) => baseColumns.find(c => c.field === field)?.headerName || field
+      .split('_')
+      .map(s => s.charAt(0).toUpperCase() + s.slice(1))
+      .join(' ');
+    return Array.from(new Set(deniedColumns.map(mapTitle)));
+  }, [deniedColumns, baseColumns]);
+
   const handleCreateClick = () => {
     setSelectedSkill(null);
     setFormMode('create');
@@ -681,7 +713,7 @@ function SkillIndexContent() {
         boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
       }}
     >
-      <Box sx={{ p: 3, pb: 2 }}>
+  <Box sx={{ p: 3, pb: 2 }}>
         <Typography 
           variant="h5" 
           sx={{ 
@@ -702,6 +734,14 @@ function SkillIndexContent() {
             mb: 2
           }} 
         />
+        {/* Spacer under the header; match UserIndex visual gap */}
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'flex-end', 
+          alignItems: 'center', 
+          mt: HEADER_SPACER_MT, 
+          mb: HEADER_SPACER_MB 
+        }} />
       </Box>
 
       {isLoading ? (
@@ -711,11 +751,19 @@ function SkillIndexContent() {
         </Box>
       ) : (
         <>
-          <Box sx={{ px: 3 }}>
+          <Box sx={{ px: SECTION_PX }}>
             <SkillFilters 
               onFiltersChange={handleFiltersChange} 
               onSearch={handleSearch}
             />
+            {deniedColumnTitles.length > 0 && (
+              <Box sx={{ mt: 1, display: 'inline-flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
+                <InfoOutlined sx={{ fontSize: 16 }} />
+                <Typography sx={{ fontSize: '12px', lineHeight: 1.4 }}>
+                  {`You do not have permission to view the columns ${deniedColumnTitles.join(', ')}`}
+                </Typography>
+              </Box>
+            )}
           </Box>
           
           <Box sx={{ 
@@ -724,8 +772,9 @@ function SkillIndexContent() {
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
-            px: 3,
-            pb: 3,
+            px: SECTION_PX,
+            pb: GRID_WRAPPER_PB,
+            position: 'relative',
             '& .css-19midj6': {
               padding: '0px !important',
             },
@@ -748,10 +797,13 @@ function SkillIndexContent() {
             '& .MuiDataGrid-root': {
               borderRadius: '5px',
               overflow: 'hidden',
+              border: 'none',
             },
             '& .MuiDataGrid-main': {
               borderTopLeftRadius: '5px',
-              borderTopRightRadius: '5px'
+              borderTopRightRadius: '5px',
+              marginBottom: 0,
+              paddingBottom: 0
             },
             '& .MuiDataGrid-columnHeaders': {
               backgroundColor: 'rgba(250, 250, 250, 0.8)',
@@ -782,11 +834,7 @@ function SkillIndexContent() {
                 .MuiDataGrid-root .MuiDataGrid-virtualScroller::-webkit-scrollbar-track {
                   background-color: rgba(0, 0, 0, 0.05);
                 }
-                .css-1xs4aeo-MuiContainer-root {
-                  margin: 0 !important;
-                  padding: 0 !important;
-                  max-width: 100% !important;
-                }
+                
                 
                 /* Fix for the fixed height issue */
                 .css-29opl-MuiPaper-root {
@@ -1217,7 +1265,9 @@ const SkillIndex = () => {
   return (
     <ModuleGate moduleName="skills" showError={true}>
       <SkillProvider>
-        <Container maxWidth={false} sx={{ py: 3 }}>
+  {/* Reduce vertical spacing and remove side padding */}
+          {/* Remove vertical padding to mirror UserIndex (which force-zeros Container padding via style override) */}
+          <Container maxWidth={false} disableGutters sx={{ py: CONTAINER_PY }}>
           <SkillErrorBoundary>
             <SkillIndexContent />
           </SkillErrorBoundary>

@@ -13,7 +13,8 @@ import {
   MenuItem,
   Stack,
   Chip,
-  OutlinedInput
+  OutlinedInput,
+  FormHelperText
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -22,6 +23,7 @@ import {
   Add as AddIcon,
   Close as CloseIcon
 } from '@mui/icons-material';
+import { FILTERS_PANEL_MB } from './layoutTokens';
 
 /**
  * Generic filter component following the CategoryTypeFilters design.
@@ -32,13 +34,17 @@ import {
  * @param {Function} props.onFiltersChange - Called when filters are updated
  * @param {Function} props.onSearch - Called when search is submitted
  * @param {Function} props.onClearFilters - Called when filters are cleared
+ * @param {Object}   props.accessNotices - Optional map of filterType -> { isDenied: boolean, message: string }
+ * @param {boolean}  props.searchDisabled - Optional flag to force disable Search button
  */
 function ReusableFilters({
   filterTypes = {},
   filters = {},
   onFiltersChange,
   onSearch,
-  onClearFilters
+  onClearFilters,
+  accessNotices,
+  searchDisabled
 }) {
   const defaultValues = {};
   Object.keys(filterTypes).forEach((key) => {
@@ -55,7 +61,6 @@ function ReusableFilters({
     mode: 'onChange'
   });
 
-  console.log('ReusableFilters - Form initialized with defaultValues:', defaultValues);
 
   const [activeFilters, setActiveFilters] = useState(() => {
     const arr = [];
@@ -68,7 +73,6 @@ function ReusableFilters({
     if (arr.length === 0 && Object.keys(filterTypes).length > 0) {
       arr.push({ id: 1, type: Object.keys(filterTypes)[0] });
     }
-    console.log('ReusableFilters - Initial activeFilters:', arr);
     return arr;
   });
 
@@ -76,7 +80,6 @@ function ReusableFilters({
 
   // Synchronize activeFilters state with filters prop
   useEffect(() => {
-    console.log('ReusableFilters - Synchronizing activeFilters with filters prop:', filters);
     
     const newActiveFilters = [];
     let id = 1;
@@ -101,26 +104,19 @@ function ReusableFilters({
       newActiveFilters.push({ id: 1, type: Object.keys(filterTypes)[0] });
     }
     
-    console.log('ReusableFilters - Updated activeFilters:', newActiveFilters);
     setActiveFilters(newActiveFilters);
     setNextFilterId(newActiveFilters.length + 1);
   }, [filters, filterTypes]);
 
   useEffect(() => {
-    console.log('ReusableFilters - useEffect triggered by filters change:', { 
-      filters, 
-      filterTypes: Object.keys(filterTypes) 
-    });
     
     Object.keys(filterTypes).forEach((key) => {
       // Handle different field types when setting values
       if (filterTypes[key].type === 'multiselect') {
         const newValue = filters[key] && Array.isArray(filters[key]) ? filters[key] : [];
-        console.log(`ReusableFilters - Setting ${key} (multiselect) to:`, newValue);
         setValue(key, newValue);
       } else {
         const newValue = filters[key] || '';
-        console.log(`ReusableFilters - Setting ${key} (text) to:`, newValue);
         setValue(key, newValue);
       }
     });
@@ -128,7 +124,6 @@ function ReusableFilters({
     // Verify values were set
     setTimeout(() => {
       const currentValues = getValues();
-      console.log('ReusableFilters - Current form values after setValue:', currentValues);
     }, 10);
   }, [filters, filterTypes, setValue, getValues]);
 
@@ -180,7 +175,6 @@ function ReusableFilters({
       }
     }
     
-    console.log('ReusableFilters - Filter removed, cleaned filters:', cleaned);
     
     // Trigger search with remaining filters
     if (onFiltersChange) onFiltersChange(cleaned);
@@ -192,12 +186,10 @@ function ReusableFilters({
   };
 
   const onSubmit = (data) => {
-    console.log('ReusableFilters - onSubmit called with data:', data);
     
     const cleaned = {};
     activeFilters.forEach(({ type }) => {
       const val = data[type];
-      console.log(`ReusableFilters - Processing filter ${type}:`, { value: val, type: typeof val });
       
       if (filterTypes[type].type === 'multiselect') {
         // For multiselect, only include if it's an array with items
@@ -212,7 +204,6 @@ function ReusableFilters({
       }
     });
     
-    console.log('ReusableFilters - Cleaned filters:', cleaned);
     
     if (onFiltersChange) onFiltersChange(cleaned);
     if (onSearch) onSearch(cleaned);
@@ -233,7 +224,6 @@ function ReusableFilters({
     setActiveFilters([{ id: 1, type: Object.keys(filterTypes)[0] }]);
     setNextFilterId(2);
     
-    console.log('ReusableFilters - Filters cleared');
     
     if (onFiltersChange) onFiltersChange({});
     if (onClearFilters) onClearFilters();
@@ -243,6 +233,9 @@ function ReusableFilters({
   const renderFilterInput = (filter) => {
     const config = filterTypes[filter.type];
     if (!config) return null;
+    const notice = accessNotices?.[filter.type];
+    const isDenied = !!notice?.isDenied;
+    const helper = isDenied ? notice?.message : undefined;
     
     if (config.type === 'text') {
       return (
@@ -251,12 +244,6 @@ function ReusableFilters({
           name={filter.type}
           control={control}
           render={({ field, fieldState }) => {
-            console.log('ReusableFilters - Controller render for', filter.type, {
-              fieldValue: field.value,
-              fieldError: fieldState.error,
-              configType: config.type,
-              optionsCount: config.options?.length || 0
-            });
             
             return (
               <TextField
@@ -266,6 +253,9 @@ function ReusableFilters({
                 size="small"
                 placeholder={config.placeholder}
                 fullWidth
+                disabled={config.disabled || isDenied}
+                error={isDenied}
+                helperText={helper}
                 sx={{
                   '& .MuiInputLabel-root': {
                     fontSize: '13px',
@@ -305,15 +295,9 @@ function ReusableFilters({
           name={filter.type}
           control={control}
           render={({ field, fieldState }) => {
-            console.log('ReusableFilters - Controller render for', filter.type, {
-              fieldValue: field.value,
-              fieldError: fieldState.error,
-              configType: config.type,
-              optionsCount: config.options?.length || 0
-            });
             
             return (
-              <FormControl fullWidth sx={{
+              <FormControl fullWidth error={isDenied} sx={{
                 '& .MuiInputLabel-root': {
                   fontSize: '13px',
                   fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
@@ -346,40 +330,22 @@ function ReusableFilters({
                 <InputLabel>{config.label}</InputLabel>
                 <Select
                   multiple
-                  disabled={config.disabled || config.options.length === 0}
+                  disabled={config.disabled || isDenied || config.options.length === 0}
                   value={Array.isArray(field.value) ? field.value : []}
                   onChange={(e) => {
-                    console.log('ReusableFilters - Multiselect onChange:', {
-                      filterType: filter.type,
-                      newValue: e.target.value,
-                      currentValue: field.value,
-                      valueType: typeof e.target.value,
-                      isArray: Array.isArray(e.target.value),
-                      optionsCount: config.options.length
-                    });
                     
                     // Ensure we're setting an array value
                     const newValue = Array.isArray(e.target.value) ? e.target.value : [e.target.value];
-                    console.log('ReusableFilters - Setting field value to:', newValue);
                     
                     field.onChange(newValue);
                     
                     // Trigger immediate validation to see if value is being set
                     setTimeout(() => {
-                      console.log('ReusableFilters - Field value after onChange:', field.value);
                     }, 10);
                   }}
                   input={<OutlinedInput label={config.label} />}
                   displayEmpty={config.options.length === 0}
                   renderValue={(selected) => {
-                    console.log('ReusableFilters - Multiselect renderValue:', {
-                      filterType: filter.type,
-                      selected,
-                      selectedType: typeof selected,
-                      isArray: Array.isArray(selected),
-                      optionsLength: config.options.length,
-                      fieldValue: field.value
-                    });
                     
                     if (config.options.length === 0) {
                       return <em style={{ color: '#999', fontSize: '13px' }}>Loading options...</em>;
@@ -397,7 +363,6 @@ function ReusableFilters({
                       }}>
                         {selected.slice(0, 2).map((value) => {
                           const option = config.options.find(opt => opt.value === value);
-                          console.log('ReusableFilters - Rendering chip for value:', { value, option });
                           return (
                             <Chip
                               key={value}
@@ -447,7 +412,6 @@ function ReusableFilters({
                     </MenuItem>
                   ) : (
                     config.options.map((option) => {
-                      console.log('ReusableFilters - Rendering option:', option);
                       return (
                         <MenuItem 
                           key={option.value} 
@@ -460,6 +424,9 @@ function ReusableFilters({
                     })
                   )}
                 </Select>
+                {isDenied && helper && (
+                  <FormHelperText sx={{ m: 0, mt: 0.5, fontSize: '12px' }}>{helper}</FormHelperText>
+                )}
               </FormControl>
             );
           }}
@@ -471,7 +438,7 @@ function ReusableFilters({
   };
 
   return (
-    <Box sx={{ p: { xs: 2, sm: 2.5 }, backgroundColor: 'white', border: '1px solid #f0f0f0', borderRadius: '5px', mb: 2.5, boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
+    <Box sx={{ p: { xs: 2, sm: 2.5 }, backgroundColor: 'white', border: '1px solid #f0f0f0', borderRadius: 0, mb: FILTERS_PANEL_MB, boxShadow: 'none' }}>
       <form onSubmit={handleSubmit(onSubmit)}>
         <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -536,7 +503,17 @@ function ReusableFilters({
           ))}
         </Stack>
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
-          <Button type="submit" variant="outlined" size="small" startIcon={<SearchIcon fontSize="small" />} sx={{ borderRadius: '4px', textTransform: 'none', fontWeight: 400, boxShadow: 'none', border: '1px solid #1976d2', color: '#1976d2', py: 0.5, height: '32px', fontSize: '13px', fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif', '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.04)', borderColor: '#1976d2' } }}>
+          <Button 
+            type="submit" 
+            variant="outlined" 
+            size="small" 
+            startIcon={<SearchIcon fontSize="small" />} 
+            disabled={
+              // Disable when explicitly requested or when any active filter is denied
+              !!searchDisabled || activeFilters.some((f) => accessNotices?.[f.type]?.isDenied)
+            }
+            sx={{ borderRadius: '4px', textTransform: 'none', fontWeight: 400, boxShadow: 'none', border: '1px solid #1976d2', color: '#1976d2', py: 0.5, height: '32px', fontSize: '13px', fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif', '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.04)', borderColor: '#1976d2' } }}
+          >
             Search
           </Button>
         </Box>

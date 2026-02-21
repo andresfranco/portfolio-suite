@@ -17,6 +17,8 @@ export const LanguageProvider = ({ children }) => {
   const [languages, setLanguages] = useState([]);
   // Loading state
   const [loading, setLoading] = useState(false);
+  // Track if we've already performed an initial successful fetch to guard against remount loops
+  const hasFetchedOnceRef = useRef(false);
   // Error state - enhanced to include error type
   const [error, setError] = useState(null);
   // Error type state
@@ -75,6 +77,18 @@ export const LanguageProvider = ({ children }) => {
    * @param {Array} sortModel - Sorting model from DataGrid
    */
   const fetchLanguages = useCallback(async (page = 1, pageSize = 10, filters = {}, sortModel = []) => {
+    // If we've already fetched once and no filters / sorting changed, skip redundant identical call
+    if (
+      hasFetchedOnceRef.current &&
+      languages && languages.length > 0 &&
+      (!filters || Object.keys(filters).length === 0) &&
+      (!sortModel || sortModel.length === 0) &&
+      page === 1
+    ) {
+      logInfo('LanguageContext', 'Skipping duplicate initial fetchLanguages call (already have data)');
+      return;
+    }
+
     setLoading(true);
     setError(null);
     logInfo('Fetching languages with filters:', filters);
@@ -164,6 +178,7 @@ export const LanguageProvider = ({ children }) => {
           page_size: pageSize,
           total: response.total || 0
         });
+  hasFetchedOnceRef.current = true;
       } else {
         throw new Error('Invalid response format');
       }
@@ -176,7 +191,7 @@ export const LanguageProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [enqueueSnackbar]);
+  }, [enqueueSnackbar, languages]);
 
   /**
    * Create a new language
@@ -195,10 +210,11 @@ export const LanguageProvider = ({ children }) => {
       // Make sure we're adding string values, not undefined or null
       formData.append('code', String(languageData.code || '').trim());
       formData.append('name', String(languageData.name || '').trim());
-      
+
       // Convert boolean to string for form data
       formData.append('is_default', languageData.is_default ? 'true' : 'false');
-      
+      formData.append('enabled', languageData.enabled !== undefined ? (languageData.enabled ? 'true' : 'false') : 'true');
+
       // Add image only if it exists and is a File
       if (languageData.image && languageData.image instanceof File) {
         formData.append('image', languageData.image);
@@ -259,7 +275,11 @@ export const LanguageProvider = ({ children }) => {
       if (languageData.is_default !== undefined) {
         formData.append('is_default', languageData.is_default ? 'true' : 'false');
       }
-      
+
+      if (languageData.enabled !== undefined) {
+        formData.append('enabled', languageData.enabled ? 'true' : 'false');
+      }
+
       // Add image only if it exists and is a File
       if (languageData.image && languageData.image instanceof File) {
         formData.append('image', languageData.image);
@@ -361,22 +381,6 @@ export const LanguageProvider = ({ children }) => {
     logInfo('Language filters after update:', updatedFilters);
     
     return updatedFilters;
-  }, []);
-
-  /**
-   * Clear all filters
-   */
-  const clearFilters = useCallback(() => {
-    setFilters({
-      name: '',
-      code: '',
-      is_default: null,
-    });
-    filtersRef.current = {
-      name: '',
-      code: '',
-      is_default: null,
-    };
   }, []);
 
   /**

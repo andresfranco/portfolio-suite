@@ -1,10 +1,15 @@
-import React, { useState, useCallback } from 'react';
-import { Box, IconButton, Tooltip, Chip, Stack } from '@mui/material';
+import React, { useState, useCallback, useMemo } from 'react';
+import { Box, IconButton, Tooltip, Chip, Stack, Typography } from '@mui/material';
 import { Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import TranslationForm from './TranslationForm';
 import ReusableDataGrid from '../common/ReusableDataGrid';
 import TranslationFilters from './TranslationFilters';
 import SERVER_URL from '../common/BackendServerData';
+import { useAuthorization } from '../../contexts/AuthorizationContext';
+import { evaluateGridColumnAccess } from '../../utils/accessControl';
+import ReusablePagination from '../common/ReusablePagination';
+import { InfoOutlined } from '@mui/icons-material';
+import PermissionGate from '../common/PermissionGate';
 
 function TranslationIndex() {
   const [filters, setFilters] = useState({});
@@ -12,8 +17,9 @@ function TranslationIndex() {
   const [formMode, setFormMode] = useState(null);
   const [selectedTranslation, setSelectedTranslation] = useState(null);
   const [gridKey, setGridKey] = useState(0);
+  const { hasPermission, hasAnyPermission, isSystemAdmin } = useAuthorization();
 
-  const columns = [
+  const baseColumns = [
     { field: 'id', headerName: 'ID', width: 70, disableColumnMenu: true },
     { field: 'identifier', headerName: 'Identifier', flex: 1, disableColumnMenu: true },
     { field: 'text', headerName: 'Text', flex: 2, disableColumnMenu: true },
@@ -73,20 +79,48 @@ function TranslationIndex() {
       disableColumnMenu: true,
       renderCell: (params) => (
         <Box>
-          <Tooltip title="Edit Translation">
-            <IconButton onClick={() => handleEditClick(params.row)} size="small">
-              <EditIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Delete Translation">
-            <IconButton onClick={() => handleDeleteClick(params.row)} size="small" color="error">
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+          <PermissionGate permissions={["EDIT_TRANSLATION", "MANAGE_TRANSLATIONS", "SYSTEM_ADMIN"]} requireAll={false}>
+            <Tooltip title="Edit Translation">
+              <IconButton onClick={() => handleEditClick(params.row)} size="small">
+                <EditIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </PermissionGate>
+          <PermissionGate permissions={["DELETE_TRANSLATION", "MANAGE_TRANSLATIONS", "SYSTEM_ADMIN"]} requireAll={false}>
+            <Tooltip title="Delete Translation">
+              <IconButton onClick={() => handleDeleteClick(params.row)} size="small" color="error">
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </PermissionGate>
         </Box>
       )
     }
   ];
+
+  // Permission-based column filtering and friendly denied titles
+  const COLUMN_ACCESS_MAP = useMemo(() => ({
+    id: { required: 'VIEW_TRANSLATIONS', moduleKey: 'translations' },
+    identifier: { required: 'VIEW_TRANSLATIONS', moduleKey: 'translations' },
+    text: { required: 'VIEW_TRANSLATIONS', moduleKey: 'translations' },
+    language: { required: 'VIEW_LANGUAGES', moduleKey: 'languages' },
+    actions: { required: ['EDIT_TRANSLATION', 'DELETE_TRANSLATION', 'MANAGE_TRANSLATIONS'], moduleKey: 'translations' }
+  }), []);
+
+  const { allowedColumns, deniedColumns } = useMemo(() => {
+    const authorization = { isSystemAdmin, hasPermission, hasAnyPermission };
+    return evaluateGridColumnAccess(COLUMN_ACCESS_MAP, authorization);
+  }, [isSystemAdmin, hasPermission, hasAnyPermission, COLUMN_ACCESS_MAP]);
+
+  const columns = useMemo(() => {
+    const hideActions = deniedColumns.length > 0;
+    return baseColumns.filter(col => allowedColumns.has(col.field) && (!hideActions || col.field !== 'actions'));
+  }, [baseColumns, allowedColumns, deniedColumns]);
+
+  const deniedColumnTitles = useMemo(() => {
+    const titleFor = (field) => baseColumns.find(c => c.field === field)?.headerName || field;
+    return Array.from(new Set(deniedColumns.map(titleFor)));
+  }, [deniedColumns, baseColumns]);
 
   const handleCreateClick = () => {
     setSelectedTranslation(null);
@@ -114,12 +148,10 @@ function TranslationIndex() {
   };
 
   const handleFiltersChange = useCallback((newFilters) => {
-    console.log('TranslationIndex - Filters changed:', newFilters);
     setFilters(newFilters);
   }, []);
 
   const handleSearch = useCallback((searchFilters) => {
-    console.log('TranslationIndex - Search triggered with filters:', searchFilters);
     setFilters(searchFilters);
     setGridKey(prevKey => prevKey + 1);
   }, []);
@@ -137,6 +169,17 @@ function TranslationIndex() {
         FiltersComponent={TranslationFilters}
         onFiltersChange={handleFiltersChange}
         onSearch={handleSearch}
+        uiVariant="categoryIndex"
+        paginationPosition="top"
+  topNotice={deniedColumnTitles.length > 0 ? (
+          <Box sx={{ mt: 0.5, mb: 1, display: 'inline-flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
+            <InfoOutlined sx={{ fontSize: 16 }} />
+            <Typography sx={{ fontSize: '12px', lineHeight: 1.4 }}>
+              {`You do not have permission to view the columns ${deniedColumnTitles.join(', ')}`}
+            </Typography>
+          </Box>
+        ) : null}
+  PaginationComponent={ReusablePagination}
         createButtonText="Translation"
         onCreateClick={handleCreateClick}
         onEditClick={handleEditClick}

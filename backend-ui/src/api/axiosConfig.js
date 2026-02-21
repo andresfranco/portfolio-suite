@@ -8,7 +8,8 @@ const axiosInstance = axios.create({
   timeout: API_CONFIG?.TIMEOUT || 10000,
   headers: API_CONFIG?.HEADERS || {
     'Content-Type': 'application/json'
-  }
+  },
+  withCredentials: true  // Required for cookie-based auth
 });
 
 // Request interceptor to add auth token
@@ -17,9 +18,10 @@ axiosInstance.interceptors.request.use(
     // Log request for debugging
     logInfo(`API Request: ${config.method.toUpperCase()} ${config.baseURL}${config.url}`, config.params || {});
     
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    // Cookies are sent automatically; just add CSRF token for state-mutating requests
+    const csrf = localStorage.getItem('csrf_token');
+    if (csrf && ['post', 'put', 'patch', 'delete'].includes(config.method?.toLowerCase())) {
+      config.headers['X-CSRF-Token'] = csrf;
     }
     return config;
   },
@@ -29,38 +31,29 @@ axiosInstance.interceptors.request.use(
   }
 );
 
-// Response interceptor to handle common errors
+// Response interceptor to handle 401 errors (cookie-based auth)
 axiosInstance.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response) {
-      // Unauthorized access
-      if (error.response.status === 401) {
-        localStorage.removeItem('accessToken');
-        // Redirect to login page if not already there
-        if (!window.location.pathname.includes('/login')) {
-          window.location.href = '/login';
-        }
-      }
-      
-      // Log detailed error information
-      logError(`API Error (${error.response.status}):`, {
-        url: error.config?.url,
-        method: error.config?.method?.toUpperCase(),
-        status: error.response.status,
-        data: error.response.data
-      });
-    } else if (error.request) {
-      // The request was made but no response was received
-      logError('Network Error - No response from API:', {
-        url: error.config?.url,
-        method: error.config?.method?.toUpperCase()
-      });
-    } else {
-      // Something happened in setting up the request
-      logError('Request Setup Error:', error.message);
+  async (error) => {
+    const { response, config } = error || {};
+    if (!response) return Promise.reject(error);
+
+    // Unauthorized access: clear auth state
+    if (response.status === 401) {
+      localStorage.removeItem('csrf_token');
+      localStorage.removeItem('isAuthenticated');
+      // Redirect happens in main api.js interceptor
+      return Promise.reject(error);
     }
-    
+
+    // Log detailed error information (response is guaranteed non-null here)
+    logError(`API Error (${response.status}):`, {
+      url: config?.url,
+      method: config?.method?.toUpperCase(),
+      status: response.status,
+      data: response.data
+    });
+
     return Promise.reject(error);
   }
 );

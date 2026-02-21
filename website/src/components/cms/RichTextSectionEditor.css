@@ -1,0 +1,2007 @@
+/* TipTap Rich Text Editor Styles */
+
+/* Editor Content Styles */
+.ProseMirror {
+  min-height: 300px;
+  outline: none;
+  color: #e5e7eb;
+  /* Ensure natural text selection throughout the editor */
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  cursor: text;
+}
+
+.ProseMirror p {
+  margin: 0.75rem 0;
+  /* Ensure text within paragraphs is naturally selectable */
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+}
+
+/* Paragraphs in table cells */
+.ProseMirror table td p,
+.ProseMirror table th p {
+  margin: 0.2em 0;
+  min-height: 1.4em;
+  line-height: 1.5;
+  /* CRITICAL: Ensure text is selectable with proper cursor */
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  cursor: text;
+  /* Prevent interference with ProseMirror selection */
+  position: relative;
+}
+
+.ProseMirror p:first-child {
+  margin-top: 0;
+}
+
+.ProseMirror p:last-child {
+  margin-bottom: 0;
+}
+
+/* Headings */
+.ProseMirror h1,
+.ProseMirror h2,
+.ProseMirror h3,
+.ProseMirror h4 {
+  font-weight: 700;
+  color: #ffffff;
+  margin: 1.5rem 0 0.75rem;
+}
+
+.ProseMirror h1:first-child,
+.ProseMirror h2:first-child,
+.ProseMirror h3:first-child,
+.ProseMirror h4:first-child {
+  margin-top: 0;
+}
+
+.ProseMirror h1 {
+  font-size: 2rem;
+  line-height: 1.2;
+}
+
+.ProseMirror h2 {
+  font-size: 1.5rem;
+  line-height: 1.3;
+}
+
+.ProseMirror h3 {
+  font-size: 1.25rem;
+  line-height: 1.4;
+}
+
+.ProseMirror h4 {
+  font-size: 1.1rem;
+  line-height: 1.4;
+}
+
+/* Lists */
+.ProseMirror ul,
+.ProseMirror ol {
+  padding-left: 1.5rem;
+  margin: 0.75rem 0;
+}
+
+.ProseMirror li {
+  margin: 0.25rem 0;
+}
+
+.ProseMirror ul {
+  list-style-type: disc;
+}
+
+.ProseMirror ol {
+  list-style-type: decimal;
+}
+
+/* Blockquote */
+.ProseMirror blockquote {
+  border-left: 4px solid #14C800;
+  padding-left: 1rem;
+  margin: 1rem 0;
+  font-style: italic;
+  color: #9ca3af;
+}
+
+/* Code */
+.ProseMirror code {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #14C800;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.9em;
+}
+
+.ProseMirror pre {
+  background-color: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin: 1rem 0;
+  overflow-x: auto;
+}
+
+.ProseMirror pre code {
+  background-color: transparent;
+  padding: 0;
+  color: #e5e7eb;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* Code Block with Syntax Highlighting - Elegant Box Design */
+.ProseMirror pre.code-block,
+.ProseMirror .code-block-wrapper pre {
+  position: relative;
+  background: linear-gradient(135deg, rgba(30, 30, 30, 0.98) 0%, rgba(20, 20, 20, 0.98) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 40px 20px 20px 20px;
+  margin: 20px 0;
+  overflow: hidden;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.7;
+  box-shadow:
+    0 4px 6px rgba(0, 0, 0, 0.3),
+    0 1px 3px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Code block wrapper */
+.ProseMirror .code-block-wrapper {
+  position: relative;
+  margin: 20px 0;
+  display: block;
+}
+
+/* Subtle top bar decoration */
+.ProseMirror pre.code-block::after,
+.ProseMirror .code-block-wrapper pre::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  pointer-events: none;
+}
+
+.ProseMirror pre.code-block code,
+.ProseMirror .code-block-wrapper pre code {
+  display: block;
+  white-space: pre;
+  overflow-x: auto;
+  min-height: 1.5em;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  /* color: #d4d4d4; - Removed to allow Prism.js token colors to display */
+  background: transparent;
+  padding: 0;
+}
+
+/* Ensure Prism.js token colors are visible */
+.ProseMirror pre code .token {
+  color: inherit !important;
+  background: none !important;
+}
+
+/* Force Prism token colors to override any defaults */
+.ProseMirror pre code[class*="language-"] .token {
+  color: inherit;
+}
+
+/* Delete button for code blocks */
+.ProseMirror .code-block-delete-btn {
+  position: absolute;
+  top: 6px;
+  left: 12px;
+  width: 24px;
+  height: 24px;
+  background: rgba(239, 68, 68, 0.8);
+  color: white;
+  border: 1px solid rgba(239, 68, 68, 1);
+  border-radius: 4px;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7; /* Changed from 0 to 0.7 to make it always visible */
+  transition: all 0.2s;
+}
+
+.ProseMirror .code-block-wrapper:hover .code-block-delete-btn,
+.ProseMirror pre.code-block:hover .code-block-delete-btn {
+  opacity: 1;
+}
+
+.ProseMirror .code-block-delete-btn:hover {
+  background: rgba(220, 38, 38, 1);
+  transform: scale(1.1);
+}
+
+/* Language Badge - Elegant Design */
+.ProseMirror pre.code-block::before,
+.ProseMirror .code-block-wrapper::before {
+  content: attr(data-language);
+  position: absolute;
+  top: 6px;
+  right: 12px;
+  font-size: 10px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(20, 200, 0, 0.2);
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(20, 200, 0, 0.4);
+  z-index: 10;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Language-specific badges */
+.ProseMirror pre.language-javascript::before,
+.ProseMirror .code-block-wrapper[data-language="javascript"]::before {
+  content: 'JavaScript';
+  background: rgba(240, 219, 79, 0.15);
+  border-color: rgba(240, 219, 79, 0.3);
+  color: #f0db4f;
+}
+
+.ProseMirror pre.language-typescript::before,
+.ProseMirror .code-block-wrapper[data-language="typescript"]::before {
+  content: 'TypeScript';
+  background: rgba(49, 120, 198, 0.15);
+  border-color: rgba(49, 120, 198, 0.3);
+  color: #3178c6;
+}
+
+.ProseMirror pre.language-python::before,
+.ProseMirror .code-block-wrapper[data-language="python"]::before {
+  content: 'Python';
+  background: rgba(55, 118, 171, 0.15);
+  border-color: rgba(55, 118, 171, 0.3);
+  color: #3776ab;
+}
+
+.ProseMirror pre.language-java::before,
+.ProseMirror .code-block-wrapper[data-language="java"]::before {
+  content: 'Java';
+  background: rgba(240, 82, 54, 0.15);
+  border-color: rgba(240, 82, 54, 0.3);
+  color: #f05236;
+}
+
+.ProseMirror pre.language-csharp::before,
+.ProseMirror .code-block-wrapper[data-language="csharp"]::before {
+  content: 'C#';
+  background: rgba(154, 82, 163, 0.15);
+  border-color: rgba(154, 82, 163, 0.3);
+  color: #9a52a3;
+}
+
+.ProseMirror pre.language-cpp::before,
+.ProseMirror .code-block-wrapper[data-language="cpp"]::before {
+  content: 'C++';
+  background: rgba(0, 89, 156, 0.15);
+  border-color: rgba(0, 89, 156, 0.3);
+  color: #00599c;
+}
+
+.ProseMirror pre.language-php::before,
+.ProseMirror .code-block-wrapper[data-language="php"]::before {
+  content: 'PHP';
+  background: rgba(119, 123, 180, 0.15);
+  border-color: rgba(119, 123, 180, 0.3);
+  color: #777bb4;
+}
+
+.ProseMirror pre.language-ruby::before,
+.ProseMirror .code-block-wrapper[data-language="ruby"]::before {
+  content: 'Ruby';
+  background: rgba(204, 52, 45, 0.15);
+  border-color: rgba(204, 52, 45, 0.3);
+  color: #cc342d;
+}
+
+.ProseMirror pre.language-go::before,
+.ProseMirror .code-block-wrapper[data-language="go"]::before {
+  content: 'Go';
+  background: rgba(0, 173, 216, 0.15);
+  border-color: rgba(0, 173, 216, 0.3);
+  color: #00add8;
+}
+
+.ProseMirror pre.language-rust::before,
+.ProseMirror .code-block-wrapper[data-language="rust"]::before {
+  content: 'Rust';
+  background: rgba(206, 73, 0, 0.15);
+  border-color: rgba(206, 73, 0, 0.3);
+  color: #ce4900;
+}
+
+.ProseMirror pre.language-swift::before,
+.ProseMirror .code-block-wrapper[data-language="swift"]::before {
+  content: 'Swift';
+  background: rgba(240, 81, 56, 0.15);
+  border-color: rgba(240, 81, 56, 0.3);
+  color: #f05138;
+}
+
+.ProseMirror pre.language-kotlin::before,
+.ProseMirror .code-block-wrapper[data-language="kotlin"]::before {
+  content: 'Kotlin';
+  background: rgba(124, 77, 255, 0.15);
+  border-color: rgba(124, 77, 255, 0.3);
+  color: #7c4dff;
+}
+
+.ProseMirror pre.language-sql::before,
+.ProseMirror .code-block-wrapper[data-language="sql"]::before {
+  content: 'SQL';
+  background: rgba(204, 102, 0, 0.15);
+  border-color: rgba(204, 102, 0, 0.3);
+  color: #cc6600;
+}
+
+.ProseMirror pre.language-html::before,
+.ProseMirror .code-block-wrapper[data-language="html"]::before {
+  content: 'HTML';
+  background: rgba(227, 79, 38, 0.15);
+  border-color: rgba(227, 79, 38, 0.3);
+  color: #e34f26;
+}
+
+.ProseMirror pre.language-css::before,
+.ProseMirror .code-block-wrapper[data-language="css"]::before {
+  content: 'CSS';
+  background: rgba(38, 77, 228, 0.15);
+  border-color: rgba(38, 77, 228, 0.3);
+  color: #264de4;
+}
+
+.ProseMirror pre.language-scss::before,
+.ProseMirror .code-block-wrapper[data-language="scss"]::before {
+  content: 'SCSS';
+  background: rgba(207, 100, 154, 0.15);
+  border-color: rgba(207, 100, 154, 0.3);
+  color: #cf649a;
+}
+
+.ProseMirror pre.language-json::before,
+.ProseMirror .code-block-wrapper[data-language="json"]::before {
+  content: 'JSON';
+  background: rgba(41, 128, 185, 0.15);
+  border-color: rgba(41, 128, 185, 0.3);
+  color: #2980b9;
+}
+
+.ProseMirror pre.language-yaml::before,
+.ProseMirror .code-block-wrapper[data-language="yaml"]::before {
+  content: 'YAML';
+  background: rgba(203, 56, 55, 0.15);
+  border-color: rgba(203, 56, 55, 0.3);
+  color: #cb3837;
+}
+
+.ProseMirror pre.language-bash::before,
+.ProseMirror .code-block-wrapper[data-language="bash"]::before {
+  content: 'Bash';
+  background: rgba(76, 175, 80, 0.15);
+  border-color: rgba(76, 175, 80, 0.3);
+  color: #4caf50;
+}
+
+.ProseMirror pre.language-shell::before,
+.ProseMirror .code-block-wrapper[data-language="shell"]::before {
+  content: 'Shell';
+  background: rgba(76, 175, 80, 0.15);
+  border-color: rgba(76, 175, 80, 0.3);
+  color: #4caf50;
+}
+
+.ProseMirror pre.language-markdown::before,
+.ProseMirror .code-block-wrapper[data-language="markdown"]::before {
+  content: 'Markdown';
+  background: rgba(156, 39, 176, 0.15);
+  border-color: rgba(156, 39, 176, 0.3);
+  color: #9c27b0;
+}
+
+.ProseMirror pre.language-plaintext::before,
+.ProseMirror .code-block-wrapper[data-language="plaintext"]::before {
+  content: 'Plain Text';
+  background: rgba(158, 158, 158, 0.15);
+  border-color: rgba(158, 158, 158, 0.3);
+  color: #9e9e9e;
+}
+
+/* Prism.js Syntax Highlighting Tokens - VS Code Dark+ Theme */
+.ProseMirror pre.code-block .token,
+.ProseMirror .code-block-wrapper .token {
+  background: none;
+}
+
+.ProseMirror pre.code-block .token.comment,
+.ProseMirror pre.code-block .token.prolog,
+.ProseMirror pre.code-block .token.doctype,
+.ProseMirror pre.code-block .token.cdata,
+.ProseMirror .code-block-wrapper .token.comment,
+.ProseMirror .code-block-wrapper .token.prolog,
+.ProseMirror .code-block-wrapper .token.doctype,
+.ProseMirror .code-block-wrapper .token.cdata {
+  color: #6a9955 !important;
+  font-style: italic;
+}
+
+.ProseMirror pre.code-block .token.punctuation,
+.ProseMirror .code-block-wrapper .token.punctuation {
+  color: #d4d4d4 !important;
+}
+
+.ProseMirror pre.code-block .token.property,
+.ProseMirror pre.code-block .token.tag,
+.ProseMirror pre.code-block .token.boolean,
+.ProseMirror pre.code-block .token.number,
+.ProseMirror pre.code-block .token.constant,
+.ProseMirror pre.code-block .token.symbol,
+.ProseMirror pre.code-block .token.deleted,
+.ProseMirror .code-block-wrapper .token.property,
+.ProseMirror .code-block-wrapper .token.tag,
+.ProseMirror .code-block-wrapper .token.boolean,
+.ProseMirror .code-block-wrapper .token.number,
+.ProseMirror .code-block-wrapper .token.constant,
+.ProseMirror .code-block-wrapper .token.symbol,
+.ProseMirror .code-block-wrapper .token.deleted {
+  color: #b5cea8 !important;
+}
+
+.ProseMirror pre.code-block .token.selector,
+.ProseMirror pre.code-block .token.attr-name,
+.ProseMirror pre.code-block .token.string,
+.ProseMirror pre.code-block .token.char,
+.ProseMirror pre.code-block .token.builtin,
+.ProseMirror pre.code-block .token.inserted,
+.ProseMirror .code-block-wrapper .token.selector,
+.ProseMirror .code-block-wrapper .token.attr-name,
+.ProseMirror .code-block-wrapper .token.string,
+.ProseMirror .code-block-wrapper .token.char,
+.ProseMirror .code-block-wrapper .token.builtin,
+.ProseMirror .code-block-wrapper .token.inserted {
+  color: #ce9178 !important;
+}
+
+.ProseMirror pre.code-block .token.operator,
+.ProseMirror pre.code-block .token.entity,
+.ProseMirror pre.code-block .token.url,
+.ProseMirror pre.code-block .language-css .token.string,
+.ProseMirror pre.code-block .style .token.string,
+.ProseMirror .code-block-wrapper .token.operator,
+.ProseMirror .code-block-wrapper .token.entity,
+.ProseMirror .code-block-wrapper .token.url,
+.ProseMirror .code-block-wrapper .language-css .token.string,
+.ProseMirror .code-block-wrapper .style .token.string {
+  color: #d4d4d4 !important;
+}
+
+.ProseMirror pre.code-block .token.atrule,
+.ProseMirror pre.code-block .token.attr-value,
+.ProseMirror pre.code-block .token.keyword,
+.ProseMirror .code-block-wrapper .token.atrule,
+.ProseMirror .code-block-wrapper .token.attr-value,
+.ProseMirror .code-block-wrapper .token.keyword {
+  color: #c586c0 !important;
+}
+
+/* Python specific keywords use blue instead of purple */
+.ProseMirror pre.code-block .language-python .token.keyword,
+.ProseMirror .code-block-wrapper .language-python .token.keyword {
+  color: #569cd6 !important;
+}
+
+.ProseMirror pre.code-block .token.function,
+.ProseMirror .code-block-wrapper .token.function {
+  color: #dcdcaa !important;
+}
+
+.ProseMirror pre.code-block .token[class~="class-name"],
+.ProseMirror .code-block-wrapper .token[class~="class-name"] {
+  color: #4ec9b0 !important;
+}
+
+.ProseMirror pre.code-block .token.regex,
+.ProseMirror pre.code-block .token.important,
+.ProseMirror pre.code-block .token.variable,
+.ProseMirror .code-block-wrapper .token.regex,
+.ProseMirror .code-block-wrapper .token.important,
+.ProseMirror .code-block-wrapper .token.variable {
+  color: #d16969 !important;
+}
+
+.ProseMirror pre.code-block .token.important,
+.ProseMirror pre.code-block .token.bold,
+.ProseMirror .code-block-wrapper .token.important,
+.ProseMirror .code-block-wrapper .token.bold {
+  font-weight: bold;
+}
+
+.ProseMirror pre.code-block .token.italic,
+.ProseMirror .code-block-wrapper .token.italic {
+  font-style: italic;
+}
+
+/* Scrollbar styling for code blocks */
+.ProseMirror pre.code-block code::-webkit-scrollbar,
+.ProseMirror .code-block-wrapper pre code::-webkit-scrollbar {
+  height: 8px;
+}
+
+.ProseMirror pre.code-block code::-webkit-scrollbar-track,
+.ProseMirror .code-block-wrapper pre code::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.ProseMirror pre.code-block code::-webkit-scrollbar-thumb,
+.ProseMirror .code-block-wrapper pre code::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.ProseMirror pre.code-block code::-webkit-scrollbar-thumb:hover,
+.ProseMirror .code-block-wrapper pre code::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Links */
+.ProseMirror a {
+  color: #14C800;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.ProseMirror a:hover {
+  color: #12b000;
+}
+
+/* File Attachment - Compact Button Style */
+.ProseMirror .file-attachment-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.5rem;
+  background: rgba(20, 200, 0, 0.1);
+  border: 1px solid rgba(20, 200, 0, 0.3);
+  border-radius: 20px;
+  margin: 0.25rem 0;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  max-width: 250px;
+  position: relative;
+  vertical-align: middle;
+  z-index: 10 !important; /* CRITICAL: Ensure file cards are above overlay */
+  pointer-events: auto !important; /* CRITICAL: Ensure clicks work */
+}
+
+.ProseMirror .file-attachment-card:hover {
+  background: rgba(20, 200, 0, 0.15);
+  border-color: rgba(20, 200, 0, 0.5);
+  box-shadow: 0 2px 8px rgba(20, 200, 0, 0.2);
+}
+
+/* File attachment link */
+.ProseMirror .file-attachment-card > a {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  text-decoration: none;
+  color: inherit;
+  flex: 1;
+  min-width: 0;
+}
+
+/* File icon */
+.ProseMirror .file-attachment-card .file-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ProseMirror .file-attachment-card .file-icon svg {
+  width: 16px;
+  height: 16px;
+  color: #14C800;
+}
+
+/* File info */
+.ProseMirror .file-attachment-card .file-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.ProseMirror .file-attachment-card .file-name {
+  color: #ffffff;
+  font-weight: 500;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+.ProseMirror .file-attachment-card:hover .file-name {
+  color: #14C800;
+}
+
+.ProseMirror .file-attachment-card .file-ext {
+  flex-shrink: 0;
+  padding: 1px 4px;
+  background: rgba(20, 200, 0, 0.2);
+  border: 1px solid rgba(20, 200, 0, 0.4);
+  border-radius: 3px;
+  font-size: 8px;
+  font-weight: 700;
+  color: #14C800;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.ProseMirror .file-attachment-card .file-size {
+  flex-shrink: 0;
+  color: #9ca3af;
+  font-size: 9px;
+  margin: 0;
+}
+
+/* Delete button - Always visible in editor with trash icon */
+.ProseMirror .file-attachment-card .file-delete-btn {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  background: rgba(220, 38, 38, 0.15);
+  border: 1px solid rgba(220, 38, 38, 0.4);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #dc2626;
+  padding: 0;
+  margin-left: 0.25rem;
+  opacity: 1;
+  z-index: 11 !important; /* CRITICAL: Ensure delete button is clickable */
+  position: relative; /* CRITICAL: For z-index to work */
+  pointer-events: auto !important; /* CRITICAL: Ensure clicks work */
+}
+
+.ProseMirror .file-attachment-card .file-delete-btn svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  pointer-events: none;
+}
+
+.ProseMirror .file-attachment-card .file-delete-btn:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: white;
+  transform: scale(1.15);
+}
+
+.ProseMirror .file-attachment-card:hover .file-delete-btn {
+  background: rgba(220, 38, 38, 0.25);
+  border-color: rgba(220, 38, 38, 0.6);
+}
+
+/* Legacy support - hide old structure elements if they exist */
+.ProseMirror .file-attachment-card .file-icon-container,
+.ProseMirror .file-attachment-card .download-icon-container {
+  display: none;
+}
+
+/* Override any old large card styles */
+.ProseMirror .file-attachment-card[contenteditable="false"] {
+  display: inline-flex !important;
+  max-width: 250px !important;
+  padding: 0.375rem 0.5rem !important;
+  margin: 0.25rem 0 !important;
+}
+
+/* Ensure file cards start on left side */
+.ProseMirror p:has(.file-attachment-card) {
+  text-align: left;
+}
+
+/* Images */
+.ProseMirror img.tiptap-image {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+  display: block;
+  transition: all 0.2s ease;
+  z-index: 10 !important; /* CRITICAL: Ensure images are above overlay */
+  position: relative; /* CRITICAL: For z-index to work */
+  pointer-events: auto !important; /* CRITICAL: Ensure clicks work */
+}
+
+/* Image resize wrapper */
+.ProseMirror .image-resize-wrapper {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  margin: 1rem 0;
+  z-index: 10 !important; /* CRITICAL: Ensure image wrapper is above overlay */
+  pointer-events: auto !important; /* CRITICAL: Ensure clicks work */
+}
+
+.ProseMirror .image-resize-wrapper img {
+  display: block;
+  margin: 0;
+}
+
+/* Show resize handles only when selected */
+.ProseMirror .image-resize-wrapper.selected {
+  outline: 2px solid #14C800;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(20, 200, 0, 0.1);
+}
+
+/* Resize handles */
+.ProseMirror .image-resize-wrapper .resize-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: #14C800;
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  z-index: 1000;
+  opacity: 1; /* Always visible for debugging */
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: auto;
+  user-select: none;
+}
+
+.ProseMirror .image-resize-wrapper.selected .resize-handle {
+  opacity: 1;
+  background: #1aeb00;
+}
+
+.ProseMirror .image-resize-wrapper .resize-handle:hover {
+  background: #1aeb00;
+  transform: scale(1.3);
+}
+
+/* Resize handle positions */
+.ProseMirror .image-resize-wrapper .resize-handle-se {
+  bottom: -6px;
+  right: -6px;
+  cursor: nwse-resize;
+}
+
+.ProseMirror .image-resize-wrapper .resize-handle-sw {
+  bottom: -6px;
+  left: -6px;
+  cursor: nesw-resize;
+}
+
+.ProseMirror .image-resize-wrapper .resize-handle-ne {
+  top: -6px;
+  right: -6px;
+  cursor: nesw-resize;
+}
+
+.ProseMirror .image-resize-wrapper .resize-handle-nw {
+  top: -6px;
+  left: -6px;
+  cursor: nwse-resize;
+}
+
+/* Image selection with resize handles (legacy support) */
+.ProseMirror img.ProseMirror-selectednode {
+  outline: 2px solid #14C800;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(20, 200, 0, 0.1);
+  position: relative;
+}
+
+/* Image resize functionality */
+.ProseMirror img.tiptap-image[width] {
+  width: attr(width);
+  height: auto;
+}
+
+.ProseMirror img.tiptap-image:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Horizontal Rule */
+.ProseMirror hr {
+  border: none;
+  border-top: 2px solid rgba(255, 255, 255, 0.1);
+  margin: 2rem 0;
+}
+
+/* Tables - Default with borders */
+.ProseMirror table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 1rem 0;
+  overflow: hidden;
+  border-radius: 4px;
+  border: 2px solid #374151;
+  background-color: #1f2937;
+}
+
+/* Default table cell styles - EXCLUDE borderless tables */
+.ProseMirror table:not(.borderless):not([class*="borderless"]) td,
+.ProseMirror table:not(.borderless):not([class*="borderless"]) th {
+  min-width: 100px;
+  border: 1px solid #4b5563;
+  padding: 0.75rem;
+  vertical-align: top;
+  box-sizing: border-box;
+  position: relative;
+  background-color: #1f2937;
+  color: #e5e7eb;
+}
+
+/* CRITICAL: Override default styles for borderless tables IMMEDIATELY */
+/* But only remove default solid borders - edit mode rules will add dashed borders */
+.ProseMirror table.borderless td:not(.table-cell-droppable),
+.ProseMirror table[class*="borderless"] td:not(.table-cell-droppable),
+.ProseMirror table.tiptap-table.borderless td:not(.table-cell-droppable),
+.ProseMirror table[class*="tiptap-table"][class*="borderless"] td:not(.table-cell-droppable),
+.ProseMirror table.borderless th:not(.table-cell-droppable),
+.ProseMirror table[class*="borderless"] th:not(.table-cell-droppable),
+.ProseMirror table.tiptap-table.borderless th:not(.table-cell-droppable),
+.ProseMirror table[class*="tiptap-table"][class*="borderless"] th:not(.table-cell-droppable) {
+  /* Remove default border and background - will be styled by edit/display mode rules */
+  border: none !important;
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+.ProseMirror table th {
+  font-weight: 600;
+  text-align: left;
+  background-color: #374151;
+  color: #14C800;
+}
+
+/* Borderless table variant - MAXIMUM PRIORITY - Override everything */
+.ProseMirror table.borderless,
+.ProseMirror table.borderless[class*="tiptap"],
+.ProseMirror table[class*="borderless"] {
+  border: none !important;
+  border-style: none !important;
+  border-width: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* AGGRESSIVE TRANSPARENCY OVERRIDE - Force all cells to stay transparent in every possible state */
+/* Target the cells themselves */
+/* No border rule for display mode - but exclude cells that should show borders in edit mode */
+.ProseMirror table.borderless td:not(.table-cell-droppable),
+.ProseMirror table.borderless th:not(.table-cell-droppable),
+.ProseMirror table[class*="borderless"] td:not(.table-cell-droppable),
+.ProseMirror table[class*="borderless"] th:not(.table-cell-droppable),
+.ProseMirror table.borderless td[class]:not(.table-cell-droppable),
+.ProseMirror table.borderless th[class]:not(.table-cell-droppable),
+.ProseMirror table[class*="borderless"] td[class]:not(.table-cell-droppable),
+.ProseMirror table[class*="borderless"] th[class]:not(.table-cell-droppable),
+.ProseMirror table.borderless td[style]:not(.table-cell-droppable),
+.ProseMirror table.borderless th[style]:not(.table-cell-droppable),
+.ProseMirror table[class*="borderless"] td[style]:not(.table-cell-droppable),
+.ProseMirror table[class*="borderless"] th[style]:not(.table-cell-droppable) {
+  border: none !important;
+  border-style: none !important;
+  border-width: 0 !important;
+  border-color: transparent !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+/* Target any content inside cells */
+.ProseMirror table.borderless td *,
+.ProseMirror table.borderless th *,
+.ProseMirror table[class*="borderless"] td *,
+.ProseMirror table[class*="borderless"] th * {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* Specifically target paragraphs */
+.ProseMirror table.borderless td p,
+.ProseMirror table.borderless th p,
+.ProseMirror table[class*="borderless"] td p,
+.ProseMirror table[class*="borderless"] th p {
+  background: transparent !important;
+  background-color: transparent !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Target focused states */
+.ProseMirror table.borderless td:focus,
+.ProseMirror table.borderless th:focus,
+.ProseMirror table[class*="borderless"] td:focus,
+.ProseMirror table[class*="borderless"] th:focus,
+.ProseMirror table.borderless td:focus-within,
+.ProseMirror table.borderless th:focus-within,
+.ProseMirror table[class*="borderless"] td:focus-within,
+.ProseMirror table[class*="borderless"] th:focus-within {
+  background: transparent !important;
+  background-color: transparent !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Target hover states */
+.ProseMirror table.borderless td:hover,
+.ProseMirror table.borderless th:hover,
+.ProseMirror table[class*="borderless"] td:hover,
+.ProseMirror table[class*="borderless"] th:hover {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* Target active/editing states */
+.ProseMirror table.borderless td:active,
+.ProseMirror table.borderless th:active,
+.ProseMirror table[class*="borderless"] td:active,
+.ProseMirror table[class*="borderless"] th:active {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* Target selected cells */
+.ProseMirror table.borderless td.selectedCell,
+.ProseMirror table.borderless th.selectedCell,
+.ProseMirror table[class*="borderless"] td.selectedCell,
+.ProseMirror table[class*="borderless"] th.selectedCell {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* Override any ProseMirror-specific classes */
+.ProseMirror table.borderless .ProseMirror-selectednode,
+.ProseMirror table[class*="borderless"] .ProseMirror-selectednode {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* CRITICAL: Make cells always clickable and droppable */
+.ProseMirror table.borderless td,
+.ProseMirror table.borderless th,
+.ProseMirror table[class*="borderless"] td,
+.ProseMirror table[class*="borderless"] th {
+  min-height: 60px !important;
+  min-width: 100px !important;
+  position: relative !important;
+  cursor: text !important;
+  transition: outline 0.2s ease, background-color 0.2s ease;
+}
+
+/* Ensure text content within table cells is naturally selectable */
+/* Don't force user-select on all descendants - let the browser handle it */
+.ProseMirror table td,
+.ProseMirror table th {
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  /* CRITICAL: Ensure proper cursor for text editing */
+  cursor: text;
+  /* Make sure pointer events work */
+  pointer-events: auto;
+}
+
+/* CRITICAL: Ensure paragraphs in cells are fully selectable */
+.ProseMirror table p {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  cursor: text !important;
+  /* CRITICAL: Allow text selection to work naturally */
+  pointer-events: auto !important;
+  /* Ensure the paragraph can receive mouse events */
+  position: relative;
+}
+
+/* Visual feedback when dragging over a cell */
+.ProseMirror table.borderless td.drag-over,
+.ProseMirror table.borderless th.drag-over,
+.ProseMirror table[class*="borderless"] td.drag-over,
+.ProseMirror table[class*="borderless"] th.drag-over {
+  outline: 2px dashed rgba(99, 102, 241, 0.5) !important;
+  outline-offset: -2px;
+  background-color: rgba(99, 102, 241, 0.05) !important;
+}
+
+/* Make empty paragraphs in cells clickable */
+.ProseMirror table.borderless td p:empty::before,
+.ProseMirror table.borderless th p:empty::before,
+.ProseMirror table[class*="borderless"] td p:empty::before,
+.ProseMirror table[class*="borderless"] th p:empty::before {
+  content: '\200B'; /* Zero-width space */
+  display: inline-block;
+  width: 0;
+}
+
+/* Ensure paragraphs in cells have height even when empty */
+.ProseMirror table.borderless td p,
+.ProseMirror table.borderless th p,
+.ProseMirror table[class*="borderless"] td p,
+.ProseMirror table[class*="borderless"] th p {
+  min-height: 1.2em !important;
+  line-height: 1.2 !important;
+}
+
+/* Make cells clearly visible as drop targets in edit mode */
+/* Show hint when cell only has an empty paragraph */
+.ProseMirror table.borderless td:not(:has(img, pre, .file-attachment-card, div)),
+.ProseMirror table[class*="borderless"] td:not(:has(img, pre, .file-attachment-card, div)) {
+  position: relative;
+}
+
+.ProseMirror table.borderless td p:only-child:empty,
+.ProseMirror table[class*="borderless"] td p:only-child:empty {
+  position: relative;
+}
+
+.ProseMirror table.borderless td p:only-child:empty::after,
+.ProseMirror table[class*="borderless"] td p:only-child:empty::after {
+  content: 'Click or drop content here';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 0.875rem;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.ProseMirror table.borderless th,
+.ProseMirror table[class*="borderless"] th {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border-bottom: none !important;
+  font-weight: normal !important;
+  color: inherit !important;
+}
+
+/* Ensure borderless tables have no visible styling */
+.ProseMirror table.borderless tbody,
+.ProseMirror table.borderless thead,
+.ProseMirror table[class*="borderless"] tbody,
+.ProseMirror table[class*="borderless"] thead,
+.ProseMirror table.borderless tbody[class],
+.ProseMirror table.borderless thead[class] {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+/* Target tables with inline styles that might override */
+.ProseMirror table.borderless[style],
+.ProseMirror table[class*="borderless"][style] {
+  border: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* Exclude cells that should show borders in edit mode */
+.ProseMirror table.borderless[style] td:not(.table-cell-droppable),
+.ProseMirror table.borderless[style] th:not(.table-cell-droppable),
+.ProseMirror table[class*="borderless"][style] td:not(.table-cell-droppable),
+.ProseMirror table[class*="borderless"][style] th:not(.table-cell-droppable) {
+  border: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* Override TipTap's selectedCell styling for borderless tables */
+.ProseMirror table.borderless .selectedCell,
+.ProseMirror table[class*="borderless"] .selectedCell {
+  background-color: rgba(20, 200, 0, 0.08) !important;
+}
+
+.ProseMirror table .selectedCell {
+  background-color: rgba(20, 200, 0, 0.1);
+}
+
+/* Table cell hover effect */
+.ProseMirror table td:hover {
+  background-color: #2d3748;
+}
+
+/* Empty cell placeholder */
+.ProseMirror table td:empty::before,
+.ProseMirror table th:empty::before {
+  content: ' ';
+  display: inline-block;
+  width: 1px;
+}
+
+/* Table paragraph spacing */
+.ProseMirror table p {
+  margin: 0;
+}
+
+/* Table responsive wrapper */
+.ProseMirror .tableWrapper {
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+/* Resize handle for table columns */
+.ProseMirror .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  z-index: 20;
+  background-color: #14C800;
+  pointer-events: none;
+}
+
+/* Table selection */
+.ProseMirror table .selectedCell:after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background-color: rgba(20, 200, 0, 0.15);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Allow images and files inside table cells */
+.ProseMirror table td img,
+.ProseMirror table th img {
+  max-width: 100%;
+  height: auto;
+  margin: 0.5rem 0;
+  display: block;
+}
+
+.ProseMirror table td .image-resize-wrapper,
+.ProseMirror table th .image-resize-wrapper {
+  margin: 0.5rem 0;
+  max-width: 100%;
+}
+
+/* CRITICAL: Ensure file cards and images in table cells are clickable */
+.ProseMirror table td .file-attachment-card,
+.ProseMirror table th .file-attachment-card,
+.ProseMirror table td .image-resize-wrapper,
+.ProseMirror table th .image-resize-wrapper,
+.ProseMirror table td img.tiptap-image,
+.ProseMirror table th img.tiptap-image {
+  z-index: 10 !important;
+  position: relative !important;
+  pointer-events: auto !important;
+}
+
+/* CRITICAL: Ensure delete button in table cells is always clickable */
+.ProseMirror table td .file-attachment-card .file-delete-btn,
+.ProseMirror table th .file-attachment-card .file-delete-btn {
+  z-index: 15 !important; /* Even higher than file card */
+  position: relative !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+
+.ProseMirror table td .file-attachment-card,
+.ProseMirror table th .file-attachment-card {
+  margin: 0.25rem 0;
+}
+
+.ProseMirror table td .code-block-wrapper,
+.ProseMirror table th .code-block-wrapper {
+  margin: 0.5rem 0;
+}
+
+/* Make draggable elements show cursor */
+.ProseMirror [draggable="true"] {
+  cursor: move;
+}
+
+.ProseMirror [draggable="true"]:active {
+  cursor: grabbing;
+}
+
+/* Visual feedback when dragging */
+.ProseMirror .ProseMirror-selectednode {
+  outline: 2px solid #14C800;
+  outline-offset: 2px;
+}
+
+/* Placeholder */
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #6b7280;
+  pointer-events: none;
+  height: 0;
+}
+
+/* Focus state */
+.ProseMirror:focus {
+  outline: none;
+}
+
+/* Selection */
+.ProseMirror ::selection {
+  background-color: rgba(20, 200, 0, 0.3);
+}
+
+/* Improve selection visibility in table cells */
+.ProseMirror table td ::selection,
+.ProseMirror table th ::selection {
+  background-color: rgba(20, 200, 0, 0.4);
+}
+
+/* Ensure text is always selectable in cells */
+.ProseMirror table td,
+.ProseMirror table th {
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: text;
+}
+
+/* Prevent contenteditable issues in cells */
+.ProseMirror table td p,
+.ProseMirror table th p {
+  display: block;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Remove conflicting pseudo-elements during selection */
+.ProseMirror table td p:empty::before,
+.ProseMirror table th p:empty::before {
+  pointer-events: none;
+}
+
+/* Text alignment */
+.ProseMirror [style*="text-align: left"] {
+  text-align: left;
+}
+
+.ProseMirror [style*="text-align: center"] {
+  text-align: center;
+}
+
+.ProseMirror [style*="text-align: right"] {
+  text-align: right;
+}
+
+.ProseMirror [style*="text-align: justify"] {
+  text-align: justify;
+}
+
+/* Dragging placeholder */
+.ProseMirror .is-dragging {
+  opacity: 0.5;
+}
+
+/* Empty editor state */
+.ProseMirror.is-empty::before {
+  content: attr(data-placeholder);
+  color: #6b7280;
+  pointer-events: none;
+  position: absolute;
+}
+
+/* ===== ADVANCED LAYOUT FEATURES ===== */
+
+/* Drag-and-drop visual feedback for table cells */
+.ProseMirror table td,
+.ProseMirror table th {
+  position: relative;
+  transition: background-color 0.2s, outline 0.2s;
+}
+
+/* Drag over state for cells */
+.ProseMirror table td.selectedCell,
+.ProseMirror table th.selectedCell {
+  background: rgba(20, 200, 0, 0.15) !important;
+}
+
+/* Ensure cells have minimum size for drag-drop targets */
+.ProseMirror table td {
+  min-width: 50px;
+  min-height: 40px;
+}
+
+/* Allow drops on empty cells */
+.ProseMirror table td:empty {
+  min-height: 60px;
+}
+
+/* Make sure draggable nodes work in tables */
+.ProseMirror table td [data-component-type] {
+  display: block;
+  cursor: move;
+}
+
+/* Ensure cells can always receive drops */
+.ProseMirror table.borderless td,
+.ProseMirror table.borderless th,
+.ProseMirror table[class*="borderless"] td,
+.ProseMirror table[class*="borderless"] th {
+  /* Critical for drag-and-drop to work */
+  -webkit-user-drag: auto;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Component drag handles */
+.ProseMirror [data-component-type] {
+  position: relative;
+}
+
+.ProseMirror [data-component-type]::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 20px;
+  height: 20px;
+  background: rgba(20, 200, 0, 0.2);
+  border: 1px solid rgba(20, 200, 0, 0.4);
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  cursor: move;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #14C800;
+}
+
+.ProseMirror [data-component-type]:hover::before {
+  opacity: 1;
+}
+
+/* Column resize handles */
+.ProseMirror .resize-handle-column {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -3px;
+  width: 6px;
+  background: transparent;
+  cursor: col-resize;
+  z-index: 20;
+  transition: background 0.2s;
+}
+
+.ProseMirror .resize-handle-column:hover {
+  background: rgba(20, 200, 0, 0.5);
+}
+
+.ProseMirror .resize-handle-column:active {
+  background: #14C800;
+}
+
+/* Row resize handles */
+.ProseMirror .resize-handle-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 6px;
+  background: transparent;
+  cursor: row-resize;
+  z-index: 20;
+  transition: background 0.2s;
+}
+
+.ProseMirror .resize-handle-row:hover {
+  background: rgba(20, 200, 0, 0.5);
+}
+
+.ProseMirror .resize-handle-row:active {
+  background: #14C800;
+}
+
+/* Cell resize handles */
+/* Resize handles are now in overlay OUTSIDE .ProseMirror */
+.table-resize-handles-overlay {
+  pointer-events: none !important; /* CRITICAL: Allow clicks through to content */
+  z-index: 5 !important; /* Lower than content (files/images are z-index: 10) */
+}
+
+.table-resize-handles-overlay .resize-handle-cell,
+.table-resize-handles-overlay .resize-handle-column,
+.table-resize-handles-overlay .resize-handle-row {
+  pointer-events: auto !important; /* CRITICAL: Only handles are clickable */
+}
+
+.table-resize-handles-overlay .resize-handle-cell {
+  position: absolute !important;
+  width: 16px !important;
+  height: 16px !important;
+  cursor: col-resize !important;
+  z-index: 6 !important; /* Lower than content but still visible */
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  pointer-events: auto !important;
+  user-select: none !important;
+  background: rgba(20, 200, 0, 0.2) !important;
+  border: 1px solid rgba(20, 200, 0, 0.4) !important;
+  border-radius: 3px !important;
+  opacity: 0; /* Hidden by default */
+  transition: opacity 0.2s;
+}
+
+/* Use CSS ::before to display the ⋮ character - NEVER in text content */
+.table-resize-handles-overlay .resize-handle-cell::before {
+  content: '⋮';
+  color: rgba(148, 163, 184, 0.5) !important;
+  font-size: 10px !important;
+  line-height: 1;
+  display: block;
+}
+
+.ProseMirror td:hover .resize-handle-cell,
+.ProseMirror th:hover .resize-handle-cell {
+  opacity: 1;
+}
+
+.ProseMirror .resize-handle-cell:hover {
+  background: rgba(20, 200, 0, 0.4);
+  border-color: #14C800;
+}
+
+.ProseMirror .resize-handle-cell:active {
+  background: #14C800;
+  color: white;
+}
+
+/* Cell background and padding classes */
+.ProseMirror td[data-background],
+.ProseMirror th[data-background] {
+  /* Background applied via inline style in renderHTML */
+}
+
+.ProseMirror td[data-padding="none"],
+.ProseMirror th[data-padding="none"] {
+  padding: 0 !important;
+}
+
+.ProseMirror td[data-padding="small"],
+.ProseMirror th[data-padding="small"] {
+  padding: 0.375rem !important;
+}
+
+.ProseMirror td[data-padding="medium"],
+.ProseMirror th[data-padding="medium"] {
+  padding: 0.75rem !important;
+}
+
+.ProseMirror td[data-padding="large"],
+.ProseMirror th[data-padding="large"] {
+  padding: 1.5rem !important;
+}
+
+/* Vertical alignment */
+.ProseMirror td[data-valign="top"],
+.ProseMirror th[data-valign="top"] {
+  vertical-align: top !important;
+}
+
+.ProseMirror td[data-valign="middle"],
+.ProseMirror th[data-valign="middle"] {
+  vertical-align: middle !important;
+}
+
+.ProseMirror td[data-valign="bottom"],
+.ProseMirror th[data-valign="bottom"] {
+  vertical-align: bottom !important;
+}
+
+/* Borderless table enhancements */
+.ProseMirror table.borderless {
+  border: none !important;
+  background-color: transparent !important;
+}
+
+.ProseMirror table.borderless td,
+.ProseMirror table.borderless th {
+  border: none !important;
+  background-color: transparent !important;
+}
+
+.ProseMirror table.borderless th {
+  background-color: transparent !important;
+  border-bottom: 1px solid rgba(75, 85, 99, 0.3) !important;
+}
+
+/* Grid layout hints */
+.ProseMirror table[data-columns] {
+  table-layout: fixed;
+}
+
+/* Hover state for editable cells in layout mode */
+.ProseMirror table:not(.borderless) td:hover {
+  background-color: rgba(45, 55, 72, 0.5);
+}
+
+/* Make borderless table cells always visible in edit mode with visible borders */
+/* This rule must override ALL other rules including the default table cell rule */
+/* CRITICAL: Must come AFTER default table styles and have maximum specificity */
+/* Apply to ALL borderless table cells in edit mode - class is added dynamically */
+.ProseMirror[contenteditable="true"] table.borderless td,
+.ProseMirror[contenteditable="true"] table.borderless td.table-cell-droppable,
+.ProseMirror[contenteditable="true"] table[class*="borderless"] td,
+.ProseMirror[contenteditable="true"] table[class*="borderless"] td.table-cell-droppable,
+.ProseMirror[contenteditable="true"] table.tiptap-table.borderless td,
+.ProseMirror[contenteditable="true"] table.tiptap-table.borderless td.table-cell-droppable,
+.ProseMirror[contenteditable="true"] table[class*="tiptap-table"][class*="borderless"] td,
+.ProseMirror[contenteditable="true"] table[class*="tiptap-table"][class*="borderless"] td.table-cell-droppable,
+/* Also apply without contenteditable check (fallback for when attribute isn't set yet) */
+.ProseMirror:not([contenteditable="false"]) table.borderless td.table-cell-droppable,
+.ProseMirror:not([contenteditable="false"]) table[class*="borderless"] td.table-cell-droppable,
+.ProseMirror:not([contenteditable="false"]) table.tiptap-table.borderless td.table-cell-droppable,
+.ProseMirror:not([contenteditable="false"]) table[class*="tiptap-table"][class*="borderless"] td.table-cell-droppable {
+  border: 1px dashed rgba(148, 163, 184, 0.5) !important;
+  border-width: 1px !important;
+  border-style: dashed !important;
+  border-color: rgba(148, 163, 184, 0.5) !important;
+  background-color: rgba(30, 41, 59, 0.1) !important;
+}
+
+.ProseMirror[contenteditable="true"] table.borderless td:hover,
+.ProseMirror[contenteditable="true"] table[class*="borderless"] td:hover,
+.ProseMirror table.borderless td.table-cell-droppable:hover,
+.ProseMirror table[class*="borderless"] td.table-cell-droppable:hover {
+  background-color: rgba(45, 55, 72, 0.25) !important;
+  border: 1px dashed rgba(34, 197, 94, 0.6) !important;
+  border-width: 2px !important;
+  border-style: dashed !important;
+  border-color: rgba(34, 197, 94, 0.6) !important;
+}
+
+.ProseMirror[contenteditable="true"] table.borderless td.drag-over,
+.ProseMirror[contenteditable="true"] table[class*="borderless"] td.drag-over,
+.ProseMirror table.borderless td.table-cell-droppable.drag-over,
+.ProseMirror table[class*="borderless"] td.table-cell-droppable.drag-over {
+  background-color: rgba(34, 197, 94, 0.2) !important;
+  border: 2px dashed rgba(34, 197, 94, 0.8) !important;
+  border-width: 2px !important;
+  border-style: dashed !important;
+  border-color: rgba(34, 197, 94, 0.8) !important;
+  outline: 2px solid rgba(34, 197, 94, 0.3) !important;
+  outline-offset: 2px !important;
+}
+
+/* Hide borders in display mode (when contenteditable is false OR when rendered outside editor) */
+/* These rules MUST come after the edit mode rules and have MAXIMUM specificity to override .table-cell-droppable */
+/* CRITICAL: These rules must override the .table-cell-droppable rules even if the class is present */
+.ProseMirror[contenteditable="false"] table.borderless td,
+.ProseMirror[contenteditable="false"] table.borderless td.table-cell-droppable,
+.ProseMirror[contenteditable="false"] table[class*="borderless"] td,
+.ProseMirror[contenteditable="false"] table[class*="borderless"] td.table-cell-droppable,
+.ProseMirror[contenteditable="false"] table.tiptap-table.borderless td,
+.ProseMirror[contenteditable="false"] table.tiptap-table.borderless td.table-cell-droppable,
+.ProseMirror[contenteditable="false"] table[class*="tiptap-table"][class*="borderless"] td,
+.ProseMirror[contenteditable="false"] table[class*="tiptap-table"][class*="borderless"] td.table-cell-droppable,
+.ProseMirror[contenteditable="false"] table.borderless th,
+.ProseMirror[contenteditable="false"] table.borderless th.table-cell-droppable,
+.ProseMirror[contenteditable="false"] table[class*="borderless"] th,
+.ProseMirror[contenteditable="false"] table[class*="borderless"] th.table-cell-droppable,
+/* Also hide borders when tables are rendered outside the editor (in display mode) */
+/* Override even if .table-cell-droppable class is present */
+table.borderless td,
+table.borderless td.table-cell-droppable,
+table[class*="borderless"] td,
+table[class*="borderless"] td.table-cell-droppable,
+table.tiptap-table.borderless td,
+table.tiptap-table.borderless td.table-cell-droppable,
+table[class*="tiptap-table"][class*="borderless"] td,
+table[class*="tiptap-table"][class*="borderless"] td.table-cell-droppable,
+table.borderless th,
+table.borderless th.table-cell-droppable,
+table[class*="borderless"] th,
+table[class*="borderless"] th.table-cell-droppable,
+table.tiptap-table.borderless th,
+table.tiptap-table.borderless th.table-cell-droppable,
+table[class*="tiptap-table"][class*="borderless"] th,
+table[class*="tiptap-table"][class*="borderless"] th.table-cell-droppable,
+/* Hide borders in any container that's not explicitly editable */
+div:not([contenteditable="true"]) table.borderless td,
+div:not([contenteditable="true"]) table.borderless td.table-cell-droppable,
+div:not([contenteditable="true"]) table[class*="borderless"] td,
+div:not([contenteditable="true"]) table[class*="borderless"] td.table-cell-droppable,
+div:not([contenteditable="true"]) table.tiptap-table.borderless td,
+div:not([contenteditable="true"]) table.tiptap-table.borderless td.table-cell-droppable,
+div:not([contenteditable="true"]) table[class*="tiptap-table"][class*="borderless"] td,
+div:not([contenteditable="true"]) table[class*="tiptap-table"][class*="borderless"] td.table-cell-droppable,
+div:not([contenteditable="true"]) table.borderless th,
+div:not([contenteditable="true"]) table.borderless th.table-cell-droppable,
+div:not([contenteditable="true"]) table[class*="borderless"] th,
+div:not([contenteditable="true"]) table[class*="borderless"] th.table-cell-droppable,
+div:not([contenteditable="true"]) table.tiptap-table.borderless th,
+div:not([contenteditable="true"]) table.tiptap-table.borderless th.table-cell-droppable,
+div:not([contenteditable="true"]) table[class*="tiptap-table"][class*="borderless"] th,
+div:not([contenteditable="true"]) table[class*="tiptap-table"][class*="borderless"] th.table-cell-droppable,
+/* Global rule: hide borders on borderless tables by default (even with .table-cell-droppable) */
+.rich-text-content table.borderless td,
+.rich-text-content table.borderless td.table-cell-droppable,
+.rich-text-content table[class*="borderless"] td,
+.rich-text-content table[class*="borderless"] td.table-cell-droppable,
+.rich-text-content table.tiptap-table.borderless td,
+.rich-text-content table.tiptap-table.borderless td.table-cell-droppable,
+.rich-text-content table[class*="tiptap-table"][class*="borderless"] td,
+.rich-text-content table[class*="tiptap-table"][class*="borderless"] td.table-cell-droppable,
+.rich-text-content table.borderless th,
+.rich-text-content table.borderless th.table-cell-droppable,
+.rich-text-content table[class*="borderless"] th,
+.rich-text-content table[class*="borderless"] th.table-cell-droppable,
+.rich-text-content table.tiptap-table.borderless th,
+.rich-text-content table.tiptap-table.borderless th.table-cell-droppable,
+.rich-text-content table[class*="tiptap-table"][class*="borderless"] th,
+.rich-text-content table[class*="tiptap-table"][class*="borderless"] th.table-cell-droppable {
+  border: none !important;
+  border-width: 0 !important;
+  border-style: none !important;
+  border-color: transparent !important;
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+/* Make empty cells in borderless tables visible and droppable */
+.ProseMirror table.borderless td:empty,
+.ProseMirror table.borderless td:has(p:empty) {
+  min-height: 60px;
+  position: relative;
+}
+
+.ProseMirror table.borderless td:empty::after,
+.ProseMirror table.borderless td:has(> p:only-child:empty)::after {
+  content: 'Drop content here';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: rgba(156, 163, 175, 0.5);
+  font-size: 0.875rem;
+  pointer-events: none;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.ProseMirror table.borderless td:empty:hover::after,
+.ProseMirror table.borderless td:has(> p:only-child:empty):hover::after {
+  opacity: 1;
+}
+
+/* Component being dragged */
+.ProseMirror [data-component-type].dragging {
+  opacity: 0.5;
+  outline: 2px solid #14C800;
+  outline-offset: 2px;
+}
+
+/* Drop zone indicator */
+.ProseMirror .drop-zone-indicator {
+  position: absolute;
+  background: rgba(20, 200, 0, 0.2);
+  border: 2px dashed #14C800;
+  pointer-events: none;
+  z-index: 100;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Resize in progress state */
+.ProseMirror.resizing {
+  cursor: col-resize !important;
+  user-select: none;
+}
+
+.ProseMirror.resizing * {
+  cursor: col-resize !important;
+  user-select: none;
+}
+
+/* Layout grid preview on hover */
+.ProseMirror table.borderless.layout-grid {
+  position: relative;
+}
+
+.ProseMirror table.borderless.layout-grid::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 1px dashed rgba(20, 200, 0, 0.2);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.ProseMirror table.borderless.layout-grid:hover::after {
+  opacity: 1;
+}
+
+/* ===== DISPLAY MODE RENDERING ===== */
+
+/* Display mode should render layouts cleanly without editor controls */
+.section-content table,
+.project-section-content table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 1rem 0;
+  overflow: hidden;
+}
+
+/* Apply custom column widths from data attributes in display mode */
+.section-content table[data-columns],
+.project-section-content table[data-columns] {
+  table-layout: fixed;
+}
+
+/* Borderless tables in display mode - MAXIMUM PRIORITY */
+.section-content table.borderless,
+.project-section-content table.borderless,
+.section-content table[class*="borderless"],
+.project-section-content table[class*="borderless"],
+.section-content table.borderless[class*="tiptap"],
+.project-section-content table.borderless[class*="tiptap"] {
+  border: none !important;
+  border-style: none !important;
+  border-width: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.section-content table.borderless td,
+.section-content table.borderless th,
+.project-section-content table.borderless td,
+.project-section-content table.borderless th,
+.section-content table[class*="borderless"] td,
+.section-content table[class*="borderless"] th,
+.project-section-content table[class*="borderless"] td,
+.project-section-content table[class*="borderless"] th,
+.section-content table.borderless td[class],
+.section-content table.borderless th[class],
+.project-section-content table.borderless td[class],
+.project-section-content table.borderless th[class] {
+  border: none !important;
+  border-style: none !important;
+  border-width: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+.section-content table.borderless tbody,
+.section-content table.borderless thead,
+.project-section-content table.borderless tbody,
+.project-section-content table.borderless thead,
+.section-content table[class*="borderless"] tbody,
+.section-content table[class*="borderless"] thead,
+.project-section-content table[class*="borderless"] tbody,
+.project-section-content table[class*="borderless"] thead,
+.section-content table.borderless tbody[class],
+.section-content table.borderless thead[class],
+.project-section-content table.borderless tbody[class],
+.project-section-content table.borderless thead[class] {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+/* Display mode inline style overrides */
+.section-content table.borderless[style],
+.project-section-content table.borderless[style],
+.section-content table[class*="borderless"][style],
+.project-section-content table[class*="borderless"][style] {
+  border: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+.section-content table.borderless[style] td,
+.section-content table.borderless[style] th,
+.project-section-content table.borderless[style] td,
+.project-section-content table.borderless[style] th {
+  border: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* Hide empty cell hints in display mode */
+.section-content table.borderless td:empty::after,
+.section-content table.borderless td:has(> p:only-child:empty)::after,
+.project-section-content table.borderless td:empty::after,
+.project-section-content table.borderless td:has(> p:only-child:empty)::after {
+  display: none !important;
+}
+
+/* Cell styling in display mode */
+.section-content td[data-padding="none"],
+.section-content th[data-padding="none"],
+.project-section-content td[data-padding="none"],
+.project-section-content th[data-padding="none"] {
+  padding: 0 !important;
+}
+
+.section-content td[data-padding="small"],
+.section-content th[data-padding="small"],
+.project-section-content td[data-padding="small"],
+.project-section-content th[data-padding="small"] {
+  padding: 0.375rem !important;
+}
+
+.section-content td[data-padding="medium"],
+.section-content th[data-padding="medium"],
+.project-section-content td[data-padding="medium"],
+.project-section-content th[data-padding="medium"] {
+  padding: 0.75rem !important;
+}
+
+.section-content td[data-padding="large"],
+.section-content th[data-padding="large"],
+.project-section-content td[data-padding="large"],
+.project-section-content th[data-padding="large"] {
+  padding: 1.5rem !important;
+}
+
+/* Vertical alignment in display mode */
+.section-content td[data-valign="top"],
+.section-content th[data-valign="top"],
+.project-section-content td[data-valign="top"],
+.project-section-content th[data-valign="top"] {
+  vertical-align: top !important;
+}
+
+.section-content td[data-valign="middle"],
+.section-content th[data-valign="middle"],
+.project-section-content td[data-valign="middle"],
+.project-section-content th[data-valign="middle"] {
+  vertical-align: middle !important;
+}
+
+.section-content td[data-valign="bottom"],
+.section-content th[data-valign="bottom"],
+.project-section-content td[data-valign="bottom"],
+.project-section-content th[data-valign="bottom"] {
+  vertical-align: bottom !important;
+}
+
+/* Hide resize handles and editor-only elements in display mode */
+.section-content .resize-handle-column,
+.section-content .resize-handle-row,
+.section-content .resize-handle-cell,
+.section-content .code-block-delete-btn,
+.section-content .file-delete-btn,
+.project-section-content .resize-handle-column,
+.project-section-content .resize-handle-row,
+.project-section-content .resize-handle-cell,
+.project-section-content .code-block-delete-btn,
+.project-section-content .file-delete-btn {
+  display: none !important;
+}
+
+/* Hide component drag indicators in display mode */
+.section-content [data-component-type]::before,
+.project-section-content [data-component-type]::before {
+  display: none !important;
+}
+
+/* Ensure images and media render correctly in tables */
+.section-content table td img,
+.section-content table th img,
+.project-section-content table td img,
+.project-section-content table th img {
+  max-width: 100%;
+  height: auto;
+  margin: 0.5rem 0;
+  display: block;
+}
+
+.section-content table td .image-resize-wrapper,
+.section-content table th .image-resize-wrapper,
+.project-section-content table td .image-resize-wrapper,
+.project-section-content table th .image-resize-wrapper {
+  margin: 0.5rem 0;
+  max-width: 100%;
+}
+
+/* File attachments in display mode */
+.section-content table td .file-attachment-card,
+.section-content table th .file-attachment-card,
+.project-section-content table td .file-attachment-card,
+.project-section-content table th .file-attachment-card {
+  margin: 0.25rem 0;
+}
+
+/* Code blocks in tables */
+.section-content table td .code-block-wrapper,
+.section-content table th .code-block-wrapper,
+.project-section-content table td .code-block-wrapper,
+.project-section-content table th .code-block-wrapper {
+  margin: 0.5rem 0;
+}
+
+/* Mobile responsive - stack table columns on narrow screens */
+@media (max-width: 768px) {
+  .section-content table.borderless,
+  .project-section-content table.borderless {
+    display: block;
+  }
+  
+  .section-content table.borderless tbody,
+  .section-content table.borderless tr,
+  .section-content table.borderless td,
+  .project-section-content table.borderless tbody,
+  .project-section-content table.borderless tr,
+  .project-section-content table.borderless td {
+    display: block;
+    width: 100% !important;
+  }
+  
+  .section-content table.borderless td,
+  .project-section-content table.borderless td {
+    margin-bottom: 1rem;
+  }
+}

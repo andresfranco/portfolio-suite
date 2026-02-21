@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import userApi from '../../services/userApi';
 import { 
   Box, 
   Button, 
@@ -21,7 +22,11 @@ import {
   Alert,
   alpha,
   LinearProgress,
-  Collapse
+  Collapse,
+  Tabs,
+  Tab,
+  Divider,
+  Paper
 } from '@mui/material';
 import { useForm, Controller } from 'react-hook-form';
 import { useUsers } from '../../contexts/UserContext';
@@ -31,8 +36,12 @@ import {
   Delete as DeleteIcon, 
   Close as CloseIcon, 
   Check as CheckIcon,
-  Clear as ClearIcon
+  Clear as ClearIcon,
+  Security as SecurityIcon,
+  Person as PersonIcon,
+  VpnKey as VpnKeyIcon
 } from '@mui/icons-material';
+import MfaManagement from './MfaManagement';
 
 const UserForm = ({ userId, onClose, mode = 'create' }) => {
   const { 
@@ -43,7 +52,8 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
     changePassword, 
     roles, 
     fetchRoles,
-    loading
+    loading,
+    clearError
   } = useUsers();
   
   const [isEditMode, setIsEditMode] = useState(false);
@@ -74,6 +84,9 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [usernameChecking, setUsernameChecking] = useState(false);
+  const [usernameAvailability, setUsernameAvailability] = useState(null); // null | true | false
+  const [activeTab, setActiveTab] = useState(0); // 0 = Basic Info, 1 = MFA Security, 2 = Change Password
   
   // Add password strength state
   const [passwordStrength, setPasswordStrength] = useState(0);
@@ -87,6 +100,7 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
   
   // Watch password field for validation
   const passwordValue = watch('password');
+  const usernameWatch = watch('username');
   
   // Fetch roles on component mount
   useEffect(() => {
@@ -126,7 +140,6 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
 
     if (selectedUser && (mode === 'edit' || mode === 'delete')) {
       // Log the raw selectedUser data for debugging
-      console.log('Selected user data:', selectedUser);
       
       setValue('username', selectedUser.username || '');
       setValue('email', selectedUser.email || '');
@@ -136,7 +149,6 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
       const isActive = selectedUser.is_active === true || 
                       selectedUser.is_active === 'true' || 
                       selectedUser.is_active === 1;
-      console.log('Setting is_active from', selectedUser.is_active, 'to', isActive, 'type:', typeof selectedUser.is_active);
       
       // Force a boolean value
       setValue('is_active', isActive);
@@ -165,7 +177,7 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
     const hasUppercase = /[A-Z]/.test(passwordValue);
     const hasLowercase = /[a-z]/.test(passwordValue);
     const hasNumber = /[0-9]/.test(passwordValue);
-    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/.test(passwordValue);
+    const hasSpecialChar = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]+/.test(passwordValue);
     
     // Update checks
     setPasswordChecks({
@@ -193,6 +205,28 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
       setPasswordError('');
     }
   }, [passwordValue, confirmPassword]);
+
+  // Debounced username availability check (create & edit; edit excludes current user)
+  useEffect(() => {
+    let active = true;
+    const username = usernameWatch?.trim();
+    if (!username || username.length < 3) {
+      setUsernameAvailability(null);
+      return;
+    }
+    setUsernameChecking(true);
+    const timer = setTimeout(async () => {
+      try {
+        const resp = await userApi.checkUsername(username, isEditMode ? selectedUser?.id : undefined);
+        if (active) setUsernameAvailability(resp.data.available);
+      } catch (e) {
+        if (active) setUsernameAvailability(null);
+      } finally {
+        if (active) setUsernameChecking(false);
+      }
+    }, 500);
+    return () => { active = false; clearTimeout(timer); };
+  }, [usernameWatch, isEditMode, selectedUser]);
   
   // Check if passwords match when confirm password changes
   const handleConfirmPasswordChange = (e) => {
@@ -211,9 +245,13 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
     // Add confirm password check for create mode
     if (!isEditMode && !isDeleteMode && passwordValue !== confirmPassword) {
       setPasswordError('Passwords do not match');
-        return;
-      }
-      
+      return;
+    }
+    if (usernameAvailability === false) {
+      setApiError('Username already taken');
+      return;
+    }
+    
     setApiError('');
     setSuccessMessage('');
     
@@ -239,8 +277,6 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
         };
         
         // Log the data being sent for debugging
-        console.log('Updating user with data:', userData);
-        console.log('User status value being sent:', isActiveValue, 'type:', typeof isActiveValue);
         
         // Set closing state immediately to prevent re-renders of the form
         setIsClosing(true);
@@ -276,7 +312,7 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
       console.error('Error response data:', error.response?.data);
       
       // Set error message based on the error
-      let errorMsg = `Failed to ${isDeleteMode ? 'delete' : isEditMode ? 'update' : 'create'} user.`;
+      let errorMsg = error.formMessage || `Failed to ${isDeleteMode ? 'delete' : isEditMode ? 'update' : 'create'} user.`;
       
       try {
         if (error.response) {
@@ -285,12 +321,10 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
             errorMsg = `A user with this username or email already exists.`;
           } else if (error.response.status === 422) {
             // Handle validation error details
-            console.log('Processing 422 validation error:', error.response.data?.detail);
             
             if (Array.isArray(error.response.data?.detail)) {
               // Extract specific validation error messages
               const errorDetails = error.response.data.detail.map(err => {
-                console.log('Processing error object:', err);
                 
                 // Safely handle error object structure
                 const field = err && err.loc && Array.isArray(err.loc) && err.loc.length > 1 ? err.loc[1] : '';
@@ -300,7 +334,6 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
               }).join('. ');
               
               errorMsg = `Validation error: ${errorDetails}`;
-              console.log('Final error message:', errorMsg);
             } else {
               // Handle non-array detail
               const detail = error.response.data?.detail;
@@ -350,7 +383,6 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
         errorMsg = `Failed to ${isDeleteMode ? 'delete' : isEditMode ? 'update' : 'create'} user. Please try again.`;
       }
       
-      console.log('Setting API error:', errorMsg);
       setApiError(errorMsg);
     }
   };
@@ -361,10 +393,12 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
     setNewPassword('');
     setConfirmPassword('');
     setPasswordError('');
+    clearError?.();
   };
   
   const handleClosePasswordDialog = () => {
     setPasswordDialogOpen(false);
+    clearError?.();
   };
   
   const handlePasswordChange = async () => {
@@ -379,14 +413,27 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
     }
     
     try {
-      await changePassword(selectedUser.id, newPassword);
+      // Build payload matching backend schema UserPasswordChange
+      const payload = {
+        username: selectedUser.username,
+        password: newPassword,
+        password_confirmation: confirmPassword
+      };
+      await changePassword(selectedUser.id, payload);
       setSuccessMessage('Password changed successfully');
-      handleClosePasswordDialog();
       
-      // Wait briefly to show success message before closing
+      // Clear password fields
+      setNewPassword('');
+      setConfirmPassword('');
+      setPasswordError('');
+      
+      // Switch back to Basic Info tab after successful password change
+      setActiveTab(0);
+      
+      // Show success message briefly
       setTimeout(() => {
-        if (onClose) onClose(true);
-      }, 500);
+        setSuccessMessage('');
+      }, 3000);
     } catch (error) {
       console.error('Error changing password:', error);
       setPasswordError('Failed to change password. Please try again.');
@@ -395,11 +442,8 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
   
   // Handle close with transition
   const handleClose = (refresh = false) => {
-    console.log('handleClose called with refresh:', refresh);
-    
-    // Set closing state to prevent re-renders
     setIsClosing(true);
-    
+    clearError?.();
     // Clear form errors and reset form values on close
     if (mode === 'create') {
       reset({
@@ -489,6 +533,29 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
           
         {/* Add extra spacing div */}
         <Box sx={{ height: '24px' }}></Box>
+        
+        {/* Tabs for Edit Mode */}
+        {isEditMode && !isDeleteMode && (
+          <Box sx={{ mb: 2 }}>
+            <Tabs 
+              value={activeTab} 
+              onChange={(e, newValue) => setActiveTab(newValue)}
+              sx={{ 
+                borderBottom: 1, 
+                borderColor: 'divider',
+                '& .MuiTab-root': {
+                  textTransform: 'none',
+                  fontSize: '13px',
+                  fontWeight: 500
+                }
+              }}
+            >
+              <Tab icon={<PersonIcon fontSize="small" />} iconPosition="start" label="Basic Information" />
+              <Tab icon={<SecurityIcon fontSize="small" />} iconPosition="start" label="MFA Security" />
+              <Tab icon={<VpnKeyIcon fontSize="small" />} iconPosition="start" label="Change Password" />
+            </Tabs>
+          </Box>
+        )}
         
         {isDeleteMode ? (
           // Delete confirmation UI
@@ -715,7 +782,372 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
               </Box>
             </Box>
           </Box>
+        ) : isEditMode ? (
+          // Edit mode with tabs
+          <Box>
+            {/* Tab Panel 0: Basic Information */}
+            {activeTab === 0 && (
+              <Stack spacing={2.5} component="form" id="user-form" onSubmit={handleSubmit(onSubmit)} noValidate>
+                <Controller
+                  name="username"
+                  control={control}
+                  rules={{ 
+                    required: 'Username is required',
+                    minLength: { value: 3, message: 'Username must be at least 3 characters' }
+                  }}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label="Username"
+                      fullWidth
+                      size="small"
+                      error={!!errors.username || usernameAvailability === false}
+                      helperText={
+                        errors.username?.message
+                          ? errors.username.message
+                          : usernameChecking
+                            ? 'Checking availability...'
+                            : usernameAvailability === false
+                              ? 'Username already taken'
+                              : 'Unique username for the user'
+                      }
+                      disabled={loading}
+                      sx={{
+                        '& .MuiInputLabel-root': {
+                          fontSize: '13px',
+                          fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+                          color: '#505050',
+                        },
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: '4px',
+                          height: '40px',
+                          '&:hover .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#1976d2',
+                          },
+                          '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#1976d2',
+                            borderWidth: 1,
+                          },
+                          '& .MuiOutlinedInput-input': {
+                            fontSize: '13px',
+                            fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+                            color: '#505050',
+                          },
+                        },
+                        '& .MuiFormHelperText-root': {
+                          marginTop: '4px',
+                          fontSize: '12px',
+                          fontStyle: 'italic',
+                          opacity: errors.username ? 1 : 0.7,
+                          fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+                        }
+                      }}
+                    />
+                  )}
+                />
+                
+                <Controller
+                  name="email"
+                  control={control}
+                  rules={{ 
+                    required: 'Email is required',
+                    pattern: { 
+                      value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                      message: 'Invalid email address'
+                    }
+                  }}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label="Email"
+                      size="small"
+                      error={!!errors.email}
+                      helperText={errors.email?.message || 'User\'s email address'}
+                      disabled={loading}
+                      sx={{
+                        '& .MuiInputLabel-root': {
+                          fontSize: '13px',
+                          fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+                          color: '#505050',
+                        },
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: '4px',
+                          height: '40px',
+                          '&:hover .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#1976d2',
+                          },
+                          '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#1976d2',
+                            borderWidth: 1,
+                          },
+                          '& .MuiOutlinedInput-input': {
+                            fontSize: '13px',
+                            fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+                            color: '#505050',
+                          },
+                        },
+                        '& .MuiFormHelperText-root': {
+                          marginTop: '4px',
+                          fontSize: '12px',
+                          fontStyle: 'italic',
+                          opacity: errors.email ? 1 : 0.7,
+                          fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+                        }
+                      }}
+                    />
+                  )}
+                />
+                
+                <Controller
+                  name="roles"
+                  control={control}
+                  rules={{ required: 'At least one role is required' }}
+                  render={({ field }) => (
+                    <Box sx={{ width: '100%' }}>
+                      <Typography 
+                        variant="subtitle2" 
+                        sx={{ 
+                          mb: 1, 
+                          fontWeight: 500,
+                          fontSize: '14px',
+                          color: errors.roles ? '#d32f2f' : '#333333'
+                        }}
+                      >
+                        Roles
+                      </Typography>
+                    <FormControl 
+                      fullWidth 
+                      error={!!errors.roles} 
+                        size="small"
+                    >
+                      <Select
+                        {...field}
+                        multiple
+                          displayEmpty
+                          input={<OutlinedInput />}
+                        renderValue={(selected) => (
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                              {selected.length === 0 ? (
+                                <Typography sx={{ color: 'text.secondary', fontSize: '13px' }}>
+                                  Select roles for this user
+                                </Typography>
+                              ) : (
+                                selected.map((roleId) => {
+                                  const role = roles.find(r => r.id === roleId);
+                                  return (
+                              <Chip 
+                                      key={roleId} 
+                                      label={role ? role.name : roleId} 
+                                size="small" 
+                                      sx={{
+                                        height: 'auto',
+                                        minHeight: '24px',
+                                        fontSize: '12px',
+                                        margin: '2px',
+                                        bgcolor: '#f5f5f5',
+                                        border: '1px solid #e0e0e0',
+                                        borderRadius: '16px',
+                                        color: '#333',
+                                        '& .MuiChip-label': {
+                                          padding: '4px 8px',
+                                          whiteSpace: 'normal',
+                                          lineHeight: '1.2',
+                                          display: 'block'
+                                        }
+                                      }}
+                                    />
+                                  );
+                                })
+                              )}
+                            </Box>
+                        )}
+                        MenuProps={{
+                          PaperProps: {
+                            style: {
+                                maxHeight: 240,
+                            },
+                          },
+                        }}
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              borderRadius: '4px',
+                              '&:hover .MuiOutlinedInput-notchedOutline': {
+                                borderColor: '#1976d2',
+                              },
+                              '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                borderColor: '#1976d2',
+                                borderWidth: 1,
+                              }
+                            }
+                          }}
+                        >
+                          {roles.map((role) => (
+                            <MenuItem key={role.id} value={role.id} sx={{ fontSize: '13px' }}>
+                            {role.name}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                      {errors.roles && (
+                          <FormHelperText sx={{ fontSize: '12px' }}>
+                          {errors.roles.message}
+                          </FormHelperText>
+                      )}
+                    </FormControl>
+                    </Box>
+                  )}
+                />
+                
+                <Controller
+                  name="is_active"
+                  control={control}
+                  render={({ field }) => (
+                    <Box sx={{ width: '100%' }}>
+                      <Typography 
+                        variant="subtitle2" 
+                        sx={{ 
+                          mb: 1, 
+                          fontWeight: 500,
+                          fontSize: '14px',
+                          color: '#333333'
+                        }}
+                      >
+                        Status
+                      </Typography>
+                      <FormControl size="small" fullWidth>
+                        <Select
+                          {...field}
+                          displayEmpty
+                          value={field.value === true || field.value === 'true' || field.value === 1 ? true : false}
+                          onChange={(e) => {
+                            // Ensure we pass a boolean value
+                            const boolValue = Boolean(e.target.value === true || e.target.value === 'true' || e.target.value === 1);
+                            field.onChange(boolValue);
+                          }}
+                          disabled={loading}
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              borderRadius: '4px',
+                              '&:hover .MuiOutlinedInput-notchedOutline': {
+                                borderColor: '#1976d2',
+                              },
+                              '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                borderColor: '#1976d2',
+                                borderWidth: 1,
+                              }
+                            }
+                          }}
+                        >
+                          <MenuItem value={true}>
+                            <Chip 
+                              label="Active" 
+                              color="success" 
+                              size="small"
+                              sx={{ 
+                                fontWeight: 500,
+                                height: '24px',
+                                fontSize: '12px'
+                              }}
+                            />
+                          </MenuItem>
+                          <MenuItem value={false}>
+                            <Chip 
+                              label="Inactive" 
+                              color="error"
+                              variant="outlined"
+                              size="small" 
+                              sx={{ 
+                                fontWeight: 500,
+                                height: '24px',
+                                fontSize: '12px'
+                              }}
+                            />
+                          </MenuItem>
+                        </Select>
+                      </FormControl>
+              </Box>
+                  )}
+                />
+              </Stack>
+            )}
+            
+            {/* Tab Panel 1: MFA Security */}
+            {activeTab === 1 && selectedUser && (
+              <Box sx={{ py: 1 }}>
+                <MfaManagement 
+                  user={selectedUser}
+                  onMfaChange={() => {
+                    // Optionally refresh user data
+                  }}
+                />
+              </Box>
+            )}
+            
+            {/* Tab Panel 2: Change Password */}
+            {activeTab === 2 && selectedUser && (
+              <Box sx={{ py: 2 }}>
+                <Paper 
+                  elevation={0}
+                  sx={{ 
+                    p: 2.5, 
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: '6px'
+                  }}
+                >
+                  <Stack spacing={2.5}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                      <VpnKeyIcon color="primary" />
+                      <Typography variant="h6" sx={{ fontSize: '16px', fontWeight: 500 }}>
+                        Change Password for {selectedUser.username}
+                      </Typography>
+                    </Box>
+                    
+                    <Divider />
+                    
+                    {passwordError && (
+                      <Alert severity="error" onClose={() => setPasswordError('')}>
+                        {passwordError}
+                      </Alert>
+                    )}
+                    
+                    <TextField
+                      fullWidth
+                      type="password"
+                      label="New Password"
+                      value={newPassword}
+                      onChange={(e) => {
+                        setNewPassword(e.target.value);
+                        setPasswordError('');
+                      }}
+                      size="medium"
+                      autoComplete="new-password"
+                    />
+                    
+                    <TextField
+                      fullWidth
+                      type="password"
+                      label="Confirm New Password"
+                      value={confirmPassword}
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value);
+                        setPasswordError('');
+                      }}
+                      size="medium"
+                      autoComplete="new-password"
+                    />
+                    
+                    <Alert severity="info" icon={<VpnKeyIcon />}>
+                      <Typography variant="caption">
+                        Password must be at least 8 characters long and include uppercase, lowercase, numbers, and special characters.
+                      </Typography>
+                    </Alert>
+                  </Stack>
+                </Paper>
+              </Box>
+            )}
+          </Box>
         ) : (
+          // Create mode - original form
           <Stack spacing={2.5} component="form" id="user-form" onSubmit={handleSubmit(onSubmit)} noValidate>
             <Controller
               name="username"
@@ -730,9 +1162,17 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
                   label="Username"
                   fullWidth
                   size="small"
-                  error={!!errors.username}
-                  helperText={errors.username?.message || 'Unique username for the user'}
-                  disabled={isEditMode || loading}
+                  error={!!errors.username || usernameAvailability === false}
+                  helperText={
+                    errors.username?.message
+                      ? errors.username.message
+                      : usernameChecking
+                        ? 'Checking availability...'
+                        : usernameAvailability === false
+                          ? 'Username already taken'
+                          : 'Unique username for the user'
+                  }
+                  disabled={loading}
                   sx={{
                     '& .MuiInputLabel-root': {
                       fontSize: '13px',
@@ -781,7 +1221,6 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
                 <TextField
                   {...field}
                   label="Email"
-                  fullWidth
                   size="small"
                   error={!!errors.email}
                   helperText={errors.email?.message || 'User\'s email address'}
@@ -836,7 +1275,7 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
                       hasNumber: (value) => 
                         /[0-9]/.test(value) || 'Password must contain at least one number',
                       hasSpecialChar: (value) => 
-                        /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/.test(value) || 'Password must contain at least one special character'
+                        /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]+/.test(value) || 'Password must contain at least one special character'
                     }
                   }}
                   render={({ field }) => (
@@ -1149,11 +1588,8 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
                       displayEmpty
                       value={field.value === true || field.value === 'true' || field.value === 1 ? true : false}
                       onChange={(e) => {
-                        console.log('Status changed to:', e.target.value);
-                        console.log('Status type:', typeof e.target.value);
                         // Ensure we pass a boolean value
                         const boolValue = Boolean(e.target.value === true || e.target.value === 'true' || e.target.value === 1);
-                        console.log('Converted status value:', boolValue, 'type:', typeof boolValue);
                         field.onChange(boolValue);
                       }}
                       disabled={loading}
@@ -1207,11 +1643,14 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
       {!isViewMode && (
         <DialogActions sx={{ px: 2.5, py: 2, borderTop: '1px solid rgba(0, 0, 0, 0.08)' }}>
           <Box sx={{ display: 'flex', gap: 1, ml: 'auto', width: '100%', justifyContent: 'flex-end' }}>
-          {isEditMode && !isDeleteMode && (
-            <Button
+          
+          {/* Cancel button - show on Basic Info (0) and Change Password (2) tabs */}
+          {(activeTab === 0 || activeTab === 2) && (
+            <Button 
               variant="outlined"
-              onClick={handleOpenPasswordDialog}
+              onClick={() => handleClose(false)}
               disabled={loading}
+              startIcon={<CloseIcon fontSize="small" />}
               sx={{
                 borderRadius: '4px',
                 textTransform: 'none',
@@ -1223,42 +1662,16 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
                 color: '#757575',
                 border: '1px solid #757575',
                 boxShadow: 'none',
-                mr: 'auto',
+                minWidth: '80px',
                 '&:hover': {
                   backgroundColor: alpha('#757575', 0.04),
                   borderColor: '#757575'
                 }
               }}
             >
-              Change Password
+              Cancel
             </Button>
           )}
-          
-          <Button 
-            variant="outlined"
-            onClick={() => handleClose(false)}
-            disabled={loading}
-            startIcon={<CloseIcon fontSize="small" />}
-            sx={{
-              borderRadius: '4px',
-              textTransform: 'none',
-              fontWeight: 400,
-              py: 0.5,
-              height: '32px',
-              fontSize: '13px',
-              fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-              color: '#757575',
-              border: '1px solid #757575',
-              boxShadow: 'none',
-              minWidth: '80px',
-              '&:hover': {
-                backgroundColor: alpha('#757575', 0.04),
-                borderColor: '#757575'
-              }
-            }}
-          >
-            Cancel
-          </Button>
           
           {isDeleteMode ? (
           <Button 
@@ -1295,10 +1708,11 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
             </Button>
           ) : (
             <Button
-              type="submit"
-              form="user-form"
+              type={activeTab === 0 ? "submit" : "button"}
+              form={activeTab === 0 ? "user-form" : undefined}
+              onClick={activeTab === 1 ? () => handleClose(false) : activeTab === 2 ? handlePasswordChange : undefined}
               variant="outlined"
-              disabled={loading || Object.keys(errors).length > 0}
+              disabled={loading || (activeTab === 0 && Object.keys(errors).length > 0) || (activeTab === 2 && (!newPassword || !confirmPassword))}
               sx={{
                 px: 2,
                 py: 0.5,
@@ -1322,9 +1736,9 @@ const UserForm = ({ userId, onClose, mode = 'create' }) => {
                   color: 'rgba(0, 0, 0, 0.26)',
                 }
               }}
-              startIcon={loading ? <CircularProgress size={16} /> : isEditMode ? <SaveIcon fontSize="small" /> : <AddIcon fontSize="small" />}
+              startIcon={loading ? <CircularProgress size={16} /> : activeTab === 1 ? <CloseIcon fontSize="small" /> : activeTab === 2 ? <VpnKeyIcon fontSize="small" /> : isEditMode ? <SaveIcon fontSize="small" /> : <AddIcon fontSize="small" />}
             >
-              {loading ? 'Processing...' : isEditMode ? 'Save' : 'Create'}
+              {loading ? 'Processing...' : activeTab === 1 ? 'Close' : activeTab === 2 ? 'Change Password' : isEditMode ? 'Save' : 'Create'}
           </Button>
           )}
         </Box>

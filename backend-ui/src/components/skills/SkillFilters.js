@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Paper,
   Box,
@@ -16,8 +16,10 @@ import {
   InputLabel,
   Tooltip,
   OutlinedInput,
-  CircularProgress
+  CircularProgress,
+  FormHelperText
 } from '@mui/material';
+import { FILTERS_PANEL_MB } from '../common/layoutTokens';
 import {
   Add as AddIcon,
   ClearAll as ClearAllIcon,
@@ -30,6 +32,9 @@ import { useSkillType } from '../../contexts/SkillTypeContext';
 import { useCategory } from '../../contexts/CategoryContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { logInfo, logError } from '../../utils/logger';
+import { useAuthorization } from '../../contexts/AuthorizationContext';
+import { evaluateFilterAccess } from '../../utils/accessControl';
+import { MODULE_DISPLAY_NAMES } from '../../utils/permissionMessages';
 
 // Helper function to get category display name from default language
 const getCategoryDisplayName = (category) => {
@@ -64,7 +69,20 @@ const FILTER_TYPES = {
     label: 'Category', 
     type: 'select',
     getOptions: (categories) => {
-      return categories.map(cat => ({ 
+      // Only include categories whose type equals 'Skill'
+      const allowedTypeCodes = ['SKILL', 'SKL'];
+      const filtered = (categories || []).filter(cat => {
+        if (!cat) return false;
+        const typeName = cat.category_type?.name || cat.category_type?.Name || '';
+        if (typeName && typeof typeName === 'string' && typeName.toLowerCase() === 'skill') {
+          return true;
+        }
+        if (cat.type_code && allowedTypeCodes.includes(String(cat.type_code).toUpperCase())) {
+          return true;
+        }
+        return false;
+      });
+      return filtered.map(cat => ({ 
         value: cat.id, 
         label: getCategoryDisplayName(cat)
       }));
@@ -82,9 +100,10 @@ const FILTER_TYPES = {
 
 function SkillFilters({ onFiltersChange, onSearch }) {
   const { filters } = useSkill();
-  const { skillTypes, loading: skillTypesLoading } = useSkillType();
-  const { categories, loading: categoriesLoading } = useCategory();
-  const { languages, loading: languagesLoading, fetchLanguages } = useLanguage();
+  const { skillTypes, loading: skillTypesLoading, error: skillTypesError } = useSkillType();
+  const { categories, loading: categoriesLoading, error: categoriesError } = useCategory();
+  const { languages, loading: languagesLoading, error: languagesError, fetchLanguages } = useLanguage();
+  const { isSystemAdmin, hasPermission, hasAnyPermission } = useAuthorization();
   
   const [activeFilters, setActiveFilters] = useState(() => {
     const initialFilters = [];
@@ -137,6 +156,27 @@ function SkillFilters({ onFiltersChange, onSearch }) {
 
   // Add state to track when user explicitly removes a filter
   const [removingFilter, setRemovingFilter] = useState(null);
+
+  // Reusable filter access mapping for this module
+  const FILTER_ACCESS_MAP = useMemo(() => ({
+    type_code: { required: 'VIEW_SKILL_TYPES', moduleKey: 'skilltypes' },
+    category: { required: 'VIEW_CATEGORIES', moduleKey: 'categories' },
+    language_id: { required: 'VIEW_LANGUAGES', moduleKey: 'languages' },
+    name: { required: null, moduleKey: 'skills' }
+  }), []);
+
+  // Compute access notices per filter type and whether any active filter is denied
+  const { noticesByType, hasDeniedActive } = useMemo(() => {
+    const activeTypes = (activeFilters || []).map(f => f.type);
+    const authorization = { isSystemAdmin, hasPermission, hasAnyPermission };
+    const contextErrors = {
+      type_code: skillTypesError,
+      category: categoriesError,
+      language_id: languagesError,
+      name: null
+    };
+    return evaluateFilterAccess(activeTypes, FILTER_ACCESS_MAP, authorization, contextErrors);
+  }, [activeFilters, isSystemAdmin, hasPermission, hasAnyPermission, skillTypesError, categoriesError, languagesError]);
 
   // Fetch languages when component mounts (only if not already loaded)
   useEffect(() => {
@@ -422,6 +462,8 @@ function SkillFilters({ onFiltersChange, onSearch }) {
       );
     }
 
+    const notice = noticesByType[filter.type] || { isDenied: false, message: '' };
+
     switch (filterConfig.type) {
       case 'select':
         let options = [];
@@ -432,7 +474,7 @@ function SkillFilters({ onFiltersChange, onSearch }) {
         }
 
         return (
-          <FormControl sx={{ flex: 1 }}>
+          <FormControl sx={{ flex: 1 }} error={notice.isDenied} disabled={notice.isDenied}>
             <InputLabel sx={{
               fontSize: '13px',
               color: '#505050',
@@ -469,6 +511,9 @@ function SkillFilters({ onFiltersChange, onSearch }) {
                 </MenuItem>
               ))}
             </Select>
+            {notice.isDenied && (
+              <FormHelperText>{notice.message}</FormHelperText>
+            )}
           </FormControl>
         );
 
@@ -478,7 +523,7 @@ function SkillFilters({ onFiltersChange, onSearch }) {
           const selectedValues = Array.isArray(currentValue) ? currentValue.map(v => parseInt(v)) : [];
           
           return (
-            <FormControl sx={{ flex: 1 }}>
+            <FormControl sx={{ flex: 1 }} error={notice.isDenied} disabled={notice.isDenied}>
               <InputLabel sx={{
                 fontSize: '13px',
                 color: '#505050',
@@ -573,6 +618,9 @@ function SkillFilters({ onFiltersChange, onSearch }) {
                   </MenuItem>
                 )}
               </Select>
+              {notice.isDenied && (
+                <FormHelperText>{notice.message}</FormHelperText>
+              )}
             </FormControl>
           );
         }
@@ -622,11 +670,11 @@ function SkillFilters({ onFiltersChange, onSearch }) {
   return (
     <Box 
       sx={{ 
-        p: { xs: 2, sm: 2.5 },
+  p: { xs: 2, sm: 2.5 },
         backgroundColor: 'white',
         border: '1px solid #f0f0f0',
         borderRadius: '5px',
-        mb: 2.5,
+  mb: FILTERS_PANEL_MB,
         boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
       }}
     >
@@ -782,12 +830,13 @@ function SkillFilters({ onFiltersChange, onSearch }) {
         ))}
       </Stack>
       
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
+    <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
         <Button 
           variant="outlined" 
           color="primary" 
           onClick={handleSearch}
           startIcon={<SearchIcon fontSize="small" />}
+      disabled={hasDeniedActive}
           sx={{
             borderRadius: '4px',
             textTransform: 'none',

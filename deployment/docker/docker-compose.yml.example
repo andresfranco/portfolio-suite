@@ -1,0 +1,50 @@
+version: '3.8'
+
+# ⚠️  EXAMPLE Docker Compose Configuration
+# Copy this file and configure with your actual values
+# 
+# Usage:
+#   cp docker-compose.yml.example docker-compose.yml
+#   # Edit docker-compose.yml with your configuration
+#   docker-compose up -d
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    # Optional: Add persistence
+    # volumes:
+    #   - redis_data:/data
+    # command: redis-server --appendonly yes
+    
+  celery_worker:
+    image: python:3.12-slim
+    working_dir: /app
+    environment:
+      # ⚠️  Set these in your .env file or docker-compose.yml
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - PYTHONPATH=/app
+      # ⚠️  DATABASE_URL should come from .env (never commit credentials!)
+      - DATABASE_URL=${DATABASE_URL}
+      # ⚠️  Optional: Configure embedding provider
+      - EMBED_PROVIDER=${EMBED_PROVIDER:-openai}
+      - EMBED_MODEL=${EMBED_MODEL:-text-embedding-ada-002}
+      - PROMETHEUS_MULTIPROC_DIR=/tmp/prom_multiproc
+    volumes:
+      # ⚠️  Update path to your backend directory
+      - ../../portfolio-backend:/app
+    command: bash -lc "pip install -q -r requirements.txt && mkdir -p /tmp/prom_multiproc && celery -A app.queue.celery_app:get_celery worker --loglevel=INFO"
+    depends_on:
+      - redis
+    # Optional: Resource limits
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '1'
+    #       memory: 1G
+
+# Optional: Named volumes for data persistence
+# volumes:
+#   redis_data:

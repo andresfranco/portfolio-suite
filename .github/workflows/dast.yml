@@ -1,0 +1,288 @@
+name: DAST Security Scan (OWASP ZAP)
+
+on:
+  schedule:
+    # Run weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: 'Target URL to scan'
+        required: true
+        default: 'http://localhost:8000'
+      scan_type:
+        description: 'Scan type'
+        required: true
+        type: choice
+        options:
+          - baseline
+          - full
+          - api
+      fail_on_severity:
+        description: 'Fail on severity level'
+        required: true
+        type: choice
+        default: 'high'
+        options:
+          - low
+          - medium
+          - high
+
+env:
+  ZAP_VERSION: 'stable'
+
+jobs:
+  dast-scan:
+    name: OWASP ZAP Dynamic Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      security-events: write
+    
+    services:
+      # Backend service for testing
+      backend:
+        image: ghcr.io/${{ github.repository }}/backend:latest
+        ports:
+          - 8000:8000
+        env:
+          DATABASE_URL: postgresql+asyncpg://test:test@postgres:5432/testdb
+          SECRET_KEY: test-secret-key-for-dast-only
+          DEBUG: false
+          ENVIRONMENT: testing
+        options: >-
+          --health-cmd "curl -f http://localhost:8000/api/v1/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      # Database for testing
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Wait for backend to be ready
+        run: |
+          for i in {1..30}; do
+            if curl -f http://localhost:8000/api/v1/health; then
+              echo "Backend is ready"
+              break
+            fi
+            echo "Waiting for backend... ($i/30)"
+            sleep 2
+          done
+      
+      - name: Create test user for authenticated scanning
+        run: |
+          # Create admin user for ZAP to authenticate with
+          curl -X POST http://localhost:8000/api/v1/auth/register \
+            -H "Content-Type: application/json" \
+            -d '{
+              "email": "zaptest@example.com",
+              "password": "ZapTestPass123!",
+              "username": "zaptest"
+            }'
+      
+      # Baseline Scan - Quick passive scan
+      - name: ZAP Baseline Scan
+        if: github.event.inputs.scan_type == 'baseline' || github.event.inputs.scan_type == ''
+        uses: zaproxy/action-baseline@v0.10.0
+        with:
+          target: ${{ github.event.inputs.target_url || 'http://localhost:8000' }}
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a -j -l WARN'
+          allow_issue_writing: true
+          fail_action: ${{ github.event.inputs.fail_on_severity == 'high' }}
+      
+      # Full Scan - Active scanning (takes longer)
+      - name: ZAP Full Scan
+        if: github.event.inputs.scan_type == 'full'
+        uses: zaproxy/action-full-scan@v0.8.0
+        with:
+          target: ${{ github.event.inputs.target_url || 'http://localhost:8000' }}
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a -j -l WARN'
+          allow_issue_writing: true
+          fail_action: ${{ github.event.inputs.fail_on_severity == 'high' }}
+      
+      # API Scan - Specialized for REST APIs
+      - name: ZAP API Scan
+        if: github.event.inputs.scan_type == 'api'
+        uses: zaproxy/action-api-scan@v0.6.0
+        with:
+          target: ${{ github.event.inputs.target_url || 'http://localhost:8000' }}
+          format: openapi
+          api_spec_url: 'http://localhost:8000/openapi.json'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a -j -l WARN'
+          allow_issue_writing: true
+          fail_action: ${{ github.event.inputs.fail_on_severity == 'high' }}
+      
+      # Generate detailed reports
+      - name: Generate ZAP HTML Report
+        if: always()
+        run: |
+          docker run --rm -v $(pwd):/zap/wrk:rw \
+            -t ghcr.io/zaproxy/zaproxy:${{ env.ZAP_VERSION }} \
+            zap-cli --zap-url http://host.docker.internal --port 8080 \
+            report -o /zap/wrk/zap-report.html -f html || true
+      
+      - name: Generate ZAP JSON Report
+        if: always()
+        run: |
+          docker run --rm -v $(pwd):/zap/wrk:rw \
+            -t ghcr.io/zaproxy/zaproxy:${{ env.ZAP_VERSION }} \
+            zap-cli --zap-url http://host.docker.internal --port 8080 \
+            report -o /zap/wrk/zap-report.json -f json || true
+      
+      # Parse and analyze results
+      - name: Analyze ZAP Results
+        if: always()
+        run: |
+          echo "## 🛡️ DAST Scan Results (OWASP ZAP)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f "zap-report.json" ]; then
+            # Count vulnerabilities by severity
+            HIGH=$(jq '[.site[].alerts[] | select(.riskcode == "3")] | length' zap-report.json)
+            MEDIUM=$(jq '[.site[].alerts[] | select(.riskcode == "2")] | length' zap-report.json)
+            LOW=$(jq '[.site[].alerts[] | select(.riskcode == "1")] | length' zap-report.json)
+            INFO=$(jq '[.site[].alerts[] | select(.riskcode == "0")] | length' zap-report.json)
+            
+            echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| 🔴 High | $HIGH |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🟠 Medium | $MEDIUM |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🟡 Low | $LOW |" >> $GITHUB_STEP_SUMMARY
+            echo "| ℹ️ Info | $INFO |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # List high severity issues
+            if [ "$HIGH" -gt 0 ]; then
+              echo "### 🔴 High Severity Issues" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              jq -r '.site[].alerts[] | select(.riskcode == "3") | "- **\(.alert)** (\(.count) instances)\n  - CWE: \(.cweid)\n  - Solution: \(.solution)\n"' zap-report.json >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            # Check fail condition
+            if [ "${{ github.event.inputs.fail_on_severity }}" == "high" ] && [ "$HIGH" -gt 0 ]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "❌ **FAILED:** $HIGH high severity vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+              exit 1
+            elif [ "${{ github.event.inputs.fail_on_severity }}" == "medium" ] && [ "$MEDIUM" -gt 0 ]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "❌ **FAILED:** $MEDIUM medium severity vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+              exit 1
+            else
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "✅ **PASSED:** No critical vulnerabilities at configured threshold" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "⚠️ **WARNING:** ZAP report not generated" >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      # Upload results to GitHub Code Scanning
+      - name: Upload ZAP SARIF Report
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif
+          category: dast-zap
+      
+      # Store reports as artifacts
+      - name: Upload ZAP Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-reports-${{ github.run_number }}
+          path: |
+            zap-report.html
+            zap-report.json
+            results.sarif
+          retention-days: 30
+      
+      # Create GitHub issue for high severity findings
+      - name: Create Issue for High Severity Findings
+        if: failure() && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            if (!fs.existsSync('zap-report.json')) {
+              console.log('No ZAP report found');
+              return;
+            }
+            
+            const report = JSON.parse(fs.readFileSync('zap-report.json', 'utf8'));
+            const highAlerts = report.site[0].alerts.filter(a => a.riskcode === '3');
+            
+            if (highAlerts.length === 0) {
+              return;
+            }
+            
+            let issueBody = `## 🔴 High Severity DAST Findings\n\n`;
+            issueBody += `OWASP ZAP detected ${highAlerts.length} high severity vulnerabilities in the latest scan.\n\n`;
+            issueBody += `**Scan Details:**\n`;
+            issueBody += `- Date: ${new Date().toISOString()}\n`;
+            issueBody += `- Target: ${process.env.TARGET_URL || 'http://localhost:8000'}\n`;
+            issueBody += `- Workflow Run: [#${context.runNumber}](${context.payload.repository.html_url}/actions/runs/${context.runId})\n\n`;
+            issueBody += `### Vulnerabilities Found:\n\n`;
+            
+            highAlerts.forEach((alert, idx) => {
+              issueBody += `#### ${idx + 1}. ${alert.alert}\n\n`;
+              issueBody += `- **Risk:** ${alert.risk}\n`;
+              issueBody += `- **Confidence:** ${alert.confidence}\n`;
+              issueBody += `- **CWE:** ${alert.cweid}\n`;
+              issueBody += `- **Instances:** ${alert.count}\n`;
+              issueBody += `- **Description:** ${alert.desc}\n`;
+              issueBody += `- **Solution:** ${alert.solution}\n\n`;
+            });
+            
+            issueBody += `### Next Steps\n\n`;
+            issueBody += `1. Review the [full ZAP report](${context.payload.repository.html_url}/actions/runs/${context.runId})\n`;
+            issueBody += `2. Prioritize fixes based on risk and exploitability\n`;
+            issueBody += `3. Update security controls and re-scan\n`;
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[SECURITY] ${highAlerts.length} High Severity DAST Findings`,
+              body: issueBody,
+              labels: ['security', 'dast', 'high-priority']
+            });
+      
+      # Send notification (optional - configure webhook)
+      - name: Send Security Notification
+        if: failure()
+        run: |
+          # Configure webhook URL in repository secrets: SECURITY_WEBHOOK_URL
+          if [ -n "${{ secrets.SECURITY_WEBHOOK_URL }}" ]; then
+            curl -X POST "${{ secrets.SECURITY_WEBHOOK_URL }}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "text": "🔴 DAST Scan Failed",
+                "blocks": [
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*DAST Security Scan Failed*\n\nHigh severity vulnerabilities detected in: ${{ github.repository }}\n\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Details>"
+                    }
+                  }
+                ]
+              }'
+          fi
