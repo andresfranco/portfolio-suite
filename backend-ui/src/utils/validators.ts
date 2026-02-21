@@ -14,7 +14,9 @@
 
 // Dangerous patterns for XSS detection
 const XSS_PATTERNS = [
-  /<script[^>]*>.*?<\/script>/gi,
+  // Use [\s\S] instead of . to match across newlines (dotAll), and \s* before >
+  // to match closing tags like </script > (with trailing whitespace).
+  /<script[^>]*>[\s\S]*?<\/script\s*>/gi,
   /javascript:/gi,
   /on\w+\s*=/gi,
   /<iframe[^>]*>/gi,
@@ -29,7 +31,7 @@ const XSS_PATTERNS = [
 // SQL injection patterns
 const SQL_PATTERNS = [
   /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE|UNION|SCRIPT)\b)/gi,
-  /(--|\#|\/\*|\*\/)/g,
+  /(--|#|\/\*|\*\/)/g,
   /(\bOR\b.*=.*)/gi,
   /(\bAND\b.*=.*)/gi,
 ];
@@ -473,7 +475,7 @@ export function validateCreditCard(cardNumber: string): ValidationResult {
   return { isValid: true };
 }
 
-export default {
+const validators = {
   validateEmail,
   validateUsername,
   validatePassword,
@@ -493,4 +495,6 @@ export default {
   getRemainingChars,
   validateCreditCard,
 };
+
+export default validators;
 

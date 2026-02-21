@@ -1,8 +1,6 @@
-import { API_CONFIG } from '../config/apiConfig';
 import { logInfo, logError } from '../utils/logger';
 import { api } from './api';
 
-const BASE_URL = `${API_CONFIG.BASE_URL}/api/categories`;
 
 /**
  * Fetch categories with pagination and optional filtering
