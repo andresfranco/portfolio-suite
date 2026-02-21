@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import DOMPurify from 'dompurify';
 import { 
   Box, 
   Typography, 
@@ -52,7 +53,7 @@ function RichTextEditor({ value, onChange, readOnly, placeholder, style }) {
   // Initialize the editor with content when component mounts
   useEffect(() => {
     if (editorRef.current && content) {
-      editorRef.current.innerHTML = content;
+      editorRef.current.innerHTML = DOMPurify.sanitize(content);
     }
   }, []);
 
@@ -120,7 +121,7 @@ function RichTextEditor({ value, onChange, readOnly, placeholder, style }) {
     
     // Update the editor content after applying HTML changes
     if (editorRef.current) {
-      editorRef.current.innerHTML = htmlCode;
+      editorRef.current.innerHTML = DOMPurify.sanitize(htmlCode);
     }
   };
 
