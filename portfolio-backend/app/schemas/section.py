@@ -1,11 +1,12 @@
 from pydantic import BaseModel, ConfigDict
 from typing import List, Optional, Dict, Any, Union, Literal
+from datetime import datetime
 
 class LanguageBase(BaseModel):
     id: int
     code: str
     name: str
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 class SectionTextBase(BaseModel):
@@ -22,11 +23,55 @@ class SectionTextUpdate(BaseModel):
 class SectionTextOut(SectionTextBase):
     id: int
     language: LanguageBase
-    
+
+    model_config = ConfigDict(from_attributes=True)
+
+# Section Image Schemas
+class SectionImageBase(BaseModel):
+    image_path: str
+    language_id: Optional[int] = None
+    display_order: int = 0
+
+class SectionImageCreate(SectionImageBase):
+    pass
+
+class SectionImageUpdate(BaseModel):
+    language_id: Optional[int] = None
+    display_order: Optional[int] = None
+
+class SectionImageOut(SectionImageBase):
+    id: int
+    section_id: int
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+# Section Attachment Schemas
+class SectionAttachmentBase(BaseModel):
+    file_path: str
+    file_name: str
+    language_id: Optional[int] = None
+    display_order: int = 0
+
+class SectionAttachmentCreate(SectionAttachmentBase):
+    pass
+
+class SectionAttachmentUpdate(BaseModel):
+    language_id: Optional[int] = None
+    display_order: Optional[int] = None
+
+class SectionAttachmentOut(SectionAttachmentBase):
+    id: int
+    section_id: int
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
     model_config = ConfigDict(from_attributes=True)
 
 class SectionBase(BaseModel):
     code: str
+    display_style: str = "bordered"  # 'bordered' or 'borderless'
 
 class SectionCreate(SectionBase):
     section_texts: List[SectionTextCreate]
@@ -34,12 +79,26 @@ class SectionCreate(SectionBase):
 class SectionUpdate(BaseModel):
     code: Optional[str] = None
     section_texts: Optional[List[SectionTextCreate]] = None
+    display_style: Optional[str] = None
 
 class Section(SectionBase):
     id: int
     section_texts: List[SectionTextOut] = []
-    
+    images: List[SectionImageOut] = []
+    attachments: List[SectionAttachmentOut] = []
+
     model_config = ConfigDict(from_attributes=True)
+
+# Project Section Association
+class ProjectSectionAdd(BaseModel):
+    section_id: int
+    display_order: int = 0
+
+class ProjectSectionCreate(BaseModel):
+    code: str
+    section_texts: List[SectionTextCreate]
+    display_order: int = 0
+    display_style: str = "bordered"  # 'bordered' or 'borderless'
 
 class Filter(BaseModel):
     field: str

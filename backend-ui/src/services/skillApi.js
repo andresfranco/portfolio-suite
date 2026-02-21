@@ -1,4 +1,3 @@
-import { API_CONFIG } from '../config/apiConfig';
 import { logInfo, logError } from '../utils/logger';
 import { api } from './api';
 
@@ -198,11 +197,7 @@ const skillApi = {
         formData.append(key, options[key]);
       });
       
-      const response = await api.post('/api/skills/import', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+      const response = await api.post('/api/skills/import', formData);
       
       logInfo('skillApi', 'importSkills response:', { 
         status: response.status,

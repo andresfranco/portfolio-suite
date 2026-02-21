@@ -661,7 +661,6 @@ function PermissionFilters({
             }
         });
         
-        console.log('Filter type changed, updated filters:', updatedFilters);
         
         // Update all references
         filtersRef.current = updatedFilters;

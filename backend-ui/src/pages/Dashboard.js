@@ -144,18 +144,18 @@ const Dashboard = () => {
       requiredPermission: "VIEW_LANGUAGES"
     },
     {
-      title: "Chatbot Configuration",
-      description: "Configure the AI chatbot that answers questions about your portfolio.",
-      icon: <ChatIcon />,
-      link: "/chatbot",
-      requiredPermission: "SYSTEM_ADMIN" // Only system admin can access chatbot config
-    },
-    {
       title: "System Settings",
       description: "Configure global application settings and preferences.",
       icon: <SettingsIcon />,
       link: "/settings",
       requiredPermission: "SYSTEM_ADMIN" // Only system admin can access system settings
+    },
+    {
+      title: "Security Dashboard",
+      description: "Monitor security events, suspicious activities, and system threats in real-time.",
+      icon: <SecurityIcon />,
+      link: "/security",
+      requiredPermission: "SYSTEM_ADMIN" // Only system admin can access security dashboard
     }
   ];
 

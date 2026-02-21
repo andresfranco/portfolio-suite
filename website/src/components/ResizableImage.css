@@ -1,0 +1,73 @@
+/* Resizable Image Styles */
+/* Matches ContentEditableWYSIWYG image resize functionality */
+
+.resizable-image-container {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.resizable-image-container img {
+  display: block;
+  cursor: pointer;
+}
+
+.resizable-image-container.image-selected {
+  outline: 2px solid #14C800;
+  outline-offset: 2px;
+}
+
+/* Resize Handles */
+.image-resize-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background-color: #14C800;
+  border: 2px solid #1a1a1a;
+  border-radius: 50%;
+  z-index: 10;
+  transition: transform 0.15s ease;
+}
+
+.image-resize-handle:hover {
+  transform: scale(1.3);
+  box-shadow: 0 0 0 2px rgba(20, 200, 0, 0.3);
+}
+
+/* Southeast handle (bottom-right) */
+.image-resize-handle-se {
+  bottom: -6px;
+  right: -6px;
+  cursor: nwse-resize;
+}
+
+/* Southwest handle (bottom-left) */
+.image-resize-handle-sw {
+  bottom: -6px;
+  left: -6px;
+  cursor: nesw-resize;
+}
+
+/* East handle (right) */
+.image-resize-handle-e {
+  top: 50%;
+  right: -6px;
+  transform: translateY(-50%);
+  cursor: ew-resize;
+}
+
+.image-resize-handle-e:hover {
+  transform: translateY(-50%) scale(1.3);
+}
+
+/* West handle (left) */
+.image-resize-handle-w {
+  top: 50%;
+  left: -6px;
+  transform: translateY(-50%);
+  cursor: ew-resize;
+}
+
+.image-resize-handle-w:hover {
+  transform: translateY(-50%) scale(1.3);
+}

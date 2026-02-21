@@ -95,7 +95,7 @@ class SkillBase(BaseModel):
 
 class SkillCreate(SkillBase):
     """Schema for creating a new skill"""
-    skill_texts: List[SkillTextCreate] = Field(..., min_items=1, description="List of skill texts (at least one required)")
+    skill_texts: List[SkillTextCreate] = Field(..., min_length=1, description="List of skill texts (at least one required)")
     categories: Optional[List[int]] = Field(default=[], description="List of category IDs associated with this skill")
     
     @field_validator('skill_texts')

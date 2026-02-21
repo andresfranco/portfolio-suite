@@ -17,7 +17,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import KeyboardArrowLeft from '@mui/icons-material/KeyboardArrowLeft';
 import KeyboardArrowRight from '@mui/icons-material/KeyboardArrowRight';
-import { ArrowUpward, ArrowDownward } from '@mui/icons-material';
+import { ArrowUpward, ArrowDownward, InfoOutlined } from '@mui/icons-material';
 import SkillTypeForm from './SkillTypeForm';
 import SkillTypeFilters from './SkillTypeFilters';
 import { SkillTypeProvider, useSkillType } from '../../contexts/SkillTypeContext';
@@ -26,6 +26,8 @@ import ModuleGate from '../common/ModuleGate';
 import PermissionGate from '../common/PermissionGate';
 import SkillTypeErrorBoundary from './SkillTypeErrorBoundary';
 import { logInfo } from '../../utils/logger';
+import { evaluateGridColumnAccess } from '../../utils/accessControl';
+import { CONTAINER_PY, HEADER_SPACER_MT, HEADER_SPACER_MB, SECTION_PX, GRID_WRAPPER_PB } from '../common/layoutTokens';
 
 // Custom pagination component (exact copy from CategoryTypeIndex)
 const CustomPagination = (props) => {
@@ -162,7 +164,7 @@ const SkillTypeIndexContent = () => {
     filters
   } = useSkillType();
   
-  const { canPerformOperation } = useAuthorization();
+  const { canPerformOperation, isSystemAdmin, hasPermission, hasAnyPermission } = useAuthorization();
   
   // Force component to re-render when skill types change
   const [forceUpdateCounter, setForceUpdateCounter] = useState(0);
@@ -274,7 +276,7 @@ const SkillTypeIndexContent = () => {
   };
 
   // Define columns for the data grid (exact copy from CategoryTypeIndex)
-  const columns = [
+  const baseColumns = [
     {
       field: 'code',
       headerName: 'Code',
@@ -347,11 +349,12 @@ const SkillTypeIndexContent = () => {
           {params.colDef.headerName}
         </Typography>
       ),
-      renderCell: (params) => (
+  renderCell: (params) => (
         <Box>
           <PermissionGate permission="EDIT_SKILL_TYPE">
             <Tooltip title="Edit">
               <IconButton
+        aria-label="Edit skill type"
                 onClick={() => handleOpenEditForm(params.row)}
                 size="small"
                 sx={{ 
@@ -370,6 +373,7 @@ const SkillTypeIndexContent = () => {
           <PermissionGate permission="DELETE_SKILL_TYPE">
             <Tooltip title="Delete">
               <IconButton
+        aria-label="Delete skill type"
                 onClick={() => handleOpenDeleteForm(params.row)}
                 size="small"
                 sx={{ color: '#e53935', p: 0.5 }}
@@ -382,6 +386,28 @@ const SkillTypeIndexContent = () => {
       ),
     },
   ];
+
+  // Permission-aware column visibility
+  const COLUMN_ACCESS_MAP = React.useMemo(() => ({
+    code: { required: 'VIEW_SKILL_TYPES', moduleKey: 'skilltypes' },
+    name: { required: 'VIEW_SKILL_TYPES', moduleKey: 'skilltypes' },
+    actions: { required: ['EDIT_SKILL_TYPE', 'DELETE_SKILL_TYPE', 'MANAGE_SKILL_TYPES'], moduleKey: 'skilltypes' }
+  }), []);
+
+  const { allowedColumns, deniedColumns } = React.useMemo(() => {
+    const authorization = { isSystemAdmin, hasPermission, hasAnyPermission };
+    return evaluateGridColumnAccess(COLUMN_ACCESS_MAP, authorization);
+  }, [isSystemAdmin, hasPermission, hasAnyPermission, COLUMN_ACCESS_MAP]);
+
+  const columns = React.useMemo(() => {
+    const hideActions = deniedColumns.length > 0;
+    return baseColumns.filter(c => allowedColumns.has(c.field) && (!hideActions || c.field !== 'actions'));
+  }, [baseColumns, allowedColumns, deniedColumns]);
+
+  const deniedColumnTitles = React.useMemo(() => {
+    const titleFor = (field) => baseColumns.find(c => c.field === field)?.headerName || field;
+    return Array.from(new Set(deniedColumns.map(titleFor)));
+  }, [deniedColumns, baseColumns]);
 
   if (error) {
     return (
@@ -438,9 +464,17 @@ const SkillTypeIndexContent = () => {
             mb: 2
           }} 
         />
+        {/* Keep header spacing consistent with Users/Skills index via tokens */}
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'flex-end', 
+          alignItems: 'center', 
+          mt: HEADER_SPACER_MT, 
+          mb: HEADER_SPACER_MB 
+        }} />
       </Box>
       
-      <Box sx={{ px: 3 }}>
+      <Box sx={{ px: SECTION_PX }}>
         <SkillTypeFilters />
       </Box>
       
@@ -450,8 +484,9 @@ const SkillTypeIndexContent = () => {
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
-        px: 3,
-        pb: 3,
+        px: SECTION_PX,
+        pb: GRID_WRAPPER_PB,
+        position: 'relative',
         '& .css-19midj6': {
           padding: '0px !important',
         },
@@ -495,11 +530,6 @@ const SkillTypeIndexContent = () => {
             * {
               scrollbar-width: none !important;
               -ms-overflow-style: none !important;
-            }
-            .css-1xs4aeo-MuiContainer-root {
-              margin: 0 !important;
-              padding: 0 !important;
-              max-width: 100% !important;
             }
           `}
         </style>
@@ -553,6 +583,15 @@ const SkillTypeIndexContent = () => {
             onPaginationChange={handlePaginationChange}
           />
         </Box>
+
+        {deniedColumnTitles.length > 0 && (
+          <Box sx={{ mt: 1, mb: 1, display: 'inline-flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
+            <InfoOutlined sx={{ fontSize: 16 }} />
+            <Typography sx={{ fontSize: '12px', lineHeight: 1.4 }}>
+              {`You do not have permission to view the columns ${deniedColumnTitles.join(', ')}`}
+            </Typography>
+          </Box>
+        )}
 
         <Box sx={{
           backgroundColor: 'rgba(250, 250, 250, 0.8)',
@@ -721,7 +760,7 @@ const SkillTypeIndex = () => {
   return (
     <ModuleGate moduleName="skilltypes" showError={true}>
       <SkillTypeProvider>
-        <Container maxWidth={false} sx={{ py: 3 }}>
+  <Container maxWidth={false} disableGutters sx={{ py: CONTAINER_PY }}>
           <SkillTypeErrorBoundary>
             <SkillTypeIndexContent />
           </SkillTypeErrorBoundary>

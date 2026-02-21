@@ -1,42 +1,95 @@
-import React, { useState, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useContext, useEffect, useRef, useMemo } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { LanguageContext } from '../context/LanguageContext';
+import { usePortfolio } from '../context/PortfolioContext';
+import { useEditMode } from '../context/EditModeContext';
+import { useSectionLabel } from '../hooks/useSectionLabel';
+import { useContentEditor } from '../hooks/useContentEditor';
 import { translations } from '../data/translations';
+import { DragDropContext, Droppable } from '@hello-pangea/dnd';
+import DraggableProjectCard from './DraggableProjectCard';
+import './DragAndDrop.css';
+import { 
+  InlineTextEditor, 
+  ProjectImageSelector,
+  ProjectManagement,
+  ProjectActionButtons,
+  ProjectFormDialog,
+  ProjectDeleteDialog
+} from './cms';
 import ProjectDetails from './ProjectDetails';
 
-const ProjectModal = ({ project, onClose, onViewDetails, language }) => {
+const ProjectModal = ({ project, onClose, onViewDetails, language, getProjectText }) => {
+  const projectText = getProjectText(project);
+  const { isEditMode } = useEditMode();
+  
+  // Get editable labels
+  const closeLabel = useSectionLabel('BTN_CLOSE', 'close');
+  const viewDetailsLabel = useSectionLabel('BTN_VIEW_FULL_DETAILS', 'view_full_details');
+  
   return (
     <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
       <div className="bg-gray-900 w-full max-w-4xl rounded-xl overflow-hidden max-h-[90vh]">
         <div className="border-b border-gray-800 p-4 flex justify-between items-center">
           <h3 className="text-white text-xl md:text-2xl font-bold">
-            {project.title[language]}
+            {/* Editable project name in edit mode */}
+            {isEditMode && projectText.id ? (
+              <InlineTextEditor
+                value={projectText.name || 'Project'}
+                entityType="project"
+                entityId={projectText.id}
+                fieldName="name"
+                className="text-white text-xl md:text-2xl font-bold"
+                placeholder="Enter project name..."
+              />
+            ) : (
+              projectText.name || 'Project'
+            )}
           </h3>
           <button 
             onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors p-2"
-            aria-label={translations[language].close}
+            className="btn-flat btn-flat-sm text-white/70 hover:text-white"
+            aria-label={closeLabel.value}
           >
             ✕
           </button>
         </div>
         <div className="p-4 md:p-6 overflow-y-auto">
-          <img 
-            src={project.image} 
-            alt={project.title[language]}
-            className="w-full h-48 md:h-64 object-cover rounded-lg mb-4 md:mb-6"
-          />
-          <p className="text-gray-300 text-base md:text-lg mb-6">
-            {project.description[language]}
-          </p>
+          {project.images && project.images.length > 0 && (() => {
+            const thumbnailImage = project.images.find(img => img.category === 'PROI-THUMBNAIL') || project.images[0];
+            const imageUrl = thumbnailImage.image_url 
+              ? `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}${thumbnailImage.image_url}`
+              : `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/uploads/${thumbnailImage.image_path}`;
+            
+            return (
+              <img 
+                src={imageUrl}
+                alt={projectText.name}
+                className="w-full h-48 md:h-64 object-contain bg-gray-800 rounded-lg mb-4 md:mb-6"
+              />
+            );
+          })()}
+          <div className="text-gray-300 text-base md:text-lg mb-6">
+            {/* Editable project description in edit mode */}
+            {isEditMode && projectText.id ? (
+              <InlineTextEditor
+                value={projectText.description || ''}
+                entityType="project"
+                entityId={projectText.id}
+                fieldName="description"
+                className="text-gray-300 text-base md:text-lg"
+                placeholder="Enter project description..."
+                multiline={true}
+              />
+            ) : (
+              <p>{projectText.description || ''}</p>
+            )}
+          </div>
           <button
             onClick={onViewDetails}
-            className="inline-block bg-[#14C800] text-white px-6 py-3 rounded-lg
-              transition-all duration-300 hover:bg-[#14C800]/90 
-              hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)]
-              transform hover:-translate-y-1 text-base md:text-lg"
+            className="btn-flat btn-flat-lg w-full md:w-auto justify-center"
           >
-            {translations[language].view_full_details}
+            {viewDetailsLabel.renderEditable('font-semibold text-white')}
           </button>
         </div>
       </div>
@@ -48,88 +101,293 @@ const Projects = () => {
   const [selectedProject, setSelectedProject] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const navigate = useNavigate();
-  const { language } = useContext(LanguageContext);
+  const { lang } = useParams();
+  const { language, setLanguage } = useContext(LanguageContext);
+  const { portfolio, getProjects, getProjectText, loading, refreshPortfolio } = usePortfolio();
+  const { isEditMode, authToken, showNotification } = useEditMode();
 
-  const projects = [
-    {
-      id: 1,
-      title: { en: "E-commerce Platform", es: "Plataforma de Comercio Electrónico" },
-      image: require('../assets/images/project1.jpg'),
-      description: { en: "A comprehensive e-commerce platform with a user-friendly interface and secure payment gateway.", es: "Una plataforma de comercio electrónico integral con una interfaz fácil de usar y una pasarela de pago segura." },
-      brief: { en: "Next-generation e-commerce solution built with modern web technologies.", es: "Solución de comercio electrónico de próxima generación construida con tecnologías web modernas." },
-      date: "January 2024",
-      category: { en: "Web Development", es: "Desarrollo Web" },
-      liveUrl: "https://example.com",
-      repoUrl: "https://github.com/username/project"
-    },
-    {
-      id: 2,
-      title: { en: "Mobile Application", es: "Aplicación Móvil" },
-      image: require('../assets/images/project2.jpg'),
-      description: { en: "A mobile application designed to enhance user experience with intuitive navigation and seamless performance.", es: "Una aplicación móvil diseñada para mejorar la experiencia del usuario con una navegación intuitiva y un rendimiento fluido." },
-      link: "#"
-    },
-    {
-      id: 3,
-      title: { en: "Digital Marketing Campaign", es: "Campaña de Marketing Digital" },
-      image: require('../assets/images/project3.jpg'),
-      description: { en: "A digital marketing campaign that leverages social media and SEO strategies to boost brand visibility.", es: "Una campaña de marketing digital que aprovecha las estrategias de redes sociales y SEO para aumentar la visibilidad de la marca." },
-      link: "#"
+  // Edit mode states
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [projectToEdit, setProjectToEdit] = useState(null);
+  const [projectToDelete, setProjectToDelete] = useState(null);
+
+  // Get editable section labels
+  const projectsTitle = useSectionLabel('SECTION_PROJECTS', 'projects');
+  const loadingText = useSectionLabel('MSG_LOADING_PROJECTS', 'loading_projects');
+  const viewProjectLabel = useSectionLabel('BTN_VIEW_PROJECT', 'view_project');
+
+  // Get projects from portfolio context - memoize to prevent infinite loops
+  const apiProjects = useMemo(() => getProjects(), [portfolio?.projects]);
+  
+  // Local state for optimistic UI updates during drag and drop
+  const [projects, setProjects] = useState([]);
+  
+  // Track if we're currently reordering to prevent sync conflicts
+  const isReorderingRef = useRef(false);
+  
+  // Track previous API projects to detect actual changes
+  const prevApiProjectsRef = useRef([]);
+  
+  // Content editor hook for projects reordering
+  const { reorderItems } = useContentEditor('project');
+  
+  // Sync local state with API data (but not during reordering)
+  useEffect(() => {
+    if (!isReorderingRef.current) {
+      // Only update if the array contents actually changed
+      const hasChanged = 
+        apiProjects.length !== prevApiProjectsRef.current.length ||
+        apiProjects.some((proj, index) => {
+          const prevProj = prevApiProjectsRef.current[index];
+          return !prevProj || proj.id !== prevProj.id;
+        });
+      
+      if (hasChanged) {
+        setProjects(apiProjects);
+        prevApiProjectsRef.current = apiProjects;
+      }
     }
-  ];
+  }, [apiProjects]);
 
-  const handleProjectClick = (project) => {
+  /**
+   * Handle drag end event to reorder projects
+   */
+  const handleDragEnd = async (result) => {
+    
+    // If dropped outside the list or no movement
+    if (!result.destination) {
+      return;
+    }
+    
+    if (result.destination.index === result.source.index) {
+      return;
+    }
+
+
+    // Set flag to prevent useEffect from resetting our optimistic update
+    isReorderingRef.current = true;
+
+    // Optimistically update the UI immediately
+    const reorderedProjects = Array.from(projects);
+    const [movedItem] = reorderedProjects.splice(result.source.index, 1);
+    reorderedProjects.splice(result.destination.index, 0, movedItem);
+    
+    
+    // Update local state immediately for instant feedback
+    setProjects(reorderedProjects);
+
+    // Get the new order of IDs
+    const newOrderIds = reorderedProjects.map(proj => proj.id);
+
+    try {
+      // Persist the new order to the backend
+      await reorderItems(newOrderIds, portfolio.id);
+      
+      // Wait a bit for the backend to process before allowing sync
+      setTimeout(() => {
+        isReorderingRef.current = false;
+      }, 500);
+    } catch (error) {
+      console.error('Failed to reorder projects:', error);
+      // Revert to original order on error
+      setProjects(apiProjects);
+      isReorderingRef.current = false;
+      // The error notification is already shown by reorderItems
+    }
+  };
+
+  // Sync language from URL prefix when present
+  useEffect(() => {
+    if (!lang) {
+      return;
+    }
+
+    const supportedLanguages = ['en', 'es'];
+    const normalizedLang = supportedLanguages.includes(lang) ? lang : 'en';
+
+    if (normalizedLang !== language) {
+      setLanguage(normalizedLang);
+    }
+  }, [lang, language, setLanguage]);
+
+  const handleProjectClick = (project, isCtrlClick = false) => {
+    // Allow Ctrl/Cmd+click to open modal even in edit mode
+    // Otherwise, don't open project modal in edit mode
+    if (isEditMode && !isCtrlClick) return;
+    
     setSelectedProject(project);
     setShowModal(true);
   };
 
   const handleViewDetails = (projectId) => {
     setShowModal(false);
-    const route = language === 'en' ? `/projects/${projectId}` : `/${language}/projects/${projectId}`;
-    navigate(route);
+    navigate(`/projects/${projectId}`);
   };
 
+  // Edit mode handlers
+  const handleEditProject = (project) => {
+    setProjectToEdit(project);
+    setShowEditDialog(true);
+  };
+
+  const handleDeleteProject = (project) => {
+    setProjectToDelete(project);
+    setShowDeleteDialog(true);
+  };
+
+  const handleEditSuccess = () => {
+    setShowEditDialog(false);
+    setProjectToEdit(null);
+    refreshPortfolio();
+    showNotification('Success', 'Project updated successfully', 'success');
+  };
+
+  const handleDeleteSuccess = () => {
+    setShowDeleteDialog(false);
+    setProjectToDelete(null);
+    refreshPortfolio();
+    showNotification('Success', 'Project deleted successfully', 'success');
+  };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex-grow flex items-center justify-center bg-gray-800 min-h-screen">
+        <div className="text-white text-2xl">
+          {loadingText.renderEditable('text-white text-2xl')}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex-grow">
-      <main className="pt-20">
-        <section className="py-20 bg-gray-800">
-          <div className="container mx-auto px-4 text-center">
-            <h2 className="text-4xl font-bold mb-8 text-white">
-              {translations[language].projects}
+    <div className="flex-grow bg-[#03060a]">
+      <div>
+        <section className="relative bg-[#03060a] pt-20 md:pt-24 xl:pt-32 2xl:pt-40 pb-24 border-t border-white/5">
+          <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/30 to-transparent pointer-events-none" />
+          <div className="relative w-full px-6 md:px-12 lg:px-[7vw] xl:px-[5vw] 2xl:px-[10vw] text-left">
+            <div className="w-full">
+            <h2 className="text-4xl xl:text-5xl 2xl:text-6xl font-bold text-white mb-4">
+              {projectsTitle.renderEditable('text-4xl xl:text-5xl 2xl:text-6xl font-bold text-white')}
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-12">
-              {projects.map((project) => (
-                <div
-                  key={project.id}
-                  onClick={() => handleProjectClick(project)}
-                  className="relative group cursor-pointer rounded-xl overflow-hidden
-                    transition-all duration-300
-                    hover:shadow-[0_4px_20px_rgba(20,200,0,0.4)]
-                    transform hover:-translate-y-1
-                    aspect-[4/3]"
-                >
-                  <img
-                    src={project.image}
-                    alt={project.title[language]}
-                    className="w-full h-full object-cover"
+            <p className="text-white/60 text-base xl:text-lg 2xl:text-xl max-w-3xl">
+              {translations[language]?.projects_intro ||
+                'Showcasing selected engagements that blend strategy, data, and engineering craftsmanship.'}
+            </p>
+
+            {/* Project Management Controls (visible in edit mode) */}
+            <div className="mt-10 text-left">
+              <ProjectManagement />
+            </div>
+
+            {/* Projects List with Drag and Drop */}
+            <DragDropContext onDragEnd={handleDragEnd}>
+              <Droppable droppableId="projects-list" isDropDisabled={!isEditMode}>
+                {(provided, snapshot) => (
+                  <div
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
+                    className={`grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8 xl:gap-10 mt-12 transition-all duration-300 droppable-container ${
+                      snapshot.isDraggingOver && isEditMode 
+                        ? 'gap-12 is-dragging-over' 
+                        : ''
+                    }`}
+                    style={{
+                      minHeight: snapshot.isDraggingOver ? '500px' : 'auto',
+                      padding: snapshot.isDraggingOver ? '1.5rem' : '0',
+                    }}
+                  >
+                    {projects.map((project, index) => {
+                const projectText = getProjectText(project);
+                const projectImageData = project.images && project.images.length > 0 ? project.images[0] : null;
+                const apiBase = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+                const projectImage = projectImageData
+                  ? projectImageData.image_url
+                    ? projectImageData.image_url.startsWith('http')
+                      ? projectImageData.image_url
+                      : `${apiBase}${projectImageData.image_url}`
+                    : projectImageData.image_path?.startsWith('http')
+                      ? projectImageData.image_path
+                      : `${apiBase}/${projectImageData.image_path}`
+                  : require('../assets/images/project1.jpg'); // fallback image
+
+                const description =
+                  projectText.brief ||
+                  projectText.description ||
+                  translations[language]?.project_description_fallback ||
+                  'Project details will be available soon.';
+
+                const getCategoryName = (category) => {
+                  if (!category) return null;
+                  if (category.category_texts && category.category_texts.length > 0) {
+                    const byLanguage = category.category_texts.find(
+                      (text) =>
+                        text.language_code === language ||
+                        text.language_id === (language === 'en' ? 1 : 2)
+                    );
+                    if (byLanguage?.name) {
+                      return byLanguage.name;
+                    }
+                    return category.category_texts[0].name || null;
+                  }
+                  return category.name || category.code || null;
+                };
+
+                const getSkillName = (skill) => {
+                  if (!skill) return null;
+                  if (skill.skill_texts && skill.skill_texts.length > 0) {
+                    const byLanguage = skill.skill_texts.find(
+                      (text) =>
+                        text.language_code === language ||
+                        text.language_id === (language === 'en' ? 1 : 2)
+                    );
+                    if (byLanguage?.name) {
+                      return byLanguage.name;
+                    }
+                    return skill.skill_texts[0].name || null;
+                  }
+                  return skill.name || skill.type || null;
+                };
+
+                const tags = Array.from(
+                  new Set(
+                    [
+                      ...(project.categories || []).map(getCategoryName),
+                      ...(project.skills || []).map(getSkillName),
+                    ].filter(Boolean)
+                  )
+                ).slice(0, 6);
+                
+                return (
+                  <DraggableProjectCard
+                    key={project.id}
+                    project={project}
+                    index={index}
+                    isEditMode={isEditMode}
+                    projectText={projectText}
+                    projectImage={projectImage}
+                    description={description}
+                    tags={tags}
+                    language={language}
+                    translations={translations}
+                    viewProjectLabel={viewProjectLabel}
+                    onProjectClick={handleProjectClick}
+                    onViewDetails={handleViewDetails}
+                    onEdit={handleEditProject}
+                    onDelete={handleDeleteProject}
                   />
-                  <div className="absolute inset-0 bg-black/75 md:bg-black/40 
-                    md:opacity-0 md:group-hover:opacity-100
-                    md:group-hover:bg-black/85 transition-all duration-300 
-                    flex items-center justify-center">
-                    <h3 className="text-white text-xl md:text-2xl font-bold text-center px-4
-                      md:opacity-0 md:group-hover:opacity-100 transform 
-                      transition-all duration-300
-                      md:translate-y-4 md:group-hover:translate-y-0">
-                      {project.title[language]}
-                    </h3>
+                );
+              })}
+              {provided.placeholder}
                   </div>
-                </div>
-              ))}
+                )}
+              </Droppable>
+            </DragDropContext>
             </div>
           </div>
         </section>
-      </main>
+      </div>
 
       {showModal && selectedProject && (
         <ProjectModal
@@ -137,6 +395,35 @@ const Projects = () => {
           onClose={() => setShowModal(false)}
           onViewDetails={() => handleViewDetails(selectedProject.id)}
           language={language}
+          getProjectText={getProjectText}
+        />
+      )}
+
+      {/* Edit Project Dialog */}
+      {showEditDialog && projectToEdit && (
+        <ProjectFormDialog
+          mode="edit"
+          project={projectToEdit}
+          onClose={() => {
+            setShowEditDialog(false);
+            setProjectToEdit(null);
+          }}
+          onSuccess={handleEditSuccess}
+          authToken={authToken}
+          language={language}
+        />
+      )}
+
+      {/* Delete Project Dialog */}
+      {showDeleteDialog && projectToDelete && (
+        <ProjectDeleteDialog
+          project={projectToDelete}
+          onClose={() => {
+            setShowDeleteDialog(false);
+            setProjectToDelete(null);
+          }}
+          onSuccess={handleDeleteSuccess}
+          authToken={authToken}
         />
       )}
     </div>

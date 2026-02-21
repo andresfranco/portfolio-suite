@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -14,6 +14,15 @@ import { UserIndex } from './components/users';
 import Login from './components/Login';
 import authService from './services/authService';
 import LanguageIndex from './components/languages/LanguageIndex';
+import useIdleSession from './hooks/useIdleSession';
+import systemSettingsApi from './services/systemSettingsApi';
+import SystemSettings from './components/settings/SystemSettings';
+import MySettings from './components/MySettings';
+import RagAdmin from './components/rag/RagAdmin';
+import AgentAdmin from './components/agents/AgentAdmin';
+import AgentChat from './components/agents/AgentChat';
+import { AgentAdminProvider } from './contexts/AgentAdminContext';
+import SecurityDashboard from './components/security/SecurityDashboard';
 
 // Importing actual components for previously working modules
 import { RoleIndex } from './components/roles';
@@ -32,21 +41,20 @@ import { ProjectProvider } from './contexts/ProjectContext';
 import ProjectIndex from './components/projects/ProjectIndex';
 import ProjectImages from './components/projects/ProjectImages';
 import ProjectAttachments from './components/projects/ProjectAttachments';
+import ProjectSections from './components/projects/ProjectSections';
+import ProjectDataPage from './pages/ProjectDataPage';
 import PortfolioIndex from './components/portfolios/PortfolioIndex';
 import PortfolioAttachments from './components/portfolios/PortfolioAttachments';
 import SectionIndex from './components/sections/SectionIndex';
+import PortfolioDataPage from './pages/PortfolioDataPage';
 
 import NotFound from './pages/NotFound';
-
-// Import other module pages
-// In a real implementation, these would be actual imports
-const ChatbotConfig = () => <div><h2>Chatbot Configuration</h2><p>This page is under development</p></div>;
-const SystemSettings = () => <div><h2>System Settings</h2><p>This page is under development</p></div>;
 
 // Wrapper component to access AuthorizationContext
 function AppContent() {
   const [loading, setLoading] = useState(true);
   const { checkAuthState, isAuthenticated: authContextAuthenticated } = useAuthorization();
+  const [idleMs, setIdleMs] = useState(30 * 60 * 1000);
   
   // Use the authentication state from AuthorizationContext instead of local state
   const isAuthenticated = authContextAuthenticated();
@@ -54,18 +62,60 @@ function AppContent() {
   useEffect(() => {
     // Check authentication status when the app loads
     const checkAuth = () => {
-      // Clear the token if it's invalid
+      // Clear authentication state if not valid
       if (!authService.isAuthenticated()) {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('csrf_token');
+        localStorage.removeItem('isAuthenticated');
       }
       setLoading(false);
     };
 
     checkAuth();
-  }, []);  const handleLogin = async (username, password) => {
+  }, []);
+
+  // Load idle timeout from system settings (only when authenticated)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    
+    (async () => {
+      try {
+        const res = await systemSettingsApi.get('frontend.idle_timeout_minutes');
+        const v = parseInt(res.data?.value || '30', 10);
+        if (!Number.isNaN(v) && v > 0) setIdleMs(v * 60 * 1000);
+      } catch (_) {
+        // fallback stays 30m
+      }
+    })();
+  }, [isAuthenticated]);
+
+  // Inactivity logout handler
+  const onIdle = useCallback(() => {
+    if (authContextAuthenticated()) {
+      authService.logout();
+    }
+  }, [authContextAuthenticated]);
+
+  // Optional warn callback: could show a snackbar/modal later
+  const onWarn = useCallback(() => {
+    // no-op for now
+  }, []);
+
+  // Start idle session tracking only when authenticated
+  useIdleSession({
+    idleMs,
+    warnMs: 60 * 1000,      // warn 1 minute before
+    onIdle,
+    onWarn,
+  });
+
+  const handleLogin = async (username, password) => {
     try {
-      await authService.login(username, password);
+      const result = await authService.login(username, password);
+      
+      // Check if MFA is required
+      if (result && result.mfa_required) {
+        return result; // Return MFA required info to Login component
+      }
       
       // Immediately trigger permission loading after successful login
       setTimeout(() => {
@@ -151,18 +201,33 @@ function AppContent() {
                 </ProjectProvider>
               </CategoryProvider>
             } />
+            <Route path="projects/:projectId" element={<ProjectDataPage />} />
             <Route path="projects/:projectId/images" element={<ProjectImages />} />
             <Route path="projects/:projectId/attachments" element={<ProjectAttachments />} />
+            <Route path="projects/:projectId/sections" element={<ProjectSections />} />
             <Route path="portfolios" element={<PortfolioIndex />} />
             <Route path="portfolios/:portfolioId/attachments" element={<PortfolioAttachments />} />
+            <Route path="/portfolios/:portfolioId" element={<PortfolioDataPage />} />
             <Route path="sections" element={<SectionIndex />} />
             
             {/* System Settings */}
             <Route path="languages" element={
               <LanguageIndex />
             } />
-            <Route path="chatbot" element={<ChatbotConfig />} />
+            <Route path="agents" element={
+              <AgentAdminProvider>
+                <AgentAdmin />
+              </AgentAdminProvider>
+            } />
+            <Route path="agent-chat" element={
+              <AgentAdminProvider>
+                <AgentChat />
+              </AgentAdminProvider>
+            } />
             <Route path="settings" element={<SystemSettings />} />
+            <Route path="my-settings" element={<MySettings />} />
+            <Route path="rag-admin" element={<RagAdmin />} />
+            <Route path="security" element={<SecurityDashboard />} />
             
             {/* 404 Not Found */}
             <Route path="*" element={<NotFound />} />
@@ -177,7 +242,7 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <SnackbarProvider maxSnack={3} autoHideDuration={3000}>
+      <SnackbarProvider maxSnack={3} autoHideDuration={3000} preventDuplicate>
         <AuthorizationProvider>
           <AppContent />
         </AuthorizationProvider>

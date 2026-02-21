@@ -34,11 +34,13 @@ import { useCategory } from '../../contexts/CategoryContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { logInfo, logError } from '../../utils/logger';
 import { alpha } from '@mui/material/styles';
+import { buildViewDeniedMessage } from '../../utils/permissionMessages';
+import usePermissionNotice from '../../hooks/usePermissionNotice';
 
 function SkillForm({ open, onClose, skill, mode = 'create' }) {
   const { createSkill, updateSkill, deleteSkill, checkNameExists } = useSkill();
   const { skillTypes, loading: loadingSkillTypes, fetchSkillTypes } = useSkillType();
-  const { categories, loading: loadingCategories, fetchCategories } = useCategory();
+  const { categories, loading: loadingCategories, fetchCategories, error: categoriesContextError } = useCategory();
   const { languages: availableLanguages, loading: loadingLanguages, fetchLanguages } = useLanguage();
 
   const [formData, setFormData] = useState({
@@ -56,11 +58,30 @@ function SkillForm({ open, onClose, skill, mode = 'create' }) {
   const [removedLanguageIds, setRemovedLanguageIds] = useState([]);
   const [originalLanguageIds, setOriginalLanguageIds] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [categoriesAccessDenied, setCategoriesAccessDenied] = useState(false);
+  const [categoriesErrorMessage, setCategoriesErrorMessage] = useState('');
+
+  // Field-level permission notices (reusable)
+  const skillTypePerm = usePermissionNotice('VIEW_SKILL_TYPES', 'skilltypes');
+  const categoriesPerm = usePermissionNotice('VIEW_CATEGORIES', 'categories', categoriesContextError);
+  const languagesPerm = usePermissionNotice('VIEW_LANGUAGES', 'languages');
+
+  // Derived: any permission error in the form should block actions
+  const hasPermissionErrors = (
+    skillTypePerm.isDenied ||
+    categoriesPerm.isDenied ||
+    categoriesAccessDenied ||
+    languagesPerm.isDenied
+  );
 
   // Helper function to get category display name from default language
   const getCategoryDisplayName = useCallback((category) => {
+    // Guard against undefined or non-object input
+    if (!category || typeof category !== 'object') {
+      return '';
+    }
     if (!category.category_texts || category.category_texts.length === 0) {
-      return category.code || `Category ${category.id}`;
+      return category.code || (category.id ? `Category ${category.id}` : 'Category');
     }
     
     // Find text in default language first
@@ -89,11 +110,17 @@ function SkillForm({ open, onClose, skill, mode = 'create' }) {
         logError('SkillForm', 'Error fetching skill types:', error);
       });
       
-      // Fetch categories
-      fetchCategories({ page: 1, page_size: 100 }).then(() => {
+  // Fetch categories (handle permission denied gracefully)
+  fetchCategories(1, 100).then(() => {
         logInfo('SkillForm', 'Categories fetched successfully');
+        setCategoriesAccessDenied(false);
+        setCategoriesErrorMessage('');
       }).catch(error => {
         logError('SkillForm', 'Error fetching categories:', error);
+        if (error?.response?.status === 403) {
+          setCategoriesAccessDenied(true);
+          setCategoriesErrorMessage(buildViewDeniedMessage('categories'));
+        }
       });
       
       // Fetch languages
@@ -104,6 +131,18 @@ function SkillForm({ open, onClose, skill, mode = 'create' }) {
       });
     }
   }, [open, fetchSkillTypes, fetchCategories, fetchLanguages]);
+
+  // Reflect CategoryContext permission errors into local inline helper
+  useEffect(() => {
+    if (!open) return;
+    if (categoriesContextError) {
+      const msg = String(categoriesContextError).toLowerCase();
+      if (msg.includes('403') || msg.includes('forbidden') || msg.includes('permission')) {
+        setCategoriesAccessDenied(true);
+        setCategoriesErrorMessage(buildViewDeniedMessage('categories'));
+      }
+    }
+  }, [open, categoriesContextError]);
 
   // Auto-add default language in create mode when languages become available
   useEffect(() => {
@@ -190,8 +229,8 @@ function SkillForm({ open, onClose, skill, mode = 'create' }) {
             };
           }
           
-          // Add to language list if valid and not already added
-          if (langObj && !languageList.some(l => l.id === langObj.id)) {
+          // Add to language list if not already added
+          if (!languageList.some(l => l.id === langObj.id)) {
             languageList.push(langObj);
           }
           
@@ -797,16 +836,48 @@ function SkillForm({ open, onClose, skill, mode = 'create' }) {
       return false;
     });
 
+    // Error border styles for denied fields (kept consistent when disabled)
+    const skillTypeErrorSx = skillTypePerm.isDenied ? {
+      '& .MuiOutlinedInput-notchedOutline': {
+        borderColor: (theme) => theme.palette.error.main
+      },
+      '&:hover .MuiOutlinedInput-notchedOutline': {
+        borderColor: (theme) => theme.palette.error.main
+      },
+      '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': {
+        borderColor: (theme) => theme.palette.error.main
+      },
+      '& .MuiInputLabel-root.Mui-disabled': {
+        color: (theme) => theme.palette.error.main
+      }
+    } : undefined;
+
+    const categoriesErrorSx = (categoriesAccessDenied || categoriesPerm.isDenied) ? {
+      '& .MuiOutlinedInput-notchedOutline': {
+        borderColor: (theme) => theme.palette.error.main
+      },
+      '&:hover .MuiOutlinedInput-notchedOutline': {
+        borderColor: (theme) => theme.palette.error.main
+      },
+      '& .MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline': {
+        borderColor: (theme) => theme.palette.error.main
+      },
+      '& .MuiInputLabel-root.Mui-disabled': {
+        color: (theme) => theme.palette.error.main
+      }
+    } : undefined;
+
     return (
       <form>
         <Grid container spacing={2}>
-          <Grid item xs={12}>
+      <Grid item xs={12}>
             <FormControl
               fullWidth
               required
-              error={!!errors.type_code}
+              error={skillTypePerm.isDenied || !!errors.type_code}
               size="small"
-              disabled={isSubmitting || mode === 'delete'}
+              disabled={skillTypePerm.isDenied || isSubmitting || mode === 'delete'}
+              sx={skillTypeErrorSx}
             >
               <InputLabel id="skill-type-label">Skill Type</InputLabel>
               <Select
@@ -816,7 +887,7 @@ function SkillForm({ open, onClose, skill, mode = 'create' }) {
                 value={formData.type_code || ''}
                 onChange={handleChange}
                 label="Skill Type"
-                disabled={isSubmitting || mode === 'delete'}
+                disabled={skillTypePerm.isDenied || isSubmitting || mode === 'delete'}
               >
                 <MenuItem value="" disabled>
                   <em>Select a type</em>
@@ -840,36 +911,48 @@ function SkillForm({ open, onClose, skill, mode = 'create' }) {
                   </MenuItem>
                 )}
               </Select>
-              {errors.type_code && (
-                <FormHelperText>{errors.type_code}</FormHelperText>
+              {skillTypePerm.isDenied ? (
+                <FormHelperText>{skillTypePerm.message}</FormHelperText>
+              ) : (
+                errors.type_code && <FormHelperText>{errors.type_code}</FormHelperText>
               )}
             </FormControl>
           </Grid>
           
           <Grid item xs={12}>
-            <FormControl fullWidth sx={{ mb: 2 }} error={!!errors.categories}>
+            <FormControl
+              fullWidth
+              sx={[{ mb: 0.5 }, categoriesErrorSx]}
+              error={categoriesAccessDenied || categoriesPerm.isDenied || !!errors.categories}
+              size="small"
+            >
               <InputLabel id="categories-label">Categories</InputLabel>
               <Select
                 labelId="categories-label"
                 id="categories"
+                label="Categories"
                 multiple
                 value={selectedCategories}
                 onChange={handleCategoryChange}
                 renderValue={(selected) => (
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                    {selected.length === 0 ? (
-                      <em>No categories selected</em>
-                    ) : (
-                      selected.map((value) => {
-                        const category = allCategories.find(cat => cat.id === value);
-                        return (
-                          <Chip key={value} label={getCategoryDisplayName(category) || `Category ${value}`} />
-                        );
-                      })
-                    )}
-                  </Box>
+                  (categoriesAccessDenied || categoriesPerm.isDenied) ? (
+                    <em>Not available</em>
+                  ) : (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {selected.length === 0 ? (
+                        <em>No categories selected</em>
+                      ) : (
+                        selected.map((value) => {
+                          const category = allCategories.find(cat => cat.id === value);
+                          return (
+                            <Chip key={value} label={getCategoryDisplayName(category) || `Category ${value}`} />
+                          );
+                        })
+                      )}
+                    </Box>
+                  )
                 )}
-                disabled={isSubmitting || mode === 'delete'}
+                disabled={categoriesAccessDenied || categoriesPerm.isDenied || isSubmitting || mode === 'delete'}
               >
                 {loadingCategories ? (
                   <MenuItem disabled>
@@ -878,7 +961,7 @@ function SkillForm({ open, onClose, skill, mode = 'create' }) {
                       Loading categories...
                     </Box>
                   </MenuItem>
-        ) : allCategories.length === 0 ? (
+                ) : allCategories.length === 0 ? (
                   <MenuItem disabled>
           <em>No skill categories available</em>
                   </MenuItem>
@@ -893,7 +976,13 @@ function SkillForm({ open, onClose, skill, mode = 'create' }) {
                   ))
                 )}
               </Select>
-              {errors.categories && <FormHelperText>{errors.categories}</FormHelperText>}
+        {categoriesAccessDenied || categoriesPerm.isDenied ? (
+                <FormHelperText>
+          {categoriesErrorMessage || categoriesPerm.message}
+                </FormHelperText>
+              ) : (
+                errors.categories && <FormHelperText>{errors.categories}</FormHelperText>
+              )}
             </FormControl>
           </Grid>
           
@@ -1016,13 +1105,14 @@ function SkillForm({ open, onClose, skill, mode = 'create' }) {
           }}>
             Languages ({selectedLanguages.length} selected)
           </Typography>
-          <Button
+      <Button
             variant="outlined"
             size="small"
             startIcon={<AddIcon />}
             onClick={handleAddLanguage}
             disabled={
-              loadingLanguages || 
+        languagesPerm.isDenied ||
+        loadingLanguages || 
               isSubmitting || 
               loading || 
               !canAddMoreLanguages
@@ -1042,6 +1132,11 @@ function SkillForm({ open, onClose, skill, mode = 'create' }) {
           >
             Add Language
           </Button>
+          {languagesPerm.isDenied && (
+            <Typography variant="caption" color="error" sx={{ ml: 2 }}>
+              {languagesPerm.message}
+            </Typography>
+          )}
         </Box>
         
         {errors.languages && (
@@ -1158,7 +1253,7 @@ function SkillForm({ open, onClose, skill, mode = 'create' }) {
         )}
       </DialogContent>
       
-      <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid #f0f0f0' }}>
+  <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid #f0f0f0' }}>
         <Button 
           onClick={() => onClose(false)} 
           disabled={isSubmitting || loading}
@@ -1191,7 +1286,7 @@ function SkillForm({ open, onClose, skill, mode = 'create' }) {
         <Button 
           onClick={handleSubmit}
           variant="outlined"
-          disabled={isSubmitting || loading}
+          disabled={isSubmitting || loading || hasPermissionErrors}
           startIcon={isSubmitting ? <CircularProgress size={16} /> : 
             mode === 'create' ? <AddIcon fontSize="small" /> : 
             mode === 'edit' ? <SaveIcon fontSize="small" /> : 

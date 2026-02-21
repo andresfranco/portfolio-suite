@@ -1,9 +1,23 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { Box, IconButton, Tooltip, Chip, Stack, Typography, Avatar } from '@mui/material';
-import { Edit as EditIcon, Delete as DeleteIcon, PhotoLibrary as PhotoLibraryIcon, AttachFile as AttachFileIcon, ArrowUpward, ArrowDownward, Dashboard as DashboardIcon } from '@mui/icons-material';
+import { 
+  Box, 
+  IconButton, 
+  Tooltip, 
+  Chip, 
+  Stack, 
+  Typography, 
+  Avatar, 
+  Container,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button
+} from '@mui/material';
+import { Delete as DeleteIcon, PhotoLibrary as PhotoLibraryIcon, AttachFile as AttachFileIcon, ArrowUpward, ArrowDownward, Dashboard as DashboardIcon, InfoOutlined, Language as LanguageIcon } from '@mui/icons-material';
 import PortfolioForm from './PortfolioForm';
 import PortfolioImageForm from './PortfolioImageForm';
-import PortfolioData from './PortfolioData';
 import ReusableDataGrid from '../common/ReusableDataGrid';
 import ReusableFilters from '../common/ReusableFilters';
 import ReusablePagination from '../common/ReusablePagination';
@@ -11,6 +25,11 @@ import ErrorBoundary from '../common/ErrorBoundary';
 import { PortfolioProvider, usePortfolios } from '../../contexts/PortfolioContext';
 import SERVER_URL from '../common/BackendServerData';
 import { useNavigate } from 'react-router-dom';
+import ModuleGate from '../common/ModuleGate';
+import PermissionGate from '../common/PermissionGate';
+import { useAuthorization } from '../../contexts/AuthorizationContext';
+import { evaluateGridColumnAccess, evaluateFilterAccess } from '../../utils/accessControl';
+import { CONTAINER_PY, SECTION_PX, GRID_WRAPPER_PB } from '../common/layoutTokens';
 
 function PortfolioIndexContent() {
   const navigate = useNavigate();
@@ -28,12 +47,15 @@ function PortfolioIndexContent() {
     updatePagination
   } = usePortfolios();
 
+  // Authorization (must be initialized before any usage below)
+  const { hasPermission, hasAnyPermission, isSystemAdmin } = useAuthorization();
+
   const [sortModel, setSortModel] = useState([{ field: 'name', sort: 'asc' }]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isImageFormOpen, setIsImageFormOpen] = useState(false);
-  const [isPortfolioDataOpen, setIsPortfolioDataOpen] = useState(false);
   const [formMode, setFormMode] = useState(null);
   const [selectedPortfolio, setSelectedPortfolio] = useState(null);
+  const [errorDialog, setErrorDialog] = useState({ open: false, title: '', message: '' });
 
   // Define filter types with dynamic options - memoized to prevent recreation
   const FILTER_TYPES = useMemo(() => ({
@@ -48,6 +70,20 @@ function PortfolioIndexContent() {
       placeholder: 'Filter by description'
     }
   }), []);
+
+  // Filter access notices
+  const filterAccessNotices = React.useMemo(() => {
+    const authorization = { isSystemAdmin, hasPermission, hasAnyPermission };
+    const { noticesByType } = evaluateFilterAccess(
+      Object.keys(FILTER_TYPES),
+      {
+        name: { required: 'VIEW_PORTFOLIOS', moduleKey: 'portfolios' },
+        description: { required: 'VIEW_PORTFOLIOS', moduleKey: 'portfolios' }
+      },
+      authorization
+    );
+    return noticesByType;
+  }, [FILTER_TYPES, isSystemAdmin, hasPermission, hasAnyPermission]);
 
   // Initial fetch of portfolios
   useEffect(() => {
@@ -67,7 +103,6 @@ function PortfolioIndexContent() {
       return;
     }
     
-    console.log('PortfolioIndex - Filters changed, refetching data:', filters);
     const currentFilters = filters && Object.keys(filters).length > 0 ? filters : {};
     fetchPortfolios({
       page: pagination.page || 1,
@@ -78,7 +113,6 @@ function PortfolioIndexContent() {
   }, [filters, fetchPortfolios, pagination.page, pagination.pageSize]);
 
   const handlePaginationChange = (model) => {
-    console.log('PortfolioIndex - Pagination change:', model);
     const currentFilters = filters && Object.keys(filters).length > 0 ? filters : {};
     
     // Update context pagination
@@ -97,7 +131,6 @@ function PortfolioIndexContent() {
   };
 
   const handleSortModelChange = (newModel) => {
-    console.log('PortfolioIndex - Sort model change:', newModel);
     const updated = newModel.length > 0 ? [newModel[0]] : [{ field: 'name', sort: 'asc' }];
     setSortModel(updated);
     const currentFilters = filters && Object.keys(filters).length > 0 ? filters : {};
@@ -112,12 +145,10 @@ function PortfolioIndexContent() {
   };
 
   const handleFiltersChange = (newFilters) => {
-    console.log('PortfolioIndex - Filters changed:', newFilters);
     updateFilters(newFilters);
   };
 
   const handleSearch = (searchFilters) => {
-    console.log('PortfolioIndex - Search triggered with filters:', searchFilters);
     updateFilters(searchFilters);
     
     // Reset to first page when searching
@@ -136,7 +167,6 @@ function PortfolioIndexContent() {
 
   // Custom fetch function for ReusableDataGrid
   const customFetchData = useCallback(async (page, pageSize, sortModel, searchFilters) => {
-    console.log('PortfolioIndex - customFetchData called:', { page, pageSize, sortModel, searchFilters });
     
     const params = {
       page: page + 1, // Convert 0-indexed to 1-indexed
@@ -158,8 +188,10 @@ function PortfolioIndexContent() {
     };
   }, [fetchPortfolios]);
 
-  // Define columns for the grid
-  const columns = [
+  // (moved up)
+
+  // Base columns for the grid
+  const baseColumns = [
     { 
       field: 'name', 
       headerName: 'Portfolio Name', 
@@ -172,7 +204,7 @@ function PortfolioIndexContent() {
           variant="body2" 
           sx={{ 
             fontWeight: 500,
-            color: '#1976d2',
+            color: '#424242',
             fontSize: '0.875rem'
           }}
         >
@@ -244,10 +276,10 @@ function PortfolioIndexContent() {
         </Box>
       )
     },
-    {
+  {
       field: 'actions',
       headerName: 'Actions',
-      width: 220,
+      width: 260,
       sortable: false,
       disableColumnMenu: true,
       renderCell: (params) => (
@@ -264,34 +296,60 @@ function PortfolioIndexContent() {
               <DashboardIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-          <Tooltip title="Edit Portfolio">
-            <IconButton 
-              onClick={() => handleEditClick(params.row)} 
-              size="small"
-              sx={{ 
-                color: '#1976d2',
-                '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.04)' }
-              }}
-            >
-              <EditIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Delete Portfolio">
-            <IconButton 
-              onClick={() => handleDeleteClick(params.row)} 
-              size="small" 
-              sx={{ 
-                color: '#e53935',
-                '&:hover': { backgroundColor: 'rgba(229, 57, 53, 0.04)' }
-              }}
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+          <PermissionGate permission="EDIT_CONTENT">
+            <Tooltip title="Edit Portfolio Website">
+              <IconButton 
+                onClick={(e) => handleEditWebsiteClick(params.row, e)} 
+                size="small"
+                sx={{ 
+                  color: '#4caf50',
+                  '&:hover': { backgroundColor: 'rgba(76, 175, 80, 0.04)' }
+                }}
+              >
+                <LanguageIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </PermissionGate>
+          <PermissionGate permission="DELETE_PORTFOLIO">
+            <Tooltip title="Delete Portfolio">
+              <IconButton 
+                onClick={() => handleDeleteClick(params.row)} 
+                size="small" 
+                sx={{ 
+                  color: '#e53935',
+                  '&:hover': { backgroundColor: 'rgba(229, 57, 53, 0.04)' }
+                }}
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </PermissionGate>
         </Box>
       )
     }
   ];
+
+  // Permission-based column filtering and friendly denied titles
+  const COLUMN_ACCESS_MAP = React.useMemo(() => ({
+    name: { required: 'VIEW_PORTFOLIOS', moduleKey: 'portfolios' },
+    description: { required: 'VIEW_PORTFOLIOS', moduleKey: 'portfolios' },
+    actions: { required: ['EDIT_PORTFOLIO', 'DELETE_PORTFOLIO', 'MANAGE_PORTFOLIOS'], moduleKey: 'portfolios' }
+  }), []);
+
+  const { allowedColumns, deniedColumns } = React.useMemo(() => {
+    const authorization = { isSystemAdmin, hasPermission, hasAnyPermission };
+    return evaluateGridColumnAccess(COLUMN_ACCESS_MAP, authorization);
+  }, [isSystemAdmin, hasPermission, hasAnyPermission, COLUMN_ACCESS_MAP]);
+
+  const columns = React.useMemo(() => {
+    const hideActions = deniedColumns.length > 0;
+    return baseColumns.filter(col => allowedColumns.has(col.field) && (!hideActions || col.field !== 'actions'));
+  }, [baseColumns, allowedColumns, deniedColumns]);
+
+  const deniedColumnTitles = React.useMemo(() => {
+    const titleFor = (field) => baseColumns.find(c => c.field === field)?.headerName || field;
+    return Array.from(new Set(deniedColumns.map(titleFor)));
+  }, [deniedColumns, baseColumns]);
 
   // Handle create button click
   const handleCreateClick = () => {
@@ -327,8 +385,68 @@ function PortfolioIndexContent() {
 
   // Handle portfolio data button click
   const handlePortfolioDataClick = (portfolio) => {
-    setSelectedPortfolio(portfolio);
-    setIsPortfolioDataOpen(true);
+    navigate(`/portfolios/${portfolio.id}`);
+  };
+
+  // Handle edit website button click - opens website in edit mode
+  const handleEditWebsiteClick = async (portfolio, event) => {
+    // Prevent default behavior and stop propagation
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
+    
+    try {
+      // Call backend API to generate a JWT token from the cookie session
+      const response = await fetch(`${SERVER_URL}/api/auth/generate-website-token`, {
+        method: 'GET',
+        credentials: 'include', // Important: include cookies
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Failed to generate token' }));
+        setErrorDialog({
+          open: true,
+          title: 'Failed to generate website token',
+          message: errorData.detail || 'Failed to generate authentication token. Please make sure you are logged in and have the necessary permissions.'
+        });
+        return;
+      }
+
+      const data = await response.json();
+      const token = data.access_token;
+
+
+      if (!token) {
+        setErrorDialog({
+          open: true,
+          title: 'No token received',
+          message: 'The server did not return an authentication token. Please try again or contact support.'
+        });
+        return;
+      }
+
+      // Construct website URL with edit mode parameters
+      const websiteUrl = process.env.REACT_APP_WEBSITE_URL || 'http://localhost:3000';
+      const editUrl = `${websiteUrl}?edit=true&token=${encodeURIComponent(token)}&portfolio_id=${portfolio.id}`;
+
+
+      // Open in new tab
+      window.open(editUrl, '_blank');
+
+    } catch (error) {
+      console.error('Error generating website token:', error);
+      setErrorDialog({
+        open: true,
+        title: 'Error',
+        message: error.message || 'An unexpected error occurred. Please try again or contact support.'
+      });
+    }
   };
 
   // Handle form close
@@ -361,11 +479,6 @@ function PortfolioIndexContent() {
     }
   };
 
-  // Handle portfolio data close
-  const handlePortfolioDataClose = () => {
-    setIsPortfolioDataOpen(false);
-    setSelectedPortfolio(null);
-  };
 
   if (error) {
     return (
@@ -376,8 +489,8 @@ function PortfolioIndexContent() {
   }
 
   return (
-    <Box sx={{ height: '100%', width: '100%', p: 2 }}>
-      <ReusableDataGrid
+    <Box sx={{ height: '100%', width: '100%', px: SECTION_PX, pb: GRID_WRAPPER_PB }}>
+  <ReusableDataGrid
         title="Portfolios Management"
         rows={portfolios}
         columns={columns}
@@ -390,21 +503,28 @@ function PortfolioIndexContent() {
           total: pagination.total || 0
         }}
         onPaginationChange={handlePaginationChange}
-        sortModel={sortModel}
-        onSortModelChange={handleSortModelChange}
-        onCreateClick={handleCreateClick}
-        createButtonText="Portfolio"
+  sortModel={sortModel}
+  onSortModelChange={handleSortModelChange}
         currentFilters={filters}
-        FiltersComponent={() => (
+    FiltersComponent={() => (
           <ReusableFilters
             filterTypes={FILTER_TYPES}
             filters={filters}
             onFiltersChange={handleFiltersChange}
             onSearch={handleSearch}
+      accessNotices={filterAccessNotices}
           />
         )}
         onFiltersChange={handleFiltersChange}
         onSearch={handleSearch}
+        topNotice={deniedColumnTitles.length > 0 ? (
+          <Box sx={{ mt: 0.5, mb: 1, display: 'inline-flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
+            <InfoOutlined sx={{ fontSize: 16 }} />
+            <Typography sx={{ fontSize: '12px', lineHeight: 1.4 }}>
+              {`You do not have permission to view the columns ${deniedColumnTitles.join(', ')}`}
+            </Typography>
+          </Box>
+        ) : null}
         PaginationComponent={(props) => (
           <ReusablePagination
             pagination={{
@@ -415,7 +535,7 @@ function PortfolioIndexContent() {
             onPaginationChange={handlePaginationChange}
           />
         )}
-        defaultPageSize={pagination.pageSize}
+  defaultPageSize={pagination.pageSize}
         uiVariant="categoryIndex"
         paginationPosition="top"
         initialState={{
@@ -447,6 +567,10 @@ function PortfolioIndexContent() {
             backgroundColor: '#f8f9fa'
           }
         }}
+        {...(hasAnyPermission(['CREATE_PORTFOLIO', 'MANAGE_PORTFOLIOS']) ? {
+          createButtonText: 'Portfolio',
+          onCreateClick: handleCreateClick
+        } : {})}
       />
 
       {isFormOpen && (
@@ -466,25 +590,47 @@ function PortfolioIndexContent() {
         />
       )}
 
-      {isPortfolioDataOpen && (
-        <PortfolioData
-          open={isPortfolioDataOpen}
-          onClose={handlePortfolioDataClose}
-          portfolioId={selectedPortfolio?.id}
-          portfolioName={selectedPortfolio?.name}
-        />
-      )}
+
+      {/* Error Dialog */}
+      <Dialog
+        open={errorDialog.open}
+        onClose={() => setErrorDialog({ open: false, title: '', message: '' })}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ color: 'error.main' }}>
+          {errorDialog.title}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {errorDialog.message}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => setErrorDialog({ open: false, title: '', message: '' })}
+            variant="contained"
+            color="primary"
+          >
+            OK
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
 
 function PortfolioIndex() {
   return (
-    <PortfolioProvider>
-      <ErrorBoundary>
-        <PortfolioIndexContent />
-      </ErrorBoundary>
-    </PortfolioProvider>
+    <ModuleGate moduleName="portfolios" showError={true}>
+      <PortfolioProvider>
+        <ErrorBoundary>
+          <Container maxWidth={false} disableGutters sx={{ py: CONTAINER_PY }}>
+            <PortfolioIndexContent />
+          </Container>
+        </ErrorBoundary>
+      </PortfolioProvider>
+    </ModuleGate>
   );
 }
 

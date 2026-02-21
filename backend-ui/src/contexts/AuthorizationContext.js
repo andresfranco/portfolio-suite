@@ -4,6 +4,23 @@ import { logInfo, logError } from '../utils/logger';
 
 const AuthorizationContext = createContext();
 
+// Module-specific permission mapping (static - does not depend on component state)
+const MODULE_PERMISSIONS = {
+  'users': ['VIEW_USERS', 'CREATE_USER', 'EDIT_USER', 'DELETE_USER', 'MANAGE_USERS'],
+  'roles': ['VIEW_ROLES', 'CREATE_ROLE', 'EDIT_ROLE', 'DELETE_ROLE', 'MANAGE_ROLES'],
+  'permissions': ['VIEW_PERMISSIONS', 'CREATE_PERMISSION', 'EDIT_PERMISSION', 'DELETE_PERMISSION', 'MANAGE_PERMISSIONS'],
+  'categories': ['VIEW_CATEGORIES', 'CREATE_CATEGORY', 'EDIT_CATEGORY', 'DELETE_CATEGORY', 'MANAGE_CATEGORIES'],
+  'categorytypes': ['VIEW_CATEGORY_TYPES', 'CREATE_CATEGORY_TYPE', 'EDIT_CATEGORY_TYPE', 'DELETE_CATEGORY_TYPE', 'MANAGE_CATEGORY_TYPES'],
+  'portfolios': ['VIEW_PORTFOLIOS', 'CREATE_PORTFOLIO', 'EDIT_PORTFOLIO', 'DELETE_PORTFOLIO', 'MANAGE_PORTFOLIOS'],
+  'projects': ['VIEW_PROJECTS', 'CREATE_PROJECT', 'EDIT_PROJECT', 'DELETE_PROJECT', 'MANAGE_PROJECTS'],
+  'experiences': ['VIEW_EXPERIENCES', 'CREATE_EXPERIENCE', 'EDIT_EXPERIENCE', 'DELETE_EXPERIENCE', 'MANAGE_EXPERIENCES'],
+  'skills': ['VIEW_SKILLS', 'CREATE_SKILL', 'EDIT_SKILL', 'DELETE_SKILL', 'MANAGE_SKILLS'],
+  'skilltypes': ['VIEW_SKILL_TYPES', 'CREATE_SKILL_TYPE', 'EDIT_SKILL_TYPE', 'DELETE_SKILL_TYPE', 'MANAGE_SKILL_TYPES'],
+  'languages': ['VIEW_LANGUAGES', 'CREATE_LANGUAGE', 'EDIT_LANGUAGE', 'DELETE_LANGUAGE', 'MANAGE_LANGUAGES'],
+  'sections': ['VIEW_SECTIONS', 'CREATE_SECTION', 'EDIT_SECTION', 'DELETE_SECTION', 'MANAGE_SECTIONS'],
+  'translations': ['VIEW_TRANSLATIONS', 'CREATE_TRANSLATION', 'EDIT_TRANSLATION', 'DELETE_TRANSLATION', 'MANAGE_TRANSLATIONS']
+};
+
 export const useAuthorization = () => {
   const context = useContext(AuthorizationContext);
   if (!context) {
@@ -18,30 +35,33 @@ export const AuthorizationProvider = ({ children }) => {
   const [isSystemAdminUser, setIsSystemAdminUser] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [authToken, setAuthToken] = useState(localStorage.getItem('accessToken'));
+  const [authToken, setAuthToken] = useState(() => {
+    // With httpOnly cookies, we check the isAuthenticated flag instead of token
+    return localStorage.getItem('isAuthenticated') === 'true' ? 'cookie-based' : null;
+  });
 
-  // System admin users who bypass all permission checks
-  const SYSTEM_ADMIN_USERS = ['systemadmin'];
   const SYSTEM_ADMIN_PERMISSION = 'SYSTEM_ADMIN';
 
-  // Watch for token changes in localStorage
+  // Watch for authentication changes in localStorage
   useEffect(() => {
-    const checkTokenChange = () => {
-      const currentToken = localStorage.getItem('accessToken');
-      if (currentToken !== authToken) {
-        setAuthToken(currentToken);
+    const checkAuthChange = () => {
+      const isAuth = localStorage.getItem('isAuthenticated') === 'true';
+      const effectiveToken = isAuth ? 'cookie-based' : null;
+      if (effectiveToken !== authToken) {
+        setAuthToken(effectiveToken);
       }
     };
 
-    // Check for token changes less frequently and only if we currently have a token
-    // If we don't have a token, we don't need to poll as frequently
+    // Check for auth changes less frequently and only if we currently have auth
+    // If we don't have auth, we don't need to poll as frequently
     const pollInterval = authToken ? 2000 : 5000; // 2 seconds if authenticated, 5 seconds if not
-    const interval = setInterval(checkTokenChange, pollInterval);
+    const interval = setInterval(checkAuthChange, pollInterval);
     
     // Also listen for storage events (though these only fire in other tabs)
     const handleStorageChange = (e) => {
-      if (e.key === 'accessToken') {
-        setAuthToken(e.newValue);
+      if (e.key === 'isAuthenticated') {
+        const isAuth = e.newValue === 'true';
+        setAuthToken(isAuth ? 'cookie-based' : null);
       }
     };
     
@@ -62,14 +82,11 @@ export const AuthorizationProvider = ({ children }) => {
         
         // Get current user permissions from the API
         const response = await api.get('/api/users/me/permissions');
-        console.log(`[AUTH DEBUG] API Response:`, response.data);
         
         setPermissions(response.data.permissions || []);
         setRoles(response.data.roles || []);
         setIsSystemAdminUser(response.data.is_systemadmin || false);
         
-        console.log(`[AUTH DEBUG] Loaded permissions:`, response.data.permissions || []);
-        console.log(`[AUTH DEBUG] System admin flag:`, response.data.is_systemadmin || false);
         
         logInfo('User permissions loaded:', response.data.permissions?.length || 0, 'permissions');
         logInfo('System admin status:', response.data.is_systemadmin);
@@ -84,7 +101,7 @@ export const AuthorizationProvider = ({ children }) => {
       }
     };
 
-    if (authToken) {
+  if (authToken) {
       logInfo('Auth token detected, loading permissions...');
       loadUserPermissions();
     } else {
@@ -105,18 +122,15 @@ export const AuthorizationProvider = ({ children }) => {
     
     // Primary check: use the is_systemadmin flag from the backend
     if (isSystemAdminUser) {
-      console.log(`[AUTH DEBUG] isSystemAdmin(): TRUE (via backend flag)`);
       return true;
     }
     
     // Fallback: check if user has SYSTEM_ADMIN permission
     const hasSystemAdminPerm = permissions.includes(SYSTEM_ADMIN_PERMISSION);
     if (hasSystemAdminPerm) {
-      console.log(`[AUTH DEBUG] isSystemAdmin(): TRUE (via SYSTEM_ADMIN permission)`);
       return true;
     }
     
-    console.log(`[AUTH DEBUG] isSystemAdmin(): FALSE (isSystemAdminUser: ${isSystemAdminUser}, hasSystemAdminPerm: ${hasSystemAdminPerm})`);
     return false;
   }, [isSystemAdminUser, permissions, authToken]);
 
@@ -131,13 +145,11 @@ export const AuthorizationProvider = ({ children }) => {
     
     // System admin bypass
     if (isSystemAdmin()) {
-      console.log(`[AUTH DEBUG] hasPermission(${permission}): TRUE (system admin bypass)`);
       return true;
     }
     
     // Check specific permission directly
     if (permissions.includes(permission)) {
-      console.log(`[AUTH DEBUG] hasPermission(${permission}): TRUE (direct permission)`);
       return true;
     }
     
@@ -163,16 +175,12 @@ export const AuthorizationProvider = ({ children }) => {
     // Check if user has a manage permission that grants the required permission
     for (const [managePerm, grantedPermissions] of Object.entries(managePermissions)) {
       if (permissions.includes(managePerm) && grantedPermissions.includes(permission)) {
-        console.log(`[AUTH DEBUG] hasPermission(${permission}): TRUE (via manage permission ${managePerm})`);
         return true;
       }
     }
     
     // Only log detailed debug info if there's an auth token (avoid spam when logged out)
     if (authToken) {
-      console.log(`[AUTH DEBUG] hasPermission(${permission}): FALSE (no permission found)`);
-      console.log(`[AUTH DEBUG] Current permissions:`, permissions);
-      console.log(`[AUTH DEBUG] System admin status:`, isSystemAdmin());
     }
     return false;
   }, [permissions, isSystemAdmin, authToken]);
@@ -209,28 +217,11 @@ export const AuthorizationProvider = ({ children }) => {
     return roles.some(role => role.name === roleName);
   }, [roles, isSystemAdmin]);
 
-  // Module-specific permission mapping
-  const modulePermissions = {
-    'users': ['VIEW_USERS', 'CREATE_USER', 'EDIT_USER', 'DELETE_USER', 'MANAGE_USERS'],
-    'roles': ['VIEW_ROLES', 'CREATE_ROLE', 'EDIT_ROLE', 'DELETE_ROLE', 'MANAGE_ROLES'],
-    'permissions': ['VIEW_PERMISSIONS', 'CREATE_PERMISSION', 'EDIT_PERMISSION', 'DELETE_PERMISSION', 'MANAGE_PERMISSIONS'],
-    'categories': ['VIEW_CATEGORIES', 'CREATE_CATEGORY', 'EDIT_CATEGORY', 'DELETE_CATEGORY', 'MANAGE_CATEGORIES'],
-    'categorytypes': ['VIEW_CATEGORY_TYPES', 'CREATE_CATEGORY_TYPE', 'EDIT_CATEGORY_TYPE', 'DELETE_CATEGORY_TYPE', 'MANAGE_CATEGORY_TYPES'],
-    'portfolios': ['VIEW_PORTFOLIOS', 'CREATE_PORTFOLIO', 'EDIT_PORTFOLIO', 'DELETE_PORTFOLIO', 'MANAGE_PORTFOLIOS'],
-    'projects': ['VIEW_PROJECTS', 'CREATE_PROJECT', 'EDIT_PROJECT', 'DELETE_PROJECT', 'MANAGE_PROJECTS'],
-    'experiences': ['VIEW_EXPERIENCES', 'CREATE_EXPERIENCE', 'EDIT_EXPERIENCE', 'DELETE_EXPERIENCE', 'MANAGE_EXPERIENCES'],
-    'skills': ['VIEW_SKILLS', 'CREATE_SKILL', 'EDIT_SKILL', 'DELETE_SKILL', 'MANAGE_SKILLS'],
-    'skilltypes': ['VIEW_SKILL_TYPES', 'CREATE_SKILL_TYPE', 'EDIT_SKILL_TYPE', 'DELETE_SKILL_TYPE', 'MANAGE_SKILL_TYPES'],
-    'languages': ['VIEW_LANGUAGES', 'CREATE_LANGUAGE', 'EDIT_LANGUAGE', 'DELETE_LANGUAGE', 'MANAGE_LANGUAGES'],
-    'sections': ['VIEW_SECTIONS', 'CREATE_SECTION', 'EDIT_SECTION', 'DELETE_SECTION', 'MANAGE_SECTIONS'],
-    'translations': ['VIEW_TRANSLATIONS', 'CREATE_TRANSLATION', 'EDIT_TRANSLATION', 'DELETE_TRANSLATION', 'MANAGE_TRANSLATIONS']
-  };
-
   // Check if user can access module
   const canAccessModule = useCallback((moduleName) => {
     if (!moduleName) return false;
-    
-    const requiredPermissions = modulePermissions[moduleName.toLowerCase()];
+
+    const requiredPermissions = MODULE_PERMISSIONS[moduleName.toLowerCase()];
     if (!requiredPermissions) return false;
 
     // User needs at least one permission for the module (typically VIEW)
@@ -267,12 +258,13 @@ export const AuthorizationProvider = ({ children }) => {
     }
   }, []);
 
-  // Force token check (useful for login scenarios)
+  // Force auth check (useful for login scenarios)
   const checkAuthState = useCallback(() => {
-    const currentToken = localStorage.getItem('accessToken');
-    if (currentToken !== authToken) {
-      logInfo('Forcing auth state check, token changed');
-      setAuthToken(currentToken);
+    const isAuth = localStorage.getItem('isAuthenticated') === 'true';
+    const effectiveToken = isAuth ? 'cookie-based' : null;
+    if (effectiveToken !== authToken) {
+      logInfo('Forcing auth state check, authentication changed');
+      setAuthToken(effectiveToken);
     }
   }, [authToken]);
 

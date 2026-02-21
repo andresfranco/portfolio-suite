@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Box, Typography, Button, Stack, Alert, CircularProgress } from '@mui/material';
+import { HEADER_SPACER_MT, HEADER_SPACER_MB, HEADER_TOP_PT, CONTROL_BAR_MB } from './layoutTokens';
 import { DataGrid } from '@mui/x-data-grid';
 import SERVER_URL from './BackendServerData';
 import { logError, logInfo } from '../../utils/logger';
 import { isEqual } from 'lodash';
 import AddIcon from '@mui/icons-material/Add';
+import { ArrowUpward, ArrowDownward } from '@mui/icons-material';
 
 /**
  * ReusableDataGrid - A configurable grid component that can be used across the application
@@ -65,6 +67,9 @@ function ReusableDataGrid({
   uiVariant = 'default',
   gridSx = {},
   disableRowSelectionOnClick,
+  topNotice,
+  standardizeHeaders = true,
+  disableColumnMenu,
 }) {
   const isExternalDataMode = Boolean(rows !== undefined);
   const [data, setData] = useState([]);
@@ -101,12 +106,6 @@ function ReusableDataGrid({
         
         // Only update if values actually changed to avoid infinite loops
         if (prev.pageSize !== newModel.pageSize) {
-          console.log('ReusableDataGrid - Syncing pagination model with external data:', {
-            previous: prev,
-            new: newModel,
-            defaultPageSize,
-            reason: 'pageSize prop changed'
-          });
           return newModel;
         }
         
@@ -216,15 +215,9 @@ function ReusableDataGrid({
   }, [isExternalDataMode, onFiltersChange, currentFilters, filters]);
 
   const handlePaginationModelChange = useCallback((newModel) => {
-    console.log('ReusableDataGrid - handlePaginationModelChange called:', {
-      newModel,
-      isExternalDataMode,
-      currentPaginationModel: paginationModel
-    });
     
     setPaginationModel(newModel);
     if (onPaginationModelChange) {
-      console.log('ReusableDataGrid - Calling external onPaginationModelChange');
       onPaginationModelChange(newModel);
     }
   }, [onPaginationModelChange, isExternalDataMode, paginationModel]);
@@ -269,16 +262,106 @@ function ReusableDataGrid({
     }
   }, [isExternalDataMode, paginationModel, displayTotal]);
 
+  // Canvas context for measuring text widths (used for auto-sizing columns)
+  const canvasRef = useRef(null);
+  const getMeasureCtx = useCallback(() => {
+    if (!canvasRef.current) {
+      const canvas = document.createElement('canvas');
+      canvasRef.current = canvas.getContext('2d');
+    }
+    const ctx = canvasRef.current;
+    // Approximate header font from RoleIndex
+    ctx.font = "500 13px 'Roboto','Helvetica','Arial',sans-serif";
+    return ctx;
+  }, []);
+
+  // Auto-size columns (minWidth) and attach standardized renderHeader when missing
+  const processedColumns = useMemo(() => {
+    const ctx = standardizeHeaders ? getMeasureCtx() : null;
+    const sampleRows = Array.isArray(displayData) ? displayData.slice(0, 50) : [];
+
+    return (columns || []).map((col) => {
+      let next = { ...col };
+
+      // Add a default standardized renderHeader if not provided
+      if (standardizeHeaders && !next.renderHeader) {
+        next.renderHeader = (params) => {
+          // Determine if this column is currently sorted
+          const sorted = (sortModel && sortModel.length > 0 && sortModel[0].field === params.field) ? sortModel[0].sort : null;
+          return (
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <Typography sx={{ fontWeight: 500, fontSize: '13px', color: '#505050' }}>
+                {params.colDef.headerName || params.field}
+              </Typography>
+              {sorted && (
+                <Box component="span" sx={{ display: 'inline-flex', ml: 0.5 }}>
+                  {sorted === 'asc' ? (
+                    <ArrowUpward sx={{ fontSize: '18px', color: '#1976d2' }} />
+                  ) : (
+                    <ArrowDownward sx={{ fontSize: '18px', color: '#1976d2' }} />
+                  )}
+                </Box>
+              )}
+            </Box>
+          );
+        };
+      }
+
+      // Heuristic auto min-width to fit header/content text when possible
+      if (standardizeHeaders) {
+        const hasExplicitWidth = typeof next.width === 'number';
+        const isActions = next.field === 'actions';
+        if (!hasExplicitWidth && !isActions && ctx) {
+          const headerLabel = String(next.headerName || next.field || '')
+            .replace(/</g, '').replace(/>/g, '');
+          const headerWidth = ctx.measureText(headerLabel).width;
+
+          // Measure sample content widths as strings
+          let contentWidth = 0;
+          for (const row of sampleRows) {
+            let v = row?.[next.field];
+            if (v === null || v === undefined) continue;
+            // Render booleans/objects/arrays sensibly
+            if (typeof v === 'boolean') v = v ? 'Yes' : 'No';
+            else if (Array.isArray(v)) v = v.join(', ');
+            else if (typeof v === 'object') v = (v.name || v.code || JSON.stringify(v));
+            const w = ctx.measureText(String(v)).width;
+            if (w > contentWidth) contentWidth = w;
+          }
+
+          // Base padding inside cells + sort icon space
+          const padding = 32; // left+right cell padding
+          const iconAllowance = 18 + 6; // icon size + gap when sorted
+          const computed = Math.max(headerWidth + iconAllowance, contentWidth) + padding;
+
+          // Clamp to reasonable range
+          const min = 80;
+          const max = 420;
+          const finalMin = Math.min(Math.max(Math.ceil(computed), min), max);
+
+          // Only set minWidth if larger than any existing minWidth
+          if (!next.minWidth || next.minWidth < finalMin) {
+            next.minWidth = finalMin;
+          }
+        }
+      }
+
+      return next;
+    });
+  }, [columns, displayData, sortModel, getMeasureCtx, standardizeHeaders]);
+
   const CustomToolbar = useMemo(() => {
     return ({ title, createButtonText, onCreateClick, FilterComponent, filters, handleFiltersChange, handleSearch, PaginationComponent, paginationData, handlePaginationChange, uiVariant }) => {
       const categoryStyle = uiVariant === 'categoryIndex';
       return (
-        <Box>
+  <Box sx={{ pt: title ? HEADER_TOP_PT : 0 }}>
           <Stack spacing={0}>
             {title && (
-              <Box sx={{ p: 0, pb: 0 }}>
-                <Typography variant="h5" sx={{ fontWeight: 600, color: '#1976d2', mb: 1, letterSpacing: '0.015em' }}>{title}</Typography>
-                <Box sx={{ height: '2px', width: '100%', bgcolor: '#1976d2', opacity: categoryStyle ? 0.7 : 1, mb: categoryStyle ? 2 : 0 }} />
+              <Box sx={{ p: 0, pb: 1 }}>
+                <Typography variant="h5" sx={{ fontWeight: 600, color: '#1976d2', letterSpacing: '0.015em' }}>{title}</Typography>
+                <Box sx={{ height: '2px', width: '100%', bgcolor: '#1976d2', opacity: categoryStyle ? 0.7 : 1, mt: 1, mb: categoryStyle ? 2 : 1 }} />
+                {/* Standardized spacer under the header to mirror UserIndex; use height to avoid margin collapse */}
+                <Box sx={{ height: (theme) => theme.spacing(HEADER_SPACER_MT + HEADER_SPACER_MB) }} />
               </Box>
             )}
             {FilterComponent && (
@@ -287,7 +370,7 @@ function ReusableDataGrid({
               </Box>
             )}
             {(onCreateClick || (PaginationComponent && paginationPosition === 'top')) && (
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', py: 1, px: 0, mt: 1, mb: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', py: 1, px: 0, mt: 1, mb: CONTROL_BAR_MB }}>
                 {onCreateClick ? (
                   <Button variant="outlined" size="small" onClick={onCreateClick} startIcon={<AddIcon fontSize="small" />} sx={{ textTransform: 'none' }}>
                     New {createButtonText}
@@ -371,7 +454,7 @@ function ReusableDataGrid({
       width: '100%',
       maxWidth: '100%',
       gap: 0, 
-      backgroundColor: uiVariant === 'categoryIndex' ? 'white' : 'transparent',
+  backgroundColor: 'white',
     }}>
       <CustomToolbar
         title={title}
@@ -387,6 +470,12 @@ function ReusableDataGrid({
         uiVariant={uiVariant}
       />
 
+      {topNotice && (
+        <Box sx={{ px: 0, mb: 1 }}>
+          {topNotice}
+        </Box>
+      )}
+
       {displayLoading && !displayData.length ? (
         <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
           <CircularProgress size={60} thickness={4} />
@@ -397,12 +486,13 @@ function ReusableDataGrid({
           {error && <Alert severity="error" sx={{ mx: 0, mb: 0 }}>{error}</Alert>}
           
           <Box sx={{ flex: 1, px: 0, pb: 0, width: '100%', maxWidth: '100%' }}>
-            <Box sx={{ height: 'auto', display: 'flex', flexDirection: 'column', borderRadius: '0px', overflow: 'hidden', width: '100%' }}>
+            <Box sx={{ height: 'auto', display: 'flex', flexDirection: 'column', borderRadius: 0, overflow: 'hidden', width: '100%' }}>
               <DataGrid
                 rows={displayData}
-                columns={columns}
+                columns={processedColumns}
                 rowCount={displayTotal}
                 loading={displayLoading}
+                disableColumnMenu={Boolean(disableColumnMenu)}
                 paginationModel={paginationModel}
                 onPaginationModelChange={handlePaginationModelChange}
                 sortModel={sortModel}
@@ -416,11 +506,13 @@ function ReusableDataGrid({
                   flex: 1,
                   width: '100%',
                   border: 'none',
-                  backgroundColor: uiVariant === 'categoryIndex' ? 'white' : 'rgba(250, 250, 250, 0.8)',
+                  backgroundColor: 'white',
                   '.MuiDataGrid-columnHeaders': {
-                    backgroundColor: uiVariant === 'categoryIndex' ? 'white' : 'rgba(250, 250, 250, 0.8)',
+                    backgroundColor: 'rgba(250, 250, 250, 0.8)',
                     color: '#505050',
                     borderBottom: '1px solid #e0e0e0',
+                    borderTopLeftRadius: '5px',
+                    borderTopRightRadius: '5px',
                   },
                   '.MuiDataGrid-row': {
                     backgroundColor: 'white',
@@ -429,6 +521,9 @@ function ReusableDataGrid({
                   '.MuiDataGrid-cell': {
                     borderBottom: '1px solid #f5f5f5',
                   },
+                  // Hide native sort icons and icon buttons to mirror RoleIndex
+                  '.MuiDataGrid-iconButtonContainer': { display: 'none', visibility: 'hidden', width: 0, opacity: 0 },
+                  '.MuiDataGrid-sortIcon': { display: 'none', visibility: 'hidden', opacity: 0 },
                   '& .MuiDataGrid-footerContainer': {
                     display: 'none',
                   },
@@ -447,7 +542,7 @@ function ReusableDataGrid({
           display: 'flex', 
           justifyContent: 'flex-end', 
           width: '100%',
-          backgroundColor: uiVariant === 'categoryIndex' ? 'white' : 'transparent',
+          backgroundColor: 'white',
         }}>
           <PaginationComponent
             pagination={effectivePaginationData}

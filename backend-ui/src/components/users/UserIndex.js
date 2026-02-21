@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Box, IconButton, Tooltip, Chip, Alert, CircularProgress, Typography, Container, Button, Stack } from '@mui/material';
+import { CONTAINER_PY, SECTION_PX, GRID_WRAPPER_PB } from '../common/layoutTokens';
 import { Edit as EditIcon, Delete as DeleteIcon, Add, KeyboardArrowLeft, KeyboardArrowRight, ArrowUpward, ArrowDownward, Refresh as RefreshIcon, Visibility as VisibilityIcon } from '@mui/icons-material';
 import UserForm from './UserForm';
 import UserFilters from './UserFilters';
@@ -18,31 +19,35 @@ import DialogTitle from '@mui/material/DialogTitle';
 // Custom pagination component with a native select
 const CustomPagination = (props) => {
   const { pagination, pageSizeOptions = [5, 10, 15, 20, 25], onPaginationChange } = props;
-  
+
+  // Normalize pagination keys from shared grid (page/pageSize) or legacy (page/page_size)
+  const currentPage = typeof pagination.page === 'number' ? pagination.page : 0;
+  const currentPageSize = typeof pagination.pageSize === 'number'
+    ? pagination.pageSize
+    : (typeof pagination.page_size === 'number' ? pagination.page_size : (pageSizeOptions?.[0] || 10));
+  const totalItems = typeof pagination.total === 'number' ? pagination.total : 0;
+
   // Use a ref to maintain selected page size across re-renders
-  const selectedPageSizeRef = useRef(pagination.page_size);
+  const selectedPageSizeRef = useRef(currentPageSize);
   
   // Add a ref to track the last change to prevent duplicate calls
   const lastChangeRef = useRef(null);
   
   // Update ref when pagination changes from parent
   useEffect(() => {
-    if (pagination.page_size && pagination.page_size !== selectedPageSizeRef.current) {
-      console.log('CustomPagination - Syncing selectedPageSizeRef with pagination.page_size:', pagination.page_size);
-      selectedPageSizeRef.current = pagination.page_size;
+    if (currentPageSize && currentPageSize !== selectedPageSizeRef.current) {
+      selectedPageSizeRef.current = currentPageSize;
     }
-  }, [pagination.page_size]);
+  }, [currentPageSize]);
   
   const handleChangePageSize = (e) => {
     const newPageSize = parseInt(e.target.value, 10);
     
     // Skip if same size already selected (prevents duplicate calls)
     if (newPageSize === selectedPageSizeRef.current) {
-      console.log('CustomPagination - Skipping duplicate page size change:', newPageSize);
       return;
     }
     
-    console.log('CustomPagination - handleChangePageSize - Selected new page size:', newPageSize);
     
     // Update our ref immediately for UI consistency
     selectedPageSizeRef.current = newPageSize;
@@ -52,7 +57,6 @@ const CustomPagination = (props) => {
     
     // Check if this is a duplicate change
     if (lastChangeRef.current === changeKey) {
-      console.log('CustomPagination - Skipping duplicate pagination change');
       return;
     }
     
@@ -61,10 +65,6 @@ const CustomPagination = (props) => {
     
     // Call the provided callback to update pagination in the parent
     if (onPaginationChange) {
-      console.log('CustomPagination - handleChangePageSize - Calling onPaginationChange with:', { 
-        page: 0, 
-        pageSize: newPageSize 
-      });
       
       // Always reset to page 1 (0-indexed) when changing page size and trigger refresh
       onPaginationChange({ 
@@ -75,59 +75,35 @@ const CustomPagination = (props) => {
   };
   
   const handlePrevPage = () => {
-    console.log('CustomPagination - Previous page calculation:', {
-      totalItems: pagination.total,
-      pageSize: pagination.page_size,
-      currentPage: pagination.page
-    });
     
-    if (pagination.page > 0) {
-      console.log('CustomPagination - Moving to previous page', {
-
-      });
-      
-      const targetPage = pagination.page - 1;
+    if (currentPage > 0) {
+      const targetPage = currentPage - 1;
       if (onPaginationChange) {
         onPaginationChange({ 
           page: targetPage, 
-          pageSize: pagination.page_size
+          pageSize: currentPageSize
         });
       }
     } else {
-      console.log('CustomPagination - Already at first page, cannot go back', {
-        currentPage: pagination.page
-      });
     }
   };
   
   const handleNextPage = () => {
-    // Calculate the last possible page more carefully, based on the total and page size
-    const totalPages = Math.max(1, Math.ceil(pagination.total / pagination.page_size));
+    // Calculate the last possible page based on the total and page size
+    const totalPages = Math.max(1, Math.ceil(totalItems / currentPageSize));
     const lastPage = totalPages - 1; // Convert to 0-indexed for UI
     
-    console.log('CustomPagination - Next page calculation:', {
-      totalItems: pagination.total,
-      pageSize: pagination.page_size,
-      totalPages,
-      lastPage: lastPage,
-      currentPage: pagination.page
-    });
     
-    if (pagination.page < lastPage) {
-      console.log('CustomPagination - Moving to next page', {
-        currentPage: pagination.page,
-        targetPage: pagination.page + 1
-      });
+    if (currentPage < lastPage) {
       
       // Check if moving to the target page is safe
-      const targetPage = pagination.page + 1;
+      const targetPage = currentPage + 1;
       if (targetPage > lastPage) {
-        console.warn(`CustomPagination - Target page ${targetPage} exceeds last valid page ${lastPage}, adjusting to ${lastPage}`);
         
       if (onPaginationChange) {
           onPaginationChange({ 
             page: lastPage,
-            pageSize: pagination.page_size
+            pageSize: currentPageSize
           });
         }
         return;
@@ -136,38 +112,24 @@ const CustomPagination = (props) => {
       if (onPaginationChange) {
         onPaginationChange({ 
           page: targetPage,
-          pageSize: pagination.page_size
+          pageSize: currentPageSize
         });
       }
     } else {
-      console.log('CustomPagination - Already at last page, cannot go forward', {
-        currentPage: pagination.page,
-        lastPage: lastPage
-      });
     }
   };
   
   // Calculate displayed range using the page size and making sure it's accurate
   // This is important for showing correct pagination info when the backend returns more items than requested
-  const effectivePageSize = pagination.page_size;
-  const start = pagination.page * effectivePageSize + 1;
-  const end = Math.min((pagination.page + 1) * effectivePageSize, pagination.total);
-  const isFirstPage = pagination.page === 0;
-  const isLastPage = pagination.page >= Math.ceil(pagination.total / effectivePageSize) - 1;
+  const effectivePageSize = currentPageSize;
+  const start = totalItems === 0 ? 0 : currentPage * effectivePageSize + 1;
+  const end = totalItems === 0 ? 0 : Math.min((currentPage + 1) * effectivePageSize, totalItems);
+  const isFirstPage = currentPage === 0;
+  const isLastPage = currentPage >= Math.ceil((totalItems || 1) / (effectivePageSize || 1)) - 1;
   
-  console.log('CustomPagination rendering with:', {
-    page_size: pagination.page_size,
-    effective_page_size: effectivePageSize, 
-    total: pagination.total,
-    currentPage: pagination.page,
-    displayedRange: `${start}-${end} of ${pagination.total}`,
-    actualUsers: props.users?.length || 0
-  });
   
-  // Log any discrepancies between the selected page size and the API's page size
-  if (pageSizeOptions.includes(pagination.page_size) && props.onPaginationChange) {
-    // Note: this is just for logging/debugging and doesn't affect functionality
-    console.log('Current page size from API:', pagination.page_size);
+  // Log current page size for debugging
+  if (props.onPaginationChange) {
   }
   
   return (
@@ -223,7 +185,7 @@ const CustomPagination = (props) => {
           textAlign: 'center',
         }}
       >
-        {start}-{end} of {pagination.total}
+  {start}-{end} of {totalItems}
       </Typography>
       
       <Box sx={{ display: 'flex', ml: 2 }}>
@@ -314,7 +276,6 @@ function UserIndexContent() {
 
   // Update useEffect to sync paginationModel with backend pagination
   useEffect(() => {
-    console.log('Backend pagination state changed:', pagination);
     
     // Only update if there's an actual change and it's not from a manual update
     if (
@@ -323,7 +284,6 @@ function UserIndexContent() {
        paginationModel.pageSize !== pagination.page_size)
     ) {
       // Skip automatic API calls - we only want to sync the local state with backend
-      console.log('Syncing paginationModel with backend pagination state (UI update only)');
       
       // Update paginationModel to match backend state WITHOUT triggering a fetch
       setPaginationModel(prevModel => {
@@ -342,7 +302,6 @@ function UserIndexContent() {
 
   // Modify the paginationModel effect to prevent redundant API calls
   useEffect(() => {
-    console.log('paginationModel changed:', paginationModel);
     
     // Use a ref declared outside the useEffect callback
     if (isInitialRender.current) {
@@ -352,17 +311,16 @@ function UserIndexContent() {
     
     // This useEffect should only fire on direct paginationModel updates not handled elsewhere
     // We'll leave this empty as our handlePaginationModelChange already handles the API calls
-    console.log('Direct paginationModel change detected - no action needed as API calls happen through the handlers');
   }, [paginationModel]);
 
   // Fetch users on initial load only - remove paginationModel dependency
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Verify token before fetching
-        const token = localStorage.getItem('accessToken');
-        if (!token) {
-          console.error('No authentication token found in UserIndex');
+        // Verify authentication before fetching
+        const isAuth = localStorage.getItem('isAuthenticated') === 'true';
+        if (!isAuth) {
+          console.error('User not authenticated in UserIndex');
           setOpenDeleteDialog(false);
           setOpenDialog(false);
           setTimeout(() => {
@@ -454,15 +412,12 @@ function UserIndexContent() {
 
   // Close the form dialog
   const handleFormClose = (shouldRefresh = false) => {
-    console.log('handleFormClose called with shouldRefresh:', shouldRefresh);
-    console.log('Current form mode:', formMode);
     
     // First close the dialog
     setOpenDialog(false);
     
     // If we need to refresh, do it immediately
     if (shouldRefresh) {
-      console.log('Refreshing user list after form close');
       fetchUsers({ 
         page: pagination.page, 
         page_size: pagination.page_size,
@@ -475,7 +430,6 @@ function UserIndexContent() {
     // Reset other states after dialog animation is complete
     // This prevents unwanted flashes of the form in different modes
     setTimeout(() => {
-      console.log('Resetting form state after dialog close');
       clearSelectedUser();
       setSelectedUserId(null);
       setFormMode('create');
@@ -484,14 +438,12 @@ function UserIndexContent() {
 
   // Handle filters change
   const handleFiltersChange = (newFilters) => {
-    console.log('UserIndex handleFiltersChange - Received filters:', newFilters);
     logInfo('Filters changed:', newFilters);
     
     // Detect if we're clearing all filters
     const isClearing = newFilters && Object.keys(newFilters).length === 0;
     
     if (isClearing) {
-      console.log('UserIndex handleFiltersChange - Clearing all filters detected');
       // Update local state
       setFilters({});
       
@@ -509,7 +461,6 @@ function UserIndexContent() {
     }
     
     // For debugging - check what filters are in the old state vs new state
-    console.log('UserIndex handleFiltersChange - Previous filters state:', filters);
     
     // Determine which filters were removed by comparing with previous state
     const removedFilterTypes = Object.keys(filters).filter(
@@ -517,12 +468,10 @@ function UserIndexContent() {
     );
     
     if (removedFilterTypes.length > 0) {
-      console.log('UserIndex handleFiltersChange - Detected removed filter types:', removedFilterTypes);
     }
     
     // Ensure we're working with an object
     const filtersToApply = newFilters || {};
-    console.log('UserIndex handleFiltersChange - filtersToApply:', filtersToApply);
     
     // Clean filters to only include those with actual values
     const cleanedFilters = {};
@@ -536,45 +485,36 @@ function UserIndexContent() {
             // For roles array, ensure values are numbers for proper comparison
             if (key === 'roles') {
               cleanedFilters[key] = value.map(id => typeof id === 'string' ? parseInt(id, 10) : id);
-              console.log(`UserIndex handleFiltersChange - Including roles filter with ${cleanedFilters[key].length} values:`, JSON.stringify(cleanedFilters[key]));
             } else {
               cleanedFilters[key] = value;
-              console.log(`UserIndex handleFiltersChange - Including array filter: ${key} with ${value.length} values`);
             }
             logInfo(`Including array filter: ${key} with ${value.length} values: ${JSON.stringify(value)}`);
           } else {
-            console.log(`UserIndex handleFiltersChange - Skipping empty array for ${key}`);
           }
         } else if (typeof value === 'string') {
           // Only include non-empty strings
           if (value.trim() !== '') {
             cleanedFilters[key] = value.trim();
-            console.log(`UserIndex handleFiltersChange - Including string filter: ${key}=${value}`);
             logInfo(`Including string filter: ${key}=${value}`);
           } else {
-            console.log(`UserIndex handleFiltersChange - Skipping empty string for ${key}`);
           }
         } else if (typeof value === 'number' || typeof value === 'boolean') {
           // Special handling for is_active to ensure it's passed correctly to the API
           if (key === 'is_active') {
             cleanedFilters[key] = String(value); // Convert to string for API compatibility
-            console.log(`UserIndex handleFiltersChange - Including is_active filter: ${key}=${cleanedFilters[key]} (string value)`);
           } else {
             cleanedFilters[key] = value;
-            console.log(`UserIndex handleFiltersChange - Including ${typeof value} filter: ${key}=${value}`);
           }
           logInfo(`Including ${typeof value} filter: ${key}=${value}`);
         }
       }
     });
     
-    console.log('UserIndex handleFiltersChange - Final cleanedFilters:', cleanedFilters);
     logInfo('Applying cleaned filters:', cleanedFilters);
     
     // Double-check to make sure removed filters aren't somehow still in the cleanedFilters
     for (const type of removedFilterTypes) {
       if (type in cleanedFilters) {
-        console.warn(`UserIndex handleFiltersChange - REMOVED FILTER TYPE ${type} WAS STILL PRESENT! Removing it.`);
         delete cleanedFilters[type];
       }
     }
@@ -623,12 +563,6 @@ function UserIndexContent() {
       ? parseInt(newModel.pageSize)
       : pagination.page_size;
     
-    console.log('handlePaginationModelChange - Processing pagination change:', {
-      newModel,
-      currentPagination: pagination,
-      currentPaginationModel: paginationModel,
-      effectiveNewPageSize: newPageSize
-    });
     
     // Update local pagination model state (UI)
     setPaginationModel({
@@ -654,7 +588,6 @@ function UserIndexContent() {
       ...filters
     };
     
-    console.log('Calling fetchUsers with:', requestParams);
     
     // Set a loading state indicator
     setLoading(true);
@@ -662,19 +595,9 @@ function UserIndexContent() {
     // Make the API call with the complete request parameters
     fetchUsers(requestParams)
       .then(response => {
-        console.log('Successfully fetched users with new pagination:', {
-          requestedPageSize: newPageSize,
-          returnedPageSize: response?.page_size || response?.pageSize || pagination.page_size,
-          actualItemCount: response?.items?.length || 0
-        });
         
         // The page size discrepancy is now handled in fetchUsers - we'll always use what we requested
         if (newPageSize !== (response?.page_size || response?.pageSize)) {
-          console.warn('Page size discrepancy handled: Grid is showing correct number of rows:', {
-            requested: newPageSize,
-            returned: response?.page_size || response?.pageSize,
-            actualItemsDisplayed: response?.items?.length || 0
-          });
         }
         
         setLoading(false);
@@ -752,7 +675,7 @@ function UserIndexContent() {
               sx={{ 
                 fontWeight: 500, 
                 fontSize: '13px', 
-                color: isSorted ? '#1976d2' : '#505050'
+                color: '#505050'
               }}
             >
               Username
@@ -791,7 +714,7 @@ function UserIndexContent() {
               sx={{ 
                 fontWeight: 500, 
                 fontSize: '13px', 
-                color: isSorted ? '#1976d2' : '#505050'
+                color: '#505050'
               }}
             >
               Email
@@ -829,7 +752,7 @@ function UserIndexContent() {
               sx={{ 
                 fontWeight: 500, 
                 fontSize: '13px', 
-                color: isSorted ? '#1976d2' : '#505050'
+                color: '#505050'
               }}
             >
               Status
@@ -984,10 +907,10 @@ function UserIndexContent() {
   ];
 
   return (
-    <Container maxWidth={false} sx={{ py: 3 }}>
-      <Box 
-        sx={{ 
-          display: 'flex', 
+    <Container maxWidth={false} disableGutters sx={{ py: CONTAINER_PY }}>
+      <Box
+        sx={{
+          display: 'flex',
           flexDirection: 'column',
           minHeight: '650px',
           overflow: 'hidden',
@@ -996,376 +919,7 @@ function UserIndexContent() {
           boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
         }}
       >
-        <Box sx={{ p: 3, pb: 2 }}>
-          <Typography 
-            variant="h5" 
-            sx={{ 
-              fontWeight: 600, 
-              color: '#1976d2',
-              mb: 1,
-              letterSpacing: '0.015em'
-            }}
-          >
-            User Management
-          </Typography>
-          <Box 
-            sx={{ 
-              height: '2px', 
-              width: '100%', 
-              bgcolor: '#1976d2', 
-              opacity: 0.7,
-              mb: 2
-            }} 
-          />
-          
-          <Box sx={{ 
-            display: 'flex', 
-            justifyContent: 'flex-end',
-            alignItems: 'center',
-            mt: 2,
-            mb: 1
-          }}>
-         
-          </Box>
-        </Box>
-        
-        <Box sx={{ px: 3 }}>
-          <UserFilters 
-            onFilterChange={handleFiltersChange} 
-            filters={filters} 
-            onSearch={handleFiltersChange} 
-          />
-        </Box>
-        
-        <Box sx={{ 
-          flex: 1,
-          minHeight: 'auto',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          px: 3,
-          pb: 3,
-          position: 'relative',
-          '& .css-19midj6': {
-            padding: '0px !important',
-          },
-          '&::-webkit-scrollbar': {
-            display: 'none',
-            width: '0px',
-            height: '0px',
-          },
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none',
-          '& *': {
-            '&::-webkit-scrollbar': {
-              display: 'none',
-              width: '0px',
-              height: '0px',
-            },
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
-          },
-          '& .MuiDataGrid-root': {
-            borderRadius: '5px',
-            overflow: 'hidden',
-            border: 'none',
-          },
-          '& .MuiDataGrid-main': {
-            borderTopLeftRadius: '5px',
-            borderTopRightRadius: '5px',
-            marginBottom: 0,
-            paddingBottom: 0
-          },
-          '& .MuiDataGrid-columnHeaders': {
-            backgroundColor: 'rgba(250, 250, 250, 0.8)',
-            borderTopLeftRadius: '5px',
-            borderTopRightRadius: '5px'
-          },
-          '& .MuiDataGrid-footerContainer': {
-            borderTop: '1px solid rgba(224, 224, 224, 1)',
-            backgroundColor: 'rgba(245, 247, 250, 0.8)',
-            position: 'relative',
-            zIndex: 10,
-            display: 'flex',
-            justifyContent: 'flex-end',
-            alignItems: 'center',
-            padding: '0 24px',
-            height: '52px',
-            minHeight: '52px',
-            maxHeight: '52px',
-            boxSizing: 'border-box',
-            marginTop: 0
-          }
-        }}>
-          <style>
-            {`
-              /* MAXIMUM FORCE OVERRIDES - Target all possible row/cell classes */
-              
-              /* Disable all virtual scrolling features */
-              .MuiDataGrid-root .MuiDataGrid-virtualScroller,
-              .MuiDataGrid-virtualScroller,
-              .MuiDataGrid-root .MuiDataGrid-virtualScrollerContent,
-              .MuiDataGrid-virtualScrollerContent,
-              .MuiDataGrid-root .MuiDataGrid-virtualScrollerRenderZone,
-              .MuiDataGrid-virtualScrollerRenderZone {
-                position: static !important;
-                transform: none !important;
-                width: 100% !important; 
-                height: auto !important;
-                overflow: visible !important;
-                display: block !important;
-              }
-              
-              .css-1xs4aeo-MuiContainer-root {
-                margin: 0 !important;
-                padding: 0 !important;
-                max-width: 100% !important;
-              }
-              
-              /* Direct targeting of base rows - highest priority */
-              .MuiDataGrid-row,
-              .MuiDataGrid-root .MuiDataGrid-row,
-              div[class*="-MuiDataGrid-row"],
-              .css-1jim79h-MuiDataGrid-root .MuiDataGrid-row,
-              div.MuiDataGrid-root div.MuiDataGrid-row {
-                height: auto !important;
-                min-height: 60px !important;
-                max-height: none !important;
-                width: 100% !important;
-                display: flex !important;
-                align-items: stretch !important;
-                position: relative !important;
-                box-sizing: border-box !important;
-                border-bottom: 1px solid rgba(224, 224, 224, 0.7) !important;
-                transform: none !important;
-                overflow: visible !important;
-              }
-              
-              /* Direct targeting of row cells */
-              .MuiDataGrid-cell,
-              .MuiDataGrid-root .MuiDataGrid-cell,
-              div[class*="-MuiDataGrid-cell"],
-              .css-1jim79h-MuiDataGrid-root .MuiDataGrid-cell {
-                height: auto !important;
-                min-height: 100% !important;
-                max-height: none !important;
-                display: flex !important;
-                align-items: stretch !important;
-                white-space: normal !important;
-                line-height: 1.5 !important;
-                position: relative !important;
-                padding: 8px 16px !important;
-                box-sizing: border-box !important;
-                transform: none !important;
-                overflow: visible !important;
-                border-right: 1px solid rgba(224, 224, 224, 0.5) !important;
-              }
-              
-              /* Roles cells override */
-              .MuiDataGrid-cell[data-field="roles"],
-              .MuiDataGrid-root .MuiDataGrid-cell[data-field="roles"],
-              div[class*="-MuiDataGrid-cell"][data-field="roles"],
-              .css-1jim79h-MuiDataGrid-root .MuiDataGrid-cell[data-field="roles"] {
-                height: auto !important;
-                min-height: 100% !important;
-                max-height: none !important;
-                padding: 0 !important;
-                align-items: flex-start !important;
-                overflow: visible !important;
-                z-index: 1 !important;
-              }
-              
-              /* Roles cell inner container */
-              .MuiDataGrid-cell[data-field="roles"] > div,
-              .MuiDataGrid-root .MuiDataGrid-cell[data-field="roles"] > div,
-              div[class*="-MuiDataGrid-cell"][data-field="roles"] > div,
-              .css-1jim79h-MuiDataGrid-root .MuiDataGrid-cell[data-field="roles"] > div {
-                height: auto !important;
-                min-height: 100% !important;
-                max-height: none !important;
-                display: flex !important;
-                flex-wrap: wrap !important;
-                gap: 8px !important;
-                align-items: flex-start !important;
-                align-content: flex-start !important;
-                width: 100% !important;
-                padding: 12px 16px !important;
-                overflow: visible !important;
-              }
-              
-              /* Role chips styling */
-              .MuiDataGrid-cell[data-field="roles"] .MuiChip-root,
-              .MuiDataGrid-root .MuiDataGrid-cell[data-field="roles"] .MuiChip-root {
-                height: auto !important;
-                min-height: 24px !important;
-                margin: 2px !important;
-                border-radius: 16px !important;
-                background-color: #f5f5f5 !important;
-                border: 1px solid #e0e0e0 !important;
-                flex-shrink: 0 !important;
-                max-width: none !important;
-              }
-              
-              /* Actions cell styling */
-              .MuiDataGrid-cell[data-field="actions"],
-              .MuiDataGrid-root .MuiDataGrid-cell[data-field="actions"],
-              div[class*="-MuiDataGrid-cell"][data-field="actions"],
-              .css-1jim79h-MuiDataGrid-root .MuiDataGrid-cell[data-field="actions"] {
-                width: 120px !important;
-                min-width: 120px !important;
-                max-width: 120px !important;
-                justify-content: center !important;
-                align-items: center !important;
-                flex-shrink: 0 !important;
-                padding: 8px 0 !important;
-                overflow: visible !important;
-                z-index: 2 !important;
-              }
-              
-              /* Base grid styling keeps intact */
-              .MuiDataGrid-root {
-                border: 1px solid rgba(224, 224, 224, 1) !important;
-                border-radius: 4px !important;
-                overflow: visible !important;
-              }
-              
-              /* Structure styles to ensure the grid stays cohesive */
-              .MuiDataGrid-columnHeaders {
-                background-color: rgba(245, 247, 250, 1) !important;
-                border-bottom: 1px solid rgba(224, 224, 224, 1) !important;
-                z-index: 10 !important;
-                position: sticky !important;
-                top: 0 !important;
-              }
-              
-              /* Hide default sort icons */
-              .MuiDataGrid-sortIcon,
-              .MuiDataGrid-iconButtonContainer,
-              .css-1pe4mpk-MuiButtonBase-root,
-              button[aria-label="Sort"],
-              .MuiDataGrid-columnHeaderTitleContainer button {
-                display: none !important;
-                opacity: 0 !important;
-                visibility: hidden !important;
-                width: 0 !important;
-                margin: 0 !important;
-                padding: 0 !important;
-              }
-              
-              /* Hide column menu (three dots) */
-              .MuiDataGrid-menuIcon,
-              .MuiDataGrid-columnHeaderMenuButton,
-              button[aria-label="Menu"],
-              button[title="Menu"],
-              .MuiDataGrid-menuIconButton,
-              .MuiButtonBase-root.MuiIconButton-root.MuiIconButton-sizeSmall.MuiDataGrid-menuIconButton {
-                display: none !important;
-                opacity: 0 !important;
-                visibility: hidden !important;
-                width: 0 !important;
-                margin: 0 !important;
-                padding: 0 !important;
-              }
-              
-              /* Hide all pagination footer */
-              .MuiDataGrid-footerContainer,
-              .MuiTablePagination-root,
-              .MuiDataGrid-panelFooter,
-              .MuiTablePagination-selectLabel,
-              .MuiTablePagination-displayedRows,
-              .MuiTablePagination-select,
-              .MuiTablePagination-actions,
-              div[class*="MuiDataGrid-footerContainer"],
-              div[class*="MuiTablePagination-root"] {
-                display: none !important;
-                height: 0 !important;
-                max-height: 0 !important;
-                overflow: hidden !important;
-                visibility: hidden !important;
-              }
-              
-              .MuiDataGrid-columnHeaderTitle {
-                font-weight: 500 !important;
-                color: #333 !important;
-              }
-              
-              .MuiDataGrid-columnSeparator {
-                visibility: visible !important;
-                color: rgba(224, 224, 224, 1) !important;
-              }
-              
-              .MuiDataGrid-footerContainer {
-                border-top: 1px solid rgba(224, 224, 224, 1) !important;
-                background-color: rgba(245, 247, 250, 0.8) !important;
-                position: relative !important;
-                z-index: 10 !important;
-                display: flex !important;
-                justify-content: flex-end !important;
-                align-items: center !important;
-                padding: 0 24px !important;
-                height: 52px !important;
-                min-height: 52px !important;
-                max-height: 52px !important;
-                box-sizing: border-box !important;
-                margin-top: 0 !important;
-              }
-            `}
-          </style>
-          
-          {/* Position the custom pagination at the top right, but above the grid */}
-            <Box
-              sx={{
-                position: 'relative',
-                display: 'flex',
-              justifyContent: 'space-between',
-                width: '100%',
-                marginBottom: '16px',
-                paddingTop: '4px',
-                paddingBottom: '4px',
-              }}
-            >
-            {/* New User button placed at the left side */}
-            {(hasPermission('CREATE_USER') || hasPermission('MANAGE_USERS')) && (
-              <Button 
-                variant="outlined" 
-                size="small" 
-                startIcon={<Add fontSize="small" />} 
-                onClick={handleCreateClick}
-                sx={{ 
-                  borderRadius: '4px',
-                  textTransform: 'none',
-                  fontWeight: 400,
-                  boxShadow: 'none',
-                  border: '1px solid #1976d2',
-                  color: '#1976d2',
-                  py: 0.5,
-                  height: '32px',
-                  fontSize: '13px',
-                  fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-                  '&:hover': {
-                    backgroundColor: 'rgba(25, 118, 210, 0.04)',
-                    borderColor: '#1976d2'
-                  }
-                }}
-              >
-                New User
-              </Button>
-            )}
-
-            {/* Use a stable key that doesn't force a remount on every render */}
-              <CustomPagination 
-                pagination={{
-                  page: paginationModel.page,
-                page_size: paginationModel.pageSize,
-                  total: pagination.total
-                }}
-                pageSizeOptions={[5, 10, 15, 20, 25]}
-              onPaginationChange={handlePaginationModelChange}
-              key={`pagination-${paginationModel.page}-${pagination.total}`}
-              users={users}
-              />
-            </Box>
-
+        <Box sx={{ px: SECTION_PX, pb: GRID_WRAPPER_PB }}>
           {/* Error Message Area */}
           {(error || errorMessage) && !openDialog && (
             <Alert 
@@ -1418,349 +972,40 @@ function UserIndexContent() {
               )}
             </Alert>
           )}
-          
-          {/* Loading Indicator */}
-          {loading && !users?.length && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-              <CircularProgress size={40} />
-            </Box>
-          )}
-          
-          {!loading && (!users || users.length === 0) && !error && !errorMessage && (
-            <Alert 
-              severity="info" 
-              sx={{ mb: 2 }}
-            >
-              <Typography variant="subtitle2">
-                No users data available
-              </Typography>
-              <Box sx={{ mt: 1, fontSize: '12px' }}>
-                <div>Users array: {Array.isArray(users) ? `Array with ${users.length} items` : 'Not an array'}</div>
-                <div>Pagination: Page {pagination.page}, Size {pagination.page_size}, Total {pagination.total}</div>
-                <Button 
-                  size="small" 
-                  variant="outlined" 
-                  color="primary" 
-                  sx={{ mt: 1 }}
-                  onClick={() => {
-                    // Force refresh with default settings
-                    fetchUsers({
-                      page: 1,
-                      page_size: 10,
-                      sort_by: 'username',
-                      sort_order: 'asc'
-                    });
-                  }}
-                >
-                  Reload Data
-                </Button>
-              </Box>
-            </Alert>
-          )}
 
-          {/* User Data Grid */}
-            <Box sx={{
-              backgroundColor: 'rgba(250, 250, 250, 0.8)',
-              borderRadius: '5px',
-              overflow: 'hidden',
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              flex: 1,
-              '& .MuiDataGrid-root, & .MuiDataGrid-main, & .MuiDataGrid-columnHeaders, & .MuiDataGrid-columnHeadersInner': {
-                backgroundColor: 'rgba(250, 250, 250, 0.8) !important',
-                borderTopLeftRadius: '5px !important',
-                borderTopRightRadius: '5px !important',
-              }
-            }}>
-            {/* If ReusableDataGrid is available, use it; otherwise, implement a standard solution */}
-            {typeof ReusableDataGrid !== 'undefined' ? (
-              <ReusableDataGrid
-                columns={columns}
-                rows={users || []}
-                loading={loading}
-                totalRows={pagination.total || 0}
-                paginationModel={paginationModel}
-                onPaginationModelChange={null}
-                sortModel={sortModel}
-                onSortModelChange={handleSortModelChange}
-                paginationMode="server"
-                sortingMode="server"
-                filterMode="server"
-                disableColumnMenu={true}
-                disableMultipleColumnsSorting={true} 
-                disableColumnFilter={true}
-                disableSelectionOnClick={true}
-                disableRowSelectionOnClick={true}
-                pageSize={paginationModel.pageSize}
-                height="auto"
-                autoHeight={true}
-                hideFooter={true}
-                hideFooterPagination={true}
-                hideFooterSelectedRowCount={true}
-                disableColumnSelector={true}
-                disableDensitySelector={true}
-                disableExtendRowFullWidth={true}
-                sortingOrder={['asc', 'desc']}
-                componentsProps={{
-                  columnHeader: {
-                    sx: {
-                      '& .MuiDataGrid-sortIcon': {
-                        display: 'none !important', // Hide default sort icons
-                      },
-                      '& .MuiDataGrid-iconButtonContainer': {
-                        display: 'none !important', // Hide sort icon containers
-                      }
-                    }
-                  }
-                }}
-                // Add slots to completely remove footer components
-                slots={{
-                  footer: () => null,
-                  pagination: () => null,
-                  noRowsOverlay: () => (
-                    <Box sx={{ 
-                  display: 'flex',
-                  flexDirection: 'column',
-                      alignItems: 'center', 
-                      justifyContent: 'center',
-                      p: 4
-                    }}>
-                      <Typography variant="h6" sx={{ mb: 1, color: '#666' }}>
-                        No users found
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: '#888', mb: 2 }}>
-                        {loading ? 'Loading users data...' : 'Try changing your filters or adding a new user'}
-                      </Typography>
-                      {!loading && (
-                        <Button 
-                          variant="outlined" 
-                          size="small" 
-                          onClick={() => fetchUsers({
-                            page: 1,
-                            page_size: 10,
-                            sort_by: 'username',
-                            sort_order: 'asc'
-                          })}
-                        >
-                          Reset Filters & Reload
-                        </Button>
-                      )}
-                    </Box>
-                  )
-                }}
-                getRowHeight={() => 'auto'}
-                sx={{
-                  // Remove minHeight completely
-                  height: 'auto',
-                  
-                  // Force main containers to show all content
-                  '& .MuiDataGrid-main': {
-                    position: 'static !important',
-                    overflow: 'visible !important',
-                    height: 'auto !important'
-                  },
-                  
-                  '& .MuiDataGrid-virtualScroller': {
-                    position: 'static !important',
-                    overflow: 'visible !important',
-                    height: 'auto !important',
-                    transform: 'none !important'
-                  },
-                  
-                  '& .MuiDataGrid-virtualScrollerContent': {
-                    position: 'static !important',
-                    height: 'auto !important',
-                    transform: 'none !important',
-                    width: '100% !important'
-                  },
-                  
-                  '& .MuiDataGrid-virtualScrollerRenderZone': {
-                    position: 'static !important',
-                    transform: 'none !important',
-                    width: '100% !important'
-                  },
-                  
-                  // Target rows directly via the sx prop too for maximum override
-                  '& .MuiDataGrid-row': {
-                    height: 'auto !important',
-                    maxHeight: 'none !important',
-                    minHeight: '60px !important'
-                  },
-                  
-                  '& .MuiDataGrid-row .MuiDataGrid-cell': {
-                    height: 'auto !important',
-                    minHeight: '100% !important',
-                    maxHeight: 'none !important',
-                    overflow: 'visible !important'
-                  },
-                  
-                  '& .MuiDataGrid-columnHeader': {
-                    backgroundColor: 'rgba(245, 247, 250, 1)',
-                    borderBottom: '1px solid rgba(224, 224, 224, 1)',
-                    '& .MuiDataGrid-columnHeaderTitle': {
-                      fontWeight: '500',
-                      fontSize: '14px',
-                      color: '#333333'
-                    }
-                  },
-                  '& .MuiDataGrid-footerContainer': {
-                    borderTop: '1px solid rgba(224, 224, 224, 1)',
-                    backgroundColor: 'rgba(245, 247, 250, 0.8)',
-                    position: 'relative',
-                    zIndex: 2,
-                    height: '52px',
-                    minHeight: '52px',
-                    display: 'flex',
-                    justifyContent: 'flex-end',
-                    alignItems: 'center',
-                    boxShadow: 'none',
-                    marginTop: 0,
-                    paddingBottom: 0,
-                    padding: '0 24px'
-                  }
-                }}
-                key={`user-grid-${forceUpdateCounter}`}
-              />
-            ) : (
-              // Fallback implementation
-              <Box 
-                sx={{ 
-                  height: '100%', 
-                  width: '100%', 
-                  display: 'flex', 
-                  flexDirection: 'column',
-                  border: '1px solid #e0e0e0',
-                  borderRadius: '4px',
-                  overflow: 'auto',
-                  backgroundColor: 'white'
-                }}
-              >
-                {/* Custom table header */}
-                <Box 
-                  sx={{ 
-                    display: 'flex', 
-                    borderBottom: '1px solid #e0e0e0',
-                    backgroundColor: '#f5f5f5',
-                    padding: '8px 16px',
-                  }}
-                >
-                  {columns.map((column) => (
-                    <Box 
-                      key={column.field} 
-                      sx={{ 
-                        flex: column.flex || 'none', 
-                        width: column.width ? `${column.width}px` : 'auto',
-                        minWidth: column.minWidth ? `${column.minWidth}px` : 'auto',
-                        fontWeight: 'bold',
-                        cursor: column.sortable !== false ? 'pointer' : 'default',
-                        display: 'flex',
-                        alignItems: 'center',
-                        padding: '8px 16px',
-                        color: sortModel[0]?.field === column.field ? '#1976d2' : 'inherit',
-                        '&:hover': {
-                          color: column.sortable !== false ? '#1976d2' : 'inherit',
-                        }
-                      }}
-                      onClick={() => {
-                        if (column.sortable !== false) {
-                          const currentSort = sortModel[0];
-                          const newSort = currentSort?.field === column.field 
-                            ? { field: column.field, sort: currentSort.sort === 'asc' ? 'desc' : 'asc' }
-                            : { field: column.field, sort: 'asc' };
-                          
-                          handleSortModelChange([newSort]);
-                        }
-                      }}
-                    >
-                      {column.renderHeader 
-                        ? column.renderHeader() 
-                        : column.headerName}
-                      {sortModel[0]?.field === column.field && column.sortable !== false && (
-                        sortModel[0].sort === 'asc' 
-                          ? <ArrowUpward sx={{ fontSize: 14, ml: 0.5 }} /> 
-                          : <ArrowDownward sx={{ fontSize: 14, ml: 0.5 }} />
-                      )}
-            </Box>
-                  ))}
-      </Box>
-      
-                {/* Custom table body */}
-                <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
-                  {loading ? (
-                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                      <CircularProgress size={30} />
-                    </Box>
-                  ) : (
-                    users && users.length > 0 ? (
-                      // Only show the number of rows matching the page size
-                      users.slice(0, paginationModel.pageSize).map((user) => (
-                        <Box 
-                          key={user.id}
-                          sx={{ 
-                            display: 'flex', 
-                            borderBottom: '1px solid #f0f0f0',
-                            '&:hover': {
-                              backgroundColor: 'rgba(25, 118, 210, 0.04)'
-                            }
-                          }}
-                        >
-                          {columns.map((column) => (
-                            <Box 
-                              key={`${user.id}-${column.field}`}
-            sx={{
-                                flex: column.flex || 'none',
-                                width: column.width ? `${column.width}px` : 'auto',
-                                minWidth: column.minWidth ? `${column.minWidth}px` : 'auto',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap'
-                              }}
-                            >
-                              {column.renderCell(user)}
-                            </Box>
-                          ))}
-                        </Box>
-                      ))
-                    ) : (
-                      <Box sx={{ p: 4 }}>
-                        <Typography variant="h6" sx={{ mb: 1, color: '#666' }}>
-                          No users found
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: '#888', mb: 2 }}>
-                          {loading ? 'Loading users data...' : 'Try changing your filters or adding a new user'}
-                        </Typography>
-                        {!loading && (
-                          <Button 
-                            variant="outlined" 
-                            size="small" 
-                            onClick={() => fetchUsers({
-                              page: 1,
-                              page_size: 10,
-                              sort_by: 'username',
-                              sort_order: 'asc'
-                            })}
-                          >
-                            Reset Filters & Reload
-                          </Button>
-                        )}
-                      </Box>
-                    )
-                  )}
-                </Box>
-              </Box>
-            )}
-          </Box>
-        </Box>
-
-        {/* User Form Dialog */}
-        {openDialog && (
-            <UserForm
-            userId={selectedUserId}
-              onClose={handleFormClose}
-            mode={formMode}
+          {/* Standardized Grid */}
+          <Box sx={{ px: SECTION_PX }}>
+            <ReusableDataGrid
+              title="User Management"
+              columns={columns}
+              rows={users || []}
+              loading={loading}
+              totalRows={pagination.total || 0}
+              onPaginationModelChange={handlePaginationModelChange}
+              sortModel={sortModel}
+              onSortModelChange={handleSortModelChange}
+              disableColumnMenu
+              disableRowSelectionOnClick
+              PaginationComponent={CustomPagination}
+              paginationPosition="top"
+              FiltersComponent={UserFilters}
+              currentFilters={filters}
+              onFiltersChange={handleFiltersChange}
+              onSearch={handleFiltersChange}
+              createButtonText="User"
+              onCreateClick={(hasPermission('CREATE_USER') || hasPermission('MANAGE_USERS')) ? handleCreateClick : undefined}
             />
-      )}
+          </Box>
+
+          {/* User Form Dialog */}
+          {openDialog && (
+            <UserForm
+              userId={selectedUserId}
+              onClose={handleFormClose}
+              mode={formMode}
+            />
+          )}
+        </Box>
       </Box>
     </Container>
   );

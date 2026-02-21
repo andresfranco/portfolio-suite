@@ -1,0 +1,107 @@
+# Dependabot Configuration
+# Automated dependency updates and security vulnerability scanning
+# Documentation: https://docs.github.com/en/code-security/dependabot
+
+version: 2
+updates:
+  # Python Backend Dependencies
+  - package-ecosystem: "pip"
+    directory: "/portfolio-backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "portfolio-team"
+    labels:
+      - "dependencies"
+      - "backend"
+      - "security"
+    # Security updates
+    allow:
+      - dependency-type: "all"
+    # Version update strategy
+    versioning-strategy: "increase"
+    # Commit message prefix
+    commit-message:
+      prefix: "deps(backend)"
+      include: "scope"
+    # Group updates
+    groups:
+      minor-updates:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    # Ignore specific dependencies (if needed)
+    # ignore:
+    #   - dependency-name: "fastapi"
+    #     update-types: ["version-update:semver-major"]
+
+  # Frontend Dependencies (npm)
+  - package-ecosystem: "npm"
+    directory: "/backend-ui"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "portfolio-team"
+    labels:
+      - "dependencies"
+      - "frontend"
+      - "security"
+    allow:
+      - dependency-type: "all"
+    versioning-strategy: "increase"
+    commit-message:
+      prefix: "deps(frontend)"
+      include: "scope"
+    groups:
+      react-ecosystem:
+        patterns:
+          - "react*"
+          - "@types/react*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "ci-cd"
+      - "security"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+
+  # Docker (if using Dockerfiles)
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "docker"
+      - "security"
+    commit-message:
+      prefix: "docker"
+      include: "scope"
+

@@ -81,27 +81,11 @@ function ProjectImagesContent() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [languages, setLanguages] = useState([]);
   const [defaultLanguage, setDefaultLanguage] = useState(null);
 
   // Debug logging
   useEffect(() => {
-    console.log('[PROJECT IMAGES DEBUG] Authentication Status:');
-    console.log('  - Auth Loading:', authLoading);
-    console.log('  - Permissions:', permissions);
-    console.log('  - Is System Admin:', isSystemAdmin());
-    console.log('  - Has VIEW_PROJECT_IMAGES:', hasPermission('VIEW_PROJECT_IMAGES'));
-    console.log('  - Has UPLOAD_PROJECT_IMAGES:', hasPermission('UPLOAD_PROJECT_IMAGES'));
-    console.log('  - Has EDIT_PROJECT_IMAGES:', hasPermission('EDIT_PROJECT_IMAGES'));
-    console.log('  - Has DELETE_PROJECT_IMAGES:', hasPermission('DELETE_PROJECT_IMAGES'));
-    console.log('  - Has MANAGE_PROJECT_IMAGES:', hasPermission('MANAGE_PROJECT_IMAGES'));
-    console.log('  - Has MANAGE_PROJECTS:', hasPermission('MANAGE_PROJECTS'));
-    console.log('  - Has SYSTEM_ADMIN:', hasPermission('SYSTEM_ADMIN'));
-    console.log('  - Can Access (any of above):', 
-      hasPermission('VIEW_PROJECT_IMAGES') || 
-      hasPermission('MANAGE_PROJECT_IMAGES') || 
-      hasPermission('MANAGE_PROJECTS') || 
-      hasPermission('SYSTEM_ADMIN')
-    );
   }, [authLoading, permissions, hasPermission, isSystemAdmin]);
 
   // Permission checking helpers
@@ -154,30 +138,23 @@ function ProjectImagesContent() {
         setError(null);
         
         // First, verify authentication by checking current user permissions
-        console.log('[PROJECT IMAGES DEBUG] Testing authentication...');
         const authTestResponse = await api.get('/api/users/me/permissions');
         
-        console.log('[PROJECT IMAGES DEBUG] Auth test response status:', authTestResponse.status);
-        console.log('[PROJECT IMAGES DEBUG] Auth test response data:', authTestResponse.data);
         
         // Fetch languages to identify default language
-        console.log('[PROJECT IMAGES DEBUG] Fetching languages...');
         const languagesResponse = await api.get('/api/languages/?page=1&page_size=100');
         
         const languagesData = languagesResponse.data;
-        const languages = languagesData.items || [];
-        const defaultLang = languages.find(lang => lang.is_default || lang.isDefault) || 
-                         (languages.length > 0 ? languages[0] : null);
+        const languagesList = languagesData.items || [];
+        const defaultLang = languagesList.find(lang => lang.is_default || lang.isDefault) || 
+                         (languagesList.length > 0 ? languagesList[0] : null);
         setDefaultLanguage(defaultLang);
+        setLanguages(languagesList);  // Store all languages for the dropdown
         
         // Fetch project details
-        console.log('[PROJECT IMAGES DEBUG] Fetching project details for ID:', projectId);
-        console.log('[PROJECT IMAGES DEBUG] Request URL:', `/api/projects/${projectId}`);
         
         const projectResponse = await api.get(`/api/projects/${projectId}`);
         
-        console.log('[PROJECT IMAGES DEBUG] Project response status:', projectResponse.status);
-        console.log('[PROJECT IMAGES DEBUG] Project response data:', projectResponse.data);
         
         setProject(projectResponse.data);
         
@@ -191,7 +168,6 @@ function ProjectImagesContent() {
         const categoriesData = categoriesResponse.data;
         let categoriesList = categoriesData || [];
         
-        console.log("PROI categories from API:", categoriesList);
         
         // Map categories to format with code and display name
         const formattedCategories = categoriesList.map(category => {
@@ -232,7 +208,6 @@ function ProjectImagesContent() {
           };
         });
         
-        console.log("Formatted categories for select:", formattedCategories);
         
         setCategories(formattedCategories);
         
@@ -329,7 +304,8 @@ function ProjectImagesContent() {
         name: file.name,
         size: file.size,
         preview: previewUrl,
-        nameEdited: false
+        nameEdited: false,
+        language_id: ''  // Add language_id field for each file
       });
     });
     
@@ -371,12 +347,25 @@ function ProjectImagesContent() {
     });
   };
 
+  // Handle language change for a specific file
+  const handleFileLanguageChange = (index, languageId) => {
+    setSelectedFiles(prev => {
+      const newFiles = [...prev];
+      newFiles[index] = {
+        ...newFiles[index],
+        language_id: languageId
+      };
+      return newFiles;
+    });
+  };
+
   // Handle edit image click
   const handleEditClick = (image) => {
     setSelectedImage(image);
     setEditImage({
       id: image.id,
       category: image.category_code || image.category,
+      language_id: image.language_id !== null && image.language_id !== undefined ? image.language_id : '',
       file: null,
       previewUrl: null
     });
@@ -426,6 +415,14 @@ function ProjectImagesContent() {
     }));
   };
 
+  // Handle edit language change
+  const handleEditLanguageChange = (e) => {
+    setEditImage(prev => ({
+      ...prev,
+      language_id: e.target.value
+    }));
+  };
+
   // Update image
   const updateImage = async () => {
     if (!editImage.id) return;
@@ -433,10 +430,11 @@ function ProjectImagesContent() {
     // Check if anything has changed
     const originalImage = selectedImage;
     const categoryChanged = editImage.category !== (originalImage.category_code || originalImage.category);
+    const languageChanged = editImage.language_id !== (originalImage.language_id || '');
     const fileChanged = editImage.file !== null;
     
-    if (!categoryChanged && !fileChanged) {
-      setEditError('No changes detected. Please modify the category or select a new image.');
+    if (!categoryChanged && !fileChanged && !languageChanged) {
+      setEditError('No changes detected. Please modify the category, language, or select a new image.');
       return;
     }
     
@@ -451,16 +449,20 @@ function ProjectImagesContent() {
         formData.append('category', editImage.category);
       }
       
+      // Add language_id if changed (send empty string as null)
+      if (languageChanged) {
+        const languageValue = editImage.language_id === '' ? null : editImage.language_id;
+        if (languageValue !== null) {
+          formData.append('language_id', languageValue);
+        }
+      }
+      
       // Add file if changed
       if (fileChanged) {
         formData.append('image', editImage.file);
       }
       
-      const response = await api.put(`/api/projects/${projectId}/images/${editImage.id}`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+      const response = await api.put(`/api/projects/${projectId}/images/${editImage.id}`, formData);
       
       const updatedImage = response.data;
       
@@ -477,6 +479,7 @@ function ProjectImagesContent() {
       setEditImage({
         id: null,
         category: '',
+        language_id: '',
         file: null,
         previewUrl: null
       });
@@ -518,6 +521,11 @@ function ProjectImagesContent() {
         formData.append('file', file);  // Use 'file' as the field name expected by the backend
         formData.append('category_code', selectedCategory);  // Use 'category_code' as expected by the backend
         
+        // Add language_id if selected for this file
+        if (fileObj.language_id) {
+          formData.append('language_id', fileObj.language_id);
+        }
+        
         // Update progress
         setUploadProgress(prev => ({
           ...prev,
@@ -528,11 +536,7 @@ function ProjectImagesContent() {
         }));
         
         try {
-          const response = await api.post(`/api/projects/${projectId}/images`, formData, {
-            headers: {
-              'Content-Type': 'multipart/form-data'
-            }
-          });
+          const response = await api.post(`/api/projects/${projectId}/images`, formData);
           
           const newImage = response.data;
           
@@ -681,7 +685,6 @@ function ProjectImagesContent() {
       const failures = results.filter(result => result.status === 'rejected');
       
       if (failures.length > 0) {
-        console.warn(`${failures.length} out of ${imageIds.length} deletions failed`);
         setError(`Some images could not be deleted (${failures.length}/${imageIds.length} failed)`);
       }
       
@@ -702,7 +705,6 @@ function ProjectImagesContent() {
       
       if (failures.length === 0) {
         // All deletions successful
-        console.log(`Successfully deleted ${successfulDeletions.length} images`);
       }
     } catch (error) {
       console.error('Error during bulk delete:', error);
@@ -1353,6 +1355,45 @@ function ProjectImagesContent() {
                 </Select>
               </FormControl>
             </Grid>
+            
+            {/* Language Selection */}
+            <Grid item xs={12}>
+              <FormControl 
+                fullWidth 
+                variant="outlined"
+                sx={{ mt: 2 }}
+              >
+                <InputLabel id="edit-language-select-label">
+                  Language (Optional)
+                </InputLabel>
+                <Select
+                  labelId="edit-language-select-label"
+                  id="edit-language-select"
+                  value={editImage.language_id === null || editImage.language_id === undefined ? '' : editImage.language_id}
+                  onChange={handleEditLanguageChange}
+                  label="Language (Optional)"
+                  disabled={editLoading}
+                >
+                  <MenuItem value="">
+                    <em>None</em>
+                  </MenuItem>
+                  {languages.length === 0 ? (
+                    <MenuItem disabled value="">
+                      <em>No languages available</em>
+                    </MenuItem>
+                  ) : (
+                    languages.map((language) => (
+                      <MenuItem 
+                        key={language.id} 
+                        value={language.id}
+                      >
+                        {language.name}
+                      </MenuItem>
+                    ))
+                  )}
+                </Select>
+              </FormControl>
+            </Grid>
           </Grid>
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid #f0f0f0' }}>
@@ -1840,6 +1881,28 @@ function ProjectImagesContent() {
                               <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>
                                 {uploadProgress[index].message}
                               </Typography>
+                            )}
+                            
+                            {/* Language selector for each file */}
+                            {!uploadLoading && !uploadProgress[index] && (
+                              <FormControl size="small" fullWidth sx={{ mt: 1 }}>
+                                <InputLabel id={`file-language-label-${index}`}>Language</InputLabel>
+                                <Select
+                                  labelId={`file-language-label-${index}`}
+                                  value={fileObj.language_id || ''}
+                                  onChange={(e) => handleFileLanguageChange(index, e.target.value)}
+                                  label="Language"
+                                >
+                                  <MenuItem value="">
+                                    <em>None (Default)</em>
+                                  </MenuItem>
+                                  {languages.map((language) => (
+                                    <MenuItem key={language.id} value={language.id}>
+                                      {language.name}
+                                    </MenuItem>
+                                  ))}
+                                </Select>
+                              </FormControl>
                             )}
                           </Box>
                         </Box>

@@ -6,37 +6,49 @@ import Footer from './components/Footer';
 import HomePage from './pages/HomePage';
 import ProjectDetailsPage from './pages/ProjectDetailsPage';
 import ContactPage from './pages/ContactPage';
+import ChatModal from './components/ChatModal';
 import { LanguageProvider } from './context/LanguageContext';
+import { PortfolioProvider } from './context/PortfolioContext';
+import { EditModeProvider } from './context/EditModeContext';
+import { EditModeIndicator } from './components/cms/EditModeIndicator';
 import ErrorBoundary from './components/ErrorBoundary';
 import ExperienceDetailsPage from './pages/ExperienceDetailsPage';
 
 function App() {
   return (
     <LanguageProvider>
-      <BrowserRouter>
-        <ErrorBoundary>
-          <div className="min-h-screen flex flex-col bg-gray-900">
-            <Header />
-            <main className="flex-grow">
-              <Routes>
-                <Route path="/" element={<HomePage />} />
-                {/* Base routes */}
-                <Route path="/projects" element={<Projects />} />
-                <Route path="/projects/:projectId" element={<ProjectDetailsPage />} />
-                <Route path="/contact" element={<ContactPage />} />
-                {/* Language prefixed routes */}
-                <Route path="/:lang/projects" element={<Projects />} />
-                <Route path="/:lang/projects/:projectId" element={<ProjectDetailsPage />} />
-                <Route path="/:lang/contact" element={<ContactPage />} />
-                <Route path="/experience/:experienceId" element={<ExperienceDetailsPage />} />
-                <Route path="/:lang/experience/:experienceId" element={<ExperienceDetailsPage />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </main>
-            <Footer />
-          </div>
-        </ErrorBoundary>
-      </BrowserRouter>
+      <PortfolioProvider>
+        <EditModeProvider>
+          <BrowserRouter>
+            <ErrorBoundary>
+              <div className="min-h-screen w-full flex flex-col bg-[#03060a] text-white">
+                {/* Edit Mode Indicator - only visible when in edit mode via backend */}
+                <EditModeIndicator />
+                
+                <Header />
+                <div role="main" className="flex-grow w-full">
+                  <Routes>
+                    <Route path="/" element={<HomePage />} />
+                    {/* Base routes */}
+                    <Route path="/projects" element={<Projects />} />
+                    <Route path="/projects/:projectId" element={<ProjectDetailsPage />} />
+                    <Route path="/contact" element={<ContactPage />} />
+                    {/* Language prefixed routes */}
+                    <Route path="/:lang/projects" element={<Projects />} />
+                    <Route path="/:lang/projects/:projectId" element={<ProjectDetailsPage />} />
+                    <Route path="/:lang/contact" element={<ContactPage />} />
+                    <Route path="/experience/:experienceId" element={<ExperienceDetailsPage />} />
+                    <Route path="/:lang/experience/:experienceId" element={<ExperienceDetailsPage />} />
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </div>
+                <Footer />
+                <ChatModal />
+              </div>
+            </ErrorBoundary>
+          </BrowserRouter>
+        </EditModeProvider>
+      </PortfolioProvider>
     </LanguageProvider>
   );
 }

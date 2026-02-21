@@ -373,7 +373,19 @@ COMPREHENSIVE_PERMISSIONS = [
     {"name": "EDIT_PORTFOLIO", "description": "Edit existing portfolio details"},
     {"name": "DELETE_PORTFOLIO", "description": "Delete portfolios"},
     {"name": "PUBLISH_PORTFOLIO", "description": "Publish and unpublish portfolios"},
-    {"name": "MANAGE_PORTFOLIO_ATTACHMENTS", "description": "Upload and manage portfolio attachments"},
+    # Portfolio Images Sub-module
+    {"name": "VIEW_PORTFOLIO_IMAGES", "description": "View portfolio images"},
+    {"name": "UPLOAD_PORTFOLIO_IMAGES", "description": "Upload new portfolio images"},
+    {"name": "EDIT_PORTFOLIO_IMAGES", "description": "Edit portfolio images (rename, update metadata)"},
+    {"name": "DELETE_PORTFOLIO_IMAGES", "description": "Delete portfolio images"},
+    {"name": "MANAGE_PORTFOLIO_IMAGES", "description": "Full management of portfolio images (upload, edit, delete, organize)"},
+
+    # Portfolio Attachments Sub-module
+    {"name": "VIEW_PORTFOLIO_ATTACHMENTS", "description": "View portfolio attachments"},
+    {"name": "UPLOAD_PORTFOLIO_ATTACHMENTS", "description": "Upload new portfolio attachments"},
+    {"name": "EDIT_PORTFOLIO_ATTACHMENTS", "description": "Edit portfolio attachments (rename, update metadata)"},
+    {"name": "DELETE_PORTFOLIO_ATTACHMENTS", "description": "Delete portfolio attachments"},
+    {"name": "MANAGE_PORTFOLIO_ATTACHMENTS", "description": "Full management of portfolio attachments (upload, edit, delete, organize)"},
     
     # Project Management Module
     {"name": "VIEW_PROJECTS", "description": "View project list and project details"},
@@ -432,7 +444,10 @@ COMPREHENSIVE_PERMISSIONS = [
     {"name": "VIEW_TRANSLATIONS", "description": "View translation list and translation details"},
     {"name": "CREATE_TRANSLATION", "description": "Create new translations"},
     {"name": "EDIT_TRANSLATION", "description": "Edit existing translation details"},
-    {"name": "DELETE_TRANSLATION", "description": "Delete translations"}
+    {"name": "DELETE_TRANSLATION", "description": "Delete translations"},
+
+    # Agent Admin Module
+    {"name": "MANAGE_AGENTS", "description": "Create and manage agents, credentials, templates, and tests"}
 ]
 
 # Legacy permissions for backward compatibility

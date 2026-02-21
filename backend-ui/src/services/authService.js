@@ -11,7 +11,7 @@ const authService = {
    * Login user with username and password
    * @param {string} username - User's username
    * @param {string} password - User's password
-   * @returns {Promise} - Login response with token
+   * @returns {Promise} - Login response with user data and CSRF token
    */
   login: async (username, password) => {
     try {
@@ -25,25 +25,31 @@ const authService = {
       const response = await api.post(API_CONFIG.ENDPOINTS.auth.login, formData, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
-        }
+        },
+        withCredentials: true // Important: Include cookies in request/response
       });
       
-      // Store token in localStorage
-      if (response.data && response.data.access_token) {
-        const token = response.data.access_token;
-        localStorage.setItem('accessToken', token);
-        logInfo('Token stored in localStorage:', {
-          tokenLength: token.length,
-          tokenStart: token.substring(0, 20),
-          storageCheck: localStorage.getItem('accessToken') === token
-        });
-        
-        // Store refresh token if provided
-        if (response.data.refresh_token) {
-          localStorage.setItem('refresh_token', response.data.refresh_token);
-        }
-        
-        logInfo('Login successful');
+      // Check if MFA is required
+      if (response.data && response.data.mfa_required) {
+        logInfo('MFA verification required');
+        return {
+          mfa_required: true,
+          session_token: response.data.session_token,
+          message: response.data.message
+        };
+      }
+      
+      // Tokens are now in httpOnly cookies (secure)
+      // Store only the CSRF token for subsequent requests
+      if (response.data && response.data.csrf_token) {
+        localStorage.setItem('csrf_token', response.data.csrf_token);
+        logInfo('Login successful - tokens stored in secure cookies');
+      }
+      
+      // Mark as authenticated (cookies will be sent automatically)
+      if (response.data && response.data.success) {
+        localStorage.setItem('isAuthenticated', 'true');
+        logInfo('User authenticated successfully');
       }
       
       return response.data;
@@ -86,14 +92,59 @@ const authService = {
       throw new Error('Login failed. Please check your credentials and try again');
     }
   },
+
+  /**
+   * Verify MFA code to complete login
+   * @param {string} sessionToken - Temporary session token from initial login
+   * @param {string} code - 6-digit TOTP code or backup code
+   * @returns {Promise} - Login response with user data and CSRF token
+   */
+  verifyMfaLogin: async (sessionToken, code) => {
+    try {
+      logInfo('Attempting MFA verification');
+      
+      const response = await api.post(API_CONFIG.ENDPOINTS.auth.mfaVerifyLogin, {
+        session_token: sessionToken,
+        code: code
+      }, {
+        withCredentials: true // Important: Include cookies in request/response
+      });
+      
+      // Tokens are now in httpOnly cookies (secure)
+      // Store only the CSRF token for subsequent requests
+      if (response.data && response.data.csrf_token) {
+        localStorage.setItem('csrf_token', response.data.csrf_token);
+        logInfo('MFA verification successful - tokens stored in secure cookies');
+      }
+      
+      // Mark as authenticated
+      if (response.data && response.data.success) {
+        localStorage.setItem('isAuthenticated', 'true');
+        logInfo('User authenticated successfully after MFA');
+      }
+      
+      return response.data;
+    } catch (error) {
+      logError('MFA verification failed:', error);
+      
+      const errorMessage = error.response?.data?.detail || 
+                           error.message || 
+                           'Invalid MFA code';
+      
+      throw new Error(errorMessage);
+    }
+  },
   
   /**
-   * Logout user by removing tokens
+   * Logout user by removing tokens and authentication state
    */
   logout: () => {
     logInfo('Logging out user');
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('csrf_token');
+    localStorage.removeItem('isAuthenticated');
+    
+    // Note: httpOnly cookies will be cleared by backend on logout endpoint
+    // or will expire naturally
     
     // Redirect to login page
     window.location.href = '/login';
@@ -104,29 +155,27 @@ const authService = {
    * @returns {boolean} - True if authenticated, false otherwise
    */
   isAuthenticated: () => {
-    const token = localStorage.getItem('accessToken');
-    
-    if (!token) {
-      return false;
-    }
-    
-    // You could add token expiration validation here if the token contains an exp claim
-    try {
-      // Basic check - if token exists and isn't empty
-      return token && token.length > 20; // Just a simple length check
-    } catch (e) {
-      // If there's any error, clear token and return false
-      localStorage.removeItem('accessToken');
-      return false;
-    }
+    // With httpOnly cookies, we can't directly access the token
+    // Check if authentication flag is set (backend will validate actual cookie)
+    const isAuth = localStorage.getItem('isAuthenticated');
+    return isAuth === 'true';
   },
   
   /**
-   * Get current authentication token
-   * @returns {string|null} - Current token or null if not authenticated
+   * Get current CSRF token for API requests
+   * @returns {string|null} - Current CSRF token or null if not authenticated
    */
   getToken: () => {
-    return localStorage.getItem('accessToken');
+    // Return CSRF token instead (access token is in httpOnly cookie)
+    return localStorage.getItem('csrf_token');
+  },
+  
+  /**
+   * Get CSRF token for protected requests
+   * @returns {string|null} - CSRF token or null
+   */
+  getCsrfToken: () => {
+    return localStorage.getItem('csrf_token');
   },
   
   /**
@@ -135,23 +184,17 @@ const authService = {
    */
   refreshToken: async () => {
     try {
-      const refreshToken = localStorage.getItem('refresh_token');
-      
-      if (!refreshToken) {
-        throw new Error('No refresh token available');
-      }
-      
       logInfo('Attempting to refresh token');
-      const response = await api.post(API_CONFIG.ENDPOINTS.auth.refreshToken, {
-        refresh_token: refreshToken
+      
+      // Refresh token is in httpOnly cookie, backend will read it automatically
+      const response = await api.post(API_CONFIG.ENDPOINTS.auth.refreshToken, {}, {
+        withCredentials: true // Important: Send cookies with request
       });
       
-      if (response.data && response.data.access_token) {
-        localStorage.setItem('accessToken', response.data.access_token);
-        
-        // Update refresh token if provided
-        if (response.data.refresh_token) {
-          localStorage.setItem('refresh_token', response.data.refresh_token);
+      if (response.data && response.data.success) {
+        // Update CSRF token if provided
+        if (response.data.csrf_token) {
+          localStorage.setItem('csrf_token', response.data.csrf_token);
         }
         
         logInfo('Token refresh successful');

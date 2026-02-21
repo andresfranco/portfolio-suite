@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Paper,
@@ -27,8 +27,11 @@ import {
 import { useCategoryType } from '../../contexts/CategoryTypeContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useCategory } from '../../contexts/CategoryContext';
+import { useAuthorization } from '../../contexts/AuthorizationContext';
 import { logInfo, logError } from '../../utils/logger';
 import { alpha } from '@mui/material/styles';
+import { FILTERS_PANEL_MB } from '../common/layoutTokens';
+import { evaluateFilterAccess } from '../../utils/accessControl';
 
 // Filter type definitions
 const FILTER_TYPES = {
@@ -54,6 +57,7 @@ function CategoryFilters({ onFiltersChange, onSearch }) {
   const { filters } = useCategory();
   const { categoryTypes, loading: categoryTypesLoading } = useCategoryType();
   const { languages, loading: languagesLoading, fetchLanguages } = useLanguage();
+  const { isSystemAdmin, hasPermission, hasAnyPermission } = useAuthorization();
   
   const [languageSearchText, setLanguageSearchText] = useState('');
   
@@ -105,6 +109,18 @@ function CategoryFilters({ onFiltersChange, onSearch }) {
     }
     return filterObj;
   });
+
+  // Build access notices per filter type
+  const FILTER_ACCESS_MAP = useMemo(() => ({
+    code: { required: 'VIEW_CATEGORIES', moduleKey: 'categories' },
+    type_code: { required: 'VIEW_CATEGORY_TYPES', moduleKey: 'categorytypes' },
+    language_id: { required: 'VIEW_LANGUAGES', moduleKey: 'languages' },
+    name: { required: 'VIEW_CATEGORIES', moduleKey: 'categories' }
+  }), []);
+  const { noticesByType } = useMemo(() => {
+    const authorization = { isSystemAdmin, hasPermission, hasAnyPermission };
+    return evaluateFilterAccess(Object.keys(FILTER_TYPES), FILTER_ACCESS_MAP, authorization);
+  }, [isSystemAdmin, hasPermission, hasAnyPermission]);
 
   // Add state to track when user explicitly removes a filter
   const [removingFilter, setRemovingFilter] = useState(null);
@@ -570,17 +586,20 @@ function CategoryFilters({ onFiltersChange, onSearch }) {
     if (!filterConfig) return null;
     
     const filterValue = tempFilters[filter.type] !== undefined ? tempFilters[filter.type] : '';
+    const access = noticesByType?.[filter.type];
+    const denied = !!access?.isDenied;
+    const helper = access?.message;
     
     switch (filterConfig.type) {
       case 'select':
         return (
-          <FormControl sx={{ flex: 1 }}>
+          <FormControl sx={{ flex: 1 }} error={denied}>
             <InputLabel>Select {filterConfig.label}</InputLabel>
             <Select
               value={filterValue}
               onChange={(e) => handleFilterChange(filter.id, e.target.value)}
               label={`Select ${filterConfig.label}`}
-              disabled={filter.type === 'type_code' && categoryTypesLoading}
+              disabled={denied || (filter.type === 'type_code' && categoryTypesLoading)}
               endAdornment={
                 filter.type === 'type_code' && categoryTypesLoading ? (
                   <CircularProgress size={20} sx={{ mr: 2 }} />
@@ -617,6 +636,11 @@ function CategoryFilters({ onFiltersChange, onSearch }) {
                 )
               )}
             </Select>
+            {denied && helper && (
+              <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                {helper}
+              </Typography>
+            )}
           </FormControl>
         );
       
@@ -628,7 +652,7 @@ function CategoryFilters({ onFiltersChange, onSearch }) {
         ) : [];
         
         return (
-          <FormControl sx={{ flex: 1 }}>
+          <FormControl sx={{ flex: 1 }} error={denied}>
             <InputLabel sx={{
               fontSize: '13px',
               color: '#505050',
@@ -641,6 +665,7 @@ function CategoryFilters({ onFiltersChange, onSearch }) {
               value={Array.isArray(filterValue) ? filterValue : []}
               onChange={(e) => handleFilterChange(filter.id, e.target.value)}
               input={<OutlinedInput label="Select Languages" />}
+              disabled={denied || languagesLoading}
               renderValue={(selected) => (
                 <Stack direction="row" spacing={0.5} flexWrap="wrap">
                   {selected.map((value) => {
@@ -663,7 +688,6 @@ function CategoryFilters({ onFiltersChange, onSearch }) {
                   })}
                 </Stack>
               )}
-              disabled={languagesLoading}
               onOpen={() => setLanguageSearchText('')} // Reset search when opening
               MenuProps={{
                 PaperProps: {
@@ -752,6 +776,11 @@ function CategoryFilters({ onFiltersChange, onSearch }) {
                 </MenuItem>
               )}
             </Select>
+            {denied && helper && (
+              <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                {helper}
+              </Typography>
+            )}
           </FormControl>
         );
       
@@ -763,6 +792,9 @@ function CategoryFilters({ onFiltersChange, onSearch }) {
             label={filterConfig.label}
             value={filterValue}
             onChange={(e) => handleFilterChange(filter.id, e.target.value)}
+            disabled={denied}
+            error={denied}
+            helperText={denied ? helper : undefined}
             sx={{ 
               flex: 1,
               '& .MuiOutlinedInput-root': {
@@ -803,7 +835,7 @@ function CategoryFilters({ onFiltersChange, onSearch }) {
         backgroundColor: 'white',
         border: '1px solid #f0f0f0',
         borderRadius: '5px',
-        mb: 2.5,
+  mb: FILTERS_PANEL_MB,
         boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
       }}
     >
@@ -959,12 +991,13 @@ function CategoryFilters({ onFiltersChange, onSearch }) {
         ))}
       </Stack>
       
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
+    <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
         <Button 
           variant="outlined" 
           color="primary" 
           onClick={handleSearch}
           startIcon={<SearchIcon fontSize="small" />}
+      disabled={activeFilters.some((f) => noticesByType?.[f.type]?.isDenied)}
           sx={{
             borderRadius: '4px',
             textTransform: 'none',

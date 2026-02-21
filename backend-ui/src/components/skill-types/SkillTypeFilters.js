@@ -21,7 +21,10 @@ import {
   Close as CloseIcon
 } from '@mui/icons-material';
 import { useSkillType } from '../../contexts/SkillTypeContext';
+import { useAuthorization } from '../../contexts/AuthorizationContext';
+import { evaluateFilterAccess } from '../../utils/accessControl';
 import { logInfo, logError } from '../../utils/logger';
+import { FILTERS_PANEL_MB } from '../common/layoutTokens';
 
 // Filter type definitions
 const FILTER_TYPES = {
@@ -48,6 +51,7 @@ const persistentFormStore = {
 
 const SkillTypeFilters = () => {
   const { filters, updateFilters, clearFilters, fetchSkillTypes } = useSkillType();
+  const { isSystemAdmin, hasPermission, hasAnyPermission } = useAuthorization();
   
   // Keep reference to instance ID for logging
   const instanceIdRef = React.useRef(COMPONENT_INSTANCE_ID);
@@ -74,6 +78,16 @@ const SkillTypeFilters = () => {
     })(),
     mode: 'onChange'
   });
+
+  // Build access notices for filters
+  const FILTER_ACCESS_MAP = React.useMemo(() => ({
+    code: { required: 'VIEW_SKILL_TYPES', moduleKey: 'skilltypes' },
+    name: { required: 'VIEW_SKILL_TYPES', moduleKey: 'skilltypes' }
+  }), []);
+  const { noticesByType, hasDeniedActive } = React.useMemo(() => {
+    const authorization = { isSystemAdmin, hasPermission, hasAnyPermission };
+    return evaluateFilterAccess(Object.keys(FILTER_TYPES), FILTER_ACCESS_MAP, authorization);
+  }, [isSystemAdmin, hasPermission, hasAnyPermission, FILTER_ACCESS_MAP]);
   
   // Debug log the incoming filters
   useEffect(() => {
@@ -380,6 +394,9 @@ const SkillTypeFilters = () => {
     const filterConfig = FILTER_TYPES[type];
     
     if (!filterConfig) return null;
+    const access = noticesByType?.[type];
+    const denied = !!access?.isDenied;
+    const helper = access?.message;
     
     // Create a unique key that changes when filter type changes
     // This forces React to completely unmount and remount the input
@@ -399,6 +416,9 @@ const SkillTypeFilters = () => {
             placeholder={filterConfig.placeholder}
             variant="outlined"
             value={field.value || ''}
+            disabled={denied}
+            error={denied}
+            helperText={denied ? helper : undefined}
             onChange={(e) => {
               // Call the original onChange
               field.onChange(e);
@@ -450,7 +470,7 @@ const SkillTypeFilters = () => {
         backgroundColor: 'white',
         border: '1px solid #f0f0f0',
         borderRadius: '5px',
-        mb: 2.5,
+  mb: FILTERS_PANEL_MB,
         boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
       }}
     >
@@ -628,6 +648,7 @@ const SkillTypeFilters = () => {
             variant="outlined"
             size="small"
             startIcon={<SearchIcon fontSize="small" />}
+            disabled={hasDeniedActive}
             sx={{
               borderRadius: '4px',
               textTransform: 'none',
