@@ -17,7 +17,16 @@ from app.api import deps
 from app.core.config import settings
 from app.core.logging import setup_logger
 from app.core.security_decorators import require_permission
-from app.utils.file_utils import save_upload_file, save_project_image, PROJECT_IMAGES_DIR, get_file_url, get_relative_path, delete_file
+from app.utils.file_utils import (
+    save_upload_file,
+    save_project_image,
+    PROJECT_IMAGES_DIR,
+    get_file_url,
+    get_relative_path,
+    delete_file,
+    resolve_safe_path,
+    sanitize_filename,
+)
 from app.crud import category as category_crud
 from app.crud import image as image_crud
 from app.core.security import create_temp_token, verify_temp_token
@@ -1276,12 +1285,17 @@ async def upload_project_attachment(
         await file.seek(0)
         
         # Create upload directory if it doesn't exist
-        upload_dir = Path(settings.UPLOADS_DIR) / "projects" / str(project_id) / "attachments"
+        upload_dir = resolve_safe_path(
+            Path(settings.UPLOADS_DIR),
+            "projects",
+            str(project_id),
+            "attachments",
+        )
         upload_dir.mkdir(parents=True, exist_ok=True)
         
         # Sanitize filename to prevent path traversal (strip directory components)
-        original_filename = Path(file.filename).name if file.filename else "upload"
-        file_path = upload_dir / original_filename
+        original_filename = sanitize_filename(file.filename, default="upload")
+        file_path = resolve_safe_path(upload_dir, original_filename)
         
         # Check if file already exists
         if file_path.exists():
@@ -1295,7 +1309,9 @@ async def upload_project_attachment(
             buffer.write(await file.read())
         
         # Create relative path for database storage
-        relative_path = str(file_path.relative_to(Path(settings.BASE_DIR)))
+        relative_path = file_path.relative_to(
+            Path(settings.BASE_DIR).resolve(strict=False)
+        ).as_posix()
         
         # Create attachment in database
         attachment_data = schemas.ProjectAttachmentCreate(
