@@ -318,10 +318,9 @@ public
 # ============================================================================
 
 # VSCode
-.vscode/settings.json
-.vscode/tasks.json
-.vscode/launch.json
-.vscode/extensions.json
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
 .history/
 
 # JetBrains IDEs (PyCharm, IntelliJ, WebStorm, etc.)
