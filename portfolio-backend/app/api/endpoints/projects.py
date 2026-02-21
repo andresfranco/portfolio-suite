@@ -1279,8 +1279,8 @@ async def upload_project_attachment(
         upload_dir = Path(settings.UPLOADS_DIR) / "projects" / str(project_id) / "attachments"
         upload_dir.mkdir(parents=True, exist_ok=True)
         
-        # Use original filename
-        original_filename = file.filename
+        # Sanitize filename to prevent path traversal (strip directory components)
+        original_filename = Path(file.filename).name if file.filename else "upload"
         file_path = upload_dir / original_filename
         
         # Check if file already exists
