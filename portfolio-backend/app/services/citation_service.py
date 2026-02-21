@@ -111,9 +111,9 @@ def _get_source_metadata(
                 params["lang_id"] = language_id
             
             # Use correct column names: name and description (not title/short_description)
-            result = db.execute(text(f"""
-                SELECT 
-                    p.id, 
+            result = db.execute(text(f"""  # nosec B608 - lang_filter is a hardcoded parameterized SQL fragment or empty string, no user data
+                SELECT
+                    p.id,
                     p.website_url as url,
                     pt.name as title,
                     pt.description
@@ -156,9 +156,9 @@ def _get_source_metadata(
                 params["lang_id"] = language_id
             
             # Use correct columns: code and years from experiences, name and description from experience_texts
-            result = db.execute(text(f"""
-                SELECT 
-                    e.id, 
+            result = db.execute(text(f"""  # nosec B608 - lang_filter is a hardcoded parameterized SQL fragment or empty string, no user data
+                SELECT
+                    e.id,
                     e.code,
                     e.years,
                     et.name,
@@ -231,8 +231,8 @@ def _get_source_metadata(
                 params["lang_id"] = language_id
             
             # Use correct column names: code from sections, text from section_texts
-            result = db.execute(text(f"""
-                SELECT 
+            result = db.execute(text(f"""  # nosec B608 - lang_filter is a hardcoded parameterized SQL fragment or empty string, no user data
+                SELECT
                     s.id,
                     s.code,
                     st.text
@@ -344,8 +344,8 @@ def _get_source_metadata(
                 params["lang_id"] = language_id
             
             # Simplified query
-            result = db.execute(text(f"""
-                SELECT 
+            result = db.execute(text(f"""  # nosec B608 - lang_filter is a hardcoded parameterized SQL fragment or empty string, no user data
+                SELECT
                     s.id,
                     st.name,
                     st.description,
