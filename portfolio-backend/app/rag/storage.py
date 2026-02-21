@@ -38,10 +38,10 @@ def read_text_best_effort(path: Path) -> str:
 
 def extract_text_from_pdf(path: Path) -> str:
     try:
-        import PyPDF2  # type: ignore
+        import pypdf  # type: ignore
         text_parts = []
         with open(path, "rb") as f:
-            reader = PyPDF2.PdfReader(f)
+            reader = pypdf.PdfReader(f)
             for page in reader.pages:
                 try:
                     text_parts.append(page.extract_text() or "")

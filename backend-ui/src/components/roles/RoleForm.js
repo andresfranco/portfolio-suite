@@ -204,23 +204,22 @@ const RoleForm = ({ open, onClose, role, mode }) => {
           };
 
 
-          let result;
           let successMsg = '';
 
           if (mode === 'create') {
-              result = await createRole(roleData);
+              await createRole(roleData);
               successMsg = 'Role created successfully';
           } else if (mode === 'edit') {
               if (!role || !role.id) {
                   throw new Error('Cannot update role: Missing role ID');
               }
-              result = await updateRole(role.id, roleData);
+              await updateRole(role.id, roleData);
               successMsg = 'Role updated successfully';
           } else if (mode === 'delete') {
               if (!role || !role.id) {
                   throw new Error('Cannot delete role: Missing role ID');
               }
-              result = await deleteRole(role.id);
+              await deleteRole(role.id);
               successMsg = 'Role deleted successfully';
           }
           
