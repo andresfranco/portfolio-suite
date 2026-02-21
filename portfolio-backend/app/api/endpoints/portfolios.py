@@ -906,6 +906,16 @@ async def upload_portfolio_image(
         else:
             logger.info(f"Category '{category}' allows multiple images - no uniqueness check")
         
+        # Validate category name before using it in a filesystem path.
+        # Only allow alphanumeric characters, underscores, and hyphens to
+        # prevent path traversal (e.g. category="../../etc").
+        import re as _re
+        if not _re.match(r'^[a-zA-Z0-9_-]+$', category):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid category name: '{category}'. Only letters, numbers, underscores and hyphens are allowed."
+            )
+
         # Create upload directory with structure: portfolios/{portfolio_id}/{category}/
         upload_dir = os.path.join(settings.UPLOADS_DIR, "portfolios", str(portfolio_id), category)
         os.makedirs(upload_dir, exist_ok=True)
@@ -1091,9 +1101,12 @@ async def rename_portfolio_image(
         if image_update.file_name and image_update.file_name != current_image.file_name:
             old_file_path = os.path.join(settings.BASE_DIR, current_image.image_path)
             if os.path.exists(old_file_path):
-                # Get directory and create new path
+                # Get directory and create new path.
+                # Strip directory components from the new name to prevent
+                # path traversal (e.g. file_name="../../etc/cron.d/evil").
+                safe_file_name = Path(image_update.file_name).name
                 upload_dir = os.path.dirname(old_file_path)
-                new_file_path = os.path.join(upload_dir, image_update.file_name)
+                new_file_path = os.path.join(upload_dir, safe_file_name)
                 
                 # Check if new filename already exists
                 if os.path.exists(new_file_path):
