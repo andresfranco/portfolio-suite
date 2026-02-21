@@ -14,11 +14,10 @@ from app.schemas.language import (
 )
 from app.core.config import settings
 from app.core.logging import setup_logger
-from app.utils.file_utils import save_upload_file
+from app.utils.file_utils import save_upload_file, get_relative_path
 from app.core.security_decorators import require_permission
 from app import models
 import os
-import uuid
 from app.rag.rag_events import stage_event
 
 # Set up logger
@@ -220,28 +219,9 @@ async def create_language(
         image_path = None
         if image:
             try:
-                # Use original filename
-                original_filename = image.filename
-                target_path = os.path.join(LANGUAGE_IMAGES_DIR, original_filename)
-                
-                # Check if file with same name already exists
-                if os.path.exists(target_path):
-                    # Generate unique name by adding a random suffix
-                    name_parts = os.path.splitext(original_filename)
-                    random_suffix = uuid.uuid4().hex[:6]  # Get 6 chars from UUID
-                    unique_filename = f"{name_parts[0]}_{random_suffix}{name_parts[1]}"
-                    target_path = os.path.join(LANGUAGE_IMAGES_DIR, unique_filename)
-                else:
-                    unique_filename = original_filename
-                
-                # Save the file
-                await save_upload_file(upload_file=image, directory=LANGUAGE_IMAGES_DIR, 
-                                      filename=unique_filename, keep_original_filename=True)
-                
-                logger.debug(f"Saved language image to {target_path}")
-                
-                # Store relative path for database
-                image_path = os.path.join("language_images", unique_filename)
+                saved_path = await save_upload_file(upload_file=image, directory=LANGUAGE_IMAGES_DIR)
+                image_path = get_relative_path(saved_path)
+                logger.debug(f"Saved language image to {saved_path}")
                 
             except Exception as e:
                 logger.error(f"Error saving language image: {str(e)}")
@@ -363,28 +343,9 @@ async def update_language(
         image_path = None
         if image:
             try:
-                # Use original filename
-                original_filename = image.filename
-                target_path = os.path.join(LANGUAGE_IMAGES_DIR, original_filename)
-                
-                # Check if file with same name already exists
-                if os.path.exists(target_path):
-                    # Generate unique name by adding a random suffix
-                    name_parts = os.path.splitext(original_filename)
-                    random_suffix = uuid.uuid4().hex[:6]  # Get 6 chars from UUID
-                    unique_filename = f"{name_parts[0]}_{random_suffix}{name_parts[1]}"
-                    target_path = os.path.join(LANGUAGE_IMAGES_DIR, unique_filename)
-                else:
-                    unique_filename = original_filename
-                
-                # Save the file
-                await save_upload_file(upload_file=image, directory=LANGUAGE_IMAGES_DIR, 
-                                      filename=unique_filename, keep_original_filename=True)
-                
-                logger.debug(f"Saved updated language image to {target_path}")
-                
-                # Store relative path for database
-                image_path = os.path.join("language_images", unique_filename)
+                saved_path = await save_upload_file(upload_file=image, directory=LANGUAGE_IMAGES_DIR)
+                image_path = get_relative_path(saved_path)
+                logger.debug(f"Saved updated language image to {saved_path}")
                 
             except Exception as e:
                 logger.error(f"Error saving updated language image: {str(e)}")
