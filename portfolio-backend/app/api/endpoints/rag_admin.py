@@ -106,7 +106,7 @@ def _reindex_table(db: Session, table: str, limit: Optional[int], offset: int) -
         pk_col = "code"
         order_col = "code"
 
-    q = f"SELECT {pk_col} FROM {table} ORDER BY {order_col}"
+    q = f"SELECT {pk_col} FROM {table} ORDER BY {order_col}"  # nosec B608 - table/column names are validated against a hardcoded whitelist by the caller
     if limit is not None:
         q += " LIMIT :lim OFFSET :off"
         rows = db.execute(text(q), {"lim": limit, "off": offset}).fetchall()

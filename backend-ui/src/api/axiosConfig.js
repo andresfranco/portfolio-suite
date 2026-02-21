@@ -46,22 +46,13 @@ axiosInstance.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // Log detailed error information
-    if (response) {
-      logError(`API Error (${response.status}):`, {
-        url: config?.url,
-        method: config?.method?.toUpperCase(),
-        status: response.status,
-        data: response.data
-      });
-    } else if (error.request) {
-      logError('Network Error - No response from API:', {
-        url: error.config?.url,
-        method: error.config?.method?.toUpperCase()
-      });
-    } else {
-      logError('Request Setup Error:', error.message);
-    }
+    // Log detailed error information (response is guaranteed non-null here)
+    logError(`API Error (${response.status}):`, {
+      url: config?.url,
+      method: config?.method?.toUpperCase(),
+      status: response.status,
+      data: response.data
+    });
 
     return Promise.reject(error);
   }
