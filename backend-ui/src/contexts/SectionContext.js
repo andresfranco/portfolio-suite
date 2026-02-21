@@ -68,7 +68,7 @@ export function SectionProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [pagination.pageSize]);
 
   const createSection = useCallback(async (sectionData) => {
     try {

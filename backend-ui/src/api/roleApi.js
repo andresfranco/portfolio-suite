@@ -1,4 +1,3 @@
-import axios from 'axios';
 import { API_CONFIG } from '../config/apiConfig';
 import { logInfo, logError } from '../utils/logger';
 import axiosInstance from './axiosConfig';
