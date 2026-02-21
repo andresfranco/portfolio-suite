@@ -141,7 +141,7 @@ async def login_for_access_token(
                 ip_address=client_ip
             )
             
-            logger.info(f"MFA required for user: {user.username} (mfa_enabled={user.mfa_enabled}) from IP: {client_ip}")
+            logger.info("MFA required at login for authenticated user")
             
             # Return MFA required response
             return {
@@ -729,4 +729,3 @@ async def get_csrf_token(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to generate CSRF token"
         )
- 
