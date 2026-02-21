@@ -99,7 +99,7 @@ export const CategoryProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, []); // Remove all dependencies to make this stable
+  }, [filters, sortModel]);
 
   // Create a new category
   const createCategory = useCallback(async (categoryData) => {
