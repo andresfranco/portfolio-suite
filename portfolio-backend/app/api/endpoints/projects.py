@@ -24,8 +24,6 @@ from app.utils.file_utils import (
     get_file_url,
     get_relative_path,
     delete_file,
-    resolve_safe_path,
-    sanitize_filename,
 )
 from app.crud import category as category_crud
 from app.crud import image as image_crud
@@ -1285,24 +1283,11 @@ async def upload_project_attachment(
         await file.seek(0)
         
         # Create upload directory if it doesn't exist
-        upload_dir = resolve_safe_path(
-            Path(settings.UPLOADS_DIR),
-            "projects",
-            str(project_id),
-            "attachments",
-        )
+        upload_dir = Path(settings.UPLOADS_DIR) / "project_attachments"
         upload_dir.mkdir(parents=True, exist_ok=True)
         
-        # Sanitize filename to prevent path traversal (strip directory components)
-        original_filename = sanitize_filename(file.filename, default="upload")
-        file_path = resolve_safe_path(upload_dir, original_filename)
-        
-        # Check if file already exists
-        if file_path.exists():
-            raise HTTPException(
-                status_code=400,
-                detail=f"File '{original_filename}' already exists. Please rename the file or delete the existing one."
-            )
+        filename = f"{uuid.uuid4().hex}.upload"
+        file_path = upload_dir / filename
         
         # Save the file
         with open(file_path, "wb") as buffer:
