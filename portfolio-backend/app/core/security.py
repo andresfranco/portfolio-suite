@@ -5,7 +5,8 @@ import hmac
 import time
 import base64
 
-from jose import jwt, JWTError
+import jwt
+from jwt.exceptions import PyJWTError as JWTError
 from passlib.context import CryptContext
 
 from app.core.config import settings

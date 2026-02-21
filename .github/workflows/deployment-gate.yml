@@ -91,7 +91,8 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           
           # Run Bandit and check for high/critical issues
-          if bandit -r app/ -ll -f txt | tee bandit-output.txt | grep -qE "High:|Critical:"; then
+          bandit -r app/ -ll -f txt | tee bandit-output.txt
+          if grep -qE "Severity: High|Severity: Critical" bandit-output.txt; then
             echo "❌ **FAILED:** High/Critical severity issues found" >> $GITHUB_STEP_SUMMARY
             cat bandit-output.txt >> $GITHUB_STEP_SUMMARY
             exit 1

@@ -512,7 +512,7 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
     
     # Run the app
-    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=settings.DEBUG)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=settings.DEBUG)  # nosec B104 - intentional: listen on all interfaces for server deployment
 
 
 
