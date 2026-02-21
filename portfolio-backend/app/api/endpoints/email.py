@@ -5,7 +5,7 @@ import smtplib
 import ssl  # Add import for ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from app.core.logging import setup_logger
+from app.core.logging import setup_logger, _CONTROL_CHARS
 
 # Set up logger using centralized logging
 logger = setup_logger("app.api.endpoints.email")
@@ -101,7 +101,9 @@ Reply directly to this email to respond to {email_request.name}.
             server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
             server.send_message(message)
 
-        logger.info(f"Contact form email sent successfully from {email_request.name} ({email_request.email})")
+        safe_name = _CONTROL_CHARS.sub(" ", email_request.name)
+        safe_email = _CONTROL_CHARS.sub(" ", email_request.email)
+        logger.info(f"Contact form email sent successfully from {safe_name} ({safe_email})")
         return {
             "success": True,
             "message": "Your message has been sent successfully! I'll get back to you soon."
