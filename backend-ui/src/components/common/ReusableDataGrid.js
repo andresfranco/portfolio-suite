@@ -313,7 +313,7 @@ function ReusableDataGrid({
         const isActions = next.field === 'actions';
         if (!hasExplicitWidth && !isActions && ctx) {
           const headerLabel = String(next.headerName || next.field || '')
-            .replace(/<[^>]*>?/gm, '');
+            .replace(/</g, '').replace(/>/g, '');
           const headerWidth = ctx.measureText(headerLabel).width;
 
           // Measure sample content widths as strings

@@ -20,7 +20,8 @@ from app.core.account_security import account_security_manager
 from app.core.mfa import mfa_manager
 from app.core.secure_cookies import SecureCookieManager
 from app.api.deps import get_current_user
-from jose import jwt, JWTError
+import jwt
+from jwt.exceptions import PyJWTError as JWTError
 
 # Set up logger
 logger = setup_logger("app.api.endpoints.auth")
