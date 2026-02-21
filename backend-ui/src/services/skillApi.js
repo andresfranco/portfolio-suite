@@ -1,4 +1,3 @@
-import { API_CONFIG } from '../config/apiConfig';
 import { logInfo, logError } from '../utils/logger';
 import { api } from './api';
 

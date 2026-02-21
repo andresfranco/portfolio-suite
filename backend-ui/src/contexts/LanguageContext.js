@@ -384,22 +384,6 @@ export const LanguageProvider = ({ children }) => {
   }, []);
 
   /**
-   * Clear all filters
-   */
-  const clearFilters = useCallback(() => {
-    setFilters({
-      name: '',
-      code: '',
-      is_default: null,
-    });
-    filtersRef.current = {
-      name: '',
-      code: '',
-      is_default: null,
-    };
-  }, []);
-
-  /**
    * Context value with memoization to prevent unnecessary renders
    */
   const contextValue = useMemo(() => ({
