@@ -14,7 +14,9 @@
 
 // Dangerous patterns for XSS detection
 const XSS_PATTERNS = [
-  /<script[^>]*>.*?<\/script>/gi,
+  // Use [\s\S] instead of . to match across newlines (dotAll), and \s* before >
+  // to match closing tags like </script > (with trailing whitespace).
+  /<script[^>]*>[\s\S]*?<\/script\s*>/gi,
   /javascript:/gi,
   /on\w+\s*=/gi,
   /<iframe[^>]*>/gi,
