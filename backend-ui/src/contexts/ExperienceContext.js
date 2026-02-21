@@ -272,7 +272,6 @@ export const ExperienceProvider = ({ children }) => {
       logInfo('ExperienceContext', 'Code check completed', { code, exists: response.exists });
       return response;
     } catch (error) {
-      const errorMessage = getErrorMessage(error);
       logError('ExperienceContext', 'Error checking code existence', error);
       // Don't set global error for this operation
       throw error;

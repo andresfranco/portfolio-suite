@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import skillApi from '../services/skillApi';
 import { useAuthorization } from './AuthorizationContext';
 import { logInfo, logError } from '../utils/logger';

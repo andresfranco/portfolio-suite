@@ -1,9 +1,25 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { api } from '../services/api';
 import { logInfo, logError } from '../utils/logger';
-import { isTokenExpired } from '../utils/jwt';
 
 const AuthorizationContext = createContext();
+
+// Module-specific permission mapping (static - does not depend on component state)
+const MODULE_PERMISSIONS = {
+  'users': ['VIEW_USERS', 'CREATE_USER', 'EDIT_USER', 'DELETE_USER', 'MANAGE_USERS'],
+  'roles': ['VIEW_ROLES', 'CREATE_ROLE', 'EDIT_ROLE', 'DELETE_ROLE', 'MANAGE_ROLES'],
+  'permissions': ['VIEW_PERMISSIONS', 'CREATE_PERMISSION', 'EDIT_PERMISSION', 'DELETE_PERMISSION', 'MANAGE_PERMISSIONS'],
+  'categories': ['VIEW_CATEGORIES', 'CREATE_CATEGORY', 'EDIT_CATEGORY', 'DELETE_CATEGORY', 'MANAGE_CATEGORIES'],
+  'categorytypes': ['VIEW_CATEGORY_TYPES', 'CREATE_CATEGORY_TYPE', 'EDIT_CATEGORY_TYPE', 'DELETE_CATEGORY_TYPE', 'MANAGE_CATEGORY_TYPES'],
+  'portfolios': ['VIEW_PORTFOLIOS', 'CREATE_PORTFOLIO', 'EDIT_PORTFOLIO', 'DELETE_PORTFOLIO', 'MANAGE_PORTFOLIOS'],
+  'projects': ['VIEW_PROJECTS', 'CREATE_PROJECT', 'EDIT_PROJECT', 'DELETE_PROJECT', 'MANAGE_PROJECTS'],
+  'experiences': ['VIEW_EXPERIENCES', 'CREATE_EXPERIENCE', 'EDIT_EXPERIENCE', 'DELETE_EXPERIENCE', 'MANAGE_EXPERIENCES'],
+  'skills': ['VIEW_SKILLS', 'CREATE_SKILL', 'EDIT_SKILL', 'DELETE_SKILL', 'MANAGE_SKILLS'],
+  'skilltypes': ['VIEW_SKILL_TYPES', 'CREATE_SKILL_TYPE', 'EDIT_SKILL_TYPE', 'DELETE_SKILL_TYPE', 'MANAGE_SKILL_TYPES'],
+  'languages': ['VIEW_LANGUAGES', 'CREATE_LANGUAGE', 'EDIT_LANGUAGE', 'DELETE_LANGUAGE', 'MANAGE_LANGUAGES'],
+  'sections': ['VIEW_SECTIONS', 'CREATE_SECTION', 'EDIT_SECTION', 'DELETE_SECTION', 'MANAGE_SECTIONS'],
+  'translations': ['VIEW_TRANSLATIONS', 'CREATE_TRANSLATION', 'EDIT_TRANSLATION', 'DELETE_TRANSLATION', 'MANAGE_TRANSLATIONS']
+};
 
 export const useAuthorization = () => {
   const context = useContext(AuthorizationContext);
@@ -24,8 +40,6 @@ export const AuthorizationProvider = ({ children }) => {
     return localStorage.getItem('isAuthenticated') === 'true' ? 'cookie-based' : null;
   });
 
-  // System admin users who bypass all permission checks
-  const SYSTEM_ADMIN_USERS = ['systemadmin'];
   const SYSTEM_ADMIN_PERMISSION = 'SYSTEM_ADMIN';
 
   // Watch for authentication changes in localStorage
@@ -203,28 +217,11 @@ export const AuthorizationProvider = ({ children }) => {
     return roles.some(role => role.name === roleName);
   }, [roles, isSystemAdmin]);
 
-  // Module-specific permission mapping
-  const modulePermissions = {
-    'users': ['VIEW_USERS', 'CREATE_USER', 'EDIT_USER', 'DELETE_USER', 'MANAGE_USERS'],
-    'roles': ['VIEW_ROLES', 'CREATE_ROLE', 'EDIT_ROLE', 'DELETE_ROLE', 'MANAGE_ROLES'],
-    'permissions': ['VIEW_PERMISSIONS', 'CREATE_PERMISSION', 'EDIT_PERMISSION', 'DELETE_PERMISSION', 'MANAGE_PERMISSIONS'],
-    'categories': ['VIEW_CATEGORIES', 'CREATE_CATEGORY', 'EDIT_CATEGORY', 'DELETE_CATEGORY', 'MANAGE_CATEGORIES'],
-    'categorytypes': ['VIEW_CATEGORY_TYPES', 'CREATE_CATEGORY_TYPE', 'EDIT_CATEGORY_TYPE', 'DELETE_CATEGORY_TYPE', 'MANAGE_CATEGORY_TYPES'],
-    'portfolios': ['VIEW_PORTFOLIOS', 'CREATE_PORTFOLIO', 'EDIT_PORTFOLIO', 'DELETE_PORTFOLIO', 'MANAGE_PORTFOLIOS'],
-    'projects': ['VIEW_PROJECTS', 'CREATE_PROJECT', 'EDIT_PROJECT', 'DELETE_PROJECT', 'MANAGE_PROJECTS'],
-    'experiences': ['VIEW_EXPERIENCES', 'CREATE_EXPERIENCE', 'EDIT_EXPERIENCE', 'DELETE_EXPERIENCE', 'MANAGE_EXPERIENCES'],
-    'skills': ['VIEW_SKILLS', 'CREATE_SKILL', 'EDIT_SKILL', 'DELETE_SKILL', 'MANAGE_SKILLS'],
-    'skilltypes': ['VIEW_SKILL_TYPES', 'CREATE_SKILL_TYPE', 'EDIT_SKILL_TYPE', 'DELETE_SKILL_TYPE', 'MANAGE_SKILL_TYPES'],
-    'languages': ['VIEW_LANGUAGES', 'CREATE_LANGUAGE', 'EDIT_LANGUAGE', 'DELETE_LANGUAGE', 'MANAGE_LANGUAGES'],
-    'sections': ['VIEW_SECTIONS', 'CREATE_SECTION', 'EDIT_SECTION', 'DELETE_SECTION', 'MANAGE_SECTIONS'],
-    'translations': ['VIEW_TRANSLATIONS', 'CREATE_TRANSLATION', 'EDIT_TRANSLATION', 'DELETE_TRANSLATION', 'MANAGE_TRANSLATIONS']
-  };
-
   // Check if user can access module
   const canAccessModule = useCallback((moduleName) => {
     if (!moduleName) return false;
-    
-    const requiredPermissions = modulePermissions[moduleName.toLowerCase()];
+
+    const requiredPermissions = MODULE_PERMISSIONS[moduleName.toLowerCase()];
     if (!requiredPermissions) return false;
 
     // User needs at least one permission for the module (typically VIEW)

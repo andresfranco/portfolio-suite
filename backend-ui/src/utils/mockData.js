@@ -45,7 +45,9 @@ export const mockPermissions = {
   total: 6
 };
 
-export default {
+const mockData = {
   roles: mockRoles,
   permissions: mockPermissions
-}; 
+};
+
+export default mockData;
