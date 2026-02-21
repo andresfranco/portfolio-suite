@@ -1,27 +1,6 @@
-import { API_CONFIG } from '../config/apiConfig';
 import { logInfo, logError } from '../utils/logger';
 import { api } from './api';
 
-const BASE_URL = `${API_CONFIG.BASE_URL}/api/category-types`;
-
-// Helper function to build the URL with query parameters
-const buildUrl = (endpoint, params = {}) => {
-  const url = new URL(endpoint);
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null) {
-      // Special handling for filters object - we don't include it as query params
-      // and handle it separately unless it's the legacy filters 'code' or 'name'
-      if (key === 'filters' && typeof value === 'object') {
-        // Skip adding filters to URL params - we'll handle these in the request below
-      } else {
-        url.searchParams.append(key, value);
-      }
-    }
-  });
-  
-  return url.toString();
-};
 
 /**
  * CategoryType API methods for the backend API

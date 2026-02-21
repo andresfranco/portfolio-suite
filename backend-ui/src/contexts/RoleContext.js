@@ -381,44 +381,6 @@ export const RoleProvider = ({ children }) => {
   }, []);
 
   /**
-   * Add a filter
-   * @param {Object} filter - Filter object with field, value, operator properties
-   */
-  const addFilter = useCallback((filter) => {
-    if (!filter || !filter.field || !filter.value) return;
-    
-    setFilters(prevFilters => {
-      // Check if we already have a filter for this field
-      const existingIndex = prevFilters.findIndex(f => f.field === filter.field);
-      
-      if (existingIndex >= 0) {
-        // Replace the existing filter
-        const newFilters = [...prevFilters];
-        newFilters[existingIndex] = filter;
-        return newFilters;
-      } else {
-        // Add a new filter
-        return [...prevFilters, filter];
-      }
-    });
-  }, []);
-
-  /**
-   * Remove a filter by field
-   * @param {string} field - Field name to remove filter for
-   */
-  const removeFilter = useCallback((field) => {
-    setFilters(prevFilters => prevFilters.filter(f => f.field !== field));
-  }, []);
-
-  /**
-   * Clear all filters
-   */
-  const clearFilters = useCallback(() => {
-    setFilters([]);
-  }, []);
-
-  /**
    * Update filters
    */
   const updateFilters = useCallback((newFilters) => {

@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useCallback, useMemo, useRe
 import { API_CONFIG } from '../config/apiConfig';
 import permissionApi from '../services/permissionApi';
 import { logInfo, logError } from '../utils/logger';
-import axiosWithAuth from '../services/axiosWithAuth';
 import { getErrorMessage, getErrorType, getErrorMessageByType, ERROR_TYPES } from '../utils/errorUtils';
 
 // Create the context
@@ -333,22 +332,6 @@ export const PermissionProvider = ({ children }) => {
     logInfo('Permission filters after update:', updatedFilters);
     
     return updatedFilters;
-  }, []);
-
-  /**
-   * Clear all filters
-   */
-  const clearFilters = useCallback(() => {
-    setFilters({
-      name: '',
-      description: '',
-      roles: '',
-    });
-    filtersRef.current = {
-      name: '',
-      description: '',
-      roles: '',
-    };
   }, []);
 
   /**
