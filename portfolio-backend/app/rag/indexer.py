@@ -69,7 +69,7 @@ def retire_missing_chunks(db: Session, source_table: str, source_id: str, versio
         params[f"f{idx}"] = f
         params[f"p{idx}"] = p
     res = db.execute(text(
-        f"""
+        f"""  # nosec B608 - placeholders contains only parameterized tokens (:f0, :p0)... built from integer indices, no user data interpolated
         UPDATE rag_chunk c
         SET is_deleted = TRUE
         WHERE c.source_table = :t AND c.source_id = :i AND c.version = :v

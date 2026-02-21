@@ -113,7 +113,7 @@ def vector_search(db: Session, *, qvec: List[float], model: str, k: int, score_t
         language_filter_sql = "\n          AND (c.lang = :lang_code OR c.lang IS NULL)\n        "
 
     sql = text(
-        f"""
+        f"""  # nosec B608 - all interpolated fragments are hardcoded SQL or built from a validated whitelist, no user data
         WITH q AS (SELECT CAST(:q AS vector({dim})) AS qvec)
         SELECT c.id as chunk_id, c.source_table, c.source_id, c.source_field, c.part_index, c.version,
                c.text, (COALESCE(e.embedding_vec, e.embedding::vector) <=> q.qvec) AS distance

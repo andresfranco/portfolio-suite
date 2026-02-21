@@ -3,7 +3,7 @@ uvicorn
 sqlalchemy
 alembic
 passlib[bcrypt]
-python-jose[cryptography]
+PyJWT[cryptography]>=2.8.0
 python-multipart
 email-validator
 pydantic
@@ -24,7 +24,7 @@ testcontainers
 alembic
 
 # Optional RAG parsers (safe defaults)
-PyPDF2
+pypdf>=4.0.0
 beautifulsoup4
 markdown-it-py
 html2text
