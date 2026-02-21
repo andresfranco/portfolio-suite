@@ -434,8 +434,9 @@ def create_admin_user(username, password, email, admin_role):
         # Generate password if not provided
         if not password:
             password = generate_secure_password()
-            logger.info(f"Generated secure password for admin user: {password}")
+            logger.info("Generated secure password for admin user (displayed in terminal output only).")
             logger.info("PLEASE SAVE THIS PASSWORD!")
+            print(f"[init_postgres_db] Admin password: {password}")
         
         # Create default email if not provided
         if not email:
