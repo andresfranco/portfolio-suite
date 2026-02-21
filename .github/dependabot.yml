@@ -37,10 +37,9 @@ updates:
           - "minor"
           - "patch"
     # Ignore specific dependencies (if needed)
-    ignore:
-      # Example: ignore major updates for specific packages
-      # - dependency-name: "fastapi"
-      #   update-types: ["version-update:semver-major"]
+    # ignore:
+    #   - dependency-name: "fastapi"
+    #     update-types: ["version-update:semver-major"]
 
   # Frontend Dependencies (npm)
   - package-ecosystem: "npm"
