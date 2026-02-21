@@ -67,17 +67,19 @@ async def save_upload_file(
         directory.mkdir(exist_ok=True, parents=True)
         logger.debug(f"Ensured directory exists: {directory}")
         
-        # Get original filename if available
-        original_filename = upload_file.filename
+        # Get original filename if available, stripping any directory components
+        # to prevent path traversal attacks (e.g. filename="../../etc/passwd")
+        raw_filename = upload_file.filename
+        original_filename = Path(raw_filename).name if raw_filename else None
         logger.debug(f"Original filename: {original_filename}")
-        
+
         # Generate a filename
         if filename:
-            # Use the custom filename
-            unique_filename = filename
+            # Strip directory components from caller-supplied custom filename
+            unique_filename = Path(filename).name
             logger.debug(f"Using custom filename: {unique_filename}")
         elif keep_original_filename and original_filename:
-            # Use the original filename, but ensure uniqueness
+            # Use the sanitized original filename, but ensure uniqueness
             unique_filename = original_filename
             logger.debug(f"Using original filename: {unique_filename}")
             
