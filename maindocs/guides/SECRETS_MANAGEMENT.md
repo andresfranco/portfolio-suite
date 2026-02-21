@@ -157,11 +157,13 @@ DATABASE_URL=postgresql://<DB_USER>:<DB_PASSWORD>@<DB_HOST>:5432/<DB_NAME>?sslmo
 
 **Variables**:
 ```bash
-SMTP_HOST=<SMTP_HOSTNAME>
-SMTP_PORT=<SMTP_PORT>
-SMTP_USER=<SMTP_USERNAME>
-SMTP_PASSWORD=<SMTP_PASSWORD>
+SMTP_HOST
+SMTP_PORT
+SMTP_USERNAME
+SMTP_PASSWORD
 ```
+
+Use your environment manager to set these values; do not place sample credentials in docs.
 
 **Best Practices**:
 - Use app-specific passwords (not account password)
