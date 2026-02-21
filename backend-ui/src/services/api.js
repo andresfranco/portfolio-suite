@@ -2,25 +2,6 @@ import axios from 'axios';
 import SERVER_URL from '../components/common/BackendServerData';
 import { API_CONFIG } from '../config/apiConfig';
 import { logInfo, logError, logDebug } from '../utils/logger';
-import { isTokenExpired } from '../utils/jwt';
-
-/**
- * Determines if an error is likely an authentication error
- * @param {Object} error - The error object
- * @returns {boolean} - Whether the error is likely an authentication error
- */
-const isLikelyAuthError = (error) => {
-  // Check for 401 status code
-  if (error.response?.status === 401) return true;
-  
-  // Check for 500 errors from login endpoint - use more precise check
-  if (error.response?.status === 500 && 
-      error.config?.url?.includes('/login')) {
-    return true;
-  }
-  
-  return false;
-};
 
 // Create axios instance with base configuration
 const api = axios.create({

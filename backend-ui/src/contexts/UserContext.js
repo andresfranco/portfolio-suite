@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useRef } from 'react';
 import userApi from '../services/userApi';
-import { logInfo, logError } from '../utils/logger';
+import { logInfo } from '../utils/logger';
 
 // Create the context
 const UserContext = createContext(null);

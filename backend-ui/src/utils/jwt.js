@@ -48,9 +48,11 @@ export function msUntilExpiry(token) {
   return Math.max(0, expMs - Date.now());
 }
 
-export default {
+const jwtUtils = {
   decodeJwt,
   getTokenExpiry,
   isTokenExpired,
   msUntilExpiry,
 };
+
+export default jwtUtils;

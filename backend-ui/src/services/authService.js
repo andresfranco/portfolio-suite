@@ -1,7 +1,6 @@
 import { API_CONFIG } from '../config/apiConfig';
 import { api } from './api';
 import { logInfo, logError } from '../utils/logger';
-import { isTokenExpired } from '../utils/jwt';
 
 /**
  * Authentication service
