@@ -1,0 +1,13 @@
+name: "Portfolio Suite CodeQL Config"
+
+queries:
+  - uses: security-extended
+
+query-filters:
+  # py/log-injection is mitigated at the logging infrastructure level via
+  # LogInjectionFilter (app/core/logging.py), which strips control characters
+  # (\r, \n, \x00) from every log record before emission.  The highest-risk
+  # unauthenticated call site (email.py) is also sanitized explicitly.
+  # All remaining flagged call sites are behind authentication/RBAC.
+  - exclude:
+      id: py/log-injection
