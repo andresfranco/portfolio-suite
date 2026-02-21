@@ -14,9 +14,9 @@
 
 // Dangerous patterns for XSS detection
 const XSS_PATTERNS = [
-  // Use [\s\S] instead of . to match across newlines (dotAll), and \s* before >
-  // to match closing tags like </script > (with trailing whitespace).
-  /<script[^>]*>[\s\S]*?<\/script\s*>/gi,
+  // Match script blocks even when closing tags contain whitespace/attributes
+  // like </script\t\n bar>.
+  /<script\b[^>]*>[\s\S]*?<\/script\b[^>]*>/gi,
   /javascript:/gi,
   /on\w+\s*=/gi,
   /<iframe[^>]*>/gi,
@@ -497,4 +497,3 @@ const validators = {
 };
 
 export default validators;
-
