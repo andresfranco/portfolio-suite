@@ -134,7 +134,7 @@ export function ProjectProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [pagination.page, pagination.pageSize]);
+  }, [hasPermission, pagination.page, pagination.pageSize]);
 
   const createProject = useCallback(async (projectData) => {
     // Check permission before making API call
