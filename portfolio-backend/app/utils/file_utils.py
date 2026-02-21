@@ -40,32 +40,10 @@ def sanitize_filename(filename: Optional[str], default: str = "upload") -> str:
     return candidate
 
 
-def resolve_safe_path(base_dir: Path, *path_parts: object) -> Path:
-    """
-    Resolve a path under a trusted base directory and reject path traversal.
-    """
-    base_path = Path(base_dir).resolve(strict=False)
-    candidate = base_path
-    for part in path_parts:
-        if part is None:
-            continue
-        normalized = str(part).replace("\\", "/").lstrip("/")
-        if not normalized:
-            continue
-        candidate = candidate / normalized
-
-    resolved_path = candidate.resolve(strict=False)
-    if os.path.commonpath([str(base_path), str(resolved_path)]) != str(base_path):
-        raise ValueError(f"Unsafe path detected outside base directory: {resolved_path}")
-    return resolved_path
-
 # Save an uploaded file
 async def save_upload_file(
     upload_file: UploadFile, 
-    directory: Path = UPLOAD_DIR, 
-    filename: str = None,
-    keep_original_filename: bool = False,
-    project_id: int = None
+    directory: Path = UPLOAD_DIR,
 ) -> str:
     """
     Save an uploaded file to the specified directory
@@ -73,9 +51,6 @@ async def save_upload_file(
     Args:
         upload_file: The uploaded file to save
         directory: The directory to save the file in
-        filename: Optional custom filename to use (instead of generating a UUID)
-        keep_original_filename: If True, use the original filename (with conflict resolution)
-        project_id: If provided, organize files into project-specific subdirectories
         
     Returns:
         The path to the saved file relative to the upload directory
@@ -87,56 +62,47 @@ async def save_upload_file(
         if not upload_file or not hasattr(upload_file, 'file'):
             logger.error("Invalid upload file object")
             raise ValueError("Invalid upload file object")
-            
+
         upload_root = Path(UPLOAD_DIR).resolve(strict=False)
-        directory_path = Path(directory)
+        target_directory = Path(directory) if directory else upload_root
+        if not target_directory.is_absolute():
+            target_directory = upload_root / target_directory
+        target_directory = target_directory.resolve(strict=False)
 
-        if directory_path.is_absolute():
-            directory_path = directory_path.resolve(strict=False)
-            if os.path.commonpath([str(upload_root), str(directory_path)]) != str(upload_root):
-                raise ValueError(f"Upload directory must be under {upload_root}")
-            relative_directory = directory_path.relative_to(upload_root)
+        if os.path.commonpath([str(upload_root), str(target_directory)]) != str(upload_root):
+            raise ValueError(f"Upload directory must be under {upload_root}")
+
+        target_directory.mkdir(exist_ok=True, parents=True)
+        logger.debug(f"Ensured directory exists: {target_directory}")
+
+        # Always use a server-generated filename for disk storage.
+        # Extension is selected from a fixed allowlist based on content type.
+        content_type = (upload_file.content_type or "").lower()
+        if content_type in {"image/jpeg", "image/jpg"}:
+            file_extension = ".jpg"
+        elif content_type == "image/png":
+            file_extension = ".png"
+        elif content_type == "image/gif":
+            file_extension = ".gif"
+        elif content_type == "image/webp":
+            file_extension = ".webp"
+        elif content_type == "image/svg+xml":
+            file_extension = ".svg"
+        elif content_type == "application/pdf":
+            file_extension = ".pdf"
+        elif content_type == "text/plain":
+            file_extension = ".txt"
+        elif content_type == "application/json":
+            file_extension = ".json"
+        elif content_type == "text/csv":
+            file_extension = ".csv"
+        elif content_type in {"application/zip", "application/x-zip-compressed"}:
+            file_extension = ".zip"
         else:
-            relative_directory = directory_path
+            file_extension = ".upload"
 
-        # If project_id is provided, create project-specific subdirectory
-        if project_id is not None:
-            relative_directory = relative_directory / f"project_{project_id}"
-
-        directory = resolve_safe_path(upload_root, relative_directory)
-        directory.mkdir(exist_ok=True, parents=True)
-        logger.debug(f"Ensured directory exists: {directory}")
-        
-        # Get original filename if available, stripping any directory components
-        # to prevent path traversal attacks (e.g. filename="../../etc/passwd")
-        raw_filename = upload_file.filename
-        original_filename = sanitize_filename(raw_filename, default="upload") if raw_filename else None
-        logger.debug(f"Original filename: {original_filename}")
-
-        # Generate a filename
-        if filename:
-            # Strip directory components from caller-supplied custom filename
-            unique_filename = sanitize_filename(filename, default=f"{uuid.uuid4()}")
-            logger.debug(f"Using custom filename: {unique_filename}")
-        elif keep_original_filename and original_filename:
-            # Use the sanitized original filename, but ensure uniqueness
-            unique_filename = original_filename
-            logger.debug(f"Using original filename: {unique_filename}")
-            
-            # Check if file exists
-            if resolve_safe_path(directory, unique_filename).exists():
-                # Create a unique version with a UUID
-                base_name, extension = os.path.splitext(original_filename)
-                unique_filename = f"{base_name}_{uuid.uuid4().hex[:8]}{extension}"
-                logger.debug(f"File exists, using modified filename: {unique_filename}")
-        else:
-            # Generate a unique filename to avoid collisions
-            file_extension = os.path.splitext(original_filename)[1] if original_filename else ""
-            unique_filename = f"{uuid.uuid4()}{file_extension}"
-            logger.debug(f"Generated UUID filename: {unique_filename}")
-        
-        # Create the full path
-        file_path = resolve_safe_path(directory, unique_filename)
+        unique_filename = f"{uuid.uuid4().hex}{file_extension}"
+        file_path = target_directory / unique_filename
         logger.debug(f"Full file path: {file_path}")
         
         # Save the file
@@ -338,8 +304,8 @@ async def save_project_image(
         The path to the saved file
     """
     try:
-        # Create project-specific directory with category subdirectory
-        project_dir = PROJECT_IMAGES_DIR / f"project_{project_id}" / category
+        # Use a fixed storage location to avoid user-controlled path segments.
+        project_dir = PROJECT_IMAGES_DIR / "images"
         project_dir.mkdir(exist_ok=True, parents=True)
         logger.debug(f"Created project image directory: {project_dir}")
         
@@ -347,7 +313,6 @@ async def save_project_image(
         file_path = await save_upload_file(
             upload_file=upload_file,
             directory=project_dir,
-            keep_original_filename=keep_original_filename
         )
         
         logger.info(f"Saved project image: {file_path}")
