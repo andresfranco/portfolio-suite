@@ -1,9 +1,13 @@
 import logging
+import re
 import sys
 import json
 from datetime import datetime
 from typing import Optional
 from app.core.config import settings
+
+# Matches newlines, carriage returns, and null bytes used in log injection attacks
+_CONTROL_CHARS = re.compile(r"[\r\n\x00]")
 
 
 class JSONFormatter(logging.Formatter):
@@ -64,6 +68,33 @@ class SanitizingFormatter(logging.Formatter):
         return message
 
 
+class LogInjectionFilter(logging.Filter):
+    """
+    Prevents log injection by stripping control characters (newlines, carriage
+    returns, null bytes) from every log record before it is emitted.
+
+    This covers all 'logger.info/debug/warning/error' call sites across the
+    codebase without requiring per-call-site changes.  Newlines injected via
+    user-controlled values like query parameters or request body fields would
+    otherwise allow an attacker to forge fake log entries.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.msg = _CONTROL_CHARS.sub(" ", str(record.msg))
+        if record.args:
+            if isinstance(record.args, dict):
+                record.args = {
+                    k: _CONTROL_CHARS.sub(" ", str(v)) if isinstance(v, str) else v
+                    for k, v in record.args.items()
+                }
+            elif isinstance(record.args, tuple):
+                record.args = tuple(
+                    _CONTROL_CHARS.sub(" ", str(arg)) if isinstance(arg, str) else arg
+                    for arg in record.args
+                )
+        return True
+
+
 def get_log_level() -> int:
     """
     Get the appropriate log level based on environment and configuration
@@ -116,6 +147,7 @@ def setup_logger(name: str, log_file: Optional[str] = None) -> logging.Logger:
         # Console handler
         console_handler = logging.StreamHandler(sys.stderr)
         console_handler.setLevel(log_level)
+        console_handler.addFilter(LogInjectionFilter())
         
         # Choose formatter based on environment and configuration
         if settings.is_production() or (hasattr(settings, 'LOG_FORMAT') and settings.LOG_FORMAT == 'json'):
@@ -136,6 +168,7 @@ def setup_logger(name: str, log_file: Optional[str] = None) -> logging.Logger:
             file_path = log_file or settings.LOG_FILE
             file_handler = logging.FileHandler(file_path)
             file_handler.setLevel(log_level)
+            file_handler.addFilter(LogInjectionFilter())
             
             # Use JSON format for file logs in production
             if settings.is_production():
