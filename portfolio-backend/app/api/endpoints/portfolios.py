@@ -27,7 +27,7 @@ from app.core.security_decorators import require_permission, require_any_permiss
 from app import models
 import traceback
 from app.rag.rag_events import stage_event
-from app.utils.file_utils import resolve_safe_path, sanitize_filename
+from app.utils.file_utils import sanitize_filename
 
 # Set up logger using centralized logging
 logger = setup_logger("app.api.endpoints.portfolios")
@@ -917,24 +917,36 @@ async def upload_portfolio_image(
                 detail=f"Invalid category name: '{category}'. Only letters, numbers, underscores and hyphens are allowed."
             )
 
-        # Create upload directory with structure: portfolios/{portfolio_id}/{category}/
-        upload_dir = resolve_safe_path(Path(settings.UPLOADS_DIR), "portfolios", str(portfolio_id), category)
+        # Use a fixed storage directory to avoid user-controlled path segments.
+        upload_dir = Path(settings.UPLOADS_DIR) / "portfolio_images"
         upload_dir.mkdir(parents=True, exist_ok=True)
         
         # Use UUID-based physical filename to avoid conflicts, but keep original filename in database
         original_filename = sanitize_filename(file.filename, default="image.png")
-        file_extension = os.path.splitext(original_filename)[1]
-        physical_filename = f"{uuid.uuid4()}{file_extension}"
+        content_type = (file.content_type or "").lower()
+        if content_type in {"image/jpeg", "image/jpg"}:
+            image_extension = ".jpg"
+        elif content_type == "image/png":
+            image_extension = ".png"
+        elif content_type == "image/gif":
+            image_extension = ".gif"
+        elif content_type == "image/webp":
+            image_extension = ".webp"
+        elif content_type == "image/svg+xml":
+            image_extension = ".svg"
+        else:
+            image_extension = ".upload"
+        physical_filename = f"{uuid.uuid4().hex}{image_extension}"
         
-        file_path = resolve_safe_path(upload_dir, physical_filename)
+        file_path = upload_dir / physical_filename
         
         # Save the file
         contents = await file.read()
         with open(file_path, "wb") as f:
             f.write(contents)
         
-        # Create URL-friendly path (relative to static/uploads)
-        url_path = f"/uploads/portfolios/{portfolio_id}/{category}/{physical_filename}"
+        # Create URL path based on the fixed storage directory.
+        url_path = f"/uploads/portfolio_images/{physical_filename}"
         
         # Update existing or create new image record
         if existing_image:
@@ -942,20 +954,14 @@ async def upload_portfolio_image(
             if existing_image.image_path:
                 old_file_path = existing_image.image_path
                 # Convert URL path to absolute path
-                try:
-                    if old_file_path.startswith('/uploads/'):
-                        old_abs_path = resolve_safe_path(
-                            Path(settings.BASE_DIR) / "static",
-                            old_file_path.lstrip('/'),
-                        )
-                    else:
-                        old_abs_path = resolve_safe_path(Path(settings.BASE_DIR), old_file_path)
-
-                    if old_abs_path.exists():
-                        old_abs_path.unlink()
-                        logger.info(f"Deleted old file: {old_abs_path}")
-                except ValueError:
-                    logger.warning(f"Skipping deletion for unsafe file path: {old_file_path}")
+                old_abs_path = None
+                if old_file_path.startswith('/uploads/'):
+                    old_abs_path = Path(settings.BASE_DIR) / "static" / old_file_path.lstrip('/')
+                elif old_file_path.startswith('static/'):
+                    old_abs_path = Path(settings.BASE_DIR) / old_file_path
+                if old_abs_path and old_abs_path.exists():
+                    old_abs_path.unlink()
+                    logger.info(f"Deleted old file: {old_abs_path}")
             
             # Update existing record
             existing_image.image_path = url_path
@@ -1102,51 +1108,14 @@ async def rename_portfolio_image(
                 detail="Image does not belong to this portfolio"
             )
         
-        # Handle file rename if new filename is provided
+        # Handle display-name update if new filename is provided.
+        # The stored disk filename remains server-generated.
         if image_update.file_name and image_update.file_name != current_image.file_name:
-            try:
-                old_file_path = resolve_safe_path(Path(settings.BASE_DIR), current_image.image_path)
-            except ValueError:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Stored image path is invalid"
-                )
-
-            if old_file_path.exists():
-                # Get directory and create new path.
-                # Strip directory components from the new name to prevent
-                # path traversal (e.g. file_name="../../etc/cron.d/evil").
-                safe_file_name = sanitize_filename(
-                    image_update.file_name,
-                    default=current_image.file_name or "image",
-                )
-                upload_dir = old_file_path.parent
-                new_file_path = resolve_safe_path(upload_dir, safe_file_name)
-                
-                # Check if new filename already exists
-                if new_file_path.exists():
-                    raise HTTPException(
-                        status_code=status.HTTP_409_CONFLICT,
-                        detail=f"A file with name '{image_update.file_name}' already exists"
-                    )
-                
-                try:
-                    # Rename the file
-                    old_file_path.rename(new_file_path)
-                    
-                    # Update the image_path in the update data
-                    new_relative_path = new_file_path.relative_to(
-                        Path(settings.BASE_DIR).resolve(strict=False)
-                    ).as_posix()
-                    image_update.image_path = new_relative_path
-                    
-                    logger.info(f"File renamed from {current_image.file_name} to {image_update.file_name}")
-                except OSError as e:
-                    logger.error(f"Failed to rename file: {str(e)}")
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"Failed to rename file: {str(e)}"
-                    )
+            image_update.file_name = sanitize_filename(
+                image_update.file_name,
+                default=current_image.file_name or "image",
+            )
+            logger.info(f"Updated image display name to {image_update.file_name}")
         
         # Update the image in database
         updated_image = portfolio_crud.update_portfolio_image(db, image_id=image_id, image_update=image_update)
@@ -1417,26 +1386,20 @@ async def upload_portfolio_attachment(
         await file.seek(0)
         
         # Create upload directory if it doesn't exist
-        upload_dir = resolve_safe_path(
-            Path(settings.UPLOADS_DIR),
-            "portfolios",
-            str(portfolio_id),
-            "attachments",
-        )
+        upload_dir = Path(settings.UPLOADS_DIR) / "portfolio_attachments"
         upload_dir.mkdir(parents=True, exist_ok=True)
         
         # Use UUID-based filename to avoid conflicts
-        file_extension = os.path.splitext(file.filename or "document.pdf")[1]
-        filename = f"{uuid.uuid4()}{file_extension}"
+        filename = f"{uuid.uuid4().hex}.upload"
         
-        file_path = resolve_safe_path(upload_dir, filename)
+        file_path = upload_dir / filename
         
         # Save the file
         with open(file_path, "wb") as buffer:
             buffer.write(await file.read())
         
-        # Create URL-friendly path (relative to static/uploads)
-        url_path = f"/uploads/portfolios/{portfolio_id}/attachments/{filename}"
+        # Create URL path based on the fixed storage directory.
+        url_path = f"/uploads/portfolio_attachments/{filename}"
         
         # Create attachment in database
         attachment_data = PortfolioAttachmentCreate(

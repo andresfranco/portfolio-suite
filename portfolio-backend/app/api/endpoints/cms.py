@@ -322,10 +322,9 @@ async def upload_content_image(
 
             storage_entity_id = resolved_experience_id
 
-        # Save the file using existing file utils
-        # Construct directory path for the entity
+        # Save file in fixed storage bucket to avoid user-controlled path segments.
         from app.core.config import settings
-        upload_dir = Path(settings.UPLOADS_DIR) / f"{entity_type}s" / str(storage_entity_id) / category
+        upload_dir = Path(settings.UPLOADS_DIR) / "content_images"
         absolute_file_path = await file_utils.save_upload_file(file, directory=upload_dir)
         
         # Convert absolute path to URL-friendly relative path
@@ -684,9 +683,9 @@ async def upload_attachment(
                 detail=f"Invalid entity type: {entity_type}. Currently only 'section' is supported for attachments"
             )
 
-        # Save the file
+        # Save file in fixed storage bucket to avoid user-controlled path segments.
         from app.core.config import settings
-        upload_dir = Path(settings.UPLOADS_DIR) / f"{entity_type}s" / str(entity_id) / "attachments"
+        upload_dir = Path(settings.UPLOADS_DIR) / "section_attachments"
         absolute_file_path = await file_utils.save_upload_file(file, directory=upload_dir)
 
         # Convert absolute path to URL-friendly relative path
