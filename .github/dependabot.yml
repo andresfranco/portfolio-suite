@@ -30,11 +30,6 @@ updates:
       include: "scope"
     # Group updates
     groups:
-      security-updates:
-        patterns:
-          - "*"
-        update-types:
-          - "security"
       minor-updates:
         patterns:
           - "*"
@@ -42,10 +37,9 @@ updates:
           - "minor"
           - "patch"
     # Ignore specific dependencies (if needed)
-    ignore:
-      # Example: ignore major updates for specific packages
-      # - dependency-name: "fastapi"
-      #   update-types: ["version-update:semver-major"]
+    # ignore:
+    #   - dependency-name: "fastapi"
+    #     update-types: ["version-update:semver-major"]
 
   # Frontend Dependencies (npm)
   - package-ecosystem: "npm"
@@ -69,11 +63,6 @@ updates:
       prefix: "deps(frontend)"
       include: "scope"
     groups:
-      security-updates:
-        patterns:
-          - "*"
-        update-types:
-          - "security"
       react-ecosystem:
         patterns:
           - "react*"
