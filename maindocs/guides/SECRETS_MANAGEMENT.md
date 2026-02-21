@@ -140,13 +140,13 @@ postgresql://username:password@host:port/database
 
 **Example (with SSL)**:
 ```bash
-DATABASE_URL=postgresql://app_user:StrongP@ssw0rd!@db.example.com:5432/portfolioai?sslmode=require
+DATABASE_URL=postgresql://<DB_USER>:<DB_PASSWORD>@<DB_HOST>:5432/<DB_NAME>?sslmode=require
 ```
 
 **Never Use**:
 ```bash
-❌ DATABASE_URL=postgresql://postgres:postgres@localhost/db  # Default credentials
-❌ DATABASE_URL=postgresql://admin:admin@prod-db/db          # Weak password
+❌ DATABASE_URL=postgresql://<DEFAULT_USER>:<DEFAULT_PASSWORD>@localhost/<DB_NAME>  # Default credentials pattern
+❌ DATABASE_URL=postgresql://<ADMIN_USER>:<WEAK_PASSWORD>@prod-db/<DB_NAME>         # Weak password pattern
 ```
 
 ---
@@ -157,10 +157,10 @@ DATABASE_URL=postgresql://app_user:StrongP@ssw0rd!@db.example.com:5432/portfolio
 
 **Variables**:
 ```bash
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your_app@example.com
-SMTP_PASSWORD=app_specific_password_here
+SMTP_HOST=<SMTP_HOSTNAME>
+SMTP_PORT=<SMTP_PORT>
+SMTP_USER=<SMTP_USERNAME>
+SMTP_PASSWORD=<SMTP_PASSWORD>
 ```
 
 **Best Practices**:
@@ -177,10 +177,10 @@ SMTP_PASSWORD=app_specific_password_here
 
 **Variables**:
 ```bash
-AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
-AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-AWS_S3_BUCKET=portfolio-backups
-AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=<AWS_ACCESS_KEY_ID>
+AWS_SECRET_ACCESS_KEY=<AWS_SECRET_ACCESS_KEY>
+AWS_S3_BUCKET=<AWS_S3_BUCKET_NAME>
+AWS_REGION=<AWS_REGION>
 ```
 
 **Best Practices**:
@@ -220,8 +220,8 @@ AGENT_KMS_KEY=your_kms_encryption_key_here
 # .env (local development)
 ENVIRONMENT=development
 DEBUG=True
-SECRET_KEY=dev_secret_key_min_32_chars_for_testing_only
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/portfolioai_dev
+SECRET_KEY=<DEV_SECRET_KEY_MIN_32_CHARS>
+DATABASE_URL=postgresql://<DEV_DB_USER>:<DEV_DB_PASSWORD>@localhost:5432/<DEV_DB_NAME>
 ALLOWED_HOSTS=*
 RATE_LIMIT_ENABLED=False
 LOG_LEVEL=DEBUG
@@ -242,8 +242,8 @@ LOG_LEVEL=DEBUG
 # .env (staging server)
 ENVIRONMENT=staging
 DEBUG=False
-SECRET_KEY=<unique 64-char secret for staging>
-DATABASE_URL=postgresql://staging_user:<strong-pass>@staging-db:5432/portfolioai?sslmode=require
+SECRET_KEY=<STAGING_SECRET_KEY_64_CHARS>
+DATABASE_URL=postgresql://<STAGING_DB_USER>:<STAGING_DB_PASSWORD>@<STAGING_DB_HOST>:5432/<STAGING_DB_NAME>?sslmode=require
 ALLOWED_HOSTS=staging.example.com
 RATE_LIMIT_ENABLED=True
 HSTS_ENABLED=False  # Optional for staging
@@ -267,8 +267,8 @@ SECURITY_EMAIL_ALERTS_ENABLED=True
 # .env (production server)
 ENVIRONMENT=production
 DEBUG=False
-SECRET_KEY=<unique 64-char secret from secrets manager>
-DATABASE_URL=postgresql://prod_user:<strong-pass>@prod-db:5432/portfolioai?sslmode=require
+SECRET_KEY=<PROD_SECRET_KEY_FROM_SECRETS_MANAGER>
+DATABASE_URL=postgresql://<PROD_DB_USER>:<PROD_DB_PASSWORD>@<PROD_DB_HOST>:5432/<PROD_DB_NAME>?sslmode=require
 ALLOWED_HOSTS=app.example.com,api.example.com
 RATE_LIMIT_ENABLED=True
 HSTS_ENABLED=True
@@ -279,9 +279,9 @@ SECURITY_EMAIL_ALERTS_ENABLED=True
 SECURITY_ALERT_RECIPIENTS=security@example.com,ops@example.com
 
 # Production-specific
-SENTRY_DSN=https://your_sentry_dsn@sentry.io/project
-AWS_ACCESS_KEY_ID=<from secrets manager>
-AWS_SECRET_ACCESS_KEY=<from secrets manager>
+SENTRY_DSN=<SENTRY_DSN>
+AWS_ACCESS_KEY_ID=<AWS_ACCESS_KEY_ID_FROM_SECRETS_MANAGER>
+AWS_SECRET_ACCESS_KEY=<AWS_SECRET_ACCESS_KEY_FROM_SECRETS_MANAGER>
 ```
 
 **Requirements**:
@@ -315,7 +315,7 @@ AWS_SECRET_ACCESS_KEY=<from secrets manager>
 # Store secret
 aws secretsmanager create-secret \
     --name portfolio-suite/production/secret-key \
-    --secret-string "your_64_char_secret_here"
+    --secret-string "<SECRET_KEY_VALUE>"
 
 # Retrieve in application startup
 import boto3
@@ -340,7 +340,7 @@ secret = response['SecretString']
 **Setup**:
 ```bash
 # Write secret
-vault kv put secret/portfolio-suite/production SECRET_KEY="your_secret"
+vault kv put secret/portfolio-suite/production SECRET_KEY="<SECRET_KEY_VALUE>"
 
 # Read in application
 import hvac
