@@ -423,6 +423,8 @@ test_*.py
 *_test.py
 test_*.js
 test_*.ts
+# Ignore ad-hoc root-level test shell scripts to prevent accidental credential leaks
+/test_*.sh
 
 # Backup files
 *.bak
