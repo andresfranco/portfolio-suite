@@ -3,6 +3,7 @@ import shutil
 import uuid
 from fastapi import UploadFile
 from pathlib import Path
+from typing import Optional
 from app.core.logging import setup_logger
 from app.core.config import settings
 
@@ -27,6 +28,36 @@ def ensure_upload_dirs():
     os.makedirs(PROJECT_IMAGES_DIR / "attachments", exist_ok=True)
     
     logger.debug(f"Ensured upload directories exist: {UPLOAD_DIR}, {LANGUAGE_IMAGES_DIR}, {PROJECT_IMAGES_DIR}")
+
+
+def sanitize_filename(filename: Optional[str], default: str = "upload") -> str:
+    """
+    Return a safe filename with directory components removed.
+    """
+    candidate = Path(filename).name if filename else default
+    if candidate in {"", ".", ".."}:
+        return default
+    return candidate
+
+
+def resolve_safe_path(base_dir: Path, *path_parts: object) -> Path:
+    """
+    Resolve a path under a trusted base directory and reject path traversal.
+    """
+    base_path = Path(base_dir).resolve(strict=False)
+    candidate = base_path
+    for part in path_parts:
+        if part is None:
+            continue
+        normalized = str(part).replace("\\", "/").lstrip("/")
+        if not normalized:
+            continue
+        candidate = candidate / normalized
+
+    resolved_path = candidate.resolve(strict=False)
+    if os.path.commonpath([str(base_path), str(resolved_path)]) != str(base_path):
+        raise ValueError(f"Unsafe path detected outside base directory: {resolved_path}")
+    return resolved_path
 
 # Save an uploaded file
 async def save_upload_file(
@@ -57,26 +88,35 @@ async def save_upload_file(
             logger.error("Invalid upload file object")
             raise ValueError("Invalid upload file object")
             
-        # Ensure the directory exists
-        directory = Path(directory)
-        
+        upload_root = Path(UPLOAD_DIR).resolve(strict=False)
+        directory_path = Path(directory)
+
+        if directory_path.is_absolute():
+            directory_path = directory_path.resolve(strict=False)
+            if os.path.commonpath([str(upload_root), str(directory_path)]) != str(upload_root):
+                raise ValueError(f"Upload directory must be under {upload_root}")
+            relative_directory = directory_path.relative_to(upload_root)
+        else:
+            relative_directory = directory_path
+
         # If project_id is provided, create project-specific subdirectory
         if project_id is not None:
-            directory = directory / f"project_{project_id}"
-            
+            relative_directory = relative_directory / f"project_{project_id}"
+
+        directory = resolve_safe_path(upload_root, relative_directory)
         directory.mkdir(exist_ok=True, parents=True)
         logger.debug(f"Ensured directory exists: {directory}")
         
         # Get original filename if available, stripping any directory components
         # to prevent path traversal attacks (e.g. filename="../../etc/passwd")
         raw_filename = upload_file.filename
-        original_filename = Path(raw_filename).name if raw_filename else None
+        original_filename = sanitize_filename(raw_filename, default="upload") if raw_filename else None
         logger.debug(f"Original filename: {original_filename}")
 
         # Generate a filename
         if filename:
             # Strip directory components from caller-supplied custom filename
-            unique_filename = Path(filename).name
+            unique_filename = sanitize_filename(filename, default=f"{uuid.uuid4()}")
             logger.debug(f"Using custom filename: {unique_filename}")
         elif keep_original_filename and original_filename:
             # Use the sanitized original filename, but ensure uniqueness
@@ -84,7 +124,7 @@ async def save_upload_file(
             logger.debug(f"Using original filename: {unique_filename}")
             
             # Check if file exists
-            if (directory / unique_filename).exists():
+            if resolve_safe_path(directory, unique_filename).exists():
                 # Create a unique version with a UUID
                 base_name, extension = os.path.splitext(original_filename)
                 unique_filename = f"{base_name}_{uuid.uuid4().hex[:8]}{extension}"
@@ -96,7 +136,7 @@ async def save_upload_file(
             logger.debug(f"Generated UUID filename: {unique_filename}")
         
         # Create the full path
-        file_path = directory / unique_filename
+        file_path = resolve_safe_path(directory, unique_filename)
         logger.debug(f"Full file path: {file_path}")
         
         # Save the file
