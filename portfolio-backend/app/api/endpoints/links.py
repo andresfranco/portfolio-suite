@@ -513,7 +513,7 @@ async def upload_portfolio_link_image(
         )
 
     try:
-        upload_dir = PathLib(settings.UPLOADS_DIR) / "portfolio_links" / str(link_id)
+        upload_dir = PathLib(settings.UPLOADS_DIR) / "portfolio_links"
         saved_path = await file_utils.save_upload_file(file, directory=upload_dir)
         file_url = file_utils.get_file_url(saved_path)
 
