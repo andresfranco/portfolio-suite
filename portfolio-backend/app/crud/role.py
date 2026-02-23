@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session, joinedload, selectinload
-from sqlalchemy import asc, desc, func
+from sqlalchemy import asc, desc, func, text
 from app.models.role import Role
 from app.models.user import User
 from app.models.permission import Permission
@@ -314,15 +314,24 @@ def delete_role(db: Session, role_id: int) -> Optional[Role]:
 @db_transaction
 def initialize_core_roles(db: Session):
     """Initialize core roles if they don't exist.
-    
+
     This function creates default roles for the system with appropriate permissions.
     Should be called during application startup.
-    
+
+    Uses a PostgreSQL advisory lock (pg_advisory_xact_lock) to ensure that only
+    one worker runs the full initialization at a time. Concurrent workers block
+    until the first worker commits, then skip gracefully since everything exists.
+
     Args:
         db: Database session
     """
     logger.info("Initializing/Verifying core roles...")
-    
+
+    # Serialize startup initialization across all uvicorn workers.
+    # Lock 1001 is arbitrary but must be consistent; released automatically
+    # when this transaction commits or rolls back.
+    db.execute(text("SELECT pg_advisory_xact_lock(1001)"))
+
     # First ensure all required permissions exist
     from app.crud.permission import initialize_core_permissions
     initialize_core_permissions(db)

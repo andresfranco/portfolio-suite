@@ -453,15 +453,15 @@ COMPREHENSIVE_PERMISSIONS = [
 # Legacy permissions for backward compatibility
 CORE_PERMISSIONS = COMPREHENSIVE_PERMISSIONS
 
-@db_transaction
 def initialize_core_permissions(db: Session):
     """Initialize core permissions if they don't exist.
 
-    Uses INSERT ... ON CONFLICT DO NOTHING to safely handle concurrent
-    workers all attempting initialization at the same time.
+    Uses INSERT ... ON CONFLICT DO NOTHING to safely handle cases where
+    some permissions already exist. Must be called within an active
+    transaction (managed by the caller, e.g. initialize_core_roles).
 
     Args:
-        db: Database session (passed by db_transaction)
+        db: Database session managed by the caller's transaction
     """
     logger.info("Initializing/Verifying core permissions...")
     count = 0
@@ -473,7 +473,6 @@ def initialize_core_permissions(db: Session):
         if result.rowcount > 0:
             logger.debug(f"Created core permission: {perm_data['name']}")
             count += 1
-    db.flush()
     if count > 0:
         logger.info(f"Created {count} new core permissions.")
     else:
