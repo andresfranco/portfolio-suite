@@ -392,7 +392,6 @@ COMPREHENSIVE_PERMISSIONS = [
     {"name": "CREATE_PROJECT", "description": "Create new projects"},
     {"name": "EDIT_PROJECT", "description": "Edit existing project details"},
     {"name": "DELETE_PROJECT", "description": "Delete projects"},
-    {"name": "MANAGE_PROJECT_ATTACHMENTS", "description": "Upload and manage project attachments"},
     {"name": "ASSIGN_PROJECT_CATEGORIES", "description": "Assign categories to projects"},
     
     # Project Images Sub-module
