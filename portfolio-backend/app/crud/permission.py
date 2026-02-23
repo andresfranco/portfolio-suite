@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session, joinedload, contains_eager, selectinload
 from sqlalchemy import asc, desc, or_, and_, cast, String, func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from app.models.permission import Permission
 from app.models.role import Role # Import Role for relationship counting
 from app.schemas.permission import PermissionCreate, PermissionUpdate, Filter as PermissionFilter
@@ -455,20 +456,25 @@ CORE_PERMISSIONS = COMPREHENSIVE_PERMISSIONS
 @db_transaction
 def initialize_core_permissions(db: Session):
     """Initialize core permissions if they don't exist.
-    
+
+    Uses INSERT ... ON CONFLICT DO NOTHING to safely handle concurrent
+    workers all attempting initialization at the same time.
+
     Args:
         db: Database session (passed by db_transaction)
     """
     logger.info("Initializing/Verifying core permissions...")
     count = 0
     for perm_data in CORE_PERMISSIONS:
-        if not get_permission_by_name(db, perm_data["name"]):
-            logger.debug(f"Creating core permission: {perm_data['name']}")
-            db_permission = Permission(**perm_data)
-            db.add(db_permission)
+        stmt = pg_insert(Permission).values(**perm_data).on_conflict_do_nothing(
+            index_elements=["name"]
+        )
+        result = db.execute(stmt)
+        if result.rowcount > 0:
+            logger.debug(f"Created core permission: {perm_data['name']}")
             count += 1
+    db.flush()
     if count > 0:
-        db.flush() # Flush only if changes were made
         logger.info(f"Created {count} new core permissions.")
     else:
         logger.info("All core permissions already exist.")
