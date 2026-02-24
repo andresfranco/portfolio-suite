@@ -31,7 +31,13 @@ def create_systemadmin_user():
     # Default systemadmin credentials
     username = "systemadmin"
     email = "systemadmin@portfolio.local"
-    password = "SystemAdmin123!"  # Strong default password
+    password = os.environ.get("SYSTEMADMIN_PASSWORD")
+    if not password:
+        logger.error(
+            "SYSTEMADMIN_PASSWORD environment variable is not set. "
+            "Set it before running this script."
+        )
+        sys.exit(1)
     
     logger.info("Starting systemadmin setup process...")
     
