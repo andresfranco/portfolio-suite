@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" fill="#0d1117" rx="4"/>
+
+  <!-- User head -->
+  <circle cx="13" cy="10" r="5" fill="#14C800"/>
+
+  <!-- User body -->
+  <path d="M 4 29 Q 4 18 13 18 Q 22 18 22 29 Z" fill="#14C800"/>
+
+  <!-- Lightning bolt badge — dark backing circle -->
+  <circle cx="24" cy="22" r="6.5" fill="#0d1117"/>
+  <!-- Lightning bolt badge — green circle -->
+  <circle cx="24" cy="22" r="5.5" fill="#14C800"/>
+  <!-- Lightning bolt shape (dark cut-out) -->
+  <path d="M 25 17.5 L 22 22.5 L 24 22.5 L 22.5 26.5 L 27 21 L 25 21 Z"
+        fill="#0d1117"/>
+</svg>
