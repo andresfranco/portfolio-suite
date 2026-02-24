@@ -11,6 +11,7 @@ import ContactLinkCreateDialog from '../components/ContactLinkCreateDialog';
 import { getIconComponent as resolveIconComponent } from '../utils/iconUtils';
 import { usePortfolioLinks } from '../hooks/usePortfolioLinks';
 import { sortLinksByOrder, getLinkDisplayName } from '../utils/linkDisplay';
+import portfolioApi from '../services/portfolioApi';
 
 const ContactPage = () => {
   const { lang } = useParams();

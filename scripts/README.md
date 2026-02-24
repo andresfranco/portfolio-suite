@@ -158,13 +158,9 @@ python test_login_security.py
 ```
 
 **Configuration:**
-Edit the script to customize:
-```python
-BASE_URL = "http://localhost:8000"
-VALID_CREDENTIALS = {
-    "username": "systemadmin",
-    "password": "SystemAdmin123!"
-}
+Set the admin password via environment variable before running:
+```bash
+SYSTEMADMIN_PASSWORD=<your_password> python test_login_security.py
 ```
 
 ---
