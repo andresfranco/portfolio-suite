@@ -273,10 +273,11 @@ class SecureCookieManager:
             Fingerprint string
         """
         user_agent = request.headers.get("user-agent", "unknown")
-        client_ip = request.client.host if request.client else "unknown"
-        
-        # Combine user-agent and IP for fingerprint
-        fingerprint = f"{user_agent}|{client_ip}"
+
+        # Use only user-agent for fingerprint — not client IP.
+        # Behind a reverse proxy the IP seen by uvicorn is the proxy's address
+        # and can vary between workers or requests, causing false-positive mismatches.
+        fingerprint = user_agent
         return fingerprint
     
     @classmethod
