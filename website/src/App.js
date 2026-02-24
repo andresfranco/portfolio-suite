@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Header from './components/Header';
 import Projects from './components/Projects';
@@ -8,16 +8,27 @@ import ProjectDetailsPage from './pages/ProjectDetailsPage';
 import ContactPage from './pages/ContactPage';
 import ChatModal from './components/ChatModal';
 import { LanguageProvider } from './context/LanguageContext';
-import { PortfolioProvider } from './context/PortfolioContext';
+import { PortfolioProvider, usePortfolio } from './context/PortfolioContext';
 import { EditModeProvider } from './context/EditModeContext';
 import { EditModeIndicator } from './components/cms/EditModeIndicator';
 import ErrorBoundary from './components/ErrorBoundary';
 import ExperienceDetailsPage from './pages/ExperienceDetailsPage';
 
+function DocumentTitle() {
+  const { portfolio } = usePortfolio();
+  useEffect(() => {
+    if (portfolio?.name) {
+      document.title = portfolio.name;
+    }
+  }, [portfolio?.name]);
+  return null;
+}
+
 function App() {
   return (
     <LanguageProvider>
       <PortfolioProvider>
+        <DocumentTitle />
         <EditModeProvider>
           <BrowserRouter>
             <ErrorBoundary>
