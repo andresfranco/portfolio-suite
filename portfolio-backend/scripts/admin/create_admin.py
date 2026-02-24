@@ -34,8 +34,8 @@ def create_admin_user(username: str, email: str, password: str):
         db.add(user)
         db.flush()
         
-        # Get the admin role
-        admin_role = get_role_by_name(db, "admin")
+        # Get the admin role (name matches CORE_ROLES definition: "Admin")
+        admin_role = get_role_by_name(db, "Admin")
         if not admin_role:
             logger.error("Admin role not found. Please make sure roles are initialized.")
             db.rollback()
