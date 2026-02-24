@@ -4,18 +4,18 @@ Generate a production-ready SQL import script from the development database.
 
 Usage:
     # Via DATABASE_URL (recommended)
-    DATABASE_URL=postgresql://admindb:password@localhost:5432/portfolioai_dev \\
+    DATABASE_URL=postgresql://admindb:<pass>@localhost:5432/portfolioai_dev \\
         python scripts/generate_import_sql.py
 
     # Or via individual env vars
-    DB_HOST=localhost DB_USER=admindb DB_PASSWORD=secret DB_NAME=portfolioai_dev \\
+    DB_HOST=localhost DB_USER=admindb DB_PASSWORD=<pass> DB_NAME=portfolioai_dev \\
         python scripts/generate_import_sql.py
 
 Output:
     scripts/database/import_production_data.sql
 
 To test locally WITHOUT touching dev data, run against the test DB:
-    PGPASSWORD=<password> psql -h localhost -U admindb -d portfolioai_test \\
+    PGPASSWORD=<pass> psql -h localhost -U admindb -d portfolioai_test \\
          -v ON_ERROR_STOP=1 -f scripts/database/import_production_data.sql
 
 To run against production:
