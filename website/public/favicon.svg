@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <radialGradient id="g" cx="38%" cy="33%" r="65%">
+      <stop offset="0%" stop-color="#4dff10"/>
+      <stop offset="100%" stop-color="#086b00"/>
+    </radialGradient>
+    <clipPath id="tc"><rect x="0" y="0" width="32" height="16"/></clipPath>
+    <clipPath id="bc"><rect x="0" y="16" width="32" height="16"/></clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect width="32" height="32" fill="#03060a"/>
+
+  <!-- Stars -->
+  <circle cx="5"  cy="5"  r="0.8" fill="white" opacity="0.8"/>
+  <circle cx="27" cy="4"  r="0.6" fill="white" opacity="0.6"/>
+  <circle cx="28" cy="26" r="0.7" fill="white" opacity="0.7"/>
+  <circle cx="3"  cy="23" r="0.5" fill="white" opacity="0.5"/>
+  <circle cx="29" cy="14" r="0.5" fill="white" opacity="0.4"/>
+
+  <!-- Orbital ring — back half (behind planet) -->
+  <ellipse cx="16" cy="16" rx="14.5" ry="4.5" fill="none"
+           stroke="#14C800" stroke-width="1.8" opacity="0.3"
+           clip-path="url(#tc)"/>
+
+  <!-- Planet body -->
+  <circle cx="16" cy="16" r="9" fill="url(#g)"/>
+
+  <!-- Planet surface band -->
+  <ellipse cx="16" cy="13" rx="8" ry="2" fill="#086b00" opacity="0.5"/>
+
+  <!-- Orbital ring — front half (over planet) -->
+  <ellipse cx="16" cy="16" rx="14.5" ry="4.5" fill="none"
+           stroke="#14C800" stroke-width="1.8"
+           clip-path="url(#bc)"/>
+</svg>
