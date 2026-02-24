@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware  # Add CORS middleware
 from fastapi.staticfiles import StaticFiles  # Import StaticFiles for serving static content
 from fastapi.openapi.utils import get_openapi
 from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy.exc import SQLAlchemyError
 from contextlib import asynccontextmanager
 from sqlalchemy.orm import Session
@@ -317,6 +318,49 @@ def custom_openapi():
 app.openapi = custom_openapi
 
 # Exception handlers
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """
+    Handle HTTP exceptions with a consistent JSON envelope.
+    404s get extra context (path + docs link) to help API consumers.
+    """
+    status_code = exc.status_code
+
+    if status_code == 404:
+        # Starlette's route-not-found detail is the plain string "Not Found"
+        is_route_not_found = exc.detail in (None, "Not Found")
+        content = {
+            "code": "NOT_FOUND",
+            "message": (
+                "This endpoint does not exist."
+                if is_route_not_found
+                else str(exc.detail)
+            ),
+            "path": str(request.url.path),
+            "docs_url": f"{settings.API_V1_STR}/docs",
+        }
+        return JSONResponse(status_code=404, content=content)
+
+    if status_code == 405:
+        return JSONResponse(
+            status_code=405,
+            content={
+                "code": "METHOD_NOT_ALLOWED",
+                "message": f"Method {request.method} is not allowed for this endpoint.",
+                "path": str(request.url.path),
+            },
+        )
+
+    # All other HTTP exceptions — preserve the original detail
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "code": "HTTP_ERROR",
+            "message": str(exc.detail) if exc.detail is not None else str(status_code),
+        },
+    )
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """
