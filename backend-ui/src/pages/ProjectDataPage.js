@@ -861,8 +861,8 @@ function ProjectDataPage() {
       }));
 
       const updateData = {
-        repository_url: editedRepositoryUrl.trim() || null,
-        website_url: editedWebsiteUrl.trim() || null,
+        repository_url: editedRepositoryUrl.trim(),
+        website_url: editedWebsiteUrl.trim(),
         project_date: editedProjectDate || null,
         project_texts: updatedProjectTexts
       };
