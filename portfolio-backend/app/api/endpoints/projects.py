@@ -1956,3 +1956,109 @@ def remove_skill_from_project(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error removing skill from project: {str(e)}"
         )
+
+
+# =============================================================================
+# CATEGORY MANAGEMENT ROUTES
+# =============================================================================
+
+@router.post("/{project_id}/categories/{category_id}", status_code=status.HTTP_201_CREATED)
+@require_permission("EDIT_PROJECT")
+def add_category_to_project(
+    *,
+    db: Session = Depends(deps.get_db),
+    project_id: int,
+    category_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Add a category to a project
+    """
+    logger.info(f"Adding category {category_id} to project {project_id}")
+    try:
+        project = project_crud.get_project(db, project_id=project_id)
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found"
+            )
+
+        category = category_crud.get_category(db, category_id=category_id)
+        if not category:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Category not found"
+            )
+
+        if category in project.categories:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Category is already associated with this project"
+            )
+
+        project.categories.append(category)
+        db.commit()
+        db.refresh(project)
+
+        logger.info(f"Successfully added category {category_id} to project {project_id}")
+        return {"message": "Category added to project successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding category to project: {str(e)}", exc_info=True)
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error adding category to project: {str(e)}"
+        )
+
+
+@router.delete("/{project_id}/categories/{category_id}", status_code=status.HTTP_200_OK)
+@require_permission("EDIT_PROJECT")
+def remove_category_from_project(
+    *,
+    db: Session = Depends(deps.get_db),
+    project_id: int,
+    category_id: int,
+    current_user: models.User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Remove a category from a project
+    """
+    logger.info(f"Removing category {category_id} from project {project_id}")
+    try:
+        project = project_crud.get_project(db, project_id=project_id)
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found"
+            )
+
+        category = category_crud.get_category(db, category_id=category_id)
+        if not category:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Category not found"
+            )
+
+        if category not in project.categories:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Category is not associated with this project"
+            )
+
+        project.categories.remove(category)
+        db.commit()
+        db.refresh(project)
+
+        logger.info(f"Successfully removed category {category_id} from project {project_id}")
+        return {"message": "Category removed from project successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error removing category from project: {str(e)}", exc_info=True)
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error removing category from project: {str(e)}"
+        )

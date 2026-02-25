@@ -58,10 +58,11 @@ import {
   Language as LanguageIcon,
   ArrowBack as ArrowBackIcon,
   Category as CategoryIcon,
-  OpenInNew as OpenInNewIcon
+  OpenInNew as OpenInNewIcon,
+  Build as BuildIcon
 } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
-import { api, projectsApi, sectionsApi, languagesApi } from '../services/api';
+import { api, projectsApi, sectionsApi, languagesApi, categoriesApi, skillsApi } from '../services/api';
 import { useSnackbar } from 'notistack';
 import SERVER_URL from '../components/common/BackendServerData';
 import PermissionGate from '../components/common/PermissionGate';
@@ -297,6 +298,16 @@ function ProjectDataPage() {
   const [sectionsPage, setSectionsPage] = useState(0);
   const [sectionsRowsPerPage, setSectionsRowsPerPage] = useState(5);
 
+  // Categories and Skills tab states
+  const [availableProjCategories, setAvailableProjCategories] = useState([]);
+  const [availableAllSkills, setAvailableAllSkills] = useState([]);
+  const [categorySearchTerm, setCategorySearchTerm] = useState('');
+  const [skillSearchTerm, setSkillSearchTerm] = useState('');
+  const [selectedCategoriesToAdd, setSelectedCategoriesToAdd] = useState([]);
+  const [selectedSkillsToAdd, setSelectedSkillsToAdd] = useState([]);
+  const [addingCategory, setAddingCategory] = useState(false);
+  const [addingSkill, setAddingSkill] = useState(false);
+
   // Fetch project data
   const fetchProjectData = useCallback(async () => {
     if (!projectId) return;
@@ -414,6 +425,30 @@ function ProjectDataPage() {
     }
   }, []);
 
+  // Fetch PROJ-type categories for category tab
+  const fetchProjCategories = useCallback(async () => {
+    try {
+      const res = await categoriesApi.getCategories({ page: 1, page_size: 100 });
+      const list = res.data?.items || res.data || [];
+      setAvailableProjCategories(list.filter(c => c.type_code === 'PROJ'));
+    } catch (err) {
+      console.error('Error fetching PROJ categories:', err);
+      setAvailableProjCategories([]);
+    }
+  }, []);
+
+  // Fetch all skills for skills tab
+  const fetchAllSkills = useCallback(async () => {
+    try {
+      const res = await skillsApi.getSkills({ page: 1, page_size: 100 });
+      const list = res.data?.items || res.data || [];
+      setAvailableAllSkills(list);
+    } catch (err) {
+      console.error('Error fetching skills:', err);
+      setAvailableAllSkills([]);
+    }
+  }, []);
+
   // Initialize data on component mount
   useEffect(() => {
     if (projectId) {
@@ -422,8 +457,10 @@ function ProjectDataPage() {
       fetchLanguages();
       fetchImageCategories();
       fetchAttachmentCategories();
+      fetchProjCategories();
+      fetchAllSkills();
     }
-  }, [projectId, fetchProjectData, fetchAvailableOptions, fetchLanguages, fetchImageCategories, fetchAttachmentCategories]);
+  }, [projectId, fetchProjectData, fetchAvailableOptions, fetchLanguages, fetchImageCategories, fetchAttachmentCategories, fetchProjCategories, fetchAllSkills]);
 
   // Handle tab change
   const handleTabChange = (event, newValue) => {
@@ -881,6 +918,108 @@ function ProjectDataPage() {
     }
   };
 
+  // Category management handlers
+  const handleAddCategories = async () => {
+    if (!selectedCategoriesToAdd.length) return;
+    setAddingCategory(true);
+    try {
+      for (const cat of selectedCategoriesToAdd) {
+        await projectsApi.addCategoryToProject(projectId, cat.id);
+      }
+      enqueueSnackbar(`${selectedCategoriesToAdd.length} category(s) added`, { variant: 'success' });
+      setSelectedCategoriesToAdd([]);
+      await fetchProjectData();
+    } catch (err) {
+      enqueueSnackbar(err.response?.data?.detail || 'Failed to add category', { variant: 'error' });
+    } finally {
+      setAddingCategory(false);
+    }
+  };
+
+  const handleRemoveCategory = async (categoryId) => {
+    try {
+      await projectsApi.removeCategoryFromProject(projectId, categoryId);
+      enqueueSnackbar('Category removed', { variant: 'success' });
+      await fetchProjectData();
+    } catch (err) {
+      enqueueSnackbar(err.response?.data?.detail || 'Failed to remove category', { variant: 'error' });
+    }
+  };
+
+  // Skill management handlers
+  const handleAddSkills = async () => {
+    if (!selectedSkillsToAdd.length) return;
+    setAddingSkill(true);
+    try {
+      for (const skill of selectedSkillsToAdd) {
+        await projectsApi.addSkillToProject(projectId, skill.id);
+      }
+      enqueueSnackbar(`${selectedSkillsToAdd.length} skill(s) added`, { variant: 'success' });
+      setSelectedSkillsToAdd([]);
+      await fetchProjectData();
+    } catch (err) {
+      enqueueSnackbar(err.response?.data?.detail || 'Failed to add skill', { variant: 'error' });
+    } finally {
+      setAddingSkill(false);
+    }
+  };
+
+  const handleRemoveSkill = async (skillId) => {
+    try {
+      await projectsApi.removeSkillFromProject(projectId, skillId);
+      enqueueSnackbar('Skill removed', { variant: 'success' });
+      await fetchProjectData();
+    } catch (err) {
+      enqueueSnackbar(err.response?.data?.detail || 'Failed to remove skill', { variant: 'error' });
+    }
+  };
+
+  // Helper: find the default language id from availableLanguages
+  const getDefaultLanguageId = () => {
+    const def = availableLanguages.find(l => l.is_default || l.isDefault);
+    return def ? def.id : (availableLanguages.length > 0 ? availableLanguages[0].id : null);
+  };
+
+  // Helper to get display name from category_texts, falling back to code
+  const getCategoryName = (cat) => {
+    if (!cat) return '';
+    // For items from projectData that lack category_texts, look up in the full list
+    const fullCat = (cat.category_texts !== undefined)
+      ? cat
+      : availableProjCategories.find(c => c.id === cat.id) || cat;
+
+    if (fullCat.category_texts?.length) {
+      const defaultLangId = getDefaultLanguageId();
+      if (defaultLangId) {
+        const defaultText = fullCat.category_texts.find(t => t.language_id === defaultLangId);
+        if (defaultText?.name) return defaultText.name;
+      }
+      return fullCat.category_texts[0].name || fullCat.code || `Category ${fullCat.id}`;
+    }
+    return fullCat.name || fullCat.code || `Category ${fullCat.id}`;
+  };
+
+  // Helper to get display name from skill_texts, falling back to name/type
+  const getSkillName = (skill) => {
+    if (!skill) return '';
+    // For items from projectData that have name directly but lack skill_texts, use it
+    // For the full list items, prefer skill_texts with default language
+    const fullSkill = (skill.skill_texts !== undefined)
+      ? skill
+      : availableAllSkills.find(s => s.id === skill.id) || skill;
+
+    if (fullSkill.skill_texts?.length) {
+      const defaultLangId = getDefaultLanguageId();
+      if (defaultLangId) {
+        const defaultText = fullSkill.skill_texts.find(t => t.language_id === defaultLangId);
+        if (defaultText?.name) return defaultText.name;
+      }
+      return fullSkill.skill_texts[0].name || fullSkill.type || `Skill ${fullSkill.id}`;
+    }
+    // projectData skills have a flat `name` field
+    return fullSkill.name || fullSkill.type || `Skill ${fullSkill.id}`;
+  };
+
   return (
     <Container 
       maxWidth={false} 
@@ -931,6 +1070,8 @@ function ProjectDataPage() {
             <Tab icon={<PhotoLibraryIcon />} label="Images" />
             <Tab icon={<AttachFileIcon />} label="Attachments" />
             <Tab icon={<SectionIcon />} label="Sections" />
+            <Tab icon={<CategoryIcon />} label="Categories" />
+            <Tab icon={<BuildIcon />} label="Skills" />
           </Tabs>
         </Box>
 
@@ -1722,6 +1863,289 @@ function ProjectDataPage() {
                     ) : (
                       <Typography variant="body2" color="text.secondary">
                         No sections connected yet.
+                      </Typography>
+                    )}
+                  </Box>
+                </PermissionGate>
+              </TabPanel>
+
+              {/* Categories Tab */}
+              <TabPanel value={tabValue} index={4}>
+                <PermissionGate
+                  permissions={["VIEW_PROJECTS", "EDIT_PROJECT", "MANAGE_PROJECTS", "SYSTEM_ADMIN"]}
+                  requireAll={false}
+                  showError
+                  errorMessage="You do not have permission to manage project categories."
+                >
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                      <CategoryIcon sx={{ mr: 1 }} />
+                      Categories
+                    </Typography>
+
+                    {/* Add Categories */}
+                    <PermissionGate
+                      permissions={["EDIT_PROJECT", "MANAGE_PROJECTS", "SYSTEM_ADMIN"]}
+                      requireAll={false}
+                    >
+                      <Box sx={{ mb: 3 }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+                          Add Categories ({availableProjCategories.filter(c => !(projectData?.categories || []).some(pc => pc.id === c.id)).length} available)
+                        </Typography>
+                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                          <Autocomplete
+                            multiple
+                            sx={{ flex: 1 }}
+                            options={availableProjCategories.filter(c =>
+                              !(projectData?.categories || []).some(pc => pc.id === c.id)
+                            )}
+                            value={selectedCategoriesToAdd}
+                            onChange={(e, newValue) => setSelectedCategoriesToAdd(newValue)}
+                            getOptionLabel={(opt) => getCategoryName(opt)}
+                            isOptionEqualToValue={(opt, val) => opt.id === val.id}
+                            filterSelectedOptions
+                            size="small"
+                            renderInput={(params) => (
+                              <TextField
+                                {...params}
+                                size="small"
+                                placeholder="Search categories to add..."
+                                InputProps={{
+                                  ...params.InputProps,
+                                  startAdornment: (
+                                    <>
+                                      <InputAdornment position="start">
+                                        <SearchIcon />
+                                      </InputAdornment>
+                                      {params.InputProps.startAdornment}
+                                    </>
+                                  ),
+                                }}
+                              />
+                            )}
+                          />
+                          <Button
+                            variant="contained"
+                            startIcon={addingCategory ? <CircularProgress size={16} color="inherit" /> : <AddIcon />}
+                            onClick={handleAddCategories}
+                            disabled={selectedCategoriesToAdd.length === 0 || addingCategory}
+                            size="small"
+                            sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' }, whiteSpace: 'nowrap' }}
+                          >
+                            Add {selectedCategoriesToAdd.length > 0 ? `(${selectedCategoriesToAdd.length})` : ''}
+                          </Button>
+                        </Box>
+                      </Box>
+                    </PermissionGate>
+
+                    <Divider sx={{ my: 2 }} />
+
+                    {/* Assigned Categories */}
+                    <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
+                      Assigned Categories
+                    </Typography>
+
+                    {/* Search */}
+                    <TextField
+                      fullWidth
+                      size="small"
+                      placeholder="Search assigned categories..."
+                      value={categorySearchTerm}
+                      onChange={(e) => setCategorySearchTerm(e.target.value)}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start"><SearchIcon /></InputAdornment>
+                        ),
+                        endAdornment: categorySearchTerm && (
+                          <InputAdornment position="end">
+                            <IconButton size="small" onClick={() => setCategorySearchTerm('')}>
+                              <ClearIcon />
+                            </IconButton>
+                          </InputAdornment>
+                        )
+                      }}
+                      sx={{ mb: 2 }}
+                    />
+
+                    {(projectData?.categories || []).length > 0 ? (
+                      <List>
+                        {(projectData?.categories || [])
+                          .filter(cat => {
+                            if (!categorySearchTerm) return true;
+                            const name = getCategoryName(cat).toLowerCase();
+                            return name.includes(categorySearchTerm.toLowerCase()) ||
+                              (cat.code || '').toLowerCase().includes(categorySearchTerm.toLowerCase());
+                          })
+                          .map((cat) => (
+                            <ListItem key={cat.id} divider>
+                              <ListItemIcon>
+                                <CategoryIcon />
+                              </ListItemIcon>
+                              <ListItemText
+                                primary={getCategoryName(cat)}
+                                secondary={`Code: ${cat.code || '—'} | Type: ${cat.type_code || '—'}`}
+                              />
+                              <PermissionGate
+                                permissions={["EDIT_PROJECT", "MANAGE_PROJECTS", "SYSTEM_ADMIN"]}
+                                requireAll={false}
+                              >
+                                <Tooltip title="Remove category from project">
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={() => handleRemoveCategory(cat.id)}
+                                  >
+                                    <DeleteIcon />
+                                  </IconButton>
+                                </Tooltip>
+                              </PermissionGate>
+                            </ListItem>
+                          ))}
+                      </List>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        No categories assigned yet.
+                      </Typography>
+                    )}
+                  </Box>
+                </PermissionGate>
+              </TabPanel>
+
+              {/* Skills Tab */}
+              <TabPanel value={tabValue} index={5}>
+                <PermissionGate
+                  permissions={["VIEW_PROJECTS", "EDIT_PROJECT", "MANAGE_PROJECTS", "SYSTEM_ADMIN"]}
+                  requireAll={false}
+                  showError
+                  errorMessage="You do not have permission to manage project skills."
+                >
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                      <BuildIcon sx={{ mr: 1 }} />
+                      Skills
+                    </Typography>
+
+                    {/* Add Skills */}
+                    <PermissionGate
+                      permissions={["EDIT_PROJECT", "MANAGE_PROJECTS", "SYSTEM_ADMIN"]}
+                      requireAll={false}
+                    >
+                      <Box sx={{ mb: 3 }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+                          Add Skills ({availableAllSkills.filter(s => !(projectData?.skills || []).some(ps => ps.id === s.id)).length} available)
+                        </Typography>
+                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                          <Autocomplete
+                            multiple
+                            sx={{ flex: 1 }}
+                            options={availableAllSkills.filter(s =>
+                              !(projectData?.skills || []).some(ps => ps.id === s.id)
+                            )}
+                            value={selectedSkillsToAdd}
+                            onChange={(e, newValue) => setSelectedSkillsToAdd(newValue)}
+                            getOptionLabel={(opt) => getSkillName(opt)}
+                            isOptionEqualToValue={(opt, val) => opt.id === val.id}
+                            filterSelectedOptions
+                            size="small"
+                            renderInput={(params) => (
+                              <TextField
+                                {...params}
+                                size="small"
+                                placeholder="Search skills to add..."
+                                InputProps={{
+                                  ...params.InputProps,
+                                  startAdornment: (
+                                    <>
+                                      <InputAdornment position="start">
+                                        <SearchIcon />
+                                      </InputAdornment>
+                                      {params.InputProps.startAdornment}
+                                    </>
+                                  ),
+                                }}
+                              />
+                            )}
+                          />
+                          <Button
+                            variant="contained"
+                            startIcon={addingSkill ? <CircularProgress size={16} color="inherit" /> : <AddIcon />}
+                            onClick={handleAddSkills}
+                            disabled={selectedSkillsToAdd.length === 0 || addingSkill}
+                            size="small"
+                            sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' }, whiteSpace: 'nowrap' }}
+                          >
+                            Add {selectedSkillsToAdd.length > 0 ? `(${selectedSkillsToAdd.length})` : ''}
+                          </Button>
+                        </Box>
+                      </Box>
+                    </PermissionGate>
+
+                    <Divider sx={{ my: 2 }} />
+
+                    {/* Assigned Skills */}
+                    <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
+                      Assigned Skills
+                    </Typography>
+
+                    {/* Search */}
+                    <TextField
+                      fullWidth
+                      size="small"
+                      placeholder="Search assigned skills..."
+                      value={skillSearchTerm}
+                      onChange={(e) => setSkillSearchTerm(e.target.value)}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start"><SearchIcon /></InputAdornment>
+                        ),
+                        endAdornment: skillSearchTerm && (
+                          <InputAdornment position="end">
+                            <IconButton size="small" onClick={() => setSkillSearchTerm('')}>
+                              <ClearIcon />
+                            </IconButton>
+                          </InputAdornment>
+                        )
+                      }}
+                      sx={{ mb: 2 }}
+                    />
+
+                    {(projectData?.skills || []).length > 0 ? (
+                      <List>
+                        {(projectData?.skills || [])
+                          .filter(skill => {
+                            if (!skillSearchTerm) return true;
+                            const name = getSkillName(skill).toLowerCase();
+                            return name.includes(skillSearchTerm.toLowerCase());
+                          })
+                          .map((skill) => (
+                            <ListItem key={skill.id} divider>
+                              <ListItemIcon>
+                                <BuildIcon />
+                              </ListItemIcon>
+                              <ListItemText
+                                primary={getSkillName(skill)}
+                                secondary={skill.type_code ? `Type: ${skill.type_code}` : undefined}
+                              />
+                              <PermissionGate
+                                permissions={["EDIT_PROJECT", "MANAGE_PROJECTS", "SYSTEM_ADMIN"]}
+                                requireAll={false}
+                              >
+                                <Tooltip title="Remove skill from project">
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={() => handleRemoveSkill(skill.id)}
+                                  >
+                                    <DeleteIcon />
+                                  </IconButton>
+                                </Tooltip>
+                              </PermissionGate>
+                            </ListItem>
+                          ))}
+                      </List>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        No skills assigned yet.
                       </Typography>
                     )}
                   </Box>

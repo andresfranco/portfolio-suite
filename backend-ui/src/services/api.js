@@ -272,7 +272,15 @@ const projectsApi = {
     return api.put(url, {});
   },
   deleteProjectAttachment: (projectId, attachmentId) => api.delete(`/api/projects/${projectId}/attachments/${attachmentId}`),
-  
+
+  // Project skills
+  addSkillToProject: (projectId, skillId) => api.post(`/api/projects/${projectId}/skills/${skillId}`),
+  removeSkillFromProject: (projectId, skillId) => api.delete(`/api/projects/${projectId}/skills/${skillId}`),
+
+  // Project categories
+  addCategoryToProject: (projectId, categoryId) => api.post(`/api/projects/${projectId}/categories/${categoryId}`),
+  removeCategoryFromProject: (projectId, categoryId) => api.delete(`/api/projects/${projectId}/categories/${categoryId}`),
+
   // Portfolio image methods
   getPortfolioImages: (portfolioId) => api.get(`/api/portfolios/${portfolioId}/images`),
   uploadPortfolioImage: (portfolioId, file, category, languageId = null) => {
