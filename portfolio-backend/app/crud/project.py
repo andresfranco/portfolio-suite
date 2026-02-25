@@ -115,12 +115,12 @@ def update_project(db: Session, project_id: int, project: ProjectUpdate):
     if not db_project:
         return None
     
-    # Update fields if provided
+    # Update fields if provided (empty string clears the field → stored as None)
     if project.repository_url is not None:
-        db_project.repository_url = project.repository_url
+        db_project.repository_url = project.repository_url.strip() or None
 
     if project.website_url is not None:
-        db_project.website_url = project.website_url
+        db_project.website_url = project.website_url.strip() or None
 
     if project.project_date is not None:
         db_project.project_date = project.project_date
