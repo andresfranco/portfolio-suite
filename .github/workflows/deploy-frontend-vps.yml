@@ -1,0 +1,181 @@
+name: Deploy Frontend To VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: "Frontend to deploy"
+        required: true
+        type: choice
+        options:
+          - backend-ui
+          - website
+          - both
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-frontend-vps
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "20"
+  VPS_APP_ROOT: "/opt/portfolio/portfolio-suite"
+
+jobs:
+  build-backend-ui:
+    name: Build backend-ui
+    runs-on: ubuntu-latest
+    if: github.event.inputs.deploy_target == 'backend-ui' || github.event.inputs.deploy_target == 'both'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend-ui/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend-ui
+        run: npm ci
+
+      - name: Build production bundle
+        working-directory: backend-ui
+        env:
+          CI: "false"
+        run: npm run build
+
+      - name: Package artifact
+        run: |
+          rm -rf artifact-backend-ui
+          mkdir -p artifact-backend-ui/backend-ui
+          cp -R backend-ui/build artifact-backend-ui/backend-ui/build
+          tar -czf backend-ui-build.tar.gz -C artifact-backend-ui backend-ui
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-ui-build
+          path: backend-ui-build.tar.gz
+          retention-days: 7
+
+  build-website:
+    name: Build website
+    runs-on: ubuntu-latest
+    if: github.event.inputs.deploy_target == 'website' || github.event.inputs.deploy_target == 'both'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install dependencies
+        working-directory: website
+        run: npm ci
+
+      - name: Build production bundle
+        working-directory: website
+        env:
+          CI: "false"
+        run: npm run build
+
+      - name: Package artifact
+        run: |
+          rm -rf artifact-website
+          mkdir -p artifact-website/website
+          cp -R website/build artifact-website/website/build
+          tar -czf website-build.tar.gz -C artifact-website website
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: website-build
+          path: website-build.tar.gz
+          retention-days: 7
+
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    needs:
+      - build-backend-ui
+      - build-website
+    if: always() && (needs['build-backend-ui'].result == 'success' || needs['build-website'].result == 'success')
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_PORT: ${{ secrets.VPS_PORT }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+    steps:
+      - name: Download backend-ui artifact
+        if: github.event.inputs.deploy_target == 'backend-ui' || github.event.inputs.deploy_target == 'both'
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-ui-build
+          path: dist
+
+      - name: Download website artifact
+        if: github.event.inputs.deploy_target == 'website' || github.event.inputs.deploy_target == 'both'
+        uses: actions/download-artifact@v4
+        with:
+          name: website-build
+          path: dist
+
+      - name: Configure SSH
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf "%s" "${{ secrets.VPS_SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf "%s\n" "${{ secrets.VPS_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Deploy backend-ui build
+        if: github.event.inputs.deploy_target == 'backend-ui' || github.event.inputs.deploy_target == 'both'
+        run: |
+          set -euo pipefail
+          PORT="${VPS_PORT:-22}"
+          scp -P "$PORT" dist/backend-ui-build.tar.gz "$VPS_USER@$VPS_HOST:/tmp/backend-ui-build.tar.gz"
+          ssh -p "$PORT" "$VPS_USER@$VPS_HOST" \
+            "set -euo pipefail; \
+            mkdir -p '$VPS_APP_ROOT/backend-ui'; \
+            rm -rf /tmp/backend-ui; \
+            tar -xzf /tmp/backend-ui-build.tar.gz -C /tmp; \
+            rm -rf '$VPS_APP_ROOT/backend-ui/build'; \
+            mv /tmp/backend-ui/build '$VPS_APP_ROOT/backend-ui/build'; \
+            rm -rf /tmp/backend-ui /tmp/backend-ui-build.tar.gz"
+          ssh -p "$PORT" "$VPS_USER@$VPS_HOST" \
+            "if sudo -n systemctl restart portfolio-admin 2>/dev/null; then \
+              echo 'portfolio-admin restarted'; \
+            else \
+              echo 'portfolio-admin restart skipped (sudo requires password)'; \
+            fi"
+
+      - name: Deploy website build
+        if: github.event.inputs.deploy_target == 'website' || github.event.inputs.deploy_target == 'both'
+        run: |
+          set -euo pipefail
+          PORT="${VPS_PORT:-22}"
+          scp -P "$PORT" dist/website-build.tar.gz "$VPS_USER@$VPS_HOST:/tmp/website-build.tar.gz"
+          ssh -p "$PORT" "$VPS_USER@$VPS_HOST" \
+            "set -euo pipefail; \
+            mkdir -p '$VPS_APP_ROOT/website'; \
+            rm -rf /tmp/website; \
+            tar -xzf /tmp/website-build.tar.gz -C /tmp; \
+            rm -rf '$VPS_APP_ROOT/website/build'; \
+            mv /tmp/website/build '$VPS_APP_ROOT/website/build'; \
+            rm -rf /tmp/website /tmp/website-build.tar.gz"
+          ssh -p "$PORT" "$VPS_USER@$VPS_HOST" \
+            "if sudo -n systemctl restart portfolio-website 2>/dev/null; then \
+              echo 'portfolio-website restarted'; \
+            else \
+              echo 'portfolio-website restart skipped (sudo requires password)'; \
+            fi"

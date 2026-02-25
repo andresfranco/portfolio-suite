@@ -1101,6 +1101,92 @@ PORT=3001
 npm run build
 ```
 
+### 17.3 Build in GitHub Actions and Deploy to VPS (Recommended)
+
+To avoid slow frontend builds on the VPS, use the workflow:
+
+```text
+.github/workflows/deploy-frontend-vps.yml
+```
+
+This workflow:
+- Can only be triggered manually (`workflow_dispatch`)
+- Lets you choose deployment target: `backend-ui`, `website`, or `both`
+- Builds frontend artifacts in GitHub runners
+- Deploys only production `build/` output to:
+  - `/opt/portfolio/portfolio-suite/backend-ui/build`
+  - `/opt/portfolio/portfolio-suite/website/build`
+
+Important:
+- Ensure your `portfolio-admin` and `portfolio-website` systemd `WorkingDirectory` paths point to `/opt/portfolio/portfolio-suite/backend-ui` and `/opt/portfolio/portfolio-suite/website`.
+
+### 17.4 Secure Credentials Setup for GitHub Actions
+
+#### A. Create a dedicated SSH key pair for deployments (local machine)
+
+```bash
+ssh-keygen -t ed25519 -C "github-actions-frontend-deploy" -f ~/.ssh/portfolio_actions_deploy
+```
+
+#### B. Install the public key on VPS (user: `portfolio`)
+
+From your local machine:
+
+```bash
+ssh-copy-id -i ~/.ssh/portfolio_actions_deploy.pub portfolio@YOUR_VPS_HOSTNAME_OR_IP
+```
+
+#### C. Pin the VPS host key (do NOT skip this)
+
+From a trusted machine:
+
+```bash
+ssh-keyscan -H -p 22 YOUR_VPS_HOSTNAME_OR_IP
+```
+
+Save the full output line. This will be stored in GitHub Secrets as `VPS_SSH_KNOWN_HOSTS`.
+
+#### D. Add repository secrets in GitHub
+
+Go to: `GitHub Repository -> Settings -> Secrets and variables -> Actions -> New repository secret`
+
+Create these secrets:
+- `VPS_HOST`: VPS IP or DNS name
+- `VPS_PORT`: SSH port (usually `22`)
+- `VPS_USER`: deploy user (recommended: `portfolio`)
+- `VPS_SSH_PRIVATE_KEY`: contents of `~/.ssh/portfolio_actions_deploy` (private key)
+- `VPS_SSH_KNOWN_HOSTS`: output from `ssh-keyscan -H -p 22 YOUR_VPS_HOSTNAME_OR_IP`
+
+Security notes:
+- Never commit SSH keys or credentials in repository files.
+- Use a dedicated deploy key (do not reuse your personal SSH key).
+- Rotate deploy keys periodically.
+
+#### E. Optional: allow service restart without password prompt
+
+If you want the workflow to restart frontend services automatically:
+
+```bash
+sudo visudo -f /etc/sudoers.d/portfolio-github-actions
+```
+
+```text
+portfolio ALL=(root) NOPASSWD:/bin/systemctl restart portfolio-admin,/bin/systemctl restart portfolio-website
+```
+
+Then:
+
+```bash
+sudo chmod 440 /etc/sudoers.d/portfolio-github-actions
+```
+
+#### F. Run deployment manually
+
+1. Open `GitHub -> Actions -> Deploy Frontend To VPS`.
+2. Click `Run workflow`.
+3. Choose `backend-ui`, `website`, or `both`.
+4. Run from the branch/commit you want to deploy.
+
 ---
 
 ## 18. Create Systemd Services
