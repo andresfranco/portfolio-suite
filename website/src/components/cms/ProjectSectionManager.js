@@ -46,6 +46,66 @@ const ConfirmDialog = ({ isOpen, onConfirm, onCancel, title, message, confirmTex
   );
 };
 
+const normalizeUploadPath = (value) => {
+  if (!value || typeof value !== 'string') return null;
+  if (value.startsWith('data:')) return null;
+
+  let candidate = value.trim();
+  try {
+    candidate = new URL(candidate, process.env.REACT_APP_API_URL || 'http://localhost:8000').pathname;
+  } catch (error) {
+    // Keep original candidate when URL parsing fails.
+  }
+
+  candidate = candidate.split('?')[0].split('#')[0].replace(/\\/g, '/');
+
+  if (candidate.includes('/uploads/')) {
+    return candidate.slice(candidate.indexOf('/uploads/'));
+  }
+  if (candidate.startsWith('uploads/')) {
+    return `/${candidate}`;
+  }
+  return null;
+};
+
+const getFileNameFromPath = (path) => {
+  if (!path) return 'attachment';
+  const cleanPath = path.split('?')[0].split('#')[0];
+  const parts = cleanPath.split('/').filter(Boolean);
+  return parts[parts.length - 1] || 'attachment';
+};
+
+const collectInlineSectionMedia = (html) => {
+  const imagePaths = new Set();
+  const attachmentByPath = new Map();
+
+  if (!html || typeof window === 'undefined' || typeof DOMParser === 'undefined') {
+    return { imagePaths, attachmentByPath };
+  }
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+
+  doc.querySelectorAll('img[src]').forEach((img) => {
+    const normalizedPath = normalizeUploadPath(img.getAttribute('src'));
+    if (normalizedPath) {
+      imagePaths.add(normalizedPath);
+    }
+  });
+
+  doc.querySelectorAll('.file-attachment-card').forEach((card) => {
+    const normalizedPath = normalizeUploadPath(card.getAttribute('data-fileurl'));
+    if (!normalizedPath) return;
+
+    const cardFileName = (card.getAttribute('data-filename') || '').trim();
+    attachmentByPath.set(normalizedPath, {
+      fileName: cardFileName || getFileNameFromPath(normalizedPath),
+    });
+  });
+
+  return { imagePaths, attachmentByPath };
+};
+
 /**
  * ProjectSectionManager Component
  * Manages sections for a project in edit mode with image and file upload
@@ -387,6 +447,68 @@ const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess
   const [attachments, setAttachments] = useState(section?.attachments || []);
   const [pendingFiles, setPendingFiles] = useState([]);
 
+  const synchronizeSectionMediaRecords = async (sectionId, html) => {
+    if (!sectionId || !projectId || !authToken) return;
+
+    const { imagePaths, attachmentByPath } = collectInlineSectionMedia(html);
+    const projectSections = await portfolioApi.getProjectSections(projectId, authToken);
+    const targetSection = (projectSections || []).find((item) => item.id === sectionId);
+
+    if (!targetSection) return;
+
+    const existingImagesByPath = new Map();
+    (targetSection.images || []).forEach((image) => {
+      const normalizedPath = normalizeUploadPath(image.image_path);
+      if (normalizedPath) {
+        existingImagesByPath.set(normalizedPath, image);
+      }
+    });
+
+    for (const imagePath of imagePaths) {
+      if (!existingImagesByPath.has(imagePath)) {
+        await portfolioApi.addSectionImage(
+          sectionId,
+          { image_path: imagePath, display_order: 0 },
+          authToken
+        );
+      }
+    }
+
+    for (const [imagePath, image] of existingImagesByPath.entries()) {
+      if (!imagePaths.has(imagePath)) {
+        await portfolioApi.deleteSectionImage(image.id, authToken);
+      }
+    }
+
+    const existingAttachmentsByPath = new Map();
+    (targetSection.attachments || []).forEach((attachment) => {
+      const normalizedPath = normalizeUploadPath(attachment.file_path);
+      if (normalizedPath) {
+        existingAttachmentsByPath.set(normalizedPath, attachment);
+      }
+    });
+
+    for (const [attachmentPath, inlineData] of attachmentByPath.entries()) {
+      if (!existingAttachmentsByPath.has(attachmentPath)) {
+        await portfolioApi.addSectionAttachment(
+          sectionId,
+          {
+            file_path: attachmentPath,
+            file_name: inlineData.fileName || getFileNameFromPath(attachmentPath),
+            display_order: 0,
+          },
+          authToken
+        );
+      }
+    }
+
+    for (const [attachmentPath, attachment] of existingAttachmentsByPath.entries()) {
+      if (!attachmentByPath.has(attachmentPath)) {
+        await portfolioApi.deleteSectionAttachment(attachment.id, authToken);
+      }
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -437,6 +559,9 @@ const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess
 
     try {
       setLoading(true);
+      let savedSectionId = section?.id || null;
+      let htmlForMediaSync = currentHtml;
+
       if (isEditing) {
         // Update existing section - only send expected fields
         // Use currentHtml which was captured from the editor
@@ -447,6 +572,8 @@ const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess
           display_style: formData.display_style
         };
         await portfolioApi.updateSection(section.id, sectionData, authToken);
+        savedSectionId = section.id;
+        htmlForMediaSync = currentHtml;
         
         // If display_order changed and we have a projectId, update the order separately
         if (projectId && formData.display_order !== section.display_order) {
@@ -463,6 +590,7 @@ const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess
         };
         const response = await portfolioApi.createProjectSection(projectId, sectionData, authToken);
         const newSectionId = response.id || response.section_id;
+        savedSectionId = newSectionId;
         
         // Extract and upload base64 images from HTML
         let updatedHtml = currentHtml;
@@ -534,6 +662,7 @@ const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess
             }
           }
         }
+        htmlForMediaSync = updatedHtml;
         
         // Upload pending files if any
         if (pendingFiles && pendingFiles.length > 0 && newSectionId) {
@@ -589,6 +718,7 @@ const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess
               
               // Append file links to the existing HTML
               const updatedHtmlWithFiles = updatedHtml + fileLinksHtml;
+              htmlForMediaSync = updatedHtmlWithFiles;
               
               // Update section with HTML including file links
               await portfolioApi.updateSection(newSectionId, {
@@ -608,6 +738,11 @@ const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess
           }
         }
       }
+
+      if (savedSectionId) {
+        await synchronizeSectionMediaRecords(savedSectionId, htmlForMediaSync);
+      }
+
       onSuccess();
     } catch (err) {
       console.error(`Error ${isEditing ? 'updating' : 'creating'} section:`, err);

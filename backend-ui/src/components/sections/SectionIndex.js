@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Box, IconButton, Tooltip, Chip, Stack, Typography, Container } from '@mui/material';
-import { Edit as EditIcon, Delete as DeleteIcon, ArrowUpward, ArrowDownward, InfoOutlined } from '@mui/icons-material';
+import { Delete as DeleteIcon, Dashboard as DashboardIcon, ArrowUpward, ArrowDownward, InfoOutlined } from '@mui/icons-material';
 import SectionForm from './SectionForm';
 import ReusableDataGrid from '../common/ReusableDataGrid';
 import ReusableFilters from '../common/ReusableFilters';
@@ -34,6 +35,7 @@ const FILTER_TYPES = {
 };
 
 function SectionIndexContent() {
+  const navigate = useNavigate();
   const {
     sections,
     loading,
@@ -187,39 +189,32 @@ function SectionIndexContent() {
     {
       field: 'actions',
       headerName: 'Actions',
-      width: 120,
+      width: 130,
       sortable: false,
       disableColumnMenu: true,
       renderCell: (params) => {
         if (!params || !params.row) return null;
         return (
           <Box>
-            <PermissionGate permission="EDIT_SECTION">
-              <Tooltip title="Edit Section">
-                <IconButton 
-                  onClick={() => handleEditClick(params.row)} 
+            <PermissionGate permission="VIEW_SECTIONS">
+              <Tooltip title="Section Data">
+                <IconButton
+                  onClick={() => navigate(`/sections/${params.row.id}`)}
                   size="small"
-                  sx={{ 
-                    color: '#1976d2', 
-                    p: 0.5, 
-                    mr: 0.5,
-                    '&:hover': {
-                      backgroundColor: 'rgba(25, 118, 210, 0.04)'
-                    }
-                  }}
+                  sx={{ color: '#1976d2', p: 0.5, mr: 0.5 }}
                 >
-                  <EditIcon fontSize="small" />
+                  <DashboardIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
             </PermissionGate>
             <PermissionGate permission="DELETE_SECTION">
               <Tooltip title="Delete Section">
-                <IconButton 
-                  onClick={() => handleDeleteClick(params.row)} 
-                  size="small" 
-                  sx={{ 
-                    color: '#e53935', 
-                    p: 0.5 
+                <IconButton
+                  onClick={() => handleDeleteClick(params.row)}
+                  size="small"
+                  sx={{
+                    color: '#e53935',
+                    p: 0.5
                   }}
                 >
                   <DeleteIcon fontSize="small" />
@@ -236,7 +231,7 @@ function SectionIndexContent() {
   const COLUMN_ACCESS_MAP = useMemo(() => ({
     code: { required: 'VIEW_SECTIONS', moduleKey: 'sections' },
     section_texts: { required: 'VIEW_SECTIONS', moduleKey: 'sections' },
-    actions: { required: ['EDIT_SECTION', 'DELETE_SECTION', 'MANAGE_SECTIONS'], moduleKey: 'sections' }
+    actions: { required: ['VIEW_SECTIONS', 'DELETE_SECTION', 'MANAGE_SECTIONS'], moduleKey: 'sections' }
   }), []);
 
   const { allowedColumns, deniedColumns } = useMemo(() => {

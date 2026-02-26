@@ -391,7 +391,9 @@ const sectionsApi = {
   createSection: (data) => api.post('/api/sections/', data),
   updateSection: (id, data) => api.put(`/api/sections/${id}`, data),
   deleteSection: (id) => api.delete(`/api/sections/${id}`),
-  checkUnique: (params) => api.get('/api/sections/check-unique/', { params })
+  checkUnique: (params) => api.get('/api/sections/check-unique/', { params }),
+  deleteSectionImage: (imageId) => api.delete(`/api/projects/sections/images/${imageId}`),
+  deleteSectionAttachment: (attachmentId) => api.delete(`/api/projects/sections/attachments/${attachmentId}`)
 };
 
 // Links API
