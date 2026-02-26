@@ -2,9 +2,8 @@
 
 A full-stack web application suite with enterprise-grade security, AI-powered features, and comprehensive admin capabilities.
 
-[![Security: 100%](https://img.shields.io/badge/Security-100%25-brightgreen)](./maindocs/security/SECURITY_COMPLETE.md)
-[![Tests: Passing](https://img.shields.io/badge/Tests-Passing-brightgreen)](./maindocs/tests/SECURITY_FEATURES_TEST_REPORT.md)
-[![GDPR: Compliant](https://img.shields.io/badge/GDPR-Compliant-blue)](./maindocs/security/GDPR_IMPLEMENTATION_SUMMARY.md)
+[![Deployment: VPS Guide](https://img.shields.io/badge/Deployment-VPS%20Guide-blue)](./maindocs/guides/VPS_DEPLOYMENT_GUIDE.md)
+[![Security: Policy](https://img.shields.io/badge/Security-Policy-informational)](./maindocs/security/SECURITY.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ## 🏗️ Architecture
@@ -43,9 +42,7 @@ A full-stack web application suite with enterprise-grade security, AI-powered fe
 
 ## 🔐 Security Features
 
-### 🎯 100% Security Implementation Complete
-
-The Portfolio Suite implements enterprise-grade security controls across all layers:
+The Portfolio Suite implements layered security controls across authentication, infrastructure, and operations:
 
 #### Authentication & Authorization
 - ✅ JWT-based authentication (HS256/RS256 asymmetric signing)
@@ -63,7 +60,6 @@ The Portfolio Suite implements enterprise-grade security controls across all lay
 - ✅ XSS protection
 - ✅ CSRF protection
 - ✅ File upload scanning (ClamAV)
-- ✅ GDPR compliance (data export, erasure, consent)
 
 #### Infrastructure Security
 - ✅ Security headers (HSTS, CSP, X-Frame-Options, etc.)
@@ -80,7 +76,7 @@ The Portfolio Suite implements enterprise-grade security controls across all lay
 - ✅ Real-time security monitoring
 - ✅ Incident response procedures
 
-**📖 Full Security Documentation**: [`maindocs/security/SECURITY_COMPLETE.md`](./maindocs/security/SECURITY_COMPLETE.md)
+**📖 Security Documentation**: [`maindocs/security/SECURITY.md`](./maindocs/security/SECURITY.md)
 
 ---
 
@@ -228,24 +224,17 @@ portfolio-suite/
 │   │   └── run_tests.sh
 │   └── README.md               # Scripts documentation
 ├── maindocs/                   # Documentation
-│   ├── security/               # Security documentation
-│   │   ├── SECURITY_COMPLETE.md # Consolidated security docs
-│   │   ├── SECURITY_QUICK_REFERENCE.md
-│   │   ├── SECURITY_IMPLEMENTATION_AUDIT.md
-│   │   ├── INPUT_VALIDATION_SUMMARY.md
-│   │   └── GDPR_IMPLEMENTATION_SUMMARY.md
 │   ├── guides/                 # Implementation guides
-│   │   ├── SSL_TLS_SETUP_GUIDE.md
+│   │   ├── VPS_DEPLOYMENT_GUIDE.md
 │   │   ├── INCIDENT_RESPONSE_PLAYBOOK.md
+│   │   ├── WEBSITE_CMS_EDIT_MODE_GUIDE.md
 │   │   ├── MFA_QUICK_START.md
-│   │   ├── TESTING_QUICK_REFERENCE.md
-│   │   └── SECRETS_MANAGEMENT.md
+│   ├── security/
+│   │   └── SECURITY.md
 │   ├── tests/                  # Test documentation
-│   │   ├── SECURITY_FEATURES_TEST_REPORT.md
 │   │   ├── test_nginx_config.py
 │   │   └── test_workflows.py
-│   ├── architecture/           # Architecture docs
-│   └── archived/               # Historical documents
+│   └── README.md               # Main docs index
 ├── .gitignore                  # Git ignore rules (protects sensitive files)
 └── README.md                   # This file
 ```
@@ -352,7 +341,7 @@ JWT_PUBLIC_KEY_PATH=/etc/portfolio/keys/public_key.pem
 
 ### 2. Configure HTTPS
 
-Follow the [SSL/TLS Setup Guide](./maindocs/guides/SSL_TLS_SETUP_GUIDE.md):
+Follow the [VPS Deployment Guide](./maindocs/guides/VPS_DEPLOYMENT_GUIDE.md#14-obtain-ssltls-certificates):
 
 1. Install Certbot (Let's Encrypt)
 2. Obtain SSL certificates
@@ -380,7 +369,7 @@ See [MFA Quick Start Guide](./maindocs/guides/MFA_QUICK_START.md):
 
 ### 4. Configure File Scanning
 
-ClamAV setup is documented in `portfolio-backend/CLAMAV_DEPLOYMENT_GUIDE.md`
+ClamAV setup is documented in the [VPS Deployment Guide](./maindocs/guides/VPS_DEPLOYMENT_GUIDE.md#12-install-and-configure-clamav).
 
 ---
 
@@ -478,20 +467,20 @@ REACT_APP_ENABLE_MFA=true
 ## 📚 Documentation
 
 ### For Developers
-- [Security Complete Guide](./maindocs/security/SECURITY_COMPLETE.md) - Comprehensive security documentation
-- [Testing Quick Reference](./maindocs/guides/TESTING_QUICK_REFERENCE.md) - How to run tests
+- [Main Docs Index](./maindocs/README.md) - Active documentation map
+- [VPS Deployment Guide](./maindocs/guides/VPS_DEPLOYMENT_GUIDE.md) - End-to-end server setup
+- [Website CMS Edit Mode Guide](./maindocs/guides/WEBSITE_CMS_EDIT_MODE_GUIDE.md) - CMS editing operations
 - [Backend README](./portfolio-backend/README.md) - Backend-specific docs
 - [Frontend README](./backend-ui/README.md) - Frontend-specific docs
 
 ### For System Administrators
-- [SSL/TLS Setup Guide](./maindocs/guides/SSL_TLS_SETUP_GUIDE.md) - HTTPS deployment
+- [VPS Deployment Guide](./maindocs/guides/VPS_DEPLOYMENT_GUIDE.md) - Deployment, TLS, services, backups
 - [Incident Response Playbook](./maindocs/guides/INCIDENT_RESPONSE_PLAYBOOK.md) - Security incident procedures
-- [Secrets Management](./maindocs/guides/SECRETS_MANAGEMENT.md) - Handling sensitive data
+- [Security Policy](./maindocs/security/SECURITY.md) - Vulnerability reporting and policy
 
 ### For Security Teams
-- [Security Implementation Audit](./maindocs/security/SECURITY_IMPLEMENTATION_AUDIT.md) - Implementation review
-- [Security Quick Reference](./maindocs/security/SECURITY_QUICK_REFERENCE.md) - Quick commands
-- [Test Report](./maindocs/tests/SECURITY_FEATURES_TEST_REPORT.md) - Security testing results
+- [Security Policy](./maindocs/security/SECURITY.md) - Vulnerability process and controls baseline
+- [Incident Response Playbook](./maindocs/guides/INCIDENT_RESPONSE_PLAYBOOK.md) - Incident handling workflow
 
 ---
 
@@ -517,7 +506,7 @@ REACT_APP_ENABLE_MFA=true
 ### Security Contributions
 
 For security-related contributions:
-1. Review [Security Complete Guide](./maindocs/security/SECURITY_COMPLETE.md)
+1. Review [Security Policy](./maindocs/security/SECURITY.md)
 2. Run security tests before submitting
 3. Document security implications
 4. Consider OWASP Top 10 and GDPR compliance

@@ -28,6 +28,7 @@ from app import models
 import traceback
 from app.rag.rag_events import stage_event
 from app.utils.file_utils import sanitize_filename
+from app.utils.image_utils import compress_image, get_dimensions_for_category
 
 # Set up logger using centralized logging
 logger = setup_logger("app.api.endpoints.portfolios")
@@ -924,24 +925,32 @@ async def upload_portfolio_image(
         # Use UUID-based physical filename to avoid conflicts, but keep original filename in database
         original_filename = sanitize_filename(file.filename, default="image.png")
         content_type = (file.content_type or "").lower()
-        if content_type in {"image/jpeg", "image/jpg"}:
-            image_extension = ".jpg"
-        elif content_type == "image/png":
-            image_extension = ".png"
-        elif content_type == "image/gif":
-            image_extension = ".gif"
-        elif content_type == "image/webp":
-            image_extension = ".webp"
-        elif content_type == "image/svg+xml":
-            image_extension = ".svg"
-        else:
-            image_extension = ".upload"
-        physical_filename = f"{uuid.uuid4().hex}{image_extension}"
-        
-        file_path = upload_dir / physical_filename
-        
-        # Save the file
+
+        # Read and compress the image before saving
         contents = await file.read()
+        max_width, max_height = get_dimensions_for_category(category)
+        contents, content_type = compress_image(
+            contents,
+            content_type,
+            max_width=max_width,
+            max_height=max_height,
+        )
+
+        # Determine extension from (possibly updated) content type
+        _ext_map = {
+            "image/jpeg": ".jpg",
+            "image/jpg": ".jpg",
+            "image/png": ".png",
+            "image/gif": ".gif",
+            "image/webp": ".webp",
+            "image/svg+xml": ".svg",
+        }
+        image_extension = _ext_map.get(content_type, ".upload")
+        physical_filename = f"{uuid.uuid4().hex}{image_extension}"
+
+        file_path = upload_dir / physical_filename
+
+        # Save the compressed file
         with open(file_path, "wb") as f:
             f.write(contents)
         

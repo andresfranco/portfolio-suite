@@ -79,6 +79,7 @@ import {
   FaExpandAlt
 } from 'react-icons/fa';
 import portfolioApi from '../../services/portfolioApi';
+import { compressImage } from '../../utils/imageCompression';
 
 // Resizable Image Extension with Custom NodeView and Drag Support
 // This uses TipTap's NodeView API for proper integration
@@ -3826,10 +3827,19 @@ const RichTextSectionEditor = ({
       setUploadingImage(true);
       setError(null);
 
+      // ── Compress image before upload ──────────────────────────────────────
+      // Section content is typically displayed at most 1200 px wide
+      const { file: compressedFile } = await compressImage(file, {
+        maxWidth: 1200,
+        maxHeight: 900,
+        quality: 0.85,
+      });
+      // ─────────────────────────────────────────────────────────────────────
+
       if (sectionId) {
         // Upload to backend and get URL
         const response = await portfolioApi.uploadImage(
-          file,
+          compressedFile,
           'section',
           sectionId,
           'section',
@@ -3854,21 +3864,21 @@ const RichTextSectionEditor = ({
           onImagesChange([...initialImages, newImage]);
         }
       } else {
-        // For new sections, use base64 preview
+        // For new sections, use base64 preview (already compressed above)
         const reader = new FileReader();
         reader.onload = (e) => {
           const base64 = e.target.result;
           editor.chain().focus().setImage({ src: base64 }).run();
-          
+
           // Trigger onChange to update parent component
             setTimeout(() => {
               const html = editor.getHTML();
             safeOnChange(html);
             }, 100);
-          
+
           showNotification('Image Added', 'Image will be embedded in section content', 'success');
         };
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(compressedFile);
       }
 
       // Clear input

@@ -19,14 +19,23 @@ import {
   MenuItem,
   IconButton,
   TextField,
-  CircularProgress
+  CircularProgress,
+  Chip
 } from '@mui/material';
 import {
   Delete as DeleteIcon,
   Upload as UploadIcon,
-  Add as AddIcon
+  Add as AddIcon,
+  InfoOutlined as InfoIcon,
+  WarningAmber as WarningIcon
 } from '@mui/icons-material';
 import SERVER_URL from '../common/BackendServerData';
+import {
+  compressImage,
+  getCompressionHint,
+  getDimensionsForCategory,
+  formatBytes,
+} from '../../utils/imageCompression';
 
 function ProjectImageForm({ open, onClose, project }) {
   const [images, setImages] = useState([]);
@@ -43,6 +52,8 @@ function ProjectImageForm({ open, onClose, project }) {
   const [apiError, setApiError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadPreview, setUploadPreview] = useState(null);
+  const [compressionHint, setCompressionHint] = useState(null);
+  const [compressionStats, setCompressionStats] = useState(null);
 
   // Fetch categories and other data when component opens
   useEffect(() => {
@@ -174,7 +185,9 @@ function ProjectImageForm({ open, onClose, project }) {
         ...prev,
         file
       }));
-      
+      setCompressionStats(null);
+      setCompressionHint(getCompressionHint(file));
+
       // Create a preview URL
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -235,9 +248,20 @@ function ProjectImageForm({ open, onClose, project }) {
         }
       }
       
+      // ── Compress image before upload ────────────────────────────────────
+      const [maxWidth, maxHeight] = getDimensionsForCategory(newImage.category);
+      const { file: fileToUpload, originalSize, compressedSize } = await compressImage(
+        newImage.file,
+        { maxWidth, maxHeight, quality: 0.85 }
+      );
+      if (compressedSize < originalSize) {
+        setCompressionStats({ originalSize, compressedSize });
+      }
+      // ───────────────────────────────────────────────────────────────────
+
       // Proceed with upload
       const formData = new FormData();
-      formData.append('file', newImage.file);
+      formData.append('file', fileToUpload);
       formData.append('category_code', newImage.category);
       if (newImage.language_id) {
         formData.append('language_id', newImage.language_id.toString());
@@ -277,7 +301,9 @@ function ProjectImageForm({ open, onClose, project }) {
         description: ''
       });
       setUploadPreview(null);
-      
+      setCompressionHint(null);
+      setCompressionStats(null);
+
       // Reset the file input
       const fileInput = document.getElementById('project-image-upload');
       if (fileInput) {
@@ -394,6 +420,32 @@ function ProjectImageForm({ open, onClose, project }) {
                   }}
                 />
               </Box>
+              {/* Compression hint chip */}
+              {compressionHint && compressionHint.severity !== 'none' && (
+                <Box sx={{ mt: 1 }}>
+                  <Chip
+                    size="small"
+                    icon={compressionHint.severity === 'warning' ? <WarningIcon /> : <InfoIcon />}
+                    label={compressionHint.label}
+                    color={compressionHint.severity === 'warning' ? 'warning' : 'info'}
+                    variant="outlined"
+                    sx={{ fontSize: '0.7rem', height: 'auto', py: 0.5, '& .MuiChip-label': { whiteSpace: 'normal' } }}
+                  />
+                </Box>
+              )}
+              {/* Post-upload compression stats */}
+              {compressionStats && (
+                <Box sx={{ mt: 1 }}>
+                  <Chip
+                    size="small"
+                    icon={<InfoIcon />}
+                    label={`Compressed: ${formatBytes(compressionStats.originalSize)} → ${formatBytes(compressionStats.compressedSize)}`}
+                    color="success"
+                    variant="outlined"
+                    sx={{ fontSize: '0.7rem', height: 'auto', py: 0.5 }}
+                  />
+                </Box>
+              )}
             </Grid>
             <Grid item xs={12} md={8}>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
