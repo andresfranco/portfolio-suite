@@ -12,8 +12,8 @@
 4. [Firewall Configuration (UFW)](#4-firewall-configuration-ufw)
 5. [SSH Hardening](#5-ssh-hardening)
 6. [Fail2Ban - Brute Force Protection](#6-fail2ban---brute-force-protection)
-7. [Install Python 3.11+](#7-install-python-311)
-8. [Install Node.js 18+](#8-install-nodejs-18)
+7. [Install Python 3.12+](#7-install-python-312)
+8. [Install Node.js 20+](#8-install-nodejs-20)
 9. [Install and Configure PostgreSQL 15+](#9-install-and-configure-postgresql-15)
 10. [Configure Multi-Environment Databases](#10-configure-multi-environment-databases)
 11. [Install and Configure Redis 7](#11-install-and-configure-redis-7)
@@ -26,7 +26,7 @@
 18. [Create Systemd Services](#18-create-systemd-services)
 19. [Configure Nginx Virtual Hosts](#19-configure-nginx-virtual-hosts)
 20. [Database Initialization and Migrations](#20-database-initialization-and-migrations)
-21. [Generate JWT RSA Keys (RS256)](#21-generate-jwt-rsa-keys-rs256)
+21. [JWT Algorithm and RSA Keys](#21-jwt-algorithm-and-rsa-keys)
 22. [Configure Automated Backups](#22-configure-automated-backups)
 23. [Log Rotation](#23-log-rotation)
 24. [Monitoring and Health Checks](#24-monitoring-and-health-checks)
@@ -45,18 +45,18 @@
 | RAM         | 4 GB                | 8+ GB             |
 | Storage     | 20 GB SSD           | 50+ GB SSD        |
 | Bandwidth   | 1 TB/month          | 2+ TB/month       |
-| OS          | Ubuntu 22.04 LTS    | Ubuntu 22.04 LTS  |
+| OS          | Ubuntu 24.04 LTS    | Ubuntu 24.04 LTS  |
 
 ### Domain Requirements
 
 You need the following DNS records configured before proceeding:
 
-| Record Type | Name              | Value              |
-|------------|-------------------|--------------------|
-| A          | yourdomain.com    | YOUR_SERVER_IP     |
-| A          | www.yourdomain.com| YOUR_SERVER_IP     |
-| A          | api.yourdomain.com| YOUR_SERVER_IP     |
-| A          | admin.yourdomain.com | YOUR_SERVER_IP  |
+| Record Type | Name                    | Value              |
+|------------|-------------------------|--------------------|
+| A          | yourdomain.com          | YOUR_SERVER_IP     |
+| A          | www.yourdomain.com      | YOUR_SERVER_IP     |
+| A          | api.yourdomain.com      | YOUR_SERVER_IP     |
+| A          | admin.yourdomain.com    | YOUR_SERVER_IP     |
 
 ### Architecture Overview
 
@@ -351,45 +351,49 @@ sudo fail2ban-client status sshd
 
 ---
 
-## 7. Install Python 3.11+
+## 7. Install Python 3.12+
+
+On Ubuntu 24.04 LTS, Python 3.12 is available in the default repositories:
 
 ```bash
-# Add the deadsnakes PPA for latest Python versions
-sudo add-apt-repository ppa:deadsnakes/ppa -y
-sudo apt update
-
-# Install Python 3.11 with dev packages
+# Install Python 3.12 with dev packages
 sudo apt install -y \
-    python3.11 \
-    python3.11-venv \
-    python3.11-dev \
-    python3.11-distutils
+    python3.12 \
+    python3.12-venv \
+    python3.12-dev
 
 # Verify installation
-python3.11 --version
+python3.12 --version
 
 # Install pip
-curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11
+curl -sS https://bootstrap.pypa.io/get-pip.py | python3.12
 
 # Verify pip
-python3.11 -m pip --version
+python3.12 -m pip --version
 ```
+
+> **Note:** If using Ubuntu 22.04, add the deadsnakes PPA first:
+> ```bash
+> sudo add-apt-repository ppa:deadsnakes/ppa -y
+> sudo apt update
+> # Also install: python3.12-distutils
+> ```
 
 ---
 
-## 8. Install Node.js 18+
+## 8. Install Node.js 20+
 
 ```bash
-# Install Node.js 18.x LTS using NodeSource
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+# Install Node.js 20.x LTS using NodeSource
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
 
 # Verify installation
 node --version
 npm --version
 
-# Install PM2 globally (optional - process manager for Node.js apps)
-sudo npm install -g pm2
+# Install serve globally (to host built React apps)
+sudo npm install -g serve
 ```
 
 ---
@@ -878,29 +882,34 @@ sudo rm /etc/nginx/sites-enabled/temp-certbot
 # Switch to the portfolio user
 sudo su - portfolio
 
-# Clone the repository
+# Clone the repository into /opt/portfolio/portfolio-suite
 cd /opt/portfolio
-git clone https://github.com/YOUR_USERNAME/portfolio-suite.git .
+git clone https://github.com/YOUR_USERNAME/portfolio-suite.git portfolio-suite
 
 # Or if using SSH
-git clone git@github.com:YOUR_USERNAME/portfolio-suite.git .
+git clone git@github.com:YOUR_USERNAME/portfolio-suite.git portfolio-suite
+
+cd /opt/portfolio/portfolio-suite
 ```
 
 ### 15.2 Directory Structure on Server
 
 ```
 /opt/portfolio/
-├── portfolio-backend/    # FastAPI backend
-├── backend-ui/           # React admin interface
-├── website/              # React public website
-├── deployment/           # Nginx and Docker configs
-├── maindocs/             # Documentation
-├── backups/              # Database backups (create this)
-└── logs/                 # Application logs (create this)
+├── portfolio-suite/          # Application code (git repo)
+│   ├── portfolio-backend/    # FastAPI backend
+│   ├── backend-ui/           # React admin interface
+│   ├── website/              # React public website
+│   ├── deployment/           # Nginx and Docker configs
+│   ├── maindocs/             # Documentation
+│   └── scripts/              # Utility scripts
+├── backups/                  # Database backups (outside git repo)
+├── logs/                     # Application logs (outside git repo)
+└── healthcheck.sh            # Health check script
 ```
 
 ```bash
-# Create additional directories
+# Create additional directories (outside the git repo)
 mkdir -p /opt/portfolio/backups
 mkdir -p /opt/portfolio/logs
 ```
@@ -912,10 +921,10 @@ mkdir -p /opt/portfolio/logs
 ### 16.1 Create Python Virtual Environment
 
 ```bash
-cd /opt/portfolio/portfolio-backend
+cd /opt/portfolio/portfolio-suite/portfolio-backend
 
-# Create virtual environment with Python 3.11
-python3.11 -m venv venv
+# Create virtual environment with Python 3.12
+python3.12 -m venv venv
 
 # Activate it
 source venv/bin/activate
@@ -930,7 +939,7 @@ pip install -r requirements.txt
 ### 16.2 Create the Backend .env File
 
 ```bash
-nano /opt/portfolio/portfolio-backend/.env
+nano /opt/portfolio/portfolio-suite/portfolio-backend/.env
 ```
 
 ```bash
@@ -954,16 +963,18 @@ DATABASE_URL_STAGING=postgresql://admindb:YOUR_ADMINDB_PASSWORD@localhost:5432/p
 DB_POOL_SIZE=20
 DB_MAX_OVERFLOW=0
 DB_POOL_TIMEOUT=30
-DB_SSL_ENABLED=True
-DB_SSL_MODE=require
+# NOTE: DB SSL is disabled because ProtectHome=true in the systemd service blocks access to
+# certificate files outside the application directory. To enable SSL, place cert files inside
+# /opt/portfolio/portfolio-suite/ and add the path to ReadWritePaths in the service file.
+DB_SSL_ENABLED=False
+DB_SSL_MODE=disable
 
 # --- Security ---
+# Generate with: openssl rand -hex 32
 SECRET_KEY=GENERATE_WITH_openssl_rand_hex_32
-ALGORITHM=RS256
-JWT_PRIVATE_KEY_PATH=/opt/portfolio/portfolio-backend/keys/private_key.pem
-JWT_PUBLIC_KEY_PATH=/opt/portfolio/portfolio-backend/keys/public_key.pem
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-REFRESH_TOKEN_EXPIRE_MINUTES=10080
+# NOTE: The current deployment uses HS256 (symmetric, no key files required).
+# For higher security, switch to RS256 with RSA key files — see Section 21.
+ALGORITHM=HS256
 
 # --- CORS ---
 FRONTEND_ORIGINS=https://yourdomain.com,https://www.yourdomain.com,https://admin.yourdomain.com
@@ -996,11 +1007,12 @@ CELERY_RESULT_BACKEND=redis://:YOUR_REDIS_PASSWORD@localhost:6379/1
 CLAMAV_ENABLED=true
 
 # --- SMTP (Email) ---
-SMTP_HOST=<SMTP_HOSTNAME>
-SMTP_PORT=<SMTP_PORT>
-SMTP_USER=your_email@example.com
-SMTP_PASSWORD=your_app_password
+SMTP_HOST=<YOUR_SMTP_HOST>
+SMTP_PORT=<YOUR_SMTP_PORT>
+SMTP_USER=<YOUR_SMTP_USER>
+SMTP_PASSWORD=<YOUR_SMTP_PASSWORD>
 SMTP_TLS=True
+SMTP_SSL=True
 SMTP_FROM_EMAIL=noreply@yourdomain.com
 SMTP_FROM_NAME=Portfolio Suite
 
@@ -1011,21 +1023,31 @@ ALLOWED_EXTENSIONS=jpg,jpeg,png,gif,pdf,doc,docx
 # --- Field-Level Encryption ---
 # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ENCRYPTION_MASTER_KEY=YOUR_FERNET_KEY
-ENCRYPTION_SALT=YOUR_RANDOM_32_CHAR_SALT
+# Generate with: python -c "import base64, os; print(base64.b64encode(os.urandom(32)).decode())"
+ENCRYPTION_SALT=YOUR_BASE64_SALT
 
 # --- MFA ---
 MFA_ISSUER=Portfolio Suite
 
 # --- RAG/AI (Optional) ---
+DEFAULT_TENANT_ID=default
+DEFAULT_VISIBILITY=private
+CHUNK_CHARS=1000
+CHUNK_OVERLAP=200
+RAG_DEBOUNCE_SECONDS=2
+# Uncomment and configure to enable OpenAI embeddings:
 # EMBED_PROVIDER=openai
 # EMBED_MODEL=text-embedding-3-small
 # OPENAI_API_KEY=sk-...
+
+# --- Backups ---
+BACKUP_DIR=/opt/portfolio/backups
 ```
 
 ### 16.3 Set Permissions on .env
 
 ```bash
-chmod 600 /opt/portfolio/portfolio-backend/.env
+chmod 600 /opt/portfolio/portfolio-suite/portfolio-backend/.env
 ```
 
 ### 16.4 Generate the SECRET_KEY
@@ -1039,7 +1061,7 @@ openssl rand -hex 32
 ### 16.5 Generate the Encryption Key
 
 ```bash
-source /opt/portfolio/portfolio-backend/venv/bin/activate
+source /opt/portfolio/portfolio-suite/portfolio-backend/venv/bin/activate
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 # Copy the output into .env as ENCRYPTION_MASTER_KEY
 ```
@@ -1051,7 +1073,7 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 ### 17.1 Admin UI
 
 ```bash
-cd /opt/portfolio/backend-ui
+cd /opt/portfolio/portfolio-suite/backend-ui
 
 # Install dependencies
 npm install
@@ -1082,7 +1104,7 @@ npm run build
 ### 17.2 Public Website
 
 ```bash
-cd /opt/portfolio/website
+cd /opt/portfolio/portfolio-suite/website
 
 # Install dependencies
 npm install
@@ -1207,10 +1229,10 @@ Wants=postgresql.service redis-server.service
 Type=simple
 User=portfolio
 Group=portfolio
-WorkingDirectory=/opt/portfolio/portfolio-backend
-Environment="PATH=/opt/portfolio/portfolio-backend/venv/bin:/usr/local/bin:/usr/bin:/bin"
-EnvironmentFile=/opt/portfolio/portfolio-backend/.env
-ExecStart=/opt/portfolio/portfolio-backend/venv/bin/uvicorn \
+WorkingDirectory=/opt/portfolio/portfolio-suite/portfolio-backend
+Environment="PATH=/opt/portfolio/portfolio-suite/portfolio-backend/venv/bin:/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=/opt/portfolio/portfolio-suite/portfolio-backend/.env
+ExecStart=/opt/portfolio/portfolio-suite/portfolio-backend/venv/bin/uvicorn \
     app.main:app \
     --host 127.0.0.1 \
     --port 8000 \
@@ -1228,7 +1250,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/portfolio/portfolio-backend/static /opt/portfolio/logs /tmp
+ReadWritePaths=/opt/portfolio/portfolio-suite/portfolio-backend/static /opt/portfolio/logs /tmp
 
 # Resource limits
 LimitNOFILE=65536
@@ -1254,13 +1276,13 @@ Wants=redis-server.service
 Type=simple
 User=portfolio
 Group=portfolio
-WorkingDirectory=/opt/portfolio/portfolio-backend
-Environment="PATH=/opt/portfolio/portfolio-backend/venv/bin:/usr/local/bin:/usr/bin:/bin"
+WorkingDirectory=/opt/portfolio/portfolio-suite/portfolio-backend
+Environment="PATH=/opt/portfolio/portfolio-suite/portfolio-backend/venv/bin:/usr/local/bin:/usr/bin:/bin"
 Environment="PROMETHEUS_MULTIPROC_DIR=/tmp/prom_multiproc"
-EnvironmentFile=/opt/portfolio/portfolio-backend/.env
+EnvironmentFile=/opt/portfolio/portfolio-suite/portfolio-backend/.env
 ExecStartPre=/bin/mkdir -p /tmp/prom_multiproc
-ExecStart=/opt/portfolio/portfolio-backend/venv/bin/celery \
-    -A app.queue.celery_app:get_celery \
+ExecStart=/opt/portfolio/portfolio-suite/portfolio-backend/venv/bin/celery \
+    -A app.queue.celery_app:celery_app \
     worker \
     --loglevel=WARNING \
     --concurrency=2
@@ -1275,7 +1297,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/portfolio/portfolio-backend /tmp
+ReadWritePaths=/opt/portfolio/portfolio-suite/portfolio-backend /tmp
 
 # Resource limits
 MemoryMax=1G
@@ -1287,7 +1309,7 @@ WantedBy=multi-user.target
 
 ### 18.3 Admin UI Service (Serve with `serve`)
 
-Install the `serve` package to host the built React apps:
+Install the `serve` package to host the built React apps (if not already done in Section 8):
 
 ```bash
 sudo npm install -g serve
@@ -1306,7 +1328,7 @@ After=network.target
 Type=simple
 User=portfolio
 Group=portfolio
-WorkingDirectory=/opt/portfolio/backend-ui
+WorkingDirectory=/opt/portfolio/portfolio-suite/backend-ui
 ExecStart=/usr/bin/serve -s build -l 3000
 Restart=always
 RestartSec=10
@@ -1333,7 +1355,7 @@ After=network.target
 Type=simple
 User=portfolio
 Group=portfolio
-WorkingDirectory=/opt/portfolio/website
+WorkingDirectory=/opt/portfolio/portfolio-suite/website
 ExecStart=/usr/bin/serve -s build -l 3001
 Restart=always
 RestartSec=10
@@ -1467,8 +1489,24 @@ server {
         proxy_read_timeout 60s;
     }
 
+    # Catch-all: proxy everything to FastAPI so it returns proper JSON errors
+    # (more-specific /api/auth/ and /api/ locations above take precedence)
+    location / {
+        limit_req zone=api burst=20 nodelay;
+        proxy_pass http://backend_api;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Request-ID $request_id;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
     # Health checks (no rate limiting)
-    location ~ ^/(healthz|readyz|metrics)$ {
+    location ~ ^/(health|readyz|metrics)$ {
         proxy_pass http://backend_api;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
@@ -1477,7 +1515,7 @@ server {
 
     # Static uploads
     location /uploads/ {
-        alias /opt/portfolio/portfolio-backend/static/uploads/;
+        alias /opt/portfolio/portfolio-suite/portfolio-backend/static/uploads/;
         expires 30d;
         add_header Cache-Control "public, immutable";
         location ~ \.php$ { deny all; }
@@ -1660,7 +1698,7 @@ sudo systemctl reload nginx
 The project includes an automated database initialization script that creates databases, runs migrations, and populates initial data:
 
 ```bash
-cd /opt/portfolio/portfolio-backend
+cd /opt/portfolio/portfolio-suite/portfolio-backend
 source venv/bin/activate
 
 # Initialize all environments at once
@@ -1686,7 +1724,7 @@ python scripts/db/db_init.py \
 ### 20.2 Manual Migration (Alternative)
 
 ```bash
-cd /opt/portfolio/portfolio-backend
+cd /opt/portfolio/portfolio-suite/portfolio-backend
 source venv/bin/activate
 
 # Run migrations for a specific environment
@@ -1702,7 +1740,7 @@ alembic history
 ### 20.3 Create Admin User
 
 ```bash
-cd /opt/portfolio/portfolio-backend
+cd /opt/portfolio/portfolio-suite/portfolio-backend
 source venv/bin/activate
 
 python scripts/admin/create_admin.py
@@ -1711,12 +1749,26 @@ python scripts/admin/create_admin.py
 
 ---
 
-## 21. Generate JWT RSA Keys (RS256)
+## 21. JWT Algorithm and RSA Keys
 
-For production, use asymmetric JWT signing with RS256:
+### 21.1 Current Configuration (HS256)
+
+The default deployment uses **HS256** (HMAC-SHA256, symmetric) for JWT signing. This requires only a `SECRET_KEY` in the `.env` file — no key files on disk.
 
 ```bash
-cd /opt/portfolio/portfolio-backend
+# In .env:
+ALGORITHM=HS256
+SECRET_KEY=<your-64-char-hex-secret>
+```
+
+> **Security Note:** HS256 is simpler and secure for single-server deployments where the secret key never leaves the server. If you need to verify tokens in external services without sharing the secret key, use RS256 instead.
+
+### 21.2 Upgrading to RS256 (Recommended for High-Security Deployments)
+
+For asymmetric JWT signing with RS256:
+
+```bash
+cd /opt/portfolio/portfolio-suite/portfolio-backend
 source venv/bin/activate
 
 # Create keys directory
@@ -1731,13 +1783,15 @@ chmod 644 keys/public_key.pem
 chown portfolio:portfolio keys/*.pem
 ```
 
-Verify the `.env` file references these keys:
+Update `.env` to use RS256:
 
 ```bash
 ALGORITHM=RS256
-JWT_PRIVATE_KEY_PATH=/opt/portfolio/portfolio-backend/keys/private_key.pem
-JWT_PUBLIC_KEY_PATH=/opt/portfolio/portfolio-backend/keys/public_key.pem
+JWT_PRIVATE_KEY_PATH=/opt/portfolio/portfolio-suite/portfolio-backend/keys/private_key.pem
+JWT_PUBLIC_KEY_PATH=/opt/portfolio/portfolio-suite/portfolio-backend/keys/public_key.pem
 ```
+
+> **Important:** With `ProtectHome=true` in the systemd service, key files must be inside a path covered by `WorkingDirectory` or explicitly listed in `ReadOnlyPaths`. The `keys/` directory under the `WorkingDirectory` is accessible by default.
 
 ---
 
@@ -1747,10 +1801,10 @@ JWT_PUBLIC_KEY_PATH=/opt/portfolio/portfolio-backend/keys/public_key.pem
 
 ```bash
 # Copy systemd units
-sudo cp /opt/portfolio/portfolio-backend/scripts/backup/portfolio-backup.service /etc/systemd/system/
-sudo cp /opt/portfolio/portfolio-backend/scripts/backup/portfolio-backup.timer /etc/systemd/system/
+sudo cp /opt/portfolio/portfolio-suite/portfolio-backend/scripts/backup/portfolio-backup.service /etc/systemd/system/
+sudo cp /opt/portfolio/portfolio-suite/portfolio-backend/scripts/backup/portfolio-backup.timer /etc/systemd/system/
 
-# Create backup directory
+# Create backup directory (outside the git repo)
 sudo mkdir -p /opt/portfolio/backups
 sudo chown portfolio:portfolio /opt/portfolio/backups
 
@@ -1763,7 +1817,9 @@ sudo systemctl start portfolio-backup.timer
 sudo systemctl list-timers | grep portfolio
 ```
 
-The timer runs the backup daily at 2:00 AM UTC.
+The timer runs the backup daily at 2:00 AM UTC. Each backup produces two files:
+- `backup_portfolioai_YYYYMMDD_HHMMSS.sql.gz` — compressed SQL dump
+- `backup_portfolioai_YYYYMMDD_HHMMSS.sql.json` — backup metadata
 
 ### 22.2 Manual Backup
 
@@ -1954,11 +2010,11 @@ Run through this checklist after deployment:
 - [ ] `ENVIRONMENT=production` in `.env`
 - [ ] `DEBUG=False` in `.env`
 - [ ] Strong `SECRET_KEY` generated (64+ hex chars)
-- [ ] RS256 JWT keys generated (4096-bit)
-- [ ] Private key permissions set to 600
+- [ ] JWT algorithm configured (`ALGORITHM=HS256` or `RS256`)
+- [ ] Private key permissions set to 600 (if using RS256)
 - [ ] `.env` file permissions set to 600
 - [ ] CORS origins restricted to actual domains
-- [ ] `ALLOWED_HOSTS` set to specific domains (not `*`)
+- [ ] `ALLOWED_HOSTS` set to your API domain
 - [ ] Rate limiting enabled
 - [ ] HSTS enabled
 - [ ] Redis password configured
@@ -1971,8 +2027,8 @@ Run through this checklist after deployment:
 - [ ] Nginx TLS 1.3 configured
 - [ ] SSL certificates valid and auto-renewing
 - [ ] All systemd services running
-- [ ] Database backups configured
-- [ ] Log rotation configured
+- [ ] Database backups configured (`/opt/portfolio/backups/`)
+- [ ] Log rotation configured (`/opt/portfolio/logs/`)
 
 ### Functional Tests
 
@@ -1995,7 +2051,7 @@ Run through this checklist after deployment:
 sudo journalctl -u portfolio-api -n 50 --no-pager
 
 # Test manually
-cd /opt/portfolio/portfolio-backend
+cd /opt/portfolio/portfolio-suite/portfolio-backend
 source venv/bin/activate
 python -c "from app.main import app; print('Import OK')"
 
@@ -2058,7 +2114,7 @@ sudo certbot renew
 ### Migration errors
 
 ```bash
-cd /opt/portfolio/portfolio-backend
+cd /opt/portfolio/portfolio-suite/portfolio-backend
 source venv/bin/activate
 
 # Check current migration state
@@ -2114,27 +2170,27 @@ sudo systemctl restart portfolio-api portfolio-celery portfolio-admin portfolio-
 
 ## Quick Reference Card
 
-| Component         | Port  | Service Name         | Config File                          |
-|-------------------|-------|----------------------|--------------------------------------|
-| Backend API       | 8000  | portfolio-api        | /opt/portfolio/portfolio-backend/.env |
-| Admin UI          | 3000  | portfolio-admin      | /opt/portfolio/backend-ui/.env        |
-| Public Website    | 3001  | portfolio-website    | /opt/portfolio/website/.env           |
-| Celery Worker     | -     | portfolio-celery     | (shares backend .env)                 |
-| PostgreSQL        | 5432  | postgresql           | /etc/postgresql/15/main/              |
-| Redis             | 6379  | redis-server         | /etc/redis/redis.conf                 |
-| Nginx             | 80/443| nginx                | /etc/nginx/sites-available/           |
+| Component         | Port  | Service Name         | Config File                                                          |
+|-------------------|-------|----------------------|----------------------------------------------------------------------|
+| Backend API       | 8000  | portfolio-api        | /opt/portfolio/portfolio-suite/portfolio-backend/.env                |
+| Admin UI          | 3000  | portfolio-admin      | /opt/portfolio/portfolio-suite/backend-ui/.env                       |
+| Public Website    | 3001  | portfolio-website    | /opt/portfolio/portfolio-suite/website/.env                          |
+| Celery Worker     | -     | portfolio-celery     | (shares backend .env)                                                |
+| PostgreSQL        | 5432  | postgresql           | /etc/postgresql/15/main/                                             |
+| Redis             | 6379  | redis-server         | /etc/redis/redis.conf                                                |
+| Nginx             | 80/443| nginx                | /etc/nginx/sites-available/                                          |
 
-| Task                     | Command                                                      |
-|--------------------------|--------------------------------------------------------------|
-| View API logs            | `sudo journalctl -u portfolio-api -f`                        |
-| Restart API              | `sudo systemctl restart portfolio-api`                       |
-| Run migrations           | `cd /opt/portfolio/portfolio-backend && source venv/bin/activate && alembic upgrade head` |
-| Create backup            | `pg_dump -U admindb -h localhost portfolioai \| gzip > backup.sql.gz` |
-| Check SSL expiry         | `sudo certbot certificates`                                  |
-| Renew SSL                | `sudo certbot renew`                                         |
-| Check all services       | `bash /opt/portfolio/healthcheck.sh`                         |
-| Firewall status          | `sudo ufw status`                                            |
-| Fail2Ban banned IPs      | `sudo fail2ban-client status sshd`                           |
+| Task                     | Command                                                                                                         |
+|--------------------------|-----------------------------------------------------------------------------------------------------------------|
+| View API logs            | `sudo journalctl -u portfolio-api -f`                                                                           |
+| Restart API              | `sudo systemctl restart portfolio-api`                                                                          |
+| Run migrations           | `cd /opt/portfolio/portfolio-suite/portfolio-backend && source venv/bin/activate && alembic upgrade head`       |
+| Create backup            | `pg_dump -U admindb -h localhost portfolioai \| gzip > /opt/portfolio/backups/backup.sql.gz`                    |
+| Check SSL expiry         | `sudo certbot certificates`                                                                                     |
+| Renew SSL                | `sudo certbot renew`                                                                                            |
+| Check all services       | `bash /opt/portfolio/healthcheck.sh`                                                                            |
+| Firewall status          | `sudo ufw status`                                                                                               |
+| Fail2Ban banned IPs      | `sudo fail2ban-client status sshd`                                                                              |
 
 ---
 
