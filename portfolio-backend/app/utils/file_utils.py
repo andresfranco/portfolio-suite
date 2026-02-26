@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional
 from app.core.logging import setup_logger
 from app.core.config import settings
+from app.utils.image_utils import compress_image
 
 # Set up logger using centralized logging
 logger = setup_logger("app.utils.file_utils")
@@ -40,25 +41,51 @@ def sanitize_filename(filename: Optional[str], default: str = "upload") -> str:
     return candidate
 
 
+# Content-type → file extension mapping
+_CONTENT_TYPE_EXT = {
+    "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
+    "image/png": ".png",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+    "image/svg+xml": ".svg",
+    "application/pdf": ".pdf",
+    "text/plain": ".txt",
+    "application/json": ".json",
+    "text/csv": ".csv",
+    "application/zip": ".zip",
+    "application/x-zip-compressed": ".zip",
+}
+
+
 # Save an uploaded file
 async def save_upload_file(
-    upload_file: UploadFile, 
+    upload_file: UploadFile,
     directory: Path = UPLOAD_DIR,
+    max_width: int = 1920,
+    max_height: int = 1080,
+    jpeg_quality: int = 85,
 ) -> str:
     """
-    Save an uploaded file to the specified directory
-    
+    Save an uploaded file to the specified directory.
+
+    Raster images (JPEG, PNG, WebP) are automatically compressed and resized
+    to ``max_width × max_height`` before being written to disk.
+
     Args:
         upload_file: The uploaded file to save
         directory: The directory to save the file in
-        
+        max_width: Maximum image width after compression (pixels).
+        max_height: Maximum image height after compression (pixels).
+        jpeg_quality: JPEG/WebP quality factor (1-95).
+
     Returns:
-        The path to the saved file relative to the upload directory
+        The path to the saved file (absolute string).
     """
     try:
         # Ensure directories exist first
         ensure_upload_dirs()
-        
+
         if not upload_file or not hasattr(upload_file, 'file'):
             logger.error("Invalid upload file object")
             raise ValueError("Invalid upload file object")
@@ -75,49 +102,39 @@ async def save_upload_file(
         target_directory.mkdir(exist_ok=True, parents=True)
         logger.debug(f"Ensured directory exists: {target_directory}")
 
-        # Always use a server-generated filename for disk storage.
-        # Extension is selected from a fixed allowlist based on content type.
         content_type = (upload_file.content_type or "").lower()
-        if content_type in {"image/jpeg", "image/jpg"}:
-            file_extension = ".jpg"
-        elif content_type == "image/png":
-            file_extension = ".png"
-        elif content_type == "image/gif":
-            file_extension = ".gif"
-        elif content_type == "image/webp":
-            file_extension = ".webp"
-        elif content_type == "image/svg+xml":
-            file_extension = ".svg"
-        elif content_type == "application/pdf":
-            file_extension = ".pdf"
-        elif content_type == "text/plain":
-            file_extension = ".txt"
-        elif content_type == "application/json":
-            file_extension = ".json"
-        elif content_type == "text/csv":
-            file_extension = ".csv"
-        elif content_type in {"application/zip", "application/x-zip-compressed"}:
-            file_extension = ".zip"
-        else:
-            file_extension = ".upload"
+
+        # Read file bytes once
+        contents = await upload_file.read()
+
+        # ── Compress raster images ────────────────────────────────────────────
+        contents, content_type = compress_image(
+            contents,
+            content_type,
+            max_width=max_width,
+            max_height=max_height,
+            jpeg_quality=jpeg_quality,
+        )
+        # ─────────────────────────────────────────────────────────────────────
+
+        # Extension is selected from a fixed allowlist based on (possibly updated)
+        # content type to prevent user-controlled path traversal.
+        file_extension = _CONTENT_TYPE_EXT.get(content_type, ".upload")
 
         unique_filename = f"{uuid.uuid4().hex}{file_extension}"
         file_path = target_directory / unique_filename
         logger.debug(f"Full file path: {file_path}")
-        
-        # Save the file
+
         try:
             with open(file_path, "wb") as buffer:
-                contents = await upload_file.read()
                 buffer.write(contents)
             logger.debug(f"Saved uploaded file to {file_path}")
         except Exception as e:
             logger.error(f"Error writing file to {file_path}: {str(e)}")
             raise IOError(f"Failed to write file: {str(e)}")
-            
-        # Return the full path
+
         return str(file_path)
-    
+
     except Exception as e:
         logger.error(f"Error in save_upload_file: {str(e)}")
         raise
@@ -286,38 +303,47 @@ def get_relative_path(file_path: str) -> str:
 
 # Specific function for project images
 async def save_project_image(
-    upload_file: UploadFile, 
+    upload_file: UploadFile,
     project_id: int,
     category: str = "gallery",
-    keep_original_filename: bool = True
+    keep_original_filename: bool = True,
 ) -> str:
     """
-    Save a project image file in an organized directory structure
-    
+    Save a project image file in an organized directory structure.
+
+    The image is compressed before being written to disk.  Dimension limits are
+    chosen based on the image category (logos get 800×800, thumbnails 800×600,
+    everything else 1920×1080).
+
     Args:
         upload_file: The uploaded image file to save
         project_id: ID of the project this image belongs to
-        category: Category of the image (e.g., "gallery", "diagram", "main")
-        keep_original_filename: If True, preserve the original filename
-        
+        category: Category of the image (e.g., "gallery", "PROI-LOGO")
+        keep_original_filename: Unused; kept for backwards compatibility.
+
     Returns:
-        The path to the saved file
+        The path to the saved file (absolute string).
     """
+    from app.utils.image_utils import get_dimensions_for_category  # noqa: PLC0415
+
     try:
         # Use a fixed storage location to avoid user-controlled path segments.
         project_dir = PROJECT_IMAGES_DIR / "images"
         project_dir.mkdir(exist_ok=True, parents=True)
         logger.debug(f"Created project image directory: {project_dir}")
-        
-        # Save the file using the existing function
+
+        max_width, max_height = get_dimensions_for_category(category)
+
         file_path = await save_upload_file(
             upload_file=upload_file,
             directory=project_dir,
+            max_width=max_width,
+            max_height=max_height,
         )
-        
+
         logger.info(f"Saved project image: {file_path}")
         return file_path
-        
+
     except Exception as e:
         logger.error(f"Error saving project image: {str(e)}")
         raise

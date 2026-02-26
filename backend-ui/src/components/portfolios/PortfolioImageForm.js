@@ -19,15 +19,24 @@ import {
   MenuItem,
   TextField,
   Alert,
-  Divider
+  Divider,
+  Chip
 } from '@mui/material';
 import {
   Delete as DeleteIcon,
   Add as AddIcon,
-  CloudUpload as UploadIcon
+  CloudUpload as UploadIcon,
+  InfoOutlined as InfoIcon,
+  WarningAmber as WarningIcon
 } from '@mui/icons-material';
 import SERVER_URL from '../common/BackendServerData';
 import PermissionGate from '../common/PermissionGate';
+import {
+  compressImage,
+  getCompressionHint,
+  getDimensionsForCategory,
+  formatBytes,
+} from '../../utils/imageCompression';
 
 // Define image categories
 const IMAGE_CATEGORIES = [
@@ -47,6 +56,8 @@ function PortfolioImageForm({ open, onClose, portfolio }) {
   const [apiError, setApiError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadPreview, setUploadPreview] = useState(null);
+  const [compressionHint, setCompressionHint] = useState(null);
+  const [compressionStats, setCompressionStats] = useState(null);
 
   // Define fetchImages with useCallback to prevent dependency cycle
   const fetchImages = useCallback(async () => {
@@ -78,7 +89,9 @@ function PortfolioImageForm({ open, onClose, portfolio }) {
         ...prev,
         file
       }));
-      
+      setCompressionStats(null);
+      setCompressionHint(getCompressionHint(file));
+
       // Create preview URL
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -135,9 +148,20 @@ function PortfolioImageForm({ open, onClose, portfolio }) {
         }
       }
       
+      // ── Compress image before upload ────────────────────────────────────
+      const [maxWidth, maxHeight] = getDimensionsForCategory(newImage.category);
+      const { file: fileToUpload, originalSize, compressedSize } = await compressImage(
+        newImage.file,
+        { maxWidth, maxHeight, quality: 0.85 }
+      );
+      if (compressedSize < originalSize) {
+        setCompressionStats({ originalSize, compressedSize });
+      }
+      // ───────────────────────────────────────────────────────────────────
+
       // Proceed with upload
       const formData = new FormData();
-      formData.append('file', newImage.file);
+      formData.append('file', fileToUpload);
       formData.append('category', newImage.category);
       formData.append('alt_text', newImage.alt_text || '');
       
@@ -158,6 +182,8 @@ function PortfolioImageForm({ open, onClose, portfolio }) {
         alt_text: ''
       });
       setUploadPreview(null);
+      setCompressionHint(null);
+      setCompressionStats(null);
       fetchImages();
     } catch (error) {
       console.error('Error uploading image:', error);
@@ -261,16 +287,44 @@ function PortfolioImageForm({ open, onClose, portfolio }) {
                 </Box>
                 {uploadPreview && (
                   <Box sx={{ mt: 1, textAlign: 'center' }}>
-                    <Button 
-                      size="small" 
-                      color="error" 
+                    <Button
+                      size="small"
+                      color="error"
                       onClick={() => {
                         setNewImage(prev => ({ ...prev, file: null }));
                         setUploadPreview(null);
+                        setCompressionHint(null);
+                        setCompressionStats(null);
                       }}
                     >
                       Remove
                     </Button>
+                  </Box>
+                )}
+                {/* Compression hint chip */}
+                {compressionHint && compressionHint.severity !== 'none' && (
+                  <Box sx={{ mt: 1 }}>
+                    <Chip
+                      size="small"
+                      icon={compressionHint.severity === 'warning' ? <WarningIcon /> : <InfoIcon />}
+                      label={compressionHint.label}
+                      color={compressionHint.severity === 'warning' ? 'warning' : 'info'}
+                      variant="outlined"
+                      sx={{ fontSize: '0.7rem', height: 'auto', py: 0.5, '& .MuiChip-label': { whiteSpace: 'normal' } }}
+                    />
+                  </Box>
+                )}
+                {/* Post-upload compression stats */}
+                {compressionStats && (
+                  <Box sx={{ mt: 1 }}>
+                    <Chip
+                      size="small"
+                      icon={<InfoIcon />}
+                      label={`Compressed: ${formatBytes(compressionStats.originalSize)} → ${formatBytes(compressionStats.compressedSize)}`}
+                      color="success"
+                      variant="outlined"
+                      sx={{ fontSize: '0.7rem', height: 'auto', py: 0.5 }}
+                    />
                   </Box>
                 )}
               </Grid>

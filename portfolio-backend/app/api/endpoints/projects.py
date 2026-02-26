@@ -4,11 +4,13 @@ from sqlalchemy.orm import Session
 from typing import Any, List, Optional, Dict
 import os
 import uuid
+from urllib.parse import urlparse
 from datetime import datetime
 import logging
 import sys
 import traceback
 from pathlib import Path
+from bs4 import BeautifulSoup
 
 
 from app import crud, models, schemas
@@ -42,6 +44,102 @@ logger.info(f"Project module available: {'project' in dir(crud)}")
 logger.info(f"Direct project_crud import: {project_crud is not None}")
 
 
+def _normalize_uploaded_path(raw_path: Optional[str]) -> str:
+    """Normalize URLs/paths to a comparable /uploads/... form when possible."""
+    if not raw_path:
+        return ""
+
+    normalized = raw_path.strip()
+    if normalized.startswith(("http://", "https://")):
+        normalized = urlparse(normalized).path or ""
+
+    normalized = normalized.split("?", 1)[0].split("#", 1)[0]
+    normalized = normalized.replace("\\", "/")
+
+    if "/uploads/" in normalized:
+        normalized = normalized[normalized.index("/uploads/") :]
+    elif normalized.startswith("uploads/"):
+        normalized = f"/{normalized}"
+    elif not normalized.startswith("/"):
+        normalized = f"/{normalized}"
+
+    return normalized
+
+
+def _delete_uploaded_file(file_path: Optional[str]) -> None:
+    """Best-effort cleanup for an uploaded media file."""
+    normalized = _normalize_uploaded_path(file_path)
+    if not normalized:
+        return
+
+    if normalized.startswith("/uploads/"):
+        absolute_path = Path(settings.UPLOADS_DIR).parent / normalized.lstrip("/")
+    else:
+        absolute_path = Path(normalized)
+
+    delete_file(str(absolute_path))
+
+
+def _remove_media_references_from_section_texts(
+    db: Session,
+    *,
+    section_id: int,
+    image_id: Optional[int] = None,
+    image_path: Optional[str] = None,
+    attachment_id: Optional[int] = None,
+    attachment_path: Optional[str] = None,
+) -> None:
+    """Remove inline media references from all section text variants."""
+    from app.models.section import SectionText
+
+    target_image_path = _normalize_uploaded_path(image_path)
+    target_attachment_path = _normalize_uploaded_path(attachment_path)
+
+    section_texts = db.query(SectionText).filter(SectionText.section_id == section_id).all()
+    changed = False
+
+    for section_text in section_texts:
+        if not section_text.text:
+            continue
+
+        soup = BeautifulSoup(section_text.text, "html.parser")
+        removed_any = False
+
+        if image_id is not None or target_image_path:
+            for img in soup.find_all("img"):
+                src_path = _normalize_uploaded_path(img.get("src"))
+                html_image_id = img.get("data-section-image-id") or img.get("data-image-id")
+                if (
+                    image_id is not None
+                    and html_image_id is not None
+                    and str(html_image_id) == str(image_id)
+                ) or (target_image_path and src_path == target_image_path):
+                    img.decompose()
+                    removed_any = True
+
+        if attachment_id is not None or target_attachment_path:
+            for card in soup.select(".file-attachment-card"):
+                card_path = _normalize_uploaded_path(card.get("data-fileurl"))
+                html_attachment_id = (
+                    card.get("data-section-attachment-id")
+                    or card.get("data-attachment-id")
+                )
+                if (
+                    attachment_id is not None
+                    and html_attachment_id is not None
+                    and str(html_attachment_id) == str(attachment_id)
+                ) or (target_attachment_path and card_path == target_attachment_path):
+                    card.decompose()
+                    removed_any = True
+
+        if removed_any:
+            section_text.text = str(soup)
+            changed = True
+
+    if changed:
+        db.commit()
+
+
 # =============================================================================
 # SECTION ROUTES - Must be defined before /{project_id}/ routes to avoid conflicts
 # =============================================================================
@@ -59,7 +157,18 @@ def delete_section_image(
     """
     logger.info(f"Deleting section image {image_id}")
     try:
+        from app.models.section import SectionImage
         from app.crud import section as section_crud
+
+        existing_image = db.query(SectionImage).filter(SectionImage.id == image_id).first()
+        if not existing_image:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Image not found"
+            )
+
+        section_id = existing_image.section_id
+        image_path = existing_image.image_path
 
         image = section_crud.delete_section_image(db, image_id=image_id)
         if not image:
@@ -67,6 +176,25 @@ def delete_section_image(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Image not found"
             )
+
+        try:
+            _remove_media_references_from_section_texts(
+                db,
+                section_id=section_id,
+                image_id=image_id,
+                image_path=image_path,
+            )
+        except Exception as cleanup_error:
+            logger.warning(
+                "Could not clean inline section image references for image %s: %s",
+                image_id,
+                cleanup_error,
+            )
+
+        try:
+            _delete_uploaded_file(image_path)
+        except Exception as delete_error:
+            logger.warning("Could not delete section image file for image %s: %s", image_id, delete_error)
 
         logger.info(f"Successfully deleted section image {image_id}")
         return {"message": "Image deleted successfully"}
@@ -93,13 +221,47 @@ def delete_section_attachment(
     """
     logger.info(f"Deleting section attachment {attachment_id}")
     try:
+        from app.models.section import SectionAttachment
         from app.crud import section as section_crud
+
+        existing_attachment = db.query(SectionAttachment).filter(SectionAttachment.id == attachment_id).first()
+        if not existing_attachment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Attachment not found"
+            )
+
+        section_id = existing_attachment.section_id
+        attachment_path = existing_attachment.file_path
 
         attachment = section_crud.delete_section_attachment(db, attachment_id=attachment_id)
         if not attachment:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Attachment not found"
+            )
+
+        try:
+            _remove_media_references_from_section_texts(
+                db,
+                section_id=section_id,
+                attachment_id=attachment_id,
+                attachment_path=attachment_path,
+            )
+        except Exception as cleanup_error:
+            logger.warning(
+                "Could not clean inline section attachment references for attachment %s: %s",
+                attachment_id,
+                cleanup_error,
+            )
+
+        try:
+            _delete_uploaded_file(attachment_path)
+        except Exception as delete_error:
+            logger.warning(
+                "Could not delete section attachment file for attachment %s: %s",
+                attachment_id,
+                delete_error,
             )
 
         logger.info(f"Successfully deleted section attachment {attachment_id}")

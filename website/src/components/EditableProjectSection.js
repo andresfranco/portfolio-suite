@@ -4,6 +4,51 @@ import { DraggableTextContent, DraggableImageContent, DraggableFileContent } fro
 import { useEditMode } from '../context/EditModeContext';
 import portfolioApi from '../services/portfolioApi';
 
+const normalizeUploadPath = (value) => {
+  if (!value || typeof value !== 'string') return null;
+
+  let candidate = value.trim();
+  try {
+    candidate = new URL(candidate, process.env.REACT_APP_API_URL || 'http://localhost:8000').pathname;
+  } catch (error) {
+    // Keep original candidate when URL parsing fails.
+  }
+
+  candidate = candidate.split('?')[0].split('#')[0].replace(/\\/g, '/');
+
+  if (candidate.includes('/uploads/')) {
+    return candidate.slice(candidate.indexOf('/uploads/'));
+  }
+  if (candidate.startsWith('uploads/')) {
+    return `/${candidate}`;
+  }
+  return null;
+};
+
+const collectInlineMediaPaths = (html) => {
+  const imagePaths = new Set();
+  const attachmentPaths = new Set();
+
+  if (!html || typeof window === 'undefined' || typeof DOMParser === 'undefined') {
+    return { imagePaths, attachmentPaths };
+  }
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+
+  doc.querySelectorAll('img[src]').forEach((img) => {
+    const path = normalizeUploadPath(img.getAttribute('src'));
+    if (path) imagePaths.add(path);
+  });
+
+  doc.querySelectorAll('.file-attachment-card').forEach((card) => {
+    const path = normalizeUploadPath(card.getAttribute('data-fileurl'));
+    if (path) attachmentPaths.add(path);
+  });
+
+  return { imagePaths, attachmentPaths };
+};
+
 /**
  * EditableProjectSection Component
  * Renders a project section in edit mode with nested drag and drop for its content
@@ -26,6 +71,7 @@ const EditableProjectSection = ({ section, language, isEditMode, onContentReorde
   // Build content items array with their types and order
   const buildContentItems = () => {
     const items = [];
+    const { imagePaths: inlineImagePaths, attachmentPaths: inlineAttachmentPaths } = collectInlineMediaPaths(sectionText.text);
     
     // Add text as first item (always display_order 0)
     items.push({
@@ -38,6 +84,11 @@ const EditableProjectSection = ({ section, language, isEditMode, onContentReorde
     // Add images
     if (section.images && section.images.length > 0) {
       section.images.forEach(image => {
+        const imagePath = normalizeUploadPath(image.image_path);
+        if (imagePath && inlineImagePaths.has(imagePath)) {
+          return;
+        }
+
         items.push({
           type: 'image',
           id: image.id,
@@ -50,6 +101,11 @@ const EditableProjectSection = ({ section, language, isEditMode, onContentReorde
     // Add attachments
     if (section.attachments && section.attachments.length > 0) {
       section.attachments.forEach(attachment => {
+        const attachmentPath = normalizeUploadPath(attachment.file_path);
+        if (attachmentPath && inlineAttachmentPaths.has(attachmentPath)) {
+          return;
+        }
+
         items.push({
           type: 'file',
           id: attachment.id,
