@@ -53,3 +53,9 @@ aiohttp>=3.9.0  # Async HTTP client for webhooks
 
 # Field-Level Encryption
 cryptography>=41.0.0  # Fernet encryption for PII
+
+# LLM Providers
+openai>=1.0.0
+mistralai>=1.0.0
+anthropic>=0.50.0
+google-generativeai>=0.8.0
