@@ -52,6 +52,7 @@ import {
   FaUnlink
 } from 'react-icons/fa';
 import portfolioApi from '../../services/portfolioApi';
+import { compressImage } from '../../utils/imageCompression';
 import './RichTextSectionEditorV2.css';
 
 const escapeHtml = (value = '') =>
@@ -914,6 +915,11 @@ const RichTextSectionEditorV2 = ({
     try {
       setUploadingImage(true);
       setError(null);
+
+      // ── Compress image before upload ──────────────────────────────────────
+      const { file: compressedFile } = await compressImage(file, { maxWidth: 1920, maxHeight: 1080, quality: 0.85 });
+      file = compressedFile;
+      // ─────────────────────────────────────────────────────────────────────
 
       let src;
       if (sectionId) {
