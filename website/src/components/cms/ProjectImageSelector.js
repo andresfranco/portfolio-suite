@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import { useEditMode } from '../../context/EditModeContext';
 import { usePortfolio } from '../../context/PortfolioContext';
 import { LanguageContext } from '../../context/LanguageContext';
+import { compressImage, getDimensionsForCategory } from '../../utils/imageCompression';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
@@ -130,12 +131,18 @@ export const ProjectImageSelector = ({
     setUploading(true);
     setError(null);
     setUploadProgress(0);
-    
+
     try {
       // Map category to backend code: thumbnail -> PROI-THUMBNAIL, logo -> PROI-LOGO
       const categoryCode = category === 'thumbnail' ? 'PROI-THUMBNAIL' : 'PROI-LOGO';
       const languageId = getCurrentLanguageId();
-      
+
+      // ── Compress image before upload ──────────────────────────────────────
+      const [maxWidth, maxHeight] = getDimensionsForCategory(categoryCode);
+      const { file: fileToUpload } = await compressImage(file, { maxWidth, maxHeight, quality: 0.85 });
+      file = fileToUpload;
+      // ─────────────────────────────────────────────────────────────────────
+
       // For unique categories (logo, thumbnail), delete existing image before uploading new one
       // Note: Gallery and other multi-image categories should use a different component
       const existingImage = project.images?.find(img => 
