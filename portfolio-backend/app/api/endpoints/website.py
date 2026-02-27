@@ -2,7 +2,7 @@
 Website API endpoints - Public facing endpoints for portfolio website.
 No authentication required for viewing content.
 """
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 from typing import Any, Optional, List
 from pydantic import BaseModel, Field
@@ -38,6 +38,7 @@ def _get_active_fallback_agent_ids(db: Session, exclude_agent_ids: List[int], li
 
 @router.get("/experiences", response_model=List[ExperienceSchema])
 def get_public_experiences(
+    response: Response,
     language_code: Optional[str] = Query(None, description="Filter by language code (en, es, etc.)"),
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(100, ge=1, le=200, description="Number of items per page (max 200)"),
@@ -85,11 +86,13 @@ def get_public_experiences(
                     filtered_experiences.append(exp_dict)
             
             logger.info(f"Retrieved {len(filtered_experiences)} experiences (filtered by language {language_code}) out of {total} total")
+            response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=60"
             return filtered_experiences
         
         logger.info(f"Retrieved {len(experiences)} experiences out of {total} total")
+        response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=60"
         return experiences
-        
+
     except Exception as e:
         logger.error(f"Error retrieving public experiences: {str(e)}", exc_info=True)
         raise HTTPException(
@@ -100,6 +103,7 @@ def get_public_experiences(
 
 @router.get("/default", response_model=PortfolioOut)
 def get_default_portfolio(
+    response: Response,
     language_code: str = Query("en", description="Language code (en, es, etc.)"),
     db: Session = Depends(deps.get_db),
 ) -> Any:
@@ -141,6 +145,7 @@ def get_default_portfolio(
             portfolio_data = filter_by_language(portfolio_data, language_code)
         
         logger.info(f"Successfully retrieved default portfolio: {default_portfolio.name}")
+        response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=60"
         return portfolio_data
         
     except HTTPException:
@@ -156,6 +161,7 @@ def get_default_portfolio(
 @router.get("/portfolios/{portfolio_id}/public", response_model=PortfolioOut)
 def get_public_portfolio(
     portfolio_id: int,
+    response: Response,
     language_code: str = Query("en", description="Language code (en, es, etc.)"),
     db: Session = Depends(deps.get_db),
 ) -> Any:
@@ -198,6 +204,7 @@ def get_public_portfolio(
             portfolio_data = filter_by_language(portfolio_data, language_code)
         
         logger.info(f"Successfully retrieved portfolio: {portfolio.name}")
+        response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=60"
         return portfolio_data
         
     except HTTPException:

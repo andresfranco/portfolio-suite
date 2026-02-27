@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
-import { portfolioApi } from '../services/portfolioApi';
+import { portfolioApi, invalidatePortfolioCache } from '../services/portfolioApi';
 import { LanguageContext } from './LanguageContext';
 
 /**
@@ -51,6 +51,7 @@ export const PortfolioProvider = ({ children, portfolioId = null }) => {
    * Refresh portfolio data (useful after CMS updates)
    */
   const refreshPortfolio = async () => {
+    invalidatePortfolioCache();
     await loadPortfolio();
   };
 
