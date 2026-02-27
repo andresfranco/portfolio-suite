@@ -55,7 +55,24 @@ jobs:
           REACT_APP_SERVER_PORT: ${{ secrets.REACT_APP_SERVER_PORT }}
           REACT_APP_SERVER_PROTOCOL: ${{ secrets.REACT_APP_SERVER_PROTOCOL }}
           REACT_APP_WEBSITE_URL: ${{ secrets.REACT_APP_WEBSITE_URL }}
+          NODE_OPTIONS: "--max-old-space-size=4096"
         run: npm run build
+
+      - name: Pre-compress static assets
+        working-directory: backend-ui/build
+        run: |
+          find . -type f \( -name "*.js" -o -name "*.css" -o -name "*.html" -o -name "*.json" -o -name "*.svg" \) \
+            -exec gzip -9 -k {} \;
+          echo "Pre-compressed files:"
+          find . -name "*.gz" | wc -l
+
+      - name: Report bundle sizes
+        working-directory: backend-ui/build
+        run: |
+          echo "=== Admin UI bundle sizes ==="
+          du -sh static/js/*.js static/css/*.css 2>/dev/null | sort -rh || true
+          echo "=== Total build size ==="
+          du -sh .
 
       - name: Package artifact
         run: |
@@ -95,7 +112,24 @@ jobs:
         env:
           CI: "false"
           REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL }}
+          NODE_OPTIONS: "--max-old-space-size=4096"
         run: npm run build
+
+      - name: Pre-compress static assets
+        working-directory: website/build
+        run: |
+          find . -type f \( -name "*.js" -o -name "*.css" -o -name "*.html" -o -name "*.json" -o -name "*.svg" \) \
+            -exec gzip -9 -k {} \;
+          echo "Pre-compressed files:"
+          find . -name "*.gz" | wc -l
+
+      - name: Report bundle sizes
+        working-directory: website/build
+        run: |
+          echo "=== Website bundle sizes ==="
+          du -sh static/js/*.js static/css/*.css 2>/dev/null | sort -rh || true
+          echo "=== Total build size ==="
+          du -sh .
 
       - name: Package artifact
         run: |

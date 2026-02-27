@@ -1,6 +1,7 @@
 import React from 'react';
 import { Draggable } from '@hello-pangea/dnd';
-import { ProjectImageSelector, ProjectActionButtons } from './cms';
+import { ProjectImageSelector } from './cms/ProjectImageSelector';
+import { ProjectActionButtons } from './cms/ProjectManagement';
 
 /**
  * DraggableProjectCard Component

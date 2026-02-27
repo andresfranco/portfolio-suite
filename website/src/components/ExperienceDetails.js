@@ -4,7 +4,9 @@ import { translations } from '../data/translations';
 import { LanguageContext } from '../context/LanguageContext';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useEditMode } from '../context/EditModeContext';
-import { InlineTextEditor, EditableWrapper, EditableSectionWrapper, ContentEditableWYSIWYG } from './cms';
+import { InlineTextEditor } from './cms/InlineTextEditor';
+import { EditableWrapper, EditableSectionWrapper } from './cms/EditableWrapper';
+import { ContentEditableWYSIWYG } from './cms/ContentEditableWYSIWYG';
 
 const ExperienceDetails = ({ experience, onBackClick, onPreviousClick, onNextClick }) => {
   const { language } = useContext(LanguageContext);

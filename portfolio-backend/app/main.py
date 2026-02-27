@@ -152,6 +152,7 @@ app = FastAPI(
 )
 
 # Import security middleware
+from starlette.middleware.gzip import GZipMiddleware
 from app.middleware.security_headers import SecurityHeadersMiddleware, RequestIDMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware, SlowRequestMiddleware, RequestSizeLimitMiddleware
 from app.middleware.csrf import CSRFProtectionMiddleware
@@ -190,6 +191,11 @@ if settings.is_development():
     logger.info(f"CORS allowed origins: {allowed_origins}")
 else:
     logger.info(f"CORS configured with {len(allowed_origins)} allowed origin(s)")
+
+# GZip compression for all text responses >= 1 KB (JSON, HTML, plain text).
+# Added first so it wraps all subsequent middleware; minimum_size avoids overhead
+# on tiny error responses.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 # Add security headers middleware (add before CORS)
 app.add_middleware(SecurityHeadersMiddleware)

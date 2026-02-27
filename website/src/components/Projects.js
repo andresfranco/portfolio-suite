@@ -9,14 +9,14 @@ import { translations } from '../data/translations';
 import { DragDropContext, Droppable } from '@hello-pangea/dnd';
 import DraggableProjectCard from './DraggableProjectCard';
 import './DragAndDrop.css';
-import { 
-  InlineTextEditor, 
-  ProjectImageSelector,
+import { InlineTextEditor } from './cms/InlineTextEditor';
+import { ProjectImageSelector } from './cms/ProjectImageSelector';
+import {
   ProjectManagement,
   ProjectActionButtons,
   ProjectFormDialog,
   ProjectDeleteDialog
-} from './cms';
+} from './cms/ProjectManagement';
 import ProjectDetails from './ProjectDetails';
 
 const ProjectModal = ({ project, onClose, onViewDetails, language, getProjectText }) => {

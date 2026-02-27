@@ -5,6 +5,36 @@
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
+// ---------------------------------------------------------------------------
+// In-memory response cache for public read-only endpoints
+// Prevents duplicate network requests when navigating between pages.
+// TTL: 5 minutes for portfolio data (content changes rarely).
+// ---------------------------------------------------------------------------
+const _cache = new Map(); // key → { data, expiresAt }
+const _CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+let _forceReload = false; // bypass browser HTTP cache on next fetch after a mutation
+
+function _cacheGet(key) {
+  const entry = _cache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) { _cache.delete(key); return null; }
+  return entry.data;
+}
+
+function _cacheSet(key, data) {
+  _cache.set(key, { data, expiresAt: Date.now() + _CACHE_TTL_MS });
+}
+
+/**
+ * Invalidate all cached portfolio data (call after edit-mode mutations).
+ * Also sets a flag so the next network fetch bypasses the browser HTTP cache
+ * (which would otherwise serve the stale Cache-Control: max-age=300 response).
+ */
+export function invalidatePortfolioCache() {
+  _cache.clear();
+  _forceReload = true;
+}
+
 /**
  * Get CSRF token from cookies
  * @returns {string|null} - CSRF token or null if not found
@@ -208,6 +238,13 @@ export const portfolioApi = {
    * @returns {Promise<Object>} - Portfolio data
    */
   getDefaultPortfolio: async (languageCode = 'en') => {
+    const cacheKey = `default-portfolio:${languageCode}`;
+    const cached = _cacheGet(cacheKey);
+    if (cached) return cached;
+
+    const bypassHttpCache = _forceReload;
+    _forceReload = false;
+
     try {
       const response = await fetch(
         `${API_BASE_URL}/api/website/default?language_code=${languageCode}`,
@@ -216,10 +253,13 @@ export const portfolioApi = {
           headers: {
             'Content-Type': 'application/json',
           },
-          credentials: 'include', // Include cookies
+          credentials: 'include',
+          cache: bypassHttpCache ? 'reload' : 'default',
         }
       );
-      return await handleResponse(response);
+      const data = await handleResponse(response);
+      _cacheSet(cacheKey, data);
+      return data;
     } catch (error) {
       console.error('Error fetching default portfolio:', error);
       throw error;
@@ -233,6 +273,13 @@ export const portfolioApi = {
    * @returns {Promise<Object>} - Portfolio data
    */
   getPortfolio: async (portfolioId, languageCode = 'en') => {
+    const cacheKey = `portfolio:${portfolioId}:${languageCode}`;
+    const cached = _cacheGet(cacheKey);
+    if (cached) return cached;
+
+    const bypassHttpCache = _forceReload;
+    _forceReload = false;
+
     try {
       const response = await fetch(
         `${API_BASE_URL}/api/website/portfolios/${portfolioId}/public?language_code=${languageCode}`,
@@ -241,9 +288,12 @@ export const portfolioApi = {
           headers: {
             'Content-Type': 'application/json',
           },
+          cache: bypassHttpCache ? 'reload' : 'default',
         }
       );
-      return await handleResponse(response);
+      const data = await handleResponse(response);
+      _cacheSet(cacheKey, data);
+      return data;
     } catch (error) {
       console.error(`Error fetching portfolio ${portfolioId}:`, error);
       throw error;
