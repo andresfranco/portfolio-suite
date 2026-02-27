@@ -52,6 +52,7 @@ import {
   FaUnlink
 } from 'react-icons/fa';
 import portfolioApi from '../../services/portfolioApi';
+import { compressImage } from '../../utils/imageCompression';
 import './RichTextSectionEditorV2.css';
 
 const escapeHtml = (value = '') =>
@@ -915,16 +916,20 @@ const RichTextSectionEditorV2 = ({
       setUploadingImage(true);
       setError(null);
 
+      // ── Compress image before upload ──────────────────────────────────────
+      const { file: fileToUpload } = await compressImage(file, { maxWidth: 1920, maxHeight: 1080, quality: 0.85 });
+      // ─────────────────────────────────────────────────────────────────────
+
       let src;
       if (sectionId) {
-        const response = await portfolioApi.uploadImage(file, 'section', sectionId, 'section', authToken);
+        const response = await portfolioApi.uploadImage(fileToUpload, 'section', sectionId, 'section', authToken);
         const path = (response.image_path || response.path || '').replace(/^\//, '');
         src = `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${path}`;
       } else {
-        src = await readFileAsDataUrl(file);
+        src = await readFileAsDataUrl(fileToUpload);
       }
 
-      editor.chain().focus().setCmsImage({ src, alt: file.name, width: '320px' }).run();
+      editor.chain().focus().setCmsImage({ src, alt: fileToUpload.name, width: '320px' }).run();
     } catch (err) {
       setError(err.message || 'Failed to upload image');
     } finally {
