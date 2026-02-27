@@ -126,11 +126,11 @@ function RichTextEditor({ value, onChange, readOnly, placeholder, style }) {
   };
 
   return (
-    <Box sx={{ 
+    <Box sx={{
       ...style,
-      border: '1px solid #ccc',
+      border: '1px solid',
+      borderColor: 'divider',
       borderRadius: '4px',
-      overflow: 'hidden',
       display: 'flex',
       flexDirection: 'column'
     }}>
@@ -280,7 +280,7 @@ function RichTextEditor({ value, onChange, readOnly, placeholder, style }) {
         </>
       )}
       
-      <Box sx={{ padding: '10px', flex: 1, minHeight: '250px', maxHeight: '500px', overflow: 'auto' }}>
+      <Box sx={{ padding: '10px', flex: 1, minHeight: '200px' }}>
         {!content && placeholder && (
           <Typography 
             sx={{ 
@@ -304,13 +304,12 @@ function RichTextEditor({ value, onChange, readOnly, placeholder, style }) {
             }
           }}
           style={{
-            minHeight: '230px',
+            minHeight: '180px',
             outline: 'none',
             width: '100%',
-            height: '100%',
-            overflowY: 'auto',
-            direction: 'ltr', // Ensure left-to-right text direction
-            unicodeBidi: 'embed'
+            direction: 'ltr',
+            unicodeBidi: 'embed',
+            lineHeight: '1.6',
           }}
         />
       </Box>

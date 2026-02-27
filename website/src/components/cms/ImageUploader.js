@@ -4,6 +4,12 @@ import { usePortfolio } from '../../context/PortfolioContext';
 import { LanguageContext } from '../../context/LanguageContext';
 import { portfolioApi } from '../../services/portfolioApi';
 import { EditableImageWrapper } from './EditableWrapper';
+import {
+  compressImage,
+  getCompressionHint,
+  getDimensionsForCategory,
+  formatBytes,
+} from '../../utils/imageCompression';
 
 /**
  * ImageUploader Component
@@ -32,6 +38,8 @@ export const ImageUploader = ({
   const [dragOver, setDragOver] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [error, setError] = useState(null);
+  const [compressionHint, setCompressionHint] = useState(null);
+  const [uploadStatus, setUploadStatus] = useState('Uploading...');
   const fileInputRef = useRef(null);
   
   const { authToken, isEditMode, showNotification } = useEditMode();
@@ -61,7 +69,7 @@ export const ImageUploader = ({
    */
   const handleUpload = async (file) => {
     if (!file) return;
-    
+
     // Validate file
     const validationError = validateFile(file);
     if (validationError) {
@@ -69,19 +77,39 @@ export const ImageUploader = ({
       showNotification('Upload Error', validationError, 'error');
       return;
     }
-    
+
     setUploading(true);
     setError(null);
     setUploadProgress(0);
-    
-    // Create preview
+
+    // Create preview from original file
     const reader = new FileReader();
     reader.onloadend = () => {
       setPreviewUrl(reader.result);
     };
     reader.readAsDataURL(file);
-    
+
     try {
+      // ── Compress image before upload ──────────────────────────────────────
+      const hint = getCompressionHint(file);
+      if (hint.willCompress) {
+        setUploadStatus('Optimising image…');
+      }
+      const [maxWidth, maxHeight] = getDimensionsForCategory(category);
+      const { file: fileToUpload, originalSize, compressedSize } = await compressImage(
+        file,
+        { maxWidth, maxHeight, quality: 0.85 }
+      );
+      if (compressedSize < originalSize) {
+        setCompressionHint({
+          originalSize,
+          compressedSize,
+          label: `Optimised: ${formatBytes(originalSize)} → ${formatBytes(compressedSize)}`,
+        });
+      }
+      setUploadStatus('Uploading…');
+      // ─────────────────────────────────────────────────────────────────────
+
       // Simulate progress (since fetch doesn't provide upload progress easily)
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => {
@@ -92,51 +120,53 @@ export const ImageUploader = ({
           return prev + 10;
         });
       }, 200);
-      
+
       const response = await portfolioApi.uploadImage(
-        file,
+        fileToUpload,
         entityType,
         entityId,
         category,
         authToken,
         language  // Pass current language
       );
-      
+
       clearInterval(progressInterval);
       setUploadProgress(100);
-      
+
       // Refresh portfolio data to get new image URL
       await refreshPortfolio();
-      
+
       // Show success notification
       showNotification(
         'Image Uploaded',
         'Your image has been uploaded successfully',
         'success'
       );
-      
+
       // Call success callback
       if (onUploadSuccess) {
         onUploadSuccess(response);
       }
-      
+
       // Clear preview after a moment
       setTimeout(() => {
         setPreviewUrl(null);
         setUploadProgress(0);
+        setCompressionHint(null);
+        setUploadStatus('Uploading…');
       }, 1000);
-      
+
     } catch (err) {
       console.error('Upload failed:', err);
       const errorMessage = err.message || 'Failed to upload image';
       setError(errorMessage);
-      
+
       showNotification(
         'Upload Failed',
         errorMessage,
         'error'
       );
-      
+
       setPreviewUrl(null);
     } finally {
       setUploading(false);
@@ -243,18 +273,23 @@ export const ImageUploader = ({
         <div className="absolute inset-0 bg-black bg-opacity-50 flex flex-col items-center justify-center rounded">
           <div className="bg-white rounded-lg p-4 max-w-xs w-full">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-700">Uploading...</span>
+              <span className="text-sm font-medium text-gray-700">{uploadStatus}</span>
               <span className="text-sm text-gray-500">{uploadProgress}%</span>
             </div>
-            
+
             {/* Progress bar */}
             <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
-              <div 
+              <div
                 className="bg-blue-600 h-2.5 transition-all duration-300 ease-out"
                 style={{ width: `${uploadProgress}%` }}
               ></div>
             </div>
-            
+
+            {/* Compression info */}
+            {compressionHint && (
+              <p className="text-xs text-green-600 mt-2 text-center">{compressionHint.label}</p>
+            )}
+
             {/* Upload icon */}
             <div className="flex justify-center mt-3">
               <svg className="animate-bounce w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -273,6 +308,7 @@ export const ImageUploader = ({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
             </svg>
             <p className="text-center text-blue-600 font-medium">Drop image to upload</p>
+            <p className="text-center text-gray-400 text-xs mt-1">Large images will be automatically optimised</p>
           </div>
         </div>
       )}

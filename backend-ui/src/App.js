@@ -47,6 +47,8 @@ import PortfolioIndex from './components/portfolios/PortfolioIndex';
 import PortfolioAttachments from './components/portfolios/PortfolioAttachments';
 import SectionIndex from './components/sections/SectionIndex';
 import PortfolioDataPage from './pages/PortfolioDataPage';
+import ExperienceDataPage from './pages/ExperienceDataPage';
+import SectionDataPage from './pages/SectionDataPage';
 
 import NotFound from './pages/NotFound';
 
@@ -194,6 +196,7 @@ function AppContent() {
                 <ExperienceIndex />
               </ExperienceProvider>
             } />
+            <Route path="experiences/:experienceId" element={<ExperienceDataPage />} />
             <Route path="projects" element={
               <CategoryProvider>
                 <ProjectProvider>
@@ -209,6 +212,7 @@ function AppContent() {
             <Route path="portfolios/:portfolioId/attachments" element={<PortfolioAttachments />} />
             <Route path="/portfolios/:portfolioId" element={<PortfolioDataPage />} />
             <Route path="sections" element={<SectionIndex />} />
+            <Route path="sections/:sectionId" element={<SectionDataPage />} />
             
             {/* System Settings */}
             <Route path="languages" element={

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Container,
@@ -11,7 +12,7 @@ import {
   Chip,
   Stack,
 } from '@mui/material';
-import { Edit as EditIcon, Delete as DeleteIcon, ArrowUpward, ArrowDownward, InfoOutlined } from '@mui/icons-material';
+import { Delete as DeleteIcon, Dashboard as DashboardIcon, ArrowUpward, ArrowDownward, InfoOutlined } from '@mui/icons-material';
 import ReusableDataGrid from '../common/ReusableDataGrid';
 import ExperienceForm from './ExperienceForm';
 import ReusableFilters from '../common/ReusableFilters';
@@ -26,6 +27,7 @@ import ExperienceErrorBoundary from './ExperienceErrorBoundary';
 import { CONTAINER_PY, SECTION_PX, GRID_WRAPPER_PB } from '../common/layoutTokens';
 
 const ExperienceIndexContent = () => {
+  const navigate = useNavigate();
   const {
     experiences,
     loading,
@@ -394,13 +396,13 @@ const ExperienceIndexContent = () => {
       field: 'actions',
       headerName: 'Actions',
       sortable: false,
-      width: 120,
+      width: 130,
       renderCell: (params) => (
         <Box>
-          <PermissionGate permissions={['EDIT_EXPERIENCE', 'MANAGE_EXPERIENCES']}>
-            <Tooltip title="Edit">
-              <IconButton aria-label="edit experience" onClick={() => handleOpenEditForm(params.row)} size="small" sx={{ color: '#1976d2', p: 0.5, mr: 0.5 }}>
-                <EditIcon fontSize="small" />
+          <PermissionGate permissions={['VIEW_EXPERIENCES', 'MANAGE_EXPERIENCES']}>
+            <Tooltip title="Experience Data">
+              <IconButton aria-label="view experience data" onClick={() => navigate(`/experiences/${params.row.id}`)} size="small" sx={{ color: '#1976d2', p: 0.5, mr: 0.5 }}>
+                <DashboardIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           </PermissionGate>
@@ -422,7 +424,7 @@ const ExperienceIndexContent = () => {
     years: { required: 'VIEW_EXPERIENCES', moduleKey: 'experiences' },
     experience_names: { required: 'VIEW_EXPERIENCES', moduleKey: 'experiences' },
     experience_texts: { required: 'VIEW_LANGUAGES', moduleKey: 'languages' },
-    actions: { required: ['EDIT_EXPERIENCE', 'DELETE_EXPERIENCE', 'MANAGE_EXPERIENCES'], moduleKey: 'experiences' },
+    actions: { required: ['VIEW_EXPERIENCES', 'DELETE_EXPERIENCE', 'MANAGE_EXPERIENCES'], moduleKey: 'experiences' },
   }), []);
 
   const { allowedColumns, deniedColumns } = useMemo(() => {
