@@ -51,6 +51,9 @@ jobs:
         working-directory: backend-ui
         env:
           CI: "false"
+          REACT_APP_SERVER_HOSTNAME: ${{ secrets.REACT_APP_SERVER_HOSTNAME }}
+          REACT_APP_SERVER_PORT: ${{ secrets.REACT_APP_SERVER_PORT }}
+          REACT_APP_SERVER_PROTOCOL: ${{ secrets.REACT_APP_SERVER_PROTOCOL }}
         run: npm run build
 
       - name: Package artifact
