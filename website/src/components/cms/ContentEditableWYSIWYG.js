@@ -106,6 +106,9 @@ export const ContentEditableWYSIWYG = ({
   const savedSelectionRef = useRef(null);
   const resizeDataRef = useRef(null);
   const displayContentRef = useRef(null);
+  const draggedItemRef = useRef(null);   // { element: DOMNode, type: 'image'|'code' }
+  const dropPositionRef = useRef(null);  // { insertBefore: DOMNode|null }
+  const dropIndicatorRef = useRef(null); // DOM element for the visual drop line
 
   const restoreEditorSelection = () => {
     if (savedSelectionRef.current) {
@@ -127,6 +130,170 @@ export const ContentEditableWYSIWYG = ({
     savedSelectionRef.current = null;
     editorRef.current?.focus();
   };
+
+  // ─── Drag-and-drop helpers ────────────────────────────────────────────────
+
+  const getNodeRect = (node) => {
+    if (!node) return null;
+    if (typeof node.getBoundingClientRect === 'function') {
+      return node.getBoundingClientRect();
+    }
+    if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      return range.getBoundingClientRect();
+    }
+    return null;
+  };
+
+  const getDirectChildOfEditor = (editorEl, node) => {
+    let current = node;
+    while (current && current.parentNode !== editorEl) {
+      current = current.parentNode;
+    }
+    return current?.parentNode === editorEl ? current : null;
+  };
+
+  const getCaretRangeFromPoint = (clientX, clientY) => {
+    if (document.caretRangeFromPoint) {
+      return document.caretRangeFromPoint(clientX, clientY);
+    }
+
+    if (document.caretPositionFromPoint) {
+      const caretPosition = document.caretPositionFromPoint(clientX, clientY);
+      if (caretPosition) {
+        const range = document.createRange();
+        range.setStart(caretPosition.offsetNode, caretPosition.offset);
+        range.collapse(true);
+        return range;
+      }
+    }
+
+    return null;
+  };
+
+  const computeFallbackDropPosition = (editorEl, mouseY, dragged) => {
+    let insertBefore = null;
+    for (const child of editorEl.childNodes) {
+      if (child === dragged) continue;
+      const rect = getNodeRect(child);
+      if (!rect || rect.height === 0) continue;
+      if (mouseY < rect.top + rect.height / 2) {
+        insertBefore = child;
+        break;
+      }
+    }
+    return { insertBefore };
+  };
+
+  /**
+   * Resolve the current pointer location into either a caret/range inside the
+   * editor or a direct-child fallback position for non-text regions.
+   */
+  const computeDropPosition = (editorEl, mouseX, mouseY, dragged) => {
+    const caretRange = getCaretRangeFromPoint(mouseX, mouseY);
+    if (caretRange && editorEl.contains(caretRange.startContainer) && !dragged.contains(caretRange.startContainer)) {
+      const atomicBlock = caretRange.startContainer.nodeType === Node.ELEMENT_NODE
+        ? caretRange.startContainer.closest('pre[draggable="true"], .image-container[draggable="true"]')
+        : caretRange.startContainer.parentElement?.closest('pre[draggable="true"], .image-container[draggable="true"]');
+
+      if (atomicBlock && atomicBlock !== dragged) {
+        const directChild = getDirectChildOfEditor(editorEl, atomicBlock);
+        const rect = getNodeRect(atomicBlock);
+        if (directChild && rect) {
+          const placeBefore = mouseY < rect.top + rect.height / 2;
+          return {
+            insertBefore: placeBefore ? directChild : directChild.nextSibling,
+            indicatorY: placeBefore ? rect.top : rect.bottom,
+          };
+        }
+      }
+
+      return { range: caretRange.cloneRange() };
+    }
+
+    return computeFallbackDropPosition(editorEl, mouseY, dragged);
+  };
+
+  const insertDraggedAtRange = (dragged, range) => {
+    if (!range || !editorRef.current) return false;
+
+    const insertionRange = range.cloneRange();
+    insertionRange.collapse(true);
+
+    if (!editorRef.current.contains(insertionRange.startContainer) || dragged.contains(insertionRange.startContainer)) {
+      return false;
+    }
+
+    const marker = document.createElement('span');
+    marker.setAttribute('data-wysiwyg-drop-marker', 'true');
+    marker.style.display = 'inline-block';
+    marker.style.width = '0';
+    marker.style.overflow = 'hidden';
+    marker.style.lineHeight = '0';
+
+    insertionRange.insertNode(marker);
+
+    if (!marker.parentNode || dragged.contains(marker)) {
+      marker.remove();
+      return false;
+    }
+
+    marker.parentNode.insertBefore(dragged, marker);
+    marker.remove();
+    return true;
+  };
+
+  /** Show (or reposition) the green drop-indicator line at the computed gap. */
+  const showDropIndicator = (editorEl, position, dragged) => {
+    let el = dropIndicatorRef.current;
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'wysiwyg-drop-indicator';
+      dropIndicatorRef.current = el;
+    }
+    if (!el.parentNode) document.body.appendChild(el);
+
+    const editorRect = editorEl.getBoundingClientRect();
+    let y = position?.indicatorY;
+
+    if (y == null && position?.range) {
+      const rangeRect = position.range.getBoundingClientRect();
+      if (rangeRect && Number.isFinite(rangeRect.top)) {
+        y = rangeRect.top || rangeRect.bottom;
+      }
+    }
+
+    if (y == null && position?.insertBefore) {
+      const rect = getNodeRect(position.insertBefore);
+      y = rect ? rect.top : editorRect.top;
+    }
+
+    if (y == null) {
+      // Position after the last child that isn't the dragged element
+      const children = Array.from(editorEl.childNodes).filter(c => c !== dragged);
+      const last = children[children.length - 1];
+      if (last) {
+        const rect = getNodeRect(last);
+        y = rect.bottom;
+      } else {
+        y = editorRect.bottom;
+      }
+    }
+    el.style.left    = `${editorRect.left}px`;
+    el.style.width   = `${editorRect.width}px`;
+    el.style.top     = `${y - 1}px`;
+    el.style.display = 'block';
+  };
+
+  /** Hide the indicator without removing it from the DOM. */
+  const hideDropIndicator = () => {
+    if (dropIndicatorRef.current) {
+      dropIndicatorRef.current.style.display = 'none';
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
 
   const { authToken, isEditMode, showNotification, activeEditor, setActiveEditor } = useEditMode();
   const { refreshPortfolio } = usePortfolio();
@@ -195,51 +362,63 @@ export const ContentEditableWYSIWYG = ({
     return () => document.removeEventListener('selectionchange', updateFormatState);
   }, [isEditing]);
 
-  // Ensure all code blocks are non-editable and have delete buttons
+  // Remove the drop-indicator element from the DOM when the editor unmounts
+  useEffect(() => {
+    return () => {
+      if (dropIndicatorRef.current) {
+        dropIndicatorRef.current.remove();
+        dropIndicatorRef.current = null;
+      }
+    };
+  }, []);
+
+  // Set up non-editable code blocks (with delete buttons) and draggable
+  // handles for both code blocks and image containers.  A single
+  // MutationObserver keeps newly-inserted elements in sync.
   useEffect(() => {
     if (!isEditing || !editorRef.current) return;
 
-    const makeCodeBlocksNonEditable = () => {
-      const codeBlocks = editorRef.current.querySelectorAll('pre');
-      codeBlocks.forEach(block => {
-        // Only set contenteditable="false" if it contains a code element
-        if (block.querySelector('code')) {
-          block.setAttribute('contenteditable', 'false');
-          
-          // Add delete button if not already present
-          if (!block.querySelector('.code-block-delete-btn')) {
-            const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'code-block-delete-btn';
-            deleteBtn.innerHTML = '×';
-            deleteBtn.setAttribute('type', 'button');
-            deleteBtn.setAttribute('title', 'Delete code block');
-            deleteBtn.setAttribute('aria-label', 'Delete code block');
-            block.appendChild(deleteBtn);
-          }
+    const setupDraggableElements = () => {
+      // ── Code blocks: non-editable, deletable, draggable ─────────────────
+      // dragstart/dragend are handled via event delegation on the editor div.
+      editorRef.current.querySelectorAll('pre').forEach(block => {
+        if (!block.querySelector('code')) return;
+        block.setAttribute('contenteditable', 'false');
+        block.setAttribute('draggable', 'true');
+        if (!block.querySelector('.code-block-delete-btn')) {
+          const deleteBtn = document.createElement('button');
+          deleteBtn.className = 'code-block-delete-btn';
+          deleteBtn.innerHTML = '×';
+          deleteBtn.setAttribute('type', 'button');
+          deleteBtn.setAttribute('title', 'Delete code block');
+          deleteBtn.setAttribute('aria-label', 'Delete code block');
+          block.appendChild(deleteBtn);
         }
+      });
+
+      // ── Image containers: draggable ──────────────────────────────────────
+      // Prevent the <img> from acting as a native drag source so the
+      // container div gets the dragstart event instead.
+      editorRef.current.querySelectorAll('.image-container').forEach(container => {
+        container.setAttribute('draggable', 'true');
+        container.querySelectorAll('img').forEach(img => {
+          img.setAttribute('draggable', 'false');
+        });
       });
     };
 
-    // Set initially
-    makeCodeBlocksNonEditable();
+    setupDraggableElements();
 
-    // Create a MutationObserver to handle dynamically added code blocks
-    // But disconnect temporarily when we're making changes to avoid infinite loops
+    // MutationObserver keeps newly inserted elements wired up automatically.
     let isProcessing = false;
     const observer = new MutationObserver(() => {
       if (!isProcessing) {
         isProcessing = true;
-        makeCodeBlocksNonEditable();
-        // Use setTimeout to reset the flag after processing
-        setTimeout(() => {
-          isProcessing = false;
-        }, 100);
+        setupDraggableElements();
+        setTimeout(() => { isProcessing = false; }, 100);
       }
     });
-    observer.observe(editorRef.current, {
-      childList: true,
-      subtree: true,
-    });
+    observer.observe(editorRef.current, { childList: true, subtree: true });
 
     return () => observer.disconnect();
   }, [isEditing, localValue]);
@@ -249,19 +428,41 @@ export const ContentEditableWYSIWYG = ({
     if (!isEditing || !editorRef.current) return;
 
     const handleImageClick = (e) => {
+      // Handle delete button click
+      if (e.target.closest('.image-delete-btn')) {
+        e.preventDefault();
+        e.stopPropagation();
+        const container = e.target.closest('.image-container');
+        if (container) {
+          container.remove();
+        } else {
+          const selectedImg = editorRef.current.querySelector('.image-selected');
+          if (selectedImg) {
+            (selectedImg.closest('.image-container') || selectedImg).remove();
+          }
+        }
+        handleContentChange();
+        setSelectedImage(null);
+        return;
+      }
+
       const img = e.target;
       if (img.tagName === 'IMG' && !img.classList.contains('image-resizing')) {
         // Remove selection from other images
         editorRef.current.querySelectorAll('img').forEach(i => {
           i.classList.remove('image-selected');
         });
-        
+
         img.classList.add('image-selected');
         setSelectedImage(img);
       }
     };
 
     const handleClickOutside = (e) => {
+      // Don't clear selection when clicking resize handles or delete button
+      if (e.target.closest('.image-resize-handle') || e.target.closest('.image-delete-btn')) {
+        return;
+      }
       if (e.target.tagName !== 'IMG') {
         editorRef.current.querySelectorAll('img').forEach(i => {
           i.classList.remove('image-selected');
@@ -326,7 +527,23 @@ export const ContentEditableWYSIWYG = ({
 
     const handleMouseUp = () => {
       if (resizeDataRef.current) {
-        resizeDataRef.current.img.classList.remove('image-resizing');
+        // NOTE: resizeDataRef.current.img is the .image-container div,
+        // not the actual <img> element (resize handles are appended to the container).
+        const container = resizeDataRef.current.img;
+        container.classList.remove('image-resizing');
+        container.style.maxWidth = 'none';
+
+        // Also stamp the same explicit dimensions directly onto the inner <img>
+        // so the size survives if the browser moves only the <img> during drag-and-drop.
+        const finalWidth = parseFloat(container.style.width);
+        const finalHeight = parseFloat(container.style.height);
+        const innerImg = container.querySelector('img');
+        if (innerImg && finalWidth && finalHeight) {
+          innerImg.style.width = `${finalWidth}px`;
+          innerImg.style.height = `${finalHeight}px`;
+          innerImg.style.maxWidth = 'none';
+        }
+
         resizeDataRef.current = null;
         handleContentChange();
       }
@@ -351,12 +568,16 @@ export const ContentEditableWYSIWYG = ({
     };
   }, [isEditing]);
 
-  // Add resize handles to selected image
+  // Add resize handles and delete button to selected image
   useEffect(() => {
     if (!selectedImage || !editorRef.current) return;
 
-    // Remove existing handles
+    const container = selectedImage.parentElement;
+    if (!container) return;
+
+    // Remove existing handles and delete buttons
     editorRef.current.querySelectorAll('.image-resize-handle').forEach(h => h.remove());
+    editorRef.current.querySelectorAll('.image-delete-btn').forEach(b => b.remove());
 
     // Add resize handles
     const handles = ['se', 'sw', 'e', 'w'];
@@ -364,11 +585,21 @@ export const ContentEditableWYSIWYG = ({
       const handle = document.createElement('div');
       handle.className = `image-resize-handle image-resize-handle-${position}`;
       handle.dataset.handle = position;
-      selectedImage.parentElement.appendChild(handle);
+      container.appendChild(handle);
     });
+
+    // Add delete button
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'image-delete-btn';
+    deleteBtn.innerHTML = '&times;';
+    deleteBtn.setAttribute('type', 'button');
+    deleteBtn.setAttribute('title', 'Delete image');
+    deleteBtn.setAttribute('aria-label', 'Delete image');
+    container.appendChild(deleteBtn);
 
     return () => {
       editorRef.current?.querySelectorAll('.image-resize-handle').forEach(h => h.remove());
+      editorRef.current?.querySelectorAll('.image-delete-btn').forEach(b => b.remove());
     };
   }, [selectedImage]);
 
@@ -1024,6 +1255,21 @@ export const ContentEditableWYSIWYG = ({
   };
 
   /**
+   * Delete the currently selected image from the editor
+   */
+  const handleDeleteSelectedImage = () => {
+    if (!selectedImage) return;
+    const container = selectedImage.closest('.image-container') || selectedImage.parentElement;
+    if (container && container.classList.contains('image-container')) {
+      container.remove();
+    } else {
+      selectedImage.remove();
+    }
+    handleContentChange();
+    setSelectedImage(null);
+  };
+
+  /**
    * Render content for display
    */
   const renderContent = () => {
@@ -1263,6 +1509,20 @@ export const ContentEditableWYSIWYG = ({
                 </button>
               </div>
 
+              {/* Image actions — shown only when an image is selected */}
+              {selectedImage && (
+                <div className="flex gap-1 border-r border-white/10 pr-2">
+                  <button
+                    type="button"
+                    onClick={handleDeleteSelectedImage}
+                    className="wysiwyg-toolbar-btn wysiwyg-toolbar-btn-danger"
+                    title="Delete selected image"
+                  >
+                    🗑️ Delete Image
+                  </button>
+                </div>
+              )}
+
               {/* Clear Formatting */}
               <div className="flex gap-1 border-r border-white/10 pr-2">
                 <button
@@ -1328,6 +1588,92 @@ export const ContentEditableWYSIWYG = ({
                       }
                     }
                   }
+                }}
+                onDragStart={(e) => {
+                  // Event delegation: detect which draggable element started the drag
+                  const container = e.target.closest?.('.image-container');
+                  const codeBlock = e.target.closest?.('pre[draggable="true"]');
+                  if (container) {
+                    draggedItemRef.current = { element: container, type: 'image' };
+                    e.dataTransfer.setData('text/plain', 'wysiwyg-drag');
+                    e.dataTransfer.effectAllowed = 'move';
+                  } else if (codeBlock && codeBlock.querySelector('code')) {
+                    draggedItemRef.current = { element: codeBlock, type: 'code' };
+                    e.dataTransfer.setData('text/plain', 'wysiwyg-drag');
+                    e.dataTransfer.effectAllowed = 'move';
+                  }
+                }}
+                onDragEnd={() => {
+                  hideDropIndicator();
+                  draggedItemRef.current = null;
+                  dropPositionRef.current = null;
+                }}
+                onDragOver={(e) => {
+                  // Only handle drags we initiated (images or code blocks)
+                  if (!draggedItemRef.current) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  const { element: dragged } = draggedItemRef.current;
+                  const pos = computeDropPosition(editorRef.current, e.clientX, e.clientY, dragged);
+                  dropPositionRef.current = pos;
+                  showDropIndicator(editorRef.current, pos, dragged);
+                }}
+                onDragLeave={(e) => {
+                  // Hide the indicator only when the pointer truly leaves the editor
+                  if (!editorRef.current.contains(e.relatedTarget)) {
+                    hideDropIndicator();
+                  }
+                }}
+                onDrop={(e) => {
+                  if (draggedItemRef.current) {
+                    e.preventDefault();
+                    const { element: dragged } = draggedItemRef.current;
+                    const position = dropPositionRef.current
+                      || computeDropPosition(editorRef.current, e.clientX, e.clientY, dragged);
+
+                    hideDropIndicator();
+                    draggedItemRef.current = null;
+                    dropPositionRef.current = null;
+
+                    if (dragged.parentNode) {
+                      if (position?.range && insertDraggedAtRange(dragged, position.range)) {
+                        handleContentChange();
+                        return;
+                      }
+
+                      const insertBefore = position?.insertBefore;
+                      if (insertBefore && insertBefore !== dragged) {
+                        editorRef.current.insertBefore(dragged, insertBefore);
+                      } else if (!insertBefore && editorRef.current.lastChild !== dragged) {
+                        editorRef.current.appendChild(dragged);
+                      }
+                    }
+
+                    handleContentChange();
+                    return;
+                  }
+
+                  // Safety-net for any native browser drop that slips through:
+                  // re-wrap bare <img> elements and remove orphaned containers.
+                  setTimeout(() => {
+                    if (!editorRef.current) return;
+                    editorRef.current.querySelectorAll('[data-wysiwyg-drop-marker="true"]').forEach(marker => marker.remove());
+                    editorRef.current.querySelectorAll('img').forEach(imgEl => {
+                      if (!imgEl.closest('.image-container')) {
+                        const wrapper = document.createElement('div');
+                        wrapper.className = 'image-container';
+                        wrapper.style.cssText = 'display: inline-block; position: relative;';
+                        if (imgEl.style.width)  wrapper.style.width  = imgEl.style.width;
+                        if (imgEl.style.height) wrapper.style.height = imgEl.style.height;
+                        imgEl.parentNode.insertBefore(wrapper, imgEl);
+                        wrapper.appendChild(imgEl);
+                      }
+                    });
+                    editorRef.current.querySelectorAll('.image-container').forEach(c => {
+                      if (!c.querySelector('img')) c.remove();
+                    });
+                    handleContentChange();
+                  }, 0);
                 }}
                 onPaste={(e) => {
                   // Prevent pasting inside code blocks

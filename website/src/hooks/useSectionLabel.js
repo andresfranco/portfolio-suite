@@ -3,7 +3,7 @@ import { usePortfolio } from '../context/PortfolioContext';
 import { useEditMode } from '../context/EditModeContext';
 import { LanguageContext } from '../context/LanguageContext';
 import { translations } from '../data/translations';
-import { InlineTextEditor } from '../components/cms';
+import { InlineTextEditor } from '../components/cms/InlineTextEditor';
 
 /**
  * Hook to get section labels with edit mode support

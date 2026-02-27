@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect, useRef } from 'react';
+import React, { useContext, useState, useEffect, useRef, Suspense } from 'react';
 import { FaGithub, FaGlobe, FaCalendar, FaFolder, FaArrowLeft, FaArrowRight, FaPencil, FaDownload, FaPlus } from 'react-icons/fa6';
 import { translations } from '../data/translations';
 import { LanguageContext } from '../context/LanguageContext';
@@ -10,8 +10,13 @@ import DraggableProjectSection from './DraggableProjectSection';
 import DraggableProjectSectionWrapper from './DraggableProjectSectionWrapper';
 import EditableProjectSection from './EditableProjectSection';
 import './DragAndDrop.css';
-import { InlineTextEditor, ProjectImageSelector, ProjectMetadataEditor } from './cms';
-import { SectionEditorDialog } from './cms/ProjectSectionManager';
+import { InlineTextEditor } from './cms/InlineTextEditor';
+import { ProjectImageSelector } from './cms/ProjectImageSelector';
+import { ProjectMetadataEditor } from './cms/ProjectMetadataEditor';
+// SectionEditorDialog contains Tiptap + Monaco — lazy-load so it never lands in the main bundle
+const SectionEditorDialog = React.lazy(() =>
+  import('./cms/ProjectSectionManager').then(m => ({ default: m.SectionEditorDialog }))
+);
 import portfolioApi from '../services/portfolioApi';
 
 const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) => {
@@ -868,31 +873,33 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
         onUpdate={handleMetadataUpdate}
       />
 
-      {/* Section Management Dialogs */}
-      {showAddSectionDialog && (
-        <SectionEditorDialog
-          projectId={project.id}
-          authToken={authToken}
-          onClose={() => setShowAddSectionDialog(false)}
-          onSuccess={async () => {
-            setShowAddSectionDialog(false);
-            await refreshPortfolio();
-          }}
-        />
-      )}
-      
-      {editingSection && (
-        <SectionEditorDialog
-          projectId={project.id}
-          section={editingSection}
-          authToken={authToken}
-          onClose={() => setEditingSection(null)}
-          onSuccess={async () => {
-            setEditingSection(null);
-            await refreshPortfolio();
-          }}
-        />
-      )}
+      {/* Section Management Dialogs — loaded on-demand (contains Tiptap + Monaco) */}
+      <Suspense fallback={null}>
+        {showAddSectionDialog && (
+          <SectionEditorDialog
+            projectId={project.id}
+            authToken={authToken}
+            onClose={() => setShowAddSectionDialog(false)}
+            onSuccess={async () => {
+              setShowAddSectionDialog(false);
+              await refreshPortfolio();
+            }}
+          />
+        )}
+
+        {editingSection && (
+          <SectionEditorDialog
+            projectId={project.id}
+            section={editingSection}
+            authToken={authToken}
+            onClose={() => setEditingSection(null)}
+            onSuccess={async () => {
+              setEditingSection(null);
+              await refreshPortfolio();
+            }}
+          />
+        )}
+      </Suspense>
 
       {/* Delete Confirmation Dialog */}
       {confirmDeleteSection && (

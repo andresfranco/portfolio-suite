@@ -3,7 +3,9 @@ Image compression utilities using Pillow.
 
 Compresses and resizes raster images before they are written to disk.
 GIF and SVG are passed through unchanged.
-PNG without transparency is converted to JPEG for better compression.
+All other raster formats (JPEG, PNG, WebP) are converted to WebP, which
+provides ~30% better compression than JPEG at equal perceptual quality and
+supports transparency natively.
 """
 
 import io
@@ -76,45 +78,22 @@ def compress_image(
                 max_height,
             )
 
-        # ── Re-encode ─────────────────────────────────────────────────────────
+        # ── Re-encode to WebP ─────────────────────────────────────────────────
+        # WebP is ~30% smaller than JPEG at equal perceptual quality and
+        # supports transparency natively, so we use it for all raster uploads.
+        # Browser support is ~97%+ as of 2024 (all modern browsers).
         output = io.BytesIO()
 
-        if content_type == "image/webp":
-            img.save(output, format="WEBP", quality=jpeg_quality, method=6)
-            final_type = "image/webp"
-
-        elif content_type == "image/png":
-            if has_alpha:
-                # Preserve transparency; keep PNG
-                if img.mode not in ("RGBA", "LA"):
-                    img = img.convert("RGBA")
-                img.save(output, format="PNG", optimize=True)
-                final_type = "image/png"
-            else:
-                # No alpha — convert to JPEG for much better compression
-                if img.mode != "RGB":
-                    img = img.convert("RGB")
-                img.save(
-                    output,
-                    format="JPEG",
-                    quality=jpeg_quality,
-                    optimize=True,
-                    progressive=True,
-                )
-                final_type = "image/jpeg"
-
+        if has_alpha:
+            # Preserve alpha channel in RGBA WebP
+            if img.mode not in ("RGBA", "LA"):
+                img = img.convert("RGBA")
         else:
-            # JPEG (or jpg alias)
             if img.mode != "RGB":
                 img = img.convert("RGB")
-            img.save(
-                output,
-                format="JPEG",
-                quality=jpeg_quality,
-                optimize=True,
-                progressive=True,
-            )
-            final_type = "image/jpeg"
+
+        img.save(output, format="WEBP", quality=jpeg_quality, method=6)
+        final_type = "image/webp"
 
         compressed = output.getvalue()
         original_kb = len(content) / 1024
