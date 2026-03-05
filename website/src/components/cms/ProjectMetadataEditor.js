@@ -3,6 +3,7 @@ import { useEditMode } from '../../context/EditModeContext';
 import { LanguageContext } from '../../context/LanguageContext';
 import { portfolioApi } from '../../services/portfolioApi';
 import { FaTimes, FaSave, FaCalendar, FaFolder, FaCode } from 'react-icons/fa';
+import SearchMultiSelect from '../common/SearchMultiSelect';
 
 /**
  * ProjectMetadataEditor Component
@@ -47,10 +48,10 @@ export const ProjectMetadataEditor = ({ isOpen, onClose, project, onUpdate }) =>
       }
 
       // Set selected categories
-      setSelectedCategories(project.categories || []);
+      setSelectedCategories((project.categories || []).map(cat => cat.id));
 
       // Set selected skills
-      setSelectedSkills(project.skills || []);
+      setSelectedSkills((project.skills || []).map(skill => skill.id));
 
       // Load available categories and skills
       loadCategoriesAndSkills();
@@ -83,32 +84,6 @@ export const ProjectMetadataEditor = ({ isOpen, onClose, project, onUpdate }) =>
       showNotification('Error', 'Failed to load categories and skills', 'error');
     } finally {
       setLoading(false);
-    }
-  };
-
-  /**
-   * Handle category selection toggle
-   */
-  const toggleCategory = (category) => {
-    const isSelected = selectedCategories.some(cat => cat.id === category.id);
-
-    if (isSelected) {
-      setSelectedCategories(selectedCategories.filter(cat => cat.id !== category.id));
-    } else {
-      setSelectedCategories([...selectedCategories, category]);
-    }
-  };
-
-  /**
-   * Handle skill selection toggle
-   */
-  const toggleSkill = (skill) => {
-    const isSelected = selectedSkills.some(s => s.id === skill.id);
-
-    if (isSelected) {
-      setSelectedSkills(selectedSkills.filter(s => s.id !== skill.id));
-    } else {
-      setSelectedSkills([...selectedSkills, skill]);
     }
   };
 
@@ -159,8 +134,8 @@ export const ProjectMetadataEditor = ({ isOpen, onClose, project, onUpdate }) =>
     try {
       const updateData = {
         project_date: projectDate || null,
-        categories: selectedCategories.map(cat => cat.id),
-        skills: selectedSkills.map(skill => skill.id),
+        categories: selectedCategories,
+        skills: selectedSkills,
         // Keep existing data that we're not editing
         repository_url: project.repository_url,
         website_url: project.website_url,
@@ -244,60 +219,32 @@ export const ProjectMetadataEditor = ({ isOpen, onClose, project, onUpdate }) =>
               </div>
 
               {/* Categories */}
-              <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-white/80 mb-2">
-                  <FaFolder className="text-gray-500" />
-                  Categories ({selectedCategories.length} selected)
-                </label>
-                <div className="border border-white/10 p-4 max-h-60 overflow-y-auto">
-                  {availableCategories.length === 0 ? (
-                    <p className="text-white/50 text-sm">No categories available</p>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-2">
-                      {availableCategories.map(category => {
-                        const isSelected = selectedCategories.some(cat => cat.id === category.id);
-                        return (
-                          <button
-                            key={category.id}
-                            type="button"
-                            onClick={() => toggleCategory(category)}
-                            className={`btn-flat btn-flat-sm ${isSelected ? 'btn-flat-active' : ''}`}>
-                            {getCategoryName(category)}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
+              <SearchMultiSelect
+                label={`Categories (${selectedCategories.length} selected)`}
+                placeholder="Search categories..."
+                emptyMessage="No categories available"
+                noResultsMessage="No categories match your search"
+                options={availableCategories}
+                selectedValues={selectedCategories}
+                onChange={setSelectedCategories}
+                getOptionValue={(category) => category.id}
+                getOptionLabel={getCategoryName}
+                icon={<FaFolder className="text-gray-500" />}
+              />
 
               {/* Skills */}
-              <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-white/80 mb-2">
-                  <FaCode className="text-gray-500" />
-                  Skills ({selectedSkills.length} selected)
-                </label>
-                <div className="border border-white/10 p-4 max-h-60 overflow-y-auto">
-                  {availableSkills.length === 0 ? (
-                    <p className="text-white/50 text-sm">No skills available</p>
-                  ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                      {availableSkills.map(skill => {
-                        const isSelected = selectedSkills.some(s => s.id === skill.id);
-                        return (
-                          <button
-                            key={skill.id}
-                            type="button"
-                            onClick={() => toggleSkill(skill)}
-                            className={`btn-flat btn-flat-sm ${isSelected ? 'btn-flat-active' : ''}`}>
-                            {getSkillName(skill)}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
+              <SearchMultiSelect
+                label={`Skills (${selectedSkills.length} selected)`}
+                placeholder="Search skills..."
+                emptyMessage="No skills available"
+                noResultsMessage="No skills match your search"
+                options={availableSkills}
+                selectedValues={selectedSkills}
+                onChange={setSelectedSkills}
+                getOptionValue={(skill) => skill.id}
+                getOptionLabel={getSkillName}
+                icon={<FaCode className="text-gray-500" />}
+              />
             </form>
           )}
         </div>

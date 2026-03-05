@@ -13,6 +13,7 @@ import './DragAndDrop.css';
 import { InlineTextEditor } from './cms/InlineTextEditor';
 import { ProjectImageSelector } from './cms/ProjectImageSelector';
 import { ProjectMetadataEditor } from './cms/ProjectMetadataEditor';
+import { resolveImageUrl } from '../utils/assetUrls';
 // SectionEditorDialog contains Tiptap + Monaco — lazy-load so it never lands in the main bundle
 const SectionEditorDialog = React.lazy(() =>
   import('./cms/ProjectSectionManager').then(m => ({ default: m.SectionEditorDialog }))
@@ -391,7 +392,7 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
   
   // Get project image
   const projectImage = project.images && project.images.length > 0
-    ? `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${project.images[0].image_path}`
+    ? resolveImageUrl(project.images[0])
     : require('../assets/images/project1.jpg'); // fallback image
   
   // Helper function to get category name from category_texts

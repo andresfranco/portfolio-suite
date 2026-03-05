@@ -25,7 +25,6 @@ const API_CONFIG = {
     // Authentication endpoints
     auth: {
       login: '/api/auth/login',
-      register: '/api/auth/register',
       refreshToken: '/api/auth/refresh-token',
       forgotPassword: '/api/auth/forgot-password',
       resetPassword: '/api/auth/reset-password',

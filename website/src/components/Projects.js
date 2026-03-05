@@ -11,6 +11,7 @@ import DraggableProjectCard from './DraggableProjectCard';
 import './DragAndDrop.css';
 import { InlineTextEditor } from './cms/InlineTextEditor';
 import { ProjectImageSelector } from './cms/ProjectImageSelector';
+import { resolveImageUrl } from '../utils/assetUrls';
 import {
   ProjectManagement,
   ProjectActionButtons,
@@ -57,9 +58,7 @@ const ProjectModal = ({ project, onClose, onViewDetails, language, getProjectTex
         <div className="p-4 md:p-6 overflow-y-auto">
           {project.images && project.images.length > 0 && (() => {
             const thumbnailImage = project.images.find(img => img.category === 'PROI-THUMBNAIL') || project.images[0];
-            const imageUrl = thumbnailImage.image_url 
-              ? `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}${thumbnailImage.image_url}`
-              : `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/uploads/${thumbnailImage.image_path}`;
+            const imageUrl = resolveImageUrl(thumbnailImage);
             
             return (
               <img 
@@ -126,27 +125,13 @@ const Projects = () => {
   // Track if we're currently reordering to prevent sync conflicts
   const isReorderingRef = useRef(false);
   
-  // Track previous API projects to detect actual changes
-  const prevApiProjectsRef = useRef([]);
-  
   // Content editor hook for projects reordering
   const { reorderItems } = useContentEditor('project');
   
-  // Sync local state with API data (but not during reordering)
+  // Sync local state with refreshed portfolio data, except while a drag reorder is in flight.
   useEffect(() => {
     if (!isReorderingRef.current) {
-      // Only update if the array contents actually changed
-      const hasChanged = 
-        apiProjects.length !== prevApiProjectsRef.current.length ||
-        apiProjects.some((proj, index) => {
-          const prevProj = prevApiProjectsRef.current[index];
-          return !prevProj || proj.id !== prevProj.id;
-        });
-      
-      if (hasChanged) {
-        setProjects(apiProjects);
-        prevApiProjectsRef.current = apiProjects;
-      }
+      setProjects(apiProjects);
     }
   }, [apiProjects]);
 
@@ -301,16 +286,7 @@ const Projects = () => {
                     {projects.map((project, index) => {
                 const projectText = getProjectText(project);
                 const projectImageData = project.images && project.images.length > 0 ? project.images[0] : null;
-                const apiBase = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-                const projectImage = projectImageData
-                  ? projectImageData.image_url
-                    ? projectImageData.image_url.startsWith('http')
-                      ? projectImageData.image_url
-                      : `${apiBase}${projectImageData.image_url}`
-                    : projectImageData.image_path?.startsWith('http')
-                      ? projectImageData.image_path
-                      : `${apiBase}/${projectImageData.image_path}`
-                  : require('../assets/images/project1.jpg'); // fallback image
+                const projectImage = resolveImageUrl(projectImageData) || require('../assets/images/project1.jpg');
 
                 const description =
                   projectText.brief ||
