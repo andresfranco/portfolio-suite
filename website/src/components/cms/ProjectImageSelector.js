@@ -4,6 +4,7 @@ import { useEditMode } from '../../context/EditModeContext';
 import { usePortfolio } from '../../context/PortfolioContext';
 import { LanguageContext } from '../../context/LanguageContext';
 import { compressImage, getDimensionsForCategory } from '../../utils/imageCompression';
+import { resolveImageUrl } from '../../utils/assetUrls';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
@@ -60,18 +61,13 @@ export const ProjectImageSelector = ({
     );
     
     if (matchingImage) {
-      // Use image_url if available (preferred), otherwise construct from image_path
-      return matchingImage.image_url 
-        ? `${API_BASE_URL}${matchingImage.image_url}`
-        : `${API_BASE_URL}/uploads/${matchingImage.image_path}`;
+      return resolveImageUrl(matchingImage);
     }
     
     // Fallback to any image with this category (no language filter)
     const fallbackImage = project.images.find(img => img.category === categoryCode);
     if (fallbackImage) {
-      return fallbackImage.image_url 
-        ? `${API_BASE_URL}${fallbackImage.image_url}`
-        : `${API_BASE_URL}/uploads/${fallbackImage.image_path}`;
+      return resolveImageUrl(fallbackImage);
     }
     
     return currentImagePath;

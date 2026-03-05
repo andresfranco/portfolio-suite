@@ -13,6 +13,7 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 const _cache = new Map(); // key → { data, expiresAt }
 const _CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 let _forceReload = false; // bypass browser HTTP cache on next fetch after a mutation
+const EDIT_MODE_KEY = 'cms_edit_mode';
 
 function _cacheGet(key) {
   const entry = _cache.get(key);
@@ -23,6 +24,22 @@ function _cacheGet(key) {
 
 function _cacheSet(key, data) {
   _cache.set(key, { data, expiresAt: Date.now() + _CACHE_TTL_MS });
+}
+
+function isEditSessionActive() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return (
+      params.get('edit') === 'true' ||
+      window.localStorage.getItem(EDIT_MODE_KEY) === 'true'
+    );
+  } catch (error) {
+    return false;
+  }
 }
 
 /**
@@ -239,11 +256,13 @@ export const portfolioApi = {
    */
   getDefaultPortfolio: async (languageCode = 'en') => {
     const cacheKey = `default-portfolio:${languageCode}`;
-    const cached = _cacheGet(cacheKey);
-    if (cached) return cached;
-
-    const bypassHttpCache = _forceReload;
+    const bypassHttpCache = _forceReload || isEditSessionActive();
     _forceReload = false;
+
+    if (!bypassHttpCache) {
+      const cached = _cacheGet(cacheKey);
+      if (cached) return cached;
+    }
 
     try {
       const response = await fetch(
@@ -274,11 +293,13 @@ export const portfolioApi = {
    */
   getPortfolio: async (portfolioId, languageCode = 'en') => {
     const cacheKey = `portfolio:${portfolioId}:${languageCode}`;
-    const cached = _cacheGet(cacheKey);
-    if (cached) return cached;
-
-    const bypassHttpCache = _forceReload;
+    const bypassHttpCache = _forceReload || isEditSessionActive();
     _forceReload = false;
+
+    if (!bypassHttpCache) {
+      const cached = _cacheGet(cacheKey);
+      if (cached) return cached;
+    }
 
     try {
       const response = await fetch(
@@ -1078,6 +1099,15 @@ export const portfolioApi = {
   },
 
   /**
+   * Backward-compatible skills lookup used by edit-mode dialogs.
+   * @param {string} token - Authentication token (optional for public access)
+   * @returns {Promise<Object>} - Skills list
+   */
+  getSkills: async (token = null) => {
+    return portfolioApi.getAllSkills(token);
+  },
+
+  /**
    * Add a skill to a project
    * @param {number} projectId - Project ID
    * @param {number} skillId - Skill ID
@@ -1350,6 +1380,29 @@ export const portfolioApi = {
       return await handleResponse(response);
     } catch (error) {
       console.error('Error updating section:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Delete a section record.
+   * @param {number} sectionId - Section ID
+   * @param {string} token - Authentication token
+   * @returns {Promise<Object>} - Delete confirmation
+   */
+  deleteSection: async (sectionId, token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/sections/${sectionId}`,
+        {
+          method: 'DELETE',
+          headers: getHeaders(token),
+          credentials: 'include',
+        }
+      );
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error deleting section:', error);
       throw error;
     }
   },

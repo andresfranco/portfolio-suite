@@ -151,8 +151,8 @@ const ProjectSectionManager = ({ project, onUpdate }) => {
     setConfirmDelete({
       type: 'section',
       id: sectionId,
-      title: 'Remove Section',
-      message: 'Are you sure you want to remove this section from the project? This will not delete the section itself, only remove it from this project.',
+      title: 'Delete Section',
+      message: 'Are you sure you want to remove this section from the project and delete the section itself? This action cannot be undone.',
     });
   };
 
@@ -161,12 +161,13 @@ const ProjectSectionManager = ({ project, onUpdate }) => {
 
     try {
       await portfolioApi.removeSectionFromProject(project.id, confirmDelete.id, authToken);
+      await portfolioApi.deleteSection(confirmDelete.id, authToken);
       await loadSections();
       if (onUpdate) onUpdate();
       setConfirmDelete(null);
     } catch (err) {
       console.error('Error removing section:', err);
-      setError('Failed to remove section');
+      setError(err.message || 'Failed to delete section');
       setConfirmDelete(null);
     }
   };
@@ -396,6 +397,9 @@ const ProjectSectionManager = ({ project, onUpdate }) => {
         <SectionEditorDialog
           projectId={project.id}
           authToken={authToken}
+          initialDisplayOrder={
+            sections.reduce((maxOrder, item) => Math.max(maxOrder, item.display_order || 0), -1) + 1
+          }
           onClose={handleCloseDialog}
           onSuccess={async () => {
             setShowAddDialog(false);
@@ -431,12 +435,11 @@ const ProjectSectionManager = ({ project, onUpdate }) => {
  * SectionEditorDialog Component
  * Dialog for creating/editing sections with image and file upload
  */
-const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess }) => {
+const SectionEditorDialog = ({ projectId, section, authToken, initialDisplayOrder = 0, onClose, onSuccess }) => {
   const isEditing = !!section;
   const [formData, setFormData] = useState({
     code: section?.code || '',
     section_texts: section?.section_texts || [{ language_id: 1, text: '' }],
-    display_order: section?.display_order || 0,
     display_style: section?.display_style || 'bordered',
   });
   const [loading, setLoading] = useState(false);
@@ -568,24 +571,18 @@ const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess
         const sectionData = {
           code: formData.code,
           section_texts: [{ language_id: 1, text: currentHtml }],
-          display_order: formData.display_order,
           display_style: formData.display_style
         };
         await portfolioApi.updateSection(section.id, sectionData, authToken);
         savedSectionId = section.id;
         htmlForMediaSync = currentHtml;
-        
-        // If display_order changed and we have a projectId, update the order separately
-        if (projectId && formData.display_order !== section.display_order) {
-          await portfolioApi.updateSectionDisplayOrder(projectId, section.id, formData.display_order, authToken);
-        }
       } else {
         // Create new section - only send fields expected by backend
         // Use currentHtml which was captured from the editor
         const sectionData = {
           code: formData.code,
           section_texts: [{ language_id: 1, text: currentHtml }],
-          display_order: formData.display_order,
+          display_order: initialDisplayOrder,
           display_style: formData.display_style
         };
         const response = await portfolioApi.createProjectSection(projectId, sectionData, authToken);
@@ -823,68 +820,38 @@ const SectionEditorDialog = ({ projectId, section, authToken, onClose, onSuccess
             </p>
           </div>
 
-          {/* Display Order */}
-          <div>
-            <label className="block mb-2 font-semibold text-white text-sm uppercase tracking-wide">
-              Display Order
-            </label>
-            <input
-              type="number"
-              value={formData.display_order}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  display_order: parseInt(e.target.value) || 0,
-                }))
-              }
-              className="w-full px-4 py-3 bg-white/5 border border-[#14C800]/50 rounded-none focus:outline-none focus:ring-2 focus:ring-[#14C800]/60 text-white placeholder-white/50"
-              disabled={loading}
-            />
-            <p className="text-xs text-gray-500 mt-1">Lower numbers appear first (0 = first)</p>
-          </div>
-
-          {/* Display Style Toggle */}
+          {/* Display Style */}
           <div>
             <label className="block mb-3 font-semibold text-white text-sm uppercase tracking-wide">
               Display Style
             </label>
-            <div className="flex gap-4">
-              <button
-                type="button"
-                onClick={() => setFormData((prev) => ({ ...prev, display_style: 'bordered' }))}
-                className={`flex-1 px-4 py-3 rounded font-semibold transition-all duration-200 ${
-                  formData.display_style === 'bordered'
-                    ? 'bg-[#14C800]/20 border-2 border-[#14C800] text-[#14C800]'
-                    : 'bg-gray-800/50 border border-gray-700/50 text-gray-400 hover:text-gray-300 hover:border-gray-600'
-                }`}
-                disabled={loading}
-              >
-                <div className="flex flex-col items-center gap-2">
-                  <div className="w-full h-12 border-2 border-current rounded bg-current/10"></div>
-                  <span className="text-sm">With Border</span>
+            <div className="border border-white/10 bg-white/5 px-4 py-4">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.display_style === 'bordered'}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      display_style: e.target.checked ? 'bordered' : 'borderless',
+                    }))
+                  }
+                  className="mt-1 h-4 w-4 rounded border-white/20 bg-[#03060a] text-[#14C800] focus:ring-[#14C800]"
+                  disabled={loading}
+                />
+                <div>
+                  <div className="text-white font-medium">Show bordered container</div>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Turn this on to display the section inside a bordered card. Turn it off for a seamless, borderless section.
+                  </p>
                 </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setFormData((prev) => ({ ...prev, display_style: 'borderless' }))}
-                className={`flex-1 px-4 py-3 rounded font-semibold transition-all duration-200 ${
-                  formData.display_style === 'borderless'
-                    ? 'bg-[#14C800]/20 border-2 border-[#14C800] text-[#14C800]'
-                    : 'bg-gray-800/50 border border-gray-700/50 text-gray-400 hover:text-gray-300 hover:border-gray-600'
-                }`}
-                disabled={loading}
-              >
-                <div className="flex flex-col items-center gap-2">
-                  <div className="w-full h-12 border-0 bg-transparent">
-                    <div className="w-full h-full bg-current/10"></div>
-                  </div>
-                  <span className="text-sm">Borderless</span>
-                </div>
-              </button>
+              </label>
             </div>
-            <p className="text-xs text-gray-500 mt-2">
-              Choose how this section appears: with a bordered box or seamlessly integrated into the page
-            </p>
+            {!isEditing && (
+              <p className="text-xs text-gray-500 mt-2">
+                New sections are added automatically at the end of the project. You can reorder them later by dragging them in the project details page.
+              </p>
+            )}
           </div>
 
           {/* Action Buttons */}

@@ -3,6 +3,7 @@ import { useEditMode } from '../../context/EditModeContext';
 import { usePortfolio } from '../../context/PortfolioContext';
 import { LanguageContext } from '../../context/LanguageContext';
 import { portfolioApi } from '../../services/portfolioApi';
+import SearchMultiSelect from '../common/SearchMultiSelect';
 
 /**
  * ProjectManagement Component
@@ -216,24 +217,6 @@ export const ProjectFormDialog = ({ mode = 'create', project = null, onClose, on
     }
   };
 
-  const toggleCategory = (categoryId) => {
-    setFormData(prev => ({
-      ...prev,
-      categories: prev.categories.includes(categoryId)
-        ? prev.categories.filter(id => id !== categoryId)
-        : [...prev.categories, categoryId]
-    }));
-  };
-
-  const toggleSkill = (skillId) => {
-    setFormData(prev => ({
-      ...prev,
-      skills: prev.skills.includes(skillId)
-        ? prev.skills.filter(id => id !== skillId)
-        : [...prev.skills, skillId]
-    }));
-  };
-
   const getLanguageName = (languageId) => {
     return languages.find(lang => lang.id === languageId)?.name || `Language ${languageId}`;
   };
@@ -419,40 +402,32 @@ export const ProjectFormDialog = ({ mode = 'create', project = null, onClose, on
 
           {/* Categories */}
           {categories.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-lg font-semibold text-white">Categories</h3>
-              <div className="flex flex-wrap gap-2">
-                {categories.map(category => (
-                  <button
-                    key={category.id}
-                    type="button"
-                    onClick={() => toggleCategory(category.id)}
-                    className={`btn-flat btn-flat-sm ${formData.categories.includes(category.id) ? 'btn-flat-active font-semibold' : ''}`}
-                  >
-                    {getCategoryName(category.id)}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <SearchMultiSelect
+              label="Categories"
+              placeholder="Search categories..."
+              emptyMessage="No categories available"
+              noResultsMessage="No categories match your search"
+              options={categories}
+              selectedValues={formData.categories}
+              onChange={(selectedCategories) => handleInputChange('categories', selectedCategories)}
+              getOptionValue={(category) => category.id}
+              getOptionLabel={(category) => getCategoryName(category.id)}
+            />
           )}
 
           {/* Skills */}
           {skills.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-lg font-semibold text-white">Skills</h3>
-              <div className="flex flex-wrap gap-2 max-h-60 overflow-y-auto">
-                {skills.map(skill => (
-                  <button
-                    key={skill.id}
-                    type="button"
-                    onClick={() => toggleSkill(skill.id)}
-                    className={`btn-flat btn-flat-sm text-sm ${formData.skills.includes(skill.id) ? 'btn-flat-active font-semibold' : ''}`}
-                  >
-                    {getSkillName(skill.id)}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <SearchMultiSelect
+              label="Skills"
+              placeholder="Search skills..."
+              emptyMessage="No skills available"
+              noResultsMessage="No skills match your search"
+              options={skills}
+              selectedValues={formData.skills}
+              onChange={(selectedSkills) => handleInputChange('skills', selectedSkills)}
+              getOptionValue={(skill) => skill.id}
+              getOptionLabel={(skill) => getSkillName(skill.id)}
+            />
           )}
 
           {/* Actions */}

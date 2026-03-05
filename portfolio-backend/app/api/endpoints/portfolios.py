@@ -27,7 +27,7 @@ from app.core.security_decorators import require_permission, require_any_permiss
 from app import models
 import traceback
 from app.rag.rag_events import stage_event
-from app.utils.file_utils import sanitize_filename
+from app.utils.file_utils import sanitize_filename, get_file_url
 from app.utils.image_utils import compress_image, get_dimensions_for_category
 
 # Set up logger using centralized logging
@@ -35,29 +35,6 @@ logger = setup_logger("app.api.endpoints.portfolios")
 
 # Define router
 router = APIRouter()
-
-def get_file_url(file_path: str) -> str:
-    """Generate file URL from file path"""
-    # Files are served at /uploads/, not /static/
-    # Database paths are like: static/uploads/portfolios/3/images/file.png
-    # We need to strip 'static/uploads/' and serve from '/uploads/'
-    if file_path.startswith('static/uploads/'):
-        # Strip 'static/uploads/' prefix and serve from '/uploads/'
-        relative_path = file_path[len('static/uploads/'):]
-        return f"/uploads/{relative_path}"
-    elif file_path.startswith('/uploads/'):
-        # Already has /uploads/ prefix, return as-is
-        return file_path
-    elif file_path.startswith('uploads/'):
-        # Already has uploads prefix, just add leading slash
-        return f"/{file_path}"
-    elif file_path.startswith('/projects/') or file_path.startswith('/portfolios/'):
-        # Path starts with /projects/ or /portfolios/ - prepend /uploads
-        # This handles legacy/incorrect paths like /projects/project_1/...
-        return f"/uploads{file_path}"
-    else:
-        # Fallback: assume it's a relative path under uploads
-        return f"/uploads/{file_path}"
 
 # Helper function to process portfolios before sending them in the response
 def process_portfolios_for_response(
