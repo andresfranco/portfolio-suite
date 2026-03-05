@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import { Box, Paper, TextField, Button, Typography, Container, Link, Stack, Alert, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, Backdrop, LinearProgress } from '@mui/material';
+import { Box, Paper, TextField, Button, Typography, Container, Link, Alert, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, Backdrop, LinearProgress } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import authService from '../services/authService';
 
@@ -213,36 +213,19 @@ function Login({ onLogin }) {
             >
               {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Login'}
             </Button>
-            <Stack 
-              direction="row" 
-              justifyContent="space-between" 
-              alignItems="center"
-              spacing={1}
-              sx={{ mt: 1 }}
-            >
-              <Link 
+            <Box sx={{ mt: 1, textAlign: 'right' }}>
+              <Link
                 component={RouterLink}
-                to="/signup" 
-                variant="body2" 
-                sx={{ 
-                  textDecoration: 'none',
-                  '&:hover': { textDecoration: 'underline' }
-                }}
-              >
-                Sign Up
-              </Link>
-              <Link 
-                component={RouterLink}
-                to="/forgot-password" 
+                to="/forgot-password"
                 variant="body2"
-                sx={{ 
+                sx={{
                   textDecoration: 'none',
                   '&:hover': { textDecoration: 'underline' }
                 }}
               >
                 Forgot Password?
               </Link>
-            </Stack>
+            </Box>
           </Box>
         </Paper>
       </Container>

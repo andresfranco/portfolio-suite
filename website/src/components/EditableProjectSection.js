@@ -64,15 +64,14 @@ const EditableProjectSection = ({ section, language, isEditMode, onContentReorde
     text => text.language?.code === language
   ) || section.section_texts?.[0];
 
-  if (!sectionText) return null;
-
   const isBordered = section.display_style !== 'borderless';
 
   // Build content items array with their types and order
   const buildContentItems = () => {
+    if (!sectionText) return [];
     const items = [];
     const { imagePaths: inlineImagePaths, attachmentPaths: inlineAttachmentPaths } = collectInlineMediaPaths(sectionText.text);
-    
+
     // Add text as first item (always display_order 0)
     items.push({
       type: 'text',
@@ -119,12 +118,16 @@ const EditableProjectSection = ({ section, language, isEditMode, onContentReorde
     return items.sort((a, b) => a.display_order - b.display_order);
   };
 
-  const [contentItems, setContentItems] = useState(buildContentItems());
+  // All hooks must be called before any early return (Rules of Hooks)
+  const [contentItems, setContentItems] = useState(() => buildContentItems());
 
   // Update content items when section data changes
   useEffect(() => {
     setContentItems(buildContentItems());
   }, [section, language]);
+
+  // Early return AFTER all hooks to avoid "Rendered fewer hooks than expected"
+  if (!sectionText) return null;
 
   /**
    * Handle drag end for section content

@@ -12,6 +12,7 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 const TOKEN_KEY = 'cms_auth_token';
 const USER_KEY = 'cms_user';
 const EDIT_MODE_KEY = 'cms_edit_mode';
+const PORTFOLIO_ID_KEY = 'cms_portfolio_id';
 
 /**
  * Edit Mode Provider Component
@@ -80,11 +81,19 @@ export const EditModeProvider = ({ children }) => {
    */
   useEffect(() => {
     const loadAuth = async () => {
+      const clearStoredAuth = () => {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
+        localStorage.removeItem(EDIT_MODE_KEY);
+        localStorage.removeItem(PORTFOLIO_ID_KEY);
+      };
+
       try {
         // Check URL parameters first (from backend redirect)
         const urlParams = new URLSearchParams(window.location.search);
         const urlToken = urlParams.get('token');
         const editMode = urlParams.get('edit') === 'true';
+        const requestedPortfolioId = urlParams.get('portfolio_id');
 
 
         if (urlToken && editMode) {
@@ -98,6 +107,13 @@ export const EditModeProvider = ({ children }) => {
             setIsEditMode(true);
             localStorage.setItem(TOKEN_KEY, urlToken);
             localStorage.setItem(EDIT_MODE_KEY, 'true');
+
+            const parsedPortfolioId = Number.parseInt(requestedPortfolioId, 10);
+            if (Number.isInteger(parsedPortfolioId) && parsedPortfolioId > 0) {
+              localStorage.setItem(PORTFOLIO_ID_KEY, String(parsedPortfolioId));
+            } else {
+              localStorage.removeItem(PORTFOLIO_ID_KEY);
+            }
             
             
             // Clean URL params after storing token
@@ -113,6 +129,7 @@ export const EditModeProvider = ({ children }) => {
           } else {
             console.error('❌ Invalid token from URL');
             setError('Invalid authentication token');
+            clearStoredAuth();
             showNotification(
               'Authentication Failed',
               'The authentication token is invalid or has expired. Please try logging in again from the backend.',
@@ -138,17 +155,13 @@ export const EditModeProvider = ({ children }) => {
               setIsEditMode(storedEditMode === 'true');
             } else {
               // Clear invalid token
-              localStorage.removeItem(TOKEN_KEY);
-              localStorage.removeItem(USER_KEY);
-              localStorage.removeItem(EDIT_MODE_KEY);
+              clearStoredAuth();
             }
           }
         }
       } catch (err) {
         console.error('Error loading authentication:', err);
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem(USER_KEY);
-        localStorage.removeItem(EDIT_MODE_KEY);
+        clearStoredAuth();
       } finally {
         setIsAuthenticating(false);
       }
@@ -222,6 +235,7 @@ export const EditModeProvider = ({ children }) => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     localStorage.removeItem(EDIT_MODE_KEY);
+    localStorage.removeItem(PORTFOLIO_ID_KEY);
     
     // Redirect back to normal view
     window.location.href = '/';

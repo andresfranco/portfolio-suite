@@ -2,6 +2,41 @@ import React, { createContext, useState, useEffect, useContext, useCallback } fr
 import { portfolioApi, invalidatePortfolioCache } from '../services/portfolioApi';
 import { LanguageContext } from './LanguageContext';
 
+const EDIT_MODE_KEY = 'cms_edit_mode';
+const PORTFOLIO_ID_KEY = 'cms_portfolio_id';
+
+const parsePortfolioId = (value) => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
+
+const resolvePortfolioId = (explicitPortfolioId = null) => {
+  if (explicitPortfolioId) {
+    return explicitPortfolioId;
+  }
+
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const queryPortfolioId = parsePortfolioId(
+      new URLSearchParams(window.location.search).get('portfolio_id')
+    );
+    if (queryPortfolioId) {
+      return queryPortfolioId;
+    }
+
+    if (window.localStorage.getItem(EDIT_MODE_KEY) === 'true') {
+      return parsePortfolioId(window.localStorage.getItem(PORTFOLIO_ID_KEY));
+    }
+  } catch (error) {
+    return null;
+  }
+
+  return null;
+};
+
 /**
  * Portfolio Context
  * Manages portfolio data and syncs with backend API
@@ -19,6 +54,11 @@ export const PortfolioProvider = ({ children, portfolioId = null }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { language } = useContext(LanguageContext);
+  const [resolvedPortfolioId, setResolvedPortfolioId] = useState(() => resolvePortfolioId(portfolioId));
+
+  useEffect(() => {
+    setResolvedPortfolioId(resolvePortfolioId(portfolioId));
+  }, [portfolioId]);
 
   /**
    * Load portfolio data from API
@@ -31,8 +71,8 @@ export const PortfolioProvider = ({ children, portfolioId = null }) => {
       let data;
       
       // Load specific portfolio or default portfolio
-      if (portfolioId) {
-        data = await portfolioApi.getPortfolio(portfolioId, language);
+      if (resolvedPortfolioId) {
+        data = await portfolioApi.getPortfolio(resolvedPortfolioId, language);
       } else {
         data = await portfolioApi.getDefaultPortfolio(language);
       }
@@ -45,7 +85,7 @@ export const PortfolioProvider = ({ children, portfolioId = null }) => {
     } finally {
       setLoading(false);
     }
-  }, [portfolioId, language]);
+  }, [resolvedPortfolioId, language]);
 
   /**
    * Refresh portfolio data (useful after CMS updates)
@@ -64,6 +104,7 @@ export const PortfolioProvider = ({ children, portfolioId = null }) => {
     portfolio,
     loading,
     error,
+    portfolioId: resolvedPortfolioId,
     refreshPortfolio,
     
     // Helper getters for common data access patterns
