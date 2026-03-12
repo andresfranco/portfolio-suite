@@ -127,7 +127,19 @@ const EditableProjectSection = ({ section, language, isEditMode, onContentReorde
   }, [section, language]);
 
   // Early return AFTER all hooks to avoid "Rendered fewer hooks than expected"
-  if (!sectionText) return null;
+  if (!sectionText) {
+    // In edit mode, show a placeholder so the section is still accessible for adding translations
+    if (isEditMode) {
+      return (
+        <div className={`relative ${isBordered ? "bg-gray-800/50 rounded-xl p-6 border border-dashed border-gray-600/50" : ""}`}>
+          <p className="text-gray-500 italic text-sm">
+            No content for this language. Click the edit button above to add a translation.
+          </p>
+        </div>
+      );
+    }
+    return null;
+  }
 
   /**
    * Handle drag end for section content

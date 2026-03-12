@@ -131,27 +131,37 @@ const Hero = () => {
 
   // Get experiences from API - memoize to prevent infinite loops
   const apiExperiences = useMemo(() => getExperiences(), [portfolio?.experiences]);
-  
+
   // Local state for optimistic UI updates during drag and drop
   const [experiences, setExperiences] = useState([]);
-  
+
   // Track if we're currently reordering to prevent sync conflicts
   const isReorderingRef = useRef(false);
-  
+
   // Track previous API experiences to detect actual changes
   const prevApiExperiencesRef = useRef([]);
-  
+
+  // Reset previous experiences ref when language changes so text updates are picked up
+  useEffect(() => {
+    prevApiExperiencesRef.current = [];
+  }, [language]);
+
   // Sync local state with API data (but not during reordering)
   useEffect(() => {
     if (!isReorderingRef.current) {
-      // Only update if the array contents actually changed
-      const hasChanged = 
+      // Only update if the array contents actually changed (IDs or translated text)
+      const hasChanged =
         apiExperiences.length !== prevApiExperiencesRef.current.length ||
         apiExperiences.some((exp, index) => {
           const prevExp = prevApiExperiencesRef.current[index];
-          return !prevExp || exp.id !== prevExp.id;
+          if (!prevExp || exp.id !== prevExp.id) return true;
+          // Also detect language-driven text changes or years updates
+          const newName = exp.experience_texts?.[0]?.name ?? '';
+          const prevName = prevExp.experience_texts?.[0]?.name ?? '';
+          if (newName !== prevName) return true;
+          return (exp.years ?? exp.years_experience) !== (prevExp.years ?? prevExp.years_experience);
         });
-      
+
       if (hasChanged) {
         setExperiences(apiExperiences);
         prevApiExperiencesRef.current = apiExperiences;
@@ -711,24 +721,23 @@ const Hero = () => {
               </div>
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-white mb-2">
-                  Remove Experience
+                  {translations[language].remove_experience_title}
                 </h3>
                 <p className="text-white/70 mb-4">
-                  Are you sure you want to remove <strong className="text-white">{getExperienceText(experienceToDelete).name}</strong> from your portfolio?
-                  This will not delete the experience permanently, only remove it from this portfolio.
+                  {translations[language].remove_experience_prefix} <strong className="text-white">{getExperienceText(experienceToDelete).name}</strong> {translations[language].remove_experience_message}
                 </p>
                 <div className="flex justify-end gap-3">
                   <button
                     onClick={() => setExperienceToDelete(null)}
                     className="btn-flat btn-flat-sm"
                   >
-                    Cancel
+                    {translations[language].remove_experience_cancel}
                   </button>
                   <button
                     onClick={confirmDeleteExperience}
                     className="btn-flat btn-flat-sm text-red-300 hover:text-red-100"
                   >
-                    Remove
+                    {translations[language].remove_experience_confirm}
                   </button>
                 </div>
               </div>

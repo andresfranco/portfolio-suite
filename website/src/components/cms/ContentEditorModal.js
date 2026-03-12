@@ -92,7 +92,7 @@ export const ContentEditorModal = ({
         setFormData({
           id: item.id,
           code: item.code || '',
-          years: item.years || item.years_experience || '',
+          years: item.years ?? item.years_experience ?? '',
           icon: item.icon || 'code',
           repository_url: item.repository_url || '',
           website_url: item.website_url || '',

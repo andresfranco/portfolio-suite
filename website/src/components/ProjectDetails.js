@@ -327,6 +327,7 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
 
     try {
       await portfolioApi.removeSectionFromProject(project.id, confirmDeleteSection, authToken);
+      await portfolioApi.deleteSection(confirmDeleteSection, authToken);
       await refreshPortfolio();
       setConfirmDeleteSection(null);
     } catch (error) {
@@ -906,22 +907,29 @@ const ProjectDetails = ({ project, onBackClick, onPreviousClick, onNextClick }) 
       {confirmDeleteSection && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4">
           <div className="bg-gray-800 rounded-xl p-6 max-w-md w-full border border-gray-700">
-            <h3 className="text-xl font-bold text-white mb-4">Confirm Delete</h3>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 rounded-lg bg-red-500/20 text-red-400">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-white">{translations[language].delete_section_title}</h3>
+            </div>
             <p className="text-gray-300 mb-6">
-              Are you sure you want to remove this section from the project? This will not delete the section itself, only remove it from this project.
+              {translations[language].delete_section_message}
             </p>
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setConfirmDeleteSection(null)}
                 className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
               >
-                Cancel
+                {translations[language].delete_section_cancel}
               </button>
               <button
                 onClick={confirmSectionDeletion}
                 className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
               >
-                Delete
+                {translations[language].delete_section_confirm}
               </button>
             </div>
           </div>

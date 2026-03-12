@@ -24,17 +24,17 @@ const ExperienceDetails = ({ experience, onBackClick, onPreviousClick, onNextCli
 
   // Handle years edit open
   const handleOpenYearsEdit = () => {
-    setYearsValue(experience.years_experience || experience.years || '');
+    setYearsValue(experience.years ?? experience.years_experience ?? '');
     setYearsLabelValue(translations[language].years_experience || 'Years of Experience');
     setIsEditingYears(true);
   };
 
   // Handle years save
   const handleSaveYears = async () => {
-    const currentYears = experience.years_experience || experience.years;
-    const newYearsNum = parseInt(yearsValue);
+    const currentYears = experience.years ?? experience.years_experience;
+    const newYearsNum = parseInt(yearsValue, 10);
 
-    if (!yearsValue || isNaN(newYearsNum)) {
+    if (yearsValue === '' || isNaN(newYearsNum)) {
       showNotification('Validation Error', 'Please enter a valid number', 'error');
       return;
     }
@@ -49,7 +49,7 @@ const ExperienceDetails = ({ experience, onBackClick, onPreviousClick, onNextCli
       const portfolioApi = await import('../services/portfolioApi');
       await portfolioApi.default.updateExperienceMetadata(
         experience.id,
-        { years_experience: newYearsNum },
+        { years: newYearsNum },
         authToken
       );
       await refreshPortfolio();
@@ -168,12 +168,20 @@ const ExperienceDetails = ({ experience, onBackClick, onPreviousClick, onNextCli
                 <div>
                   {isEditMode ? (
                     <div
-                      className="flex items-baseline gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+                      className="relative inline-flex items-baseline gap-2 cursor-pointer group"
                       onClick={handleOpenYearsEdit}
                       title="Click to edit"
                     >
-                      <span className="text-2xl font-bold text-[#14C800]">{experience.years_experience || experience.years}+</span>
+                      <span className="text-2xl font-bold text-[#14C800]">{experience.years ?? experience.years_experience}+</span>
                       <span className="text-white/80">{translations[language].years_experience}</span>
+                      {/* Underline indicator */}
+                      <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></span>
+                      {/* Edit icon */}
+                      <span className="absolute -top-1 -right-6 opacity-0 group-hover:opacity-100 transition-opacity text-blue-500">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </span>
                     </div>
                   ) : (
                     <div className="flex items-baseline gap-2">

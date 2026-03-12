@@ -55,7 +55,18 @@ export const translations = {
     validation_subject_required: "Please enter a subject",
     validation_subject_min_length: "Subject must be at least 3 characters",
     validation_message_required: "Please enter your message",
-    validation_message_min_length: "Message must be at least 10 characters"
+    validation_message_min_length: "Message must be at least 10 characters",
+    // Delete Section Dialog
+    delete_section_title: "Delete Section",
+    delete_section_message: "Are you sure you want to delete this section? It will be permanently deleted in all languages and cannot be undone.",
+    delete_section_confirm: "Delete",
+    delete_section_cancel: "Cancel",
+    // Remove Experience Dialog
+    remove_experience_title: "Remove Experience",
+    remove_experience_prefix: "Are you sure you want to remove",
+    remove_experience_message: "from your portfolio? This will not delete the experience permanently, only remove it from this portfolio.",
+    remove_experience_confirm: "Remove",
+    remove_experience_cancel: "Cancel"
   },
   es: {
     home: "Inicio",
@@ -113,6 +124,17 @@ export const translations = {
     validation_subject_required: "Por favor ingresa un asunto",
     validation_subject_min_length: "El asunto debe tener al menos 3 caracteres",
     validation_message_required: "Por favor ingresa tu mensaje",
-    validation_message_min_length: "El mensaje debe tener al menos 10 caracteres"
+    validation_message_min_length: "El mensaje debe tener al menos 10 caracteres",
+    // Delete Section Dialog
+    delete_section_title: "Eliminar Sección",
+    delete_section_message: "¿Estás seguro de que deseas eliminar esta sección? Se eliminará permanentemente en todos los idiomas y no se puede deshacer.",
+    delete_section_confirm: "Eliminar",
+    delete_section_cancel: "Cancelar",
+    // Remove Experience Dialog
+    remove_experience_title: "Eliminar Experiencia",
+    remove_experience_prefix: "¿Estás seguro de que deseas eliminar",
+    remove_experience_message: "de tu portafolio? Esto no eliminará la experiencia permanentemente, solo la eliminará de este portafolio.",
+    remove_experience_confirm: "Eliminar",
+    remove_experience_cancel: "Cancelar"
   }
 };

@@ -273,7 +273,7 @@ export const portfolioApi = {
             'Content-Type': 'application/json',
           },
           credentials: 'include',
-          cache: bypassHttpCache ? 'reload' : 'default',
+          cache: bypassHttpCache ? 'reload' : 'no-cache',
         }
       );
       const data = await handleResponse(response);
@@ -309,7 +309,7 @@ export const portfolioApi = {
           headers: {
             'Content-Type': 'application/json',
           },
-          cache: bypassHttpCache ? 'reload' : 'default',
+          cache: bypassHttpCache ? 'reload' : 'no-cache',
         }
       );
       const data = await handleResponse(response);

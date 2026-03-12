@@ -146,20 +146,14 @@ def update_section(db: Session, section_id: int, section: SectionUpdate):
             existing_texts = db.query(SectionText).filter(SectionText.section_id == section_id).all()
             existing_texts_by_lang = {text.language_id: text for text in existing_texts}
             
-            # Track which languages are in the update
-            updated_language_ids = set()
-            
             for text_data in section.section_texts:
                 # Verify language exists
                 language = db.query(Language).filter(Language.id == text_data.language_id).first()
                 if not language:
                     logger.error(f"Invalid language ID: {text_data.language_id}")
                     raise ValueError(f"Language with ID {text_data.language_id} not found")
-                
-                # Add to set of updated languages
-                updated_language_ids.add(text_data.language_id)
-                
-                # Update existing or create new
+
+                # Update existing or create new — never delete untouched languages
                 if text_data.language_id in existing_texts_by_lang:
                     logger.debug(f"Updating text for language ID {text_data.language_id}")
                     existing_text = existing_texts_by_lang[text_data.language_id]
@@ -175,12 +169,6 @@ def update_section(db: Session, section_id: int, section: SectionUpdate):
                         updated_by=1   # Default user ID
                     )
                     db.add(new_text)
-            
-            # Remove texts for languages that are not in the update
-            for lang_id, text in existing_texts_by_lang.items():
-                if lang_id not in updated_language_ids:
-                    logger.debug(f"Removing text for language ID {lang_id}")
-                    db.delete(text)
         
         logger.info(f"Successfully updated section {section_id}")
         return db_section
