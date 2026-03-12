@@ -721,24 +721,23 @@ const Hero = () => {
               </div>
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-white mb-2">
-                  Remove Experience
+                  {translations[language].remove_experience_title}
                 </h3>
                 <p className="text-white/70 mb-4">
-                  Are you sure you want to remove <strong className="text-white">{getExperienceText(experienceToDelete).name}</strong> from your portfolio?
-                  This will not delete the experience permanently, only remove it from this portfolio.
+                  {translations[language].remove_experience_prefix} <strong className="text-white">{getExperienceText(experienceToDelete).name}</strong> {translations[language].remove_experience_message}
                 </p>
                 <div className="flex justify-end gap-3">
                   <button
                     onClick={() => setExperienceToDelete(null)}
                     className="btn-flat btn-flat-sm"
                   >
-                    Cancel
+                    {translations[language].remove_experience_cancel}
                   </button>
                   <button
                     onClick={confirmDeleteExperience}
                     className="btn-flat btn-flat-sm text-red-300 hover:text-red-100"
                   >
-                    Remove
+                    {translations[language].remove_experience_confirm}
                   </button>
                 </div>
               </div>

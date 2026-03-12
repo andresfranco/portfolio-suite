@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useContext } from 'react';
 import { FaPlus, FaTrash, FaTimes, FaImage, FaFile, FaEdit, FaUpload, FaCheck, FaExclamationTriangle } from 'react-icons/fa';
 import { portfolioApi } from '../../services/portfolioApi';
 import { useEditMode } from '../../context/EditModeContext';
+import { LanguageContext } from '../../context/LanguageContext';
 import RichTextSectionEditor from './RichTextSectionEditorV2';
 
 /**
@@ -437,9 +438,20 @@ const ProjectSectionManager = ({ project, onUpdate }) => {
  */
 const SectionEditorDialog = ({ projectId, section, authToken, initialDisplayOrder = 0, onClose, onSuccess }) => {
   const isEditing = !!section;
+  const { language } = useContext(LanguageContext);
+
+  // Map language code to language_id
+  const LANGUAGE_ID_MAP = { en: 1, es: 2 };
+  const currentLanguageId = LANGUAGE_ID_MAP[language] || 1;
+
+  // When editing, initialize with the text for the current language only
+  const currentLangText = section?.section_texts?.find(
+    t => t.language?.code === language || t.language_id === currentLanguageId
+  );
+
   const [formData, setFormData] = useState({
     code: section?.code || '',
-    section_texts: section?.section_texts || [{ language_id: 1, text: '' }],
+    section_texts: [{ language_id: currentLanguageId, text: currentLangText?.text || '' }],
     display_style: section?.display_style || 'bordered',
   });
   const [loading, setLoading] = useState(false);
@@ -570,7 +582,7 @@ const SectionEditorDialog = ({ projectId, section, authToken, initialDisplayOrde
         // Use currentHtml which was captured from the editor
         const sectionData = {
           code: formData.code,
-          section_texts: [{ language_id: 1, text: currentHtml }],
+          section_texts: [{ language_id: currentLanguageId, text: currentHtml }],
           display_style: formData.display_style
         };
         await portfolioApi.updateSection(section.id, sectionData, authToken);
@@ -581,7 +593,7 @@ const SectionEditorDialog = ({ projectId, section, authToken, initialDisplayOrde
         // Use currentHtml which was captured from the editor
         const sectionData = {
           code: formData.code,
-          section_texts: [{ language_id: 1, text: currentHtml }],
+          section_texts: [{ language_id: currentLanguageId, text: currentHtml }],
           display_order: initialDisplayOrder,
           display_style: formData.display_style
         };
@@ -652,7 +664,7 @@ const SectionEditorDialog = ({ projectId, section, authToken, initialDisplayOrde
           if (updatedHtml !== formData.section_texts[0].text) {
             try {
               await portfolioApi.updateSection(newSectionId, {
-                section_texts: [{ language_id: 1, text: updatedHtml }]
+                section_texts: [{ language_id: currentLanguageId, text: updatedHtml }]
               }, authToken);
             } catch (updateErr) {
               console.error('[IMAGE UPLOAD] Failed to update section HTML:', updateErr);
