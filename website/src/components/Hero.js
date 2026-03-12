@@ -155,10 +155,11 @@ const Hero = () => {
         apiExperiences.some((exp, index) => {
           const prevExp = prevApiExperiencesRef.current[index];
           if (!prevExp || exp.id !== prevExp.id) return true;
-          // Also detect language-driven text changes
+          // Also detect language-driven text changes or years updates
           const newName = exp.experience_texts?.[0]?.name ?? '';
           const prevName = prevExp.experience_texts?.[0]?.name ?? '';
-          return newName !== prevName;
+          if (newName !== prevName) return true;
+          return (exp.years ?? exp.years_experience) !== (prevExp.years ?? prevExp.years_experience);
         });
 
       if (hasChanged) {
