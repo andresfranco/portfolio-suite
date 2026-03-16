@@ -21,6 +21,7 @@ from app.models.portfolio import portfolio_experiences, portfolio_projects
 from app.models.project import Project, ProjectText, project_skills
 from app.models.skill import Skill, SkillText
 from app.services.career_scoring import (
+    JobFitResult,
     SkillEvidence,
     compute_job_fit,
     compute_overall_readiness,
@@ -216,8 +217,6 @@ def compute_and_store_sync_sections(
     }
 
     # ── Score each job ───────────────────────────────────────────────────────
-    from app.services.career_scoring import JobFitResult  # local import to avoid circular
-
     job_fit_results: list[JobFitResult] = []
 
     for job in jobs:
