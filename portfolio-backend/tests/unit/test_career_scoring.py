@@ -166,11 +166,12 @@ class TestComputeJobFit:
         assert score == pytest.approx(25.0)
         assert verdict == "ASPIRATIONAL"
 
-    def test_verdict_best_fit_above_60(self):
-        scorecard = self._make_scorecard([(3, True), (4, True), (1, True)])
+    def test_all_required_matched_at_level_1(self):
+        """level=1 counts as matched (level > 0)."""
+        scorecard = self._make_scorecard([(1, True), (1, True)])
         score, verdict = compute_job_fit(scorecard)
-        # 2 matched out of 3 required → (2*2) / (2*3) * 100 = 66.7
-        assert score == pytest.approx(200 / 3, rel=1e-3)
+        # both level=1 matched → (2*2)/(2*2)*100 = 100.0
+        assert score == pytest.approx(100.0)
         assert verdict == "BEST FIT"
 
 

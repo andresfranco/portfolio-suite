@@ -94,7 +94,7 @@ def compute_scorecard(
 def compute_job_fit(scorecard: list[ScorecardItem]) -> tuple[float, str]:
     """
     Formula: (2 * matched_required + matched_optional) / (2 * total_required + total_optional) * 100
-    'matched' = level >= 2 (meaningful proficiency, not just exposure).
+    'matched' = level > 0 (any evidence found).
     Edge case: no skills → 100% (no requirements = no gaps).
     """
     if not scorecard:
@@ -102,8 +102,8 @@ def compute_job_fit(scorecard: list[ScorecardItem]) -> tuple[float, str]:
 
     total_required = sum(1 for s in scorecard if s["is_required"])
     total_optional = sum(1 for s in scorecard if not s["is_required"])
-    matched_required = sum(1 for s in scorecard if s["is_required"] and s["level"] >= 2)
-    matched_optional = sum(1 for s in scorecard if not s["is_required"] and s["level"] >= 2)
+    matched_required = sum(1 for s in scorecard if s["is_required"] and s["level"] > 0)
+    matched_optional = sum(1 for s in scorecard if not s["is_required"] and s["level"] > 0)
 
     denominator = 2 * total_required + total_optional
     if denominator == 0:
