@@ -1,7 +1,6 @@
 """SQLAlchemy ORM models for the Career Operating System module."""
-from datetime import datetime
 from sqlalchemy import (
-    Boolean, Column, DateTime, ForeignKey, Integer, String, Table, Text
+    Boolean, Column, DateTime, ForeignKey, Integer, String, Table, Text, func
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
@@ -14,7 +13,7 @@ career_objective_job = Table(
     Base.metadata,
     Column("objective_id", Integer, ForeignKey("career_objective.id", ondelete="CASCADE"), primary_key=True),
     Column("job_id",       Integer, ForeignKey("career_job.id",       ondelete="CASCADE"), primary_key=True),
-    Column("added_at",     DateTime, default=datetime.utcnow),
+    Column("added_at",     DateTime(timezone=True), server_default=func.now()),
 )
 
 career_assessment_run_job = Table(
@@ -35,8 +34,8 @@ class CareerObjective(Base):
     name         = Column(String(255), nullable=False, default="Career Growth")
     description  = Column(Text, nullable=True)
     status       = Column(String(50), nullable=False, default="active")   # active | archived
-    created_at   = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at   = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at   = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at   = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     created_by   = Column(Integer, nullable=False)
     updated_by   = Column(Integer, nullable=False)
 
@@ -60,8 +59,8 @@ class CareerJob(Base):
     description = Column(Text, nullable=True)
     status      = Column(String(50), nullable=False, default="saved")  # saved|applied|interviewing|offer|rejected
     notes       = Column(Text, nullable=True)
-    created_at  = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at  = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     created_by  = Column(Integer, nullable=False)
     updated_by  = Column(Integer, nullable=False)
 
@@ -96,7 +95,7 @@ class CareerAssessmentRun(Base):
     action_plan_json     = Column(JSONB, nullable=True)
     ai_status            = Column(String(20), nullable=False, default="pending")  # pending|running|complete|failed
     ai_task_id           = Column(String(255), nullable=True)
-    created_at           = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at           = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     created_by           = Column(Integer, nullable=False)
 
     objective = relationship("CareerObjective", back_populates="runs")
