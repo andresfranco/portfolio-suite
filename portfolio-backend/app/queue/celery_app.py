@@ -78,6 +78,8 @@ def _register_tasks(app: Celery) -> None:
 try:
     if is_enabled():
         _register_tasks(get_celery())
+        # Import task sub-packages so their @celery_app.task decorators fire.
+        import app.queue.tasks  # noqa: F401  — registers career tasks
 except Exception:
     # Do not fail app import if celery misconfigured
     pass
