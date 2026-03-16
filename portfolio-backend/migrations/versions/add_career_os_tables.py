@@ -89,6 +89,7 @@ def upgrade() -> None:
         sa.Column('created_by',           sa.Integer(),   nullable=False),
     )
     op.create_index('ix_career_assessment_run_objective_id', 'career_assessment_run', ['objective_id'])
+    op.create_index('ix_career_assessment_run_portfolio_id', 'career_assessment_run', ['portfolio_id'])
 
     # career_assessment_run_job (M2M snapshot)
     op.create_table(
@@ -110,6 +111,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.execute("DELETE FROM permissions WHERE name IN ('VIEW_CAREER', 'MANAGE_CAREER')")
     op.drop_table('career_assessment_run_job')
+    op.drop_index('ix_career_assessment_run_portfolio_id', table_name='career_assessment_run')
     op.drop_index('ix_career_assessment_run_objective_id', table_name='career_assessment_run')
     op.drop_table('career_assessment_run')
     op.drop_table('career_objective_job')
