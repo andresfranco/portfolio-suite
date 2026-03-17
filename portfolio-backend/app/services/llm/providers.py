@@ -96,12 +96,12 @@ class AnthropicProvider:
 
     def chat(self, *, model: str, system_prompt: str, messages: List[Dict[str, str]]) -> Dict[str, Any]:
         started = time.time()
-        # Flatten messages to a single prompt; simple non-streaming Claude Messages API
-        text_parts: List[Dict[str, str]] = []
-        if system_prompt:
-            text_parts.append({"role": "system", "content": system_prompt})
-        text_parts.extend(messages)
-        resp = self.client.messages.create(model=model, max_tokens=1024, messages=text_parts)
+        resp = self.client.messages.create(
+            model=model,
+            max_tokens=1024,
+            system=system_prompt,
+            messages=messages,
+        )
         content = "".join([b.text for b in resp.content if getattr(b, "type", "") == "text"])  # type: ignore
         latency_ms = int((time.time() - started) * 1000)
         return {"text": content, "usage": {}, "latency_ms": latency_ms}
