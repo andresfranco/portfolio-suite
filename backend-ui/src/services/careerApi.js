@@ -25,3 +25,20 @@ export const getScorecard    = (runId) => api.get(`/api/career/runs/${runId}/sco
 export const getJobFit       = (runId) => api.get(`/api/career/runs/${runId}/job-fit`);
 export const getResumeIssues = (runId) => api.get(`/api/career/runs/${runId}/resume-issues`);
 export const getActionPlan   = (runId) => api.get(`/api/career/runs/${runId}/action-plan`);
+
+// Skills
+export const searchSkills = (q) => api.get('/api/career/skills/search', { params: { q, limit: 20 } });
+export const ensureSkill  = (name) => api.post('/api/career/skills/ensure', { name });
+
+// Run readiness
+export const getRunReadiness = (objectiveId) => api.get(`/api/career/objectives/${objectiveId}/run-readiness`);
+
+// Diagnostics
+export const testAnthropicConnectivity = () => api.post('/api/career/diagnostics/anthropic');
+
+// Portfolio attachments (for resume selection in run dialog)
+export const getPortfolioAttachments = (portfolioId) => api.get(`/api/portfolios/${portfolioId}/attachments`);
+export const uploadPortfolioAttachment = (portfolioId, formData) =>
+  api.post(`/api/portfolios/${portfolioId}/attachments`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });

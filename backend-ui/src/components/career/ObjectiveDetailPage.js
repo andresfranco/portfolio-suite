@@ -4,7 +4,7 @@ import {
   Box, Tabs, Tab, Typography, Chip, Button, Paper, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, IconButton, CircularProgress,
   Dialog, DialogTitle, DialogContent, DialogActions, FormControlLabel, Checkbox,
-  TextField, Alert, Divider
+  TextField, Alert, Divider, Select, InputLabel, FormControl, MenuItem
 } from '@mui/material';
 import { Delete as DeleteIcon, PlayArrow as RunIcon, Add as AddIcon } from '@mui/icons-material';
 import * as careerApi from '../../services/careerApi';
@@ -18,18 +18,85 @@ const TabPanel = ({ children, value, index }) => (
   </Box>
 );
 
+const ReadinessCheckDialog = ({ open, onClose, objectiveId, onProceed }) => {
+  const [checks, setChecks] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true);
+    careerApi.getRunReadiness(objectiveId)
+      .then((res) => {
+        setChecks(res.data.checks || []);
+        setReady(res.data.ready);
+      })
+      .catch(() => setChecks([]))
+      .finally(() => setLoading(false));
+  }, [open, objectiveId]);
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>Assessment Readiness Check</DialogTitle>
+      <DialogContent sx={{ pt: 2 }}>
+        {loading ? (
+          <Box display="flex" justifyContent="center" py={2}><CircularProgress /></Box>
+        ) : (
+          <Box display="flex" flexDirection="column" gap={1.5}>
+            {checks.map((c) => (
+              <Box key={c.key}>
+                <Box display="flex" alignItems="center" gap={1}>
+                  <Typography>{c.passed ? '✅' : '❌'}</Typography>
+                  <Typography variant="body2" fontWeight={c.passed ? 400 : 600}>
+                    {c.label}
+                  </Typography>
+                </Box>
+                {!c.passed && c.detail && (
+                  <Typography variant="caption" color="text.secondary" sx={{ pl: 3 }}>
+                    {c.detail}
+                  </Typography>
+                )}
+              </Box>
+            ))}
+          </Box>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button variant="contained" onClick={onProceed} disabled={!ready || loading}>
+          Continue
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
 const AssessmentRunDialog = ({ open, onClose, objective, onCreated }) => {
   const navigate = useNavigate();
   const [selectedJobs, setSelectedJobs] = useState([]);
   const [runName, setRunName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [attachments, setAttachments] = useState([]);
+  const [attachmentsLoading, setAttachmentsLoading] = useState(false);
+  const [selectedAttachmentId, setSelectedAttachmentId] = useState('');
+  const [resumeFile, setResumeFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (open && objective?.jobs) {
       setSelectedJobs(objective.jobs.map((j) => j.id));
       setRunName('');
       setError(null);
+      setSelectedAttachmentId('');
+      setResumeFile(null);
+      if (objective.portfolio_id) {
+        setAttachmentsLoading(true);
+        careerApi.getPortfolioAttachments(objective.portfolio_id)
+          .then((res) => setAttachments(res.data || []))
+          .catch(() => setAttachments([]))
+          .finally(() => setAttachmentsLoading(false));
+      }
     }
   }, [open, objective]);
 
@@ -40,21 +107,34 @@ const AssessmentRunDialog = ({ open, onClose, objective, onCreated }) => {
   };
 
   const handleSubmit = async () => {
-    if (selectedJobs.length === 0) {
-      setError('Select at least one job.');
-      return;
-    }
+    if (selectedJobs.length === 0) { setError('Select at least one job.'); return; }
     setSubmitting(true);
     setError(null);
     try {
+      let resumeAttachmentId = selectedAttachmentId ? parseInt(selectedAttachmentId, 10) : null;
+
+      if (resumeFile) {
+        setUploading(true);
+        const formData = new FormData();
+        formData.append('file', resumeFile);
+        formData.append('file_name', resumeFile.name);
+        const uploadRes = await careerApi.uploadPortfolioAttachment(
+          objective.portfolio_id,
+          formData
+        );
+        resumeAttachmentId = uploadRes.data.id;
+        setUploading(false);
+      }
+
       const res = await careerApi.createRun(objective.id, {
         name: runName || undefined,
         job_ids: selectedJobs,
+        resume_attachment_id: resumeAttachmentId || null,
       });
-      const newRunId = res.data.id;
       onClose();
-      navigate(`/career/runs/${newRunId}`);
+      navigate(`/career/runs/${res.data.id}`);
     } catch (err) {
+      setUploading(false);
       setError(err.response?.data?.message || err.message || 'Failed to create run');
     } finally {
       setSubmitting(false);
@@ -66,17 +146,18 @@ const AssessmentRunDialog = ({ open, onClose, objective, onCreated }) => {
       <DialogTitle>Run Assessment</DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
         {error && <Alert severity="error">{error}</Alert>}
+
         <TextField
           label="Run Name (optional)"
           value={runName}
           onChange={(e) => setRunName(e.target.value)}
           fullWidth
+          size="small"
         />
+
         <Typography variant="subtitle2">Select jobs to include:</Typography>
         {objective?.jobs?.length === 0 && (
-          <Typography color="text.secondary" variant="body2">
-            No jobs linked to this objective.
-          </Typography>
+          <Typography color="text.secondary" variant="body2">No jobs linked.</Typography>
         )}
         {objective?.jobs?.map((job) => (
           <FormControlLabel
@@ -90,6 +171,48 @@ const AssessmentRunDialog = ({ open, onClose, objective, onCreated }) => {
             label={`${job.title} — ${job.company}`}
           />
         ))}
+
+        <Divider />
+        <Typography variant="subtitle2">Resume (optional but recommended)</Typography>
+
+        {attachmentsLoading ? (
+          <CircularProgress size={20} />
+        ) : attachments.length > 0 ? (
+          <FormControl fullWidth size="small">
+            <InputLabel>Select existing resume</InputLabel>
+            <Select
+              value={selectedAttachmentId}
+              label="Select existing resume"
+              onChange={(e) => { setSelectedAttachmentId(e.target.value); setResumeFile(null); }}
+            >
+              <MenuItem value="">— None —</MenuItem>
+              {attachments.map((a) => (
+                <MenuItem key={a.id} value={a.id}>{a.file_name}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        ) : null}
+
+        <Box>
+          <Typography variant="caption" color="text.secondary">
+            Or upload a new resume (PDF):
+          </Typography>
+          <input
+            type="file"
+            accept=".pdf,.doc,.docx"
+            style={{ display: 'block', marginTop: 4 }}
+            onChange={(e) => {
+              const f = e.target.files?.[0] || null;
+              setResumeFile(f);
+              if (f) setSelectedAttachmentId('');
+            }}
+          />
+          {resumeFile && (
+            <Typography variant="caption" color="success.main">
+              {resumeFile.name} selected
+            </Typography>
+          )}
+        </Box>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={submitting}>Cancel</Button>
@@ -97,25 +220,32 @@ const AssessmentRunDialog = ({ open, onClose, objective, onCreated }) => {
           variant="contained"
           onClick={handleSubmit}
           disabled={submitting || selectedJobs.length === 0}
-          startIcon={submitting ? <CircularProgress size={16} /> : <RunIcon />}
+          startIcon={(submitting || uploading) ? <CircularProgress size={16} /> : <RunIcon />}
         >
-          Run
+          {uploading ? 'Uploading…' : 'Run'}
         </Button>
       </DialogActions>
     </Dialog>
   );
 };
 
-const AddJobDialog = ({ open, onClose, objectiveId, existingJobIds, allJobs, onAdded }) => {
+const AddJobDialog = ({ open, onClose, objectiveId, existingJobIds, onAdded }) => {
   const { linkJob } = useCareer();
   const [search, setSearch] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [allJobs, setAllJobs] = useState([]);
+  const [jobsLoading, setJobsLoading] = useState(false);
 
   useEffect(() => {
     if (open) {
       setSearch('');
       setError(null);
+      setJobsLoading(true);
+      careerApi.listJobs({ limit: 200, offset: 0 })
+        .then(res => setAllJobs(res.data.items || []))
+        .catch(() => setAllJobs([]))
+        .finally(() => setJobsLoading(false));
     }
   }, [open]);
 
@@ -150,8 +280,14 @@ const AddJobDialog = ({ open, onClose, objectiveId, existingJobIds, allJobs, onA
           onChange={(e) => setSearch(e.target.value)}
           fullWidth
           size="small"
+          disabled={jobsLoading}
         />
-        {available.length === 0 && (
+        {jobsLoading && (
+          <Box display="flex" justifyContent="center" py={1}>
+            <CircularProgress size={24} />
+          </Box>
+        )}
+        {!jobsLoading && available.length === 0 && (
           <Typography color="text.secondary" variant="body2">
             No available jobs to add.
           </Typography>
@@ -196,7 +332,7 @@ const AddJobDialog = ({ open, onClose, objectiveId, existingJobIds, allJobs, onA
 const ObjectiveDetailPage = () => {
   const { objectiveId } = useParams();
   const navigate = useNavigate();
-  const { unlinkJob, jobs: allJobs } = useCareer();
+  const { unlinkJob } = useCareer();
   const { hasPermission } = useAuthorization();
 
   const [tab, setTab] = useState(0);
@@ -206,6 +342,7 @@ const ObjectiveDetailPage = () => {
   const [error, setError] = useState(null);
   const [editOpen, setEditOpen] = useState(false);
   const [runDialogOpen, setRunDialogOpen] = useState(false);
+  const [readinessOpen, setReadinessOpen] = useState(false);
   const [addJobOpen, setAddJobOpen] = useState(false);
 
   const fetchObjective = useCallback(async () => {
@@ -283,7 +420,7 @@ const ObjectiveDetailPage = () => {
               <Button
                 variant="contained"
                 startIcon={<RunIcon />}
-                onClick={() => setRunDialogOpen(true)}
+                onClick={() => setReadinessOpen(true)}
                 disabled={(objective.jobs || []).length === 0}
               >
                 Run Assessment
@@ -460,6 +597,13 @@ const ObjectiveDetailPage = () => {
         objective={objective}
       />
 
+      <ReadinessCheckDialog
+        open={readinessOpen}
+        onClose={() => setReadinessOpen(false)}
+        objectiveId={objectiveId}
+        onProceed={() => { setReadinessOpen(false); setRunDialogOpen(true); }}
+      />
+
       <AssessmentRunDialog
         open={runDialogOpen}
         onClose={() => setRunDialogOpen(false)}
@@ -471,7 +615,6 @@ const ObjectiveDetailPage = () => {
         onClose={() => setAddJobOpen(false)}
         objectiveId={objectiveId}
         existingJobIds={linkedJobIds}
-        allJobs={allJobs}
         onAdded={() => {
           setAddJobOpen(false);
           fetchObjective();

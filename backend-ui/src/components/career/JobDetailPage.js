@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box, Tabs, Tab, Typography, Chip, Button, Paper, CircularProgress,
   Alert, Dialog, DialogTitle, DialogContent, DialogActions,
-  Table, TableBody, TableCell, TableHead, TableRow, TextField, IconButton
+  Table, TableBody, TableCell, TableHead, TableRow, TextField, IconButton,
+  Autocomplete
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -33,30 +34,62 @@ const statusColor = (status) => {
 
 const EditSkillsDialog = ({ open, onClose, job, onUpdated }) => {
   const [skills, setSkills] = useState([]);
-  const [newSkillId, setNewSkillId] = useState('');
-  const [newSkillName, setNewSkillName] = useState('');
+  const [inputValue, setInputValue] = useState('');
+  const [options, setOptions] = useState([]);
+  const [optionsLoading, setOptionsLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     if (open && job) {
-      setSkills(job.required_skills || []);
-      setNewSkillId('');
-      setNewSkillName('');
+      setSkills(
+        (job.skills || []).map((s) => ({
+          skill_id: s.skill_id,
+          name: s.name || `Skill ${s.skill_id}`,
+        }))
+      );
+      setInputValue('');
+      setOptions([]);
       setError(null);
     }
   }, [open, job]);
 
-  const handleAdd = () => {
-    const id = parseInt(newSkillId, 10);
-    if (!id || skills.some((s) => s.skill_id === id)) {
-      setError('Enter a valid unique skill ID.');
-      return;
-    }
-    setSkills((prev) => [...prev, { skill_id: id, name: newSkillName || `Skill ${id}` }]);
-    setNewSkillId('');
-    setNewSkillName('');
+  // Debounced search
+  useEffect(() => {
+    if (!inputValue) { setOptions([]); return; }
+    const timer = setTimeout(async () => {
+      setOptionsLoading(true);
+      try {
+        const res = await careerApi.searchSkills(inputValue);
+        setOptions(res.data || []);
+      } catch {
+        setOptions([]);
+      } finally {
+        setOptionsLoading(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [inputValue]);
+
+  const handleSelect = async (_, newValue) => {
+    if (!newValue) return;
+    const name = typeof newValue === 'string'
+      ? newValue
+      : newValue.inputValue || newValue.name;
+    if (!name?.trim()) return;
+    if (skills.some((s) => s.name.toLowerCase() === name.toLowerCase())) return;
+
     setError(null);
+    try {
+      const res = await careerApi.ensureSkill(name.trim());
+      const { id, name: resolvedName } = res.data;
+      if (!skills.some((s) => s.skill_id === id)) {
+        setSkills((prev) => [...prev, { skill_id: id, name: resolvedName }]);
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to add skill');
+    }
+    setInputValue('');
   };
 
   const handleRemove = (skillId) => {
@@ -67,7 +100,10 @@ const EditSkillsDialog = ({ open, onClose, job, onUpdated }) => {
     setSubmitting(true);
     setError(null);
     try {
-      await careerApi.updateJobSkills(job.id, skills.map((s) => ({ skill_id: s.skill_id, name: s.name })));
+      await careerApi.updateJobSkills(
+        job.id,
+        skills.map((s) => ({ skill_id: s.skill_id, name: s.name }))
+      );
       onUpdated();
       onClose();
     } catch (err) {
@@ -83,26 +119,34 @@ const EditSkillsDialog = ({ open, onClose, job, onUpdated }) => {
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
         {error && <Alert severity="error">{error}</Alert>}
 
-        <Box display="flex" gap={1}>
-          <TextField
-            size="small"
-            label="Skill ID"
-            type="number"
-            value={newSkillId}
-            onChange={(e) => setNewSkillId(e.target.value)}
-            sx={{ width: 100 }}
-          />
-          <TextField
-            size="small"
-            label="Skill Name"
-            value={newSkillName}
-            onChange={(e) => setNewSkillName(e.target.value)}
-            sx={{ flex: 1 }}
-          />
-          <Button variant="outlined" startIcon={<AddIcon />} onClick={handleAdd}>
-            Add
-          </Button>
-        </Box>
+        <Autocomplete
+          freeSolo
+          options={options}
+          getOptionLabel={(opt) => (typeof opt === 'string' ? opt : opt.name || '')}
+          filterOptions={(opts, params) => {
+            const input = params.inputValue.toLowerCase();
+            const filtered = opts.filter((o) => o.name.toLowerCase().includes(input));
+            if (
+              params.inputValue.trim() &&
+              !filtered.some((o) => o.name.toLowerCase() === params.inputValue.toLowerCase())
+            ) {
+              filtered.push({ inputValue: params.inputValue, name: `Add "${params.inputValue}"` });
+            }
+            return filtered;
+          }}
+          loading={optionsLoading}
+          inputValue={inputValue}
+          onInputChange={(_, val) => setInputValue(val)}
+          onChange={handleSelect}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              size="small"
+              label="Search or add skill"
+              placeholder="Type a skill name…"
+            />
+          )}
+        />
 
         {skills.length === 0 ? (
           <Typography color="text.secondary" variant="body2">No skills added yet.</Typography>
@@ -111,7 +155,7 @@ const EditSkillsDialog = ({ open, onClose, job, onUpdated }) => {
             {skills.map((s) => (
               <Chip
                 key={s.skill_id}
-                label={`${s.name} (ID: ${s.skill_id})`}
+                label={s.name}
                 onDelete={() => handleRemove(s.skill_id)}
               />
             ))}
@@ -325,7 +369,7 @@ const JobDetailPage = () => {
       <TabPanel value={tab} index={1}>
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
           <Typography variant="subtitle1">
-            Required Skills ({(job.required_skills || []).length})
+            Required Skills ({(job.skills || []).length})
           </Typography>
           {hasPermission('MANAGE_CAREER') && (
             <Button
@@ -338,13 +382,13 @@ const JobDetailPage = () => {
             </Button>
           )}
         </Box>
-        {(job.required_skills || []).length === 0 ? (
+        {(job.skills || []).length === 0 ? (
           <Typography color="text.secondary">No required skills defined.</Typography>
         ) : (
           <Box display="flex" flexWrap="wrap" gap={1}>
-            {job.required_skills.map((skill) => (
+            {job.skills.map((skill) => (
               <Chip
-                key={skill.skill_id || skill.id}
+                key={skill.id}
                 label={skill.name || `Skill ${skill.skill_id}`}
                 variant="outlined"
               />
