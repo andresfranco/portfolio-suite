@@ -30,7 +30,8 @@ try:
         security_dashboard,
         website,
         cms,
-        links
+        links,
+        career,
     )
     logger.debug("Successfully imported all endpoint modules")
 except ImportError as e:
@@ -78,6 +79,7 @@ try:
     api_router.include_router(rag_admin.router, prefix="/rag", tags=["RAG Admin"])
     api_router.include_router(agents.router, prefix="/agents", tags=["Agents"])
     api_router.include_router(security_dashboard.router, prefix="/admin/security", tags=["Security Dashboard"])
+    api_router.include_router(career.router, prefix="/career", tags=["Career OS"])
     logger.debug("Successfully included all routers")
 except Exception as e:
     logger.error(f"Error including router: {e}", exc_info=True)
