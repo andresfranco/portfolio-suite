@@ -126,3 +126,15 @@ class SectionStatusOut(BaseModel):
     """Returned by section endpoints when AI data is pending."""
     status: str  # "pending" | "running" | "complete" | "failed"
     data: Optional[dict] = None
+
+
+# ── Paginated list schemas ────────────────────────────────────────────────────
+
+class CareerJobListOut(BaseModel):
+    items: List[CareerJobOut]
+    total: int
+
+
+class CareerObjectiveListOut(BaseModel):
+    items: List[CareerObjectiveOut]
+    total: int

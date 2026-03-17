@@ -13,10 +13,12 @@ from app.schemas.career import (
     AssessmentRunCreate,
     AssessmentRunOut,
     CareerJobCreate,
+    CareerJobListOut,
     CareerJobOut,
     CareerJobSkillsUpdate,
     CareerJobUpdate,
     CareerObjectiveCreate,
+    CareerObjectiveListOut,
     CareerObjectiveOut,
     CareerObjectiveUpdate,
     SectionStatusOut,
@@ -74,7 +76,7 @@ def create_job(
     return career_crud.create_job(db, data, current_user.id)
 
 
-@router.get("/jobs", response_model=dict)
+@router.get("/jobs", response_model=CareerJobListOut)
 @require_permission("VIEW_CAREER")
 def list_jobs(
     limit: int = Query(50, ge=1, le=200),
@@ -88,7 +90,7 @@ def list_jobs(
     items, total = career_crud.list_jobs(
         db, limit=limit, offset=offset, status=status, company=company
     )
-    return {"items": items, "total": total}
+    return CareerJobListOut(items=items, total=total)
 
 
 @router.get("/jobs/{job_id}", response_model=CareerJobOut)
@@ -168,7 +170,7 @@ def create_objective(
     return career_crud.create_objective(db, data, current_user.id)
 
 
-@router.get("/objectives", response_model=dict)
+@router.get("/objectives", response_model=CareerObjectiveListOut)
 @require_permission("VIEW_CAREER")
 def list_objectives(
     limit: int = Query(50, ge=1, le=200),
@@ -178,7 +180,7 @@ def list_objectives(
 ):
     """List career objectives."""
     items, total = career_crud.list_objectives(db, limit=limit, offset=offset)
-    return {"items": items, "total": total}
+    return CareerObjectiveListOut(items=items, total=total)
 
 
 @router.get("/objectives/{objective_id}", response_model=CareerObjectiveOut)
