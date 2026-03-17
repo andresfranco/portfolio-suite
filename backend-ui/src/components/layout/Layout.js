@@ -39,7 +39,8 @@ import {
   AccountCircle as AccountCircleIcon,
   Logout as LogoutIcon,
   CollectionsBookmark as PortfolioIcon,
-  Shield as ShieldIcon
+  Shield as ShieldIcon,
+  TrendingUp as CareerIcon
 } from '@mui/icons-material';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
 import authService from '../../services/authService';
@@ -174,13 +175,27 @@ const Layout = () => {
       path: '/portfolios', 
       requiredPermission: 'VIEW_PORTFOLIOS' 
     },
-    { 
-      text: 'Sections', 
-      icon: <SectionIcon />, 
-      path: '/sections', 
-      requiredPermission: 'VIEW_SECTIONS' 
+    {
+      text: 'Sections',
+      icon: <SectionIcon />,
+      path: '/sections',
+      requiredPermission: 'VIEW_SECTIONS'
     },
-    
+
+    // Career OS
+    {
+      text: 'Career Objectives',
+      icon: <CareerIcon />,
+      path: '/career',
+      requiredPermission: 'VIEW_CAREER'
+    },
+    {
+      text: 'Career Jobs',
+      icon: <CareerIcon />,
+      path: '/career/jobs',
+      requiredPermission: 'VIEW_CAREER'
+    },
+
     // System Settings
     { 
       text: 'Languages', 
@@ -268,6 +283,10 @@ const Layout = () => {
           'Skills', 'Skill Types', 'Categories', 'Category Types', 
           'Experiences', 'Projects', 'Portfolios', 'Sections'
         ].includes(item.text))
+      },
+      {
+        title: 'Career',
+        items: items.filter(item => ['Career Objectives', 'Career Jobs'].includes(item.text))
       },
       {
         title: 'System',

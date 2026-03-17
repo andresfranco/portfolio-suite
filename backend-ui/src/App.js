@@ -51,6 +51,13 @@ import ExperienceDataPage from './pages/ExperienceDataPage';
 import SectionDataPage from './pages/SectionDataPage';
 
 import NotFound from './pages/NotFound';
+import { CareerProvider } from './contexts/CareerContext';
+import CareerIndex from './components/career/CareerIndex';
+import JobIndex from './components/career/JobIndex';
+import JobDetailPage from './components/career/JobDetailPage';
+import JobForm from './components/career/JobForm';
+import ObjectiveDetailPage from './components/career/ObjectiveDetailPage';
+import AssessmentRunPage from './components/career/AssessmentRunPage';
 
 // Wrapper component to access AuthorizationContext
 function AppContent() {
@@ -214,6 +221,34 @@ function AppContent() {
             <Route path="sections" element={<SectionIndex />} />
             <Route path="sections/:sectionId" element={<SectionDataPage />} />
             
+            {/* Career OS */}
+            <Route path="career" element={
+              <CareerProvider>
+                <CareerIndex />
+              </CareerProvider>
+            } />
+            <Route path="career/jobs" element={
+              <CareerProvider>
+                <JobIndex />
+              </CareerProvider>
+            } />
+            <Route path="career/jobs/new" element={
+              <CareerProvider>
+                <JobForm />
+              </CareerProvider>
+            } />
+            <Route path="career/jobs/:jobId" element={
+              <CareerProvider>
+                <JobDetailPage />
+              </CareerProvider>
+            } />
+            <Route path="career/objectives/:objectiveId" element={
+              <CareerProvider>
+                <ObjectiveDetailPage />
+              </CareerProvider>
+            } />
+            <Route path="career/runs/:runId" element={<AssessmentRunPage />} />
+
             {/* System Settings */}
             <Route path="languages" element={
               <LanguageIndex />
