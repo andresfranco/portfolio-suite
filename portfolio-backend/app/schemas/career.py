@@ -14,6 +14,7 @@ class CareerJobSkillItem(BaseModel):
 
 class CareerJobSkillOut(CareerJobSkillItem):
     id: int
+    name: Optional[str] = None
     model_config = {"from_attributes": True}
 
 

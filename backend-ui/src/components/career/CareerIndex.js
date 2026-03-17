@@ -156,7 +156,7 @@ const CareerIndex = () => {
         </TableContainer>
       )}
 
-      <DiagnosticsPanel />
+      {hasPermission('MANAGE_CAREER') && <DiagnosticsPanel />}
 
       <ObjectiveForm open={formOpen} onClose={() => setFormOpen(false)} />
     </Box>

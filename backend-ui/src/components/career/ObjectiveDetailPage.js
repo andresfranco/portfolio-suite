@@ -71,7 +71,7 @@ const ReadinessCheckDialog = ({ open, onClose, objectiveId, onProceed }) => {
   );
 };
 
-const AssessmentRunDialog = ({ open, onClose, objective, onCreated }) => {
+const AssessmentRunDialog = ({ open, onClose, objective }) => {
   const navigate = useNavigate();
   const [selectedJobs, setSelectedJobs] = useState([]);
   const [runName, setRunName] = useState('');
@@ -134,10 +134,10 @@ const AssessmentRunDialog = ({ open, onClose, objective, onCreated }) => {
       onClose();
       navigate(`/career/runs/${res.data.id}`);
     } catch (err) {
-      setUploading(false);
       setError(err.response?.data?.message || err.message || 'Failed to create run');
     } finally {
       setSubmitting(false);
+      setUploading(false);
     }
   };
 

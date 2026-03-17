@@ -121,6 +121,7 @@ const EditSkillsDialog = ({ open, onClose, job, onUpdated }) => {
 
         <Autocomplete
           freeSolo
+          value={null}
           options={options}
           getOptionLabel={(opt) => (typeof opt === 'string' ? opt : opt.name || '')}
           filterOptions={(opts, params) => {

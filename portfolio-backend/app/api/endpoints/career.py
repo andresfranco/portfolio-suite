@@ -72,6 +72,26 @@ def _assert_owns_run(run, current_user):
         )
 
 
+def _enrich_skill_names(db: Session, jobs) -> None:
+    """Set .name on each CareerJobSkill instance for Pydantic serialisation.
+
+    Pydantic reads from ORM attributes at serialisation time, so setting
+    .name directly on the ORM instance is picked up by CareerJobSkillOut.
+    """
+    skill_ids = list({js.skill_id for job in jobs for js in (job.skills or [])})
+    if not skill_ids:
+        return
+    rows = db.execute(
+        select(SkillText.skill_id, SkillText.name)
+        .where(SkillText.skill_id.in_(skill_ids))
+        .distinct(SkillText.skill_id)
+    ).all()
+    name_map = {row[0]: row[1] for row in rows}
+    for job in jobs:
+        for js in (job.skills or []):
+            js.name = name_map.get(js.skill_id) or f"Skill {js.skill_id}"
+
+
 # ── Job endpoints ─────────────────────────────────────────────────────────────
 
 
@@ -100,6 +120,7 @@ def list_jobs(
     items, total = career_crud.list_jobs(
         db, limit=limit, offset=offset, status=status, company=company
     )
+    _enrich_skill_names(db, items)
     return CareerJobListOut(items=items, total=total)
 
 
@@ -114,6 +135,7 @@ def get_job(
     job = career_crud.get_job(db, job_id)
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+    _enrich_skill_names(db, [job])
     return job
 
 
@@ -130,7 +152,9 @@ def update_job(
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
     _assert_owns_job(job, current_user)
-    return career_crud.update_job(db, job, data, current_user.id)
+    job = career_crud.update_job(db, job, data, current_user.id)
+    _enrich_skill_names(db, [job])
+    return job
 
 
 @router.delete("/jobs/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -161,7 +185,9 @@ def replace_job_skills(
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
     _assert_owns_job(job, current_user)
-    return career_crud.replace_job_skills(db, job, data.skills)
+    job = career_crud.replace_job_skills(db, job, data.skills)
+    _enrich_skill_names(db, [job])
+    return job
 
 
 # ── Objective endpoints ───────────────────────────────────────────────────────
@@ -206,6 +232,8 @@ def get_objective(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Objective not found"
         )
+    if obj.jobs:
+        _enrich_skill_names(db, obj.jobs)
     return obj
 
 
@@ -265,7 +293,10 @@ def link_job_to_objective(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
     _assert_owns_objective(obj, current_user)
     career_crud.link_job_to_objective(db, obj, job)
-    return career_crud.get_objective(db, objective_id)
+    obj = career_crud.get_objective(db, objective_id)
+    if obj and obj.jobs:
+        _enrich_skill_names(db, obj.jobs)
+    return obj
 
 
 @router.delete(
