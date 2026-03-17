@@ -138,3 +138,23 @@ class CareerJobListOut(BaseModel):
 class CareerObjectiveListOut(BaseModel):
     items: List[CareerObjectiveOut]
     total: int
+
+
+# ── Skill search / ensure schemas ─────────────────────────────────────────────
+
+class SkillEnsureRequest(BaseModel):
+    name: str
+
+
+# ── Pre-run readiness schemas ──────────────────────────────────────────────────
+
+class ReadinessCheck(BaseModel):
+    key: str
+    label: str
+    passed: bool
+    detail: Optional[str] = None
+
+
+class RunReadinessOut(BaseModel):
+    ready: bool
+    checks: List[ReadinessCheck]

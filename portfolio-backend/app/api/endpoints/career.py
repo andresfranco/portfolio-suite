@@ -8,6 +8,7 @@ from app import models
 from app.api import deps
 from app.core.security_decorators import permission_checker, require_permission
 from app.crud import career as career_crud
+from app.queue.celery_app import is_enabled as _celery_is_enabled
 from app.queue.tasks.career import run_career_ai_assessment
 from app.schemas.career import (
     AssessmentRunCreate,
@@ -21,7 +22,10 @@ from app.schemas.career import (
     CareerObjectiveListOut,
     CareerObjectiveOut,
     CareerObjectiveUpdate,
+    ReadinessCheck,
+    RunReadinessOut,
     SectionStatusOut,
+    SkillEnsureRequest,
 )
 from app.services.career_service import compute_and_store_sync_sections
 
@@ -311,8 +315,11 @@ def create_run(
     run = career_crud.create_run(db, obj, data, current_user.id)
     compute_and_store_sync_sections(db, run.id, objective_id, obj.portfolio_id)
     db.refresh(run)
-    task = run_career_ai_assessment.delay(run.id)
-    career_crud.update_run_ai_status(db, run.id, "pending", str(task.id))
+    if _celery_is_enabled():
+        task = run_career_ai_assessment.delay(run.id)
+        career_crud.update_run_ai_status(db, run.id, "pending", str(task.id))
+    else:
+        career_crud.update_run_ai_status(db, run.id, "failed", None)
     db.refresh(run)
     return run
 
@@ -450,3 +457,198 @@ def get_run_action_plan(
     if run.ai_status == "complete":
         return SectionStatusOut(status="complete", data=run.action_plan_json or {})
     return SectionStatusOut(status="failed")
+
+
+# ── Skill search & ensure ──────────────────────────────────────────────────────
+
+
+@router.get("/skills/search")
+@require_permission("VIEW_CAREER")
+def search_skills(
+    q: str = Query("", min_length=0),
+    limit: int = Query(20, ge=1, le=50),
+    db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_user),
+):
+    """Full-text search of skills by name. Returns [{id, name}]."""
+    from app.models.skill import Skill, SkillText
+
+    from sqlalchemy import select
+
+    stmt = (
+        select(Skill.id, SkillText.name)
+        .join(SkillText, SkillText.skill_id == Skill.id)
+        .where(SkillText.name.ilike(f"%{q}%"))
+        .distinct(Skill.id, SkillText.name)
+        .limit(limit)
+    )
+    rows = db.execute(stmt).all()
+    seen_ids: set[int] = set()
+    results = []
+    for skill_id, name in rows:
+        if skill_id not in seen_ids:
+            seen_ids.add(skill_id)
+            results.append({"id": skill_id, "name": name or f"Skill {skill_id}"})
+    return results
+
+
+@router.post("/skills/ensure", status_code=status.HTTP_200_OK)
+@require_permission("MANAGE_CAREER")
+def ensure_skill(
+    data: SkillEnsureRequest,
+    db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_user),
+):
+    """Find an existing skill by name (case-insensitive) or create it.
+
+    Returns {id, name, created}.
+    """
+    from app.models.skill import Skill, SkillText
+    from app.models.language import Language
+
+    from sqlalchemy import select
+
+    # Try to find existing skill with this name
+    row = db.execute(
+        select(Skill.id, SkillText.name)
+        .join(SkillText, SkillText.skill_id == Skill.id)
+        .where(SkillText.name.ilike(data.name.strip()))
+        .limit(1)
+    ).first()
+
+    if row:
+        return {"id": row[0], "name": row[1], "created": False}
+
+    # Get default language (first available)
+    lang = db.execute(select(Language.id).limit(1)).scalar_one_or_none()
+    if lang is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No languages configured — cannot create skill",
+        )
+
+    # Create new skill
+    skill = Skill(type="hard", created_by=current_user.id, updated_by=current_user.id)
+    db.add(skill)
+    db.flush()
+    skill_text = SkillText(
+        skill_id=skill.id,
+        language_id=lang,
+        name=data.name.strip(),
+        description="",
+        created_by=current_user.id,
+        updated_by=current_user.id,
+    )
+    db.add(skill_text)
+    db.commit()
+    return {"id": skill.id, "name": data.name.strip(), "created": True}
+
+
+# ── Pre-run readiness check ────────────────────────────────────────────────────
+
+
+@router.get("/objectives/{objective_id}/run-readiness", response_model=RunReadinessOut)
+@require_permission("VIEW_CAREER")
+def get_run_readiness(
+    objective_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_user),
+):
+    """Return a readiness checklist for running an assessment on an objective."""
+    from app.core.config import settings as _settings
+
+    obj = career_crud.get_objective(db, objective_id)
+    if not obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Objective not found")
+
+    checks: list[dict] = []
+
+    # 1. Objective has linked jobs
+    has_jobs = len(obj.jobs or []) > 0
+    checks.append({
+        "key": "has_jobs",
+        "label": "Objective has at least one linked job",
+        "passed": has_jobs,
+        "detail": None if has_jobs else "Link at least one job to this objective before running.",
+    })
+
+    # 2. All linked jobs have at least one required skill
+    jobs_missing_skills = [j.title for j in (obj.jobs or []) if not j.skills]
+    checks.append({
+        "key": "jobs_have_skills",
+        "label": "All jobs have required skills defined",
+        "passed": len(jobs_missing_skills) == 0,
+        "detail": (
+            None
+            if not jobs_missing_skills
+            else f"Missing skills on: {', '.join(jobs_missing_skills)}"
+        ),
+    })
+
+    # 3. Anthropic API key configured
+    api_key_ok = bool(_settings.ANTHROPIC_API_KEY)
+    checks.append({
+        "key": "api_key_configured",
+        "label": "Anthropic API key is configured",
+        "passed": api_key_ok,
+        "detail": None if api_key_ok else "Set ANTHROPIC_API_KEY in the backend environment.",
+    })
+
+    # 4. Celery enabled (advisory only — not blocking)
+    celery_ok = _celery_is_enabled()
+    checks.append({
+        "key": "celery_enabled",
+        "label": "AI processing queue (Celery) is running",
+        "passed": celery_ok,
+        "detail": None if celery_ok else "AI analysis will be queued but won't run until Celery is started.",
+    })
+
+    # Ready = first 3 checks must pass (Celery is advisory)
+    ready = all(c["passed"] for c in checks[:3])
+    return RunReadinessOut(ready=ready, checks=[ReadinessCheck(**c) for c in checks])
+
+
+# ── AI Diagnostics ─────────────────────────────────────────────────────────────
+
+
+@router.post("/diagnostics/anthropic")
+@require_permission("VIEW_CAREER")
+def test_anthropic_connectivity(
+    db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_user),
+):
+    """Send a minimal test message to Anthropic and return latency/status."""
+    import time as _time
+    from app.core.config import settings as _settings
+    from app.services.llm.providers import AnthropicProvider, ProviderConfig
+
+    if not _settings.ANTHROPIC_API_KEY:
+        return {
+            "success": False,
+            "error": "ANTHROPIC_API_KEY is not configured",
+            "latency_ms": None,
+        }
+
+    started = _time.time()
+    try:
+        provider = AnthropicProvider(
+            ProviderConfig(name="anthropic", api_key=_settings.ANTHROPIC_API_KEY)
+        )
+        result = provider.chat(
+            model="claude-haiku-4-5-20251001",
+            system_prompt="You are a test assistant. Reply with exactly: OK",
+            messages=[{"role": "user", "content": "ping"}],
+        )
+        latency_ms = int((_time.time() - started) * 1000)
+        return {
+            "success": True,
+            "response": result["text"][:100],
+            "latency_ms": latency_ms,
+        }
+    except Exception as exc:
+        latency_ms = int((_time.time() - started) * 1000)
+        return {
+            "success": False,
+            "error": str(exc),
+            "latency_ms": latency_ms,
+        }
