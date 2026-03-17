@@ -2,15 +2,19 @@
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import models
 from app.api import deps
 from app.core.security_decorators import permission_checker, require_permission
 from app.crud import career as career_crud
+from app.models.language import Language
+from app.models.skill import Skill, SkillText
 from app.queue.celery_app import is_enabled as _celery_is_enabled
 from app.queue.tasks.career import run_career_ai_assessment
 from app.schemas.career import (
+    AnthropicDiagnosticsOut,
     AssessmentRunCreate,
     AssessmentRunOut,
     CareerJobCreate,
@@ -25,7 +29,9 @@ from app.schemas.career import (
     ReadinessCheck,
     RunReadinessOut,
     SectionStatusOut,
+    SkillEnsureOut,
     SkillEnsureRequest,
+    SkillSearchItem,
 )
 from app.services.career_service import compute_and_store_sync_sections
 
@@ -462,7 +468,7 @@ def get_run_action_plan(
 # ── Skill search & ensure ──────────────────────────────────────────────────────
 
 
-@router.get("/skills/search")
+@router.get("/skills/search", response_model=List[SkillSearchItem])
 @require_permission("VIEW_CAREER")
 def search_skills(
     q: str = Query("", min_length=0),
@@ -471,10 +477,6 @@ def search_skills(
     current_user: models.User = Depends(deps.get_current_user),
 ):
     """Full-text search of skills by name. Returns [{id, name}]."""
-    from app.models.skill import Skill, SkillText
-
-    from sqlalchemy import select
-
     stmt = (
         select(Skill.id, SkillText.name)
         .join(SkillText, SkillText.skill_id == Skill.id)
@@ -483,16 +485,10 @@ def search_skills(
         .limit(limit)
     )
     rows = db.execute(stmt).all()
-    seen_ids: set[int] = set()
-    results = []
-    for skill_id, name in rows:
-        if skill_id not in seen_ids:
-            seen_ids.add(skill_id)
-            results.append({"id": skill_id, "name": name or f"Skill {skill_id}"})
-    return results
+    return [{"id": row[0], "name": row[1] or f"Skill {row[0]}"} for row in rows]
 
 
-@router.post("/skills/ensure", status_code=status.HTTP_200_OK)
+@router.post("/skills/ensure", response_model=SkillEnsureOut, status_code=status.HTTP_200_OK)
 @require_permission("MANAGE_CAREER")
 def ensure_skill(
     data: SkillEnsureRequest,
@@ -503,11 +499,6 @@ def ensure_skill(
 
     Returns {id, name, created}.
     """
-    from app.models.skill import Skill, SkillText
-    from app.models.language import Language
-
-    from sqlalchemy import select
-
     # Try to find existing skill with this name
     row = db.execute(
         select(Skill.id, SkillText.name)
@@ -611,10 +602,9 @@ def get_run_readiness(
 # ── AI Diagnostics ─────────────────────────────────────────────────────────────
 
 
-@router.post("/diagnostics/anthropic")
+@router.post("/diagnostics/anthropic", response_model=AnthropicDiagnosticsOut)
 @require_permission("VIEW_CAREER")
 def test_anthropic_connectivity(
-    db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user),
 ):
     """Send a minimal test message to Anthropic and return latency/status."""

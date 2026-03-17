@@ -800,3 +800,250 @@ class TestAuthorization:
         resp = client.get(f"{BASE}/runs/{run_id}")
         assert resp.status_code == 200
         assert resp.json()["id"] == run_id
+
+
+# ── Skills search & ensure tests ─────────────────────────────────────────────
+
+
+class TestSkillsEndpoints:
+    @pytest.fixture(autouse=True)
+    def _set_admin(self, setup_users):
+        global test_current_user
+        test_current_user = setup_users["admin"]
+
+    @pytest.fixture
+    def skill_with_text(self, db_session: Session, setup_users):
+        """Create a Skill with a SkillText entry for search tests."""
+        from app.models.skill import Skill as SkillModel, SkillText
+        from app.models.language import Language
+
+        # Get or create a language
+        lang = db_session.query(Language).first()
+        if lang is None:
+            lang = Language(code="en", name="English")
+            db_session.add(lang)
+            db_session.commit()
+            db_session.refresh(lang)
+
+        admin = setup_users["admin"]
+        s = SkillModel(type="technical", created_by=admin.id, updated_by=admin.id)
+        db_session.add(s)
+        db_session.flush()
+        st = SkillText(
+            skill_id=s.id,
+            language_id=lang.id,
+            name="PythonSearchable",
+            description="",
+            created_by=admin.id,
+            updated_by=admin.id,
+        )
+        db_session.add(st)
+        db_session.commit()
+        db_session.refresh(s)
+        return s, st
+
+    def test_search_skills_returns_list(self, client, setup_users, skill_with_text):
+        resp = client.get(f"{BASE}/skills/search")
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), list)
+
+    def test_search_skills_empty_query_returns_all(
+        self, client, setup_users, skill_with_text
+    ):
+        resp = client.get(f"{BASE}/skills/search?q=")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data, list)
+        assert any(item["name"] == "PythonSearchable" for item in data)
+
+    def test_search_skills_q_filter(self, client, setup_users, skill_with_text):
+        resp = client.get(f"{BASE}/skills/search?q=PythonSearch")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) >= 1
+        assert all("PythonSearch" in item["name"] for item in data)
+
+    def test_search_skills_no_match(self, client, setup_users, skill_with_text):
+        resp = client.get(f"{BASE}/skills/search?q=ZZZNOWAYTHISEXISTS999")
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    def test_search_skills_response_shape(self, client, setup_users, skill_with_text):
+        resp = client.get(f"{BASE}/skills/search?q=PythonSearchable")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) >= 1
+        item = data[0]
+        assert "id" in item
+        assert "name" in item
+
+    def test_ensure_skill_creates_new(self, client, setup_users, db_session):
+        """Ensure creates a new skill when name doesn't exist."""
+        from app.models.language import Language
+
+        lang = db_session.query(Language).first()
+        if lang is None:
+            lang = Language(code="en", name="English")
+            db_session.add(lang)
+            db_session.commit()
+
+        resp = client.post(
+            f"{BASE}/skills/ensure", json={"name": "UniqueSkillXYZ_Test123"}
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["name"] == "UniqueSkillXYZ_Test123"
+        assert data["created"] is True
+        assert "id" in data
+
+    def test_ensure_skill_finds_existing(
+        self, client, setup_users, skill_with_text
+    ):
+        """Ensure returns existing skill without creating a new one."""
+        resp = client.post(
+            f"{BASE}/skills/ensure", json={"name": "PythonSearchable"}
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["name"] == "PythonSearchable"
+        assert data["created"] is False
+        assert data["id"] == skill_with_text[0].id
+
+    def test_ensure_skill_empty_name_returns_422(self, client, setup_users):
+        """Empty name should fail Pydantic validation."""
+        resp = client.post(f"{BASE}/skills/ensure", json={"name": ""})
+        assert resp.status_code == 422
+
+    def test_ensure_skill_requires_manage_career(self, client, setup_users, db_session):
+        """Viewer with only VIEW_CAREER cannot call ensure (needs MANAGE_CAREER)."""
+        global test_current_user
+        test_current_user = setup_users["viewer"]
+
+        resp = client.post(f"{BASE}/skills/ensure", json={"name": "SomeSkill"})
+        assert resp.status_code == 403
+
+
+# ── Run readiness tests ────────────────────────────────────────────────────────
+
+
+class TestRunReadiness:
+    @pytest.fixture(autouse=True)
+    def _set_admin(self, setup_users):
+        global test_current_user
+        test_current_user = setup_users["admin"]
+
+    def test_readiness_404_for_unknown_objective(self, client, setup_users):
+        resp = client.get(f"{BASE}/objectives/99999999/run-readiness")
+        assert resp.status_code == 404
+
+    def test_readiness_fails_when_no_jobs(self, client, setup_users, portfolio):
+        obj_id = _create_objective(client, portfolio.id).json()["id"]
+        resp = client.get(f"{BASE}/objectives/{obj_id}/run-readiness")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ready"] is False
+        has_jobs_check = next(c for c in data["checks"] if c["key"] == "has_jobs")
+        assert has_jobs_check["passed"] is False
+
+    def test_readiness_fails_jobs_without_skills(
+        self, client, setup_users, portfolio
+    ):
+        """Objective has a job but the job has no skills — should not be ready."""
+        job_id = _create_job(client).json()["id"]
+        obj_id = _create_objective(client, portfolio.id).json()["id"]
+        client.post(f"{BASE}/objectives/{obj_id}/jobs/{job_id}")
+
+        resp = client.get(f"{BASE}/objectives/{obj_id}/run-readiness")
+        assert resp.status_code == 200
+        data = resp.json()
+        jobs_have_skills = next(
+            c for c in data["checks"] if c["key"] == "jobs_have_skills"
+        )
+        assert jobs_have_skills["passed"] is False
+
+    def test_readiness_response_shape(self, client, setup_users, portfolio):
+        obj_id = _create_objective(client, portfolio.id).json()["id"]
+        resp = client.get(f"{BASE}/objectives/{obj_id}/run-readiness")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "ready" in data
+        assert "checks" in data
+        assert isinstance(data["checks"], list)
+        for check in data["checks"]:
+            assert "key" in check
+            assert "label" in check
+            assert "passed" in check
+
+    def test_readiness_with_job_and_skills_passes_first_two_checks(
+        self, client, setup_users, portfolio, skill
+    ):
+        """When job has skills attached, the first two readiness checks pass."""
+        job_id = _create_job(client).json()["id"]
+        client.put(
+            f"{BASE}/jobs/{job_id}/skills",
+            json={"skills": [{"skill_id": skill.id, "is_required": True}]},
+        )
+        obj_id = _create_objective(client, portfolio.id).json()["id"]
+        client.post(f"{BASE}/objectives/{obj_id}/jobs/{job_id}")
+
+        resp = client.get(f"{BASE}/objectives/{obj_id}/run-readiness")
+        assert resp.status_code == 200
+        data = resp.json()
+        has_jobs = next(c for c in data["checks"] if c["key"] == "has_jobs")
+        jobs_have_skills = next(
+            c for c in data["checks"] if c["key"] == "jobs_have_skills"
+        )
+        assert has_jobs["passed"] is True
+        assert jobs_have_skills["passed"] is True
+
+
+# ── Diagnostics endpoint tests ────────────────────────────────────────────────
+
+
+class TestDiagnosticsEndpoints:
+    @pytest.fixture(autouse=True)
+    def _set_admin(self, setup_users):
+        global test_current_user
+        test_current_user = setup_users["admin"]
+
+    def test_diagnostics_missing_api_key(self, client, setup_users):
+        """When ANTHROPIC_API_KEY is falsy, endpoint returns success=False."""
+        with patch("app.core.config.settings") as mock_settings:
+            mock_settings.ANTHROPIC_API_KEY = ""
+            resp = client.post(f"{BASE}/diagnostics/anthropic")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is False
+        assert data["error"] is not None
+
+    def test_diagnostics_success_path(self, client, setup_users):
+        """When Anthropic API key is set and provider.chat succeeds."""
+        mock_result = {"text": "OK", "input_tokens": 5, "output_tokens": 2}
+
+        with patch(
+            "app.services.llm.providers.AnthropicProvider.chat",
+            return_value=mock_result,
+        ):
+            with patch("app.core.config.settings") as mock_settings:
+                mock_settings.ANTHROPIC_API_KEY = "sk-test-key-12345"
+                resp = client.post(f"{BASE}/diagnostics/anthropic")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert data["latency_ms"] is not None
+        assert isinstance(data["latency_ms"], int)
+
+    def test_diagnostics_requires_view_career(self, client, setup_users):
+        """User without VIEW_CAREER is denied."""
+        global test_current_user
+        mgr = setup_users["mgr"]
+        empty_role = mgr.create_test_role(name="DIAG_EMPTY_ROLE", permissions=[])
+        no_perm_user = mgr.create_test_user(
+            username="diag_noperm_user", roles=[empty_role.id]
+        )
+        test_current_user = no_perm_user
+
+        resp = client.post(f"{BASE}/diagnostics/anthropic")
+        assert resp.status_code == 403

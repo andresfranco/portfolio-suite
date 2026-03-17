@@ -1,7 +1,7 @@
 from __future__ import annotations
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 # ── Job schemas ───────────────────────────────────────────────────────────────
@@ -143,7 +143,25 @@ class CareerObjectiveListOut(BaseModel):
 # ── Skill search / ensure schemas ─────────────────────────────────────────────
 
 class SkillEnsureRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+
+
+class SkillSearchItem(BaseModel):
+    id: int
     name: str
+
+
+class SkillEnsureOut(BaseModel):
+    id: int
+    name: str
+    created: bool
+
+
+class AnthropicDiagnosticsOut(BaseModel):
+    success: bool
+    latency_ms: Optional[int] = None
+    response: Optional[str] = None
+    error: Optional[str] = None
 
 
 # ── Pre-run readiness schemas ──────────────────────────────────────────────────
