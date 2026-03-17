@@ -328,7 +328,7 @@ def build_ai_context(
     portfolio_name: str,
     project_summaries: list[dict],
     experience_summaries: list[dict],
-    resume_filename: str | None,
+    resume_text: str | None,
     objective_name: str,
     job_summaries: list[dict],
     scorecard_json: dict,
@@ -343,8 +343,8 @@ def build_ai_context(
         List of dicts with keys ``name`` and ``skills`` (list of skill name strings).
     experience_summaries:
         List of dicts with keys ``name`` and ``years`` (int).
-    resume_filename:
-        Filename of the attached resume, or None / empty string if not provided.
+    resume_text:
+        Extracted text from the resume PDF, or empty string if not provided.
     objective_name:
         Name of the career objective being assessed.
     job_summaries:
@@ -374,8 +374,11 @@ def build_ai_context(
     lines.append("")
 
     # Resume
-    resume_display = resume_filename if resume_filename else "Not provided"
-    lines.append(f"RESUME: {resume_display}")
+    if resume_text and resume_text.strip():
+        lines.append("RESUME CONTENT:")
+        lines.append(resume_text[:4000])
+    else:
+        lines.append("RESUME: Not provided")
     lines.append("")
 
     # Objective

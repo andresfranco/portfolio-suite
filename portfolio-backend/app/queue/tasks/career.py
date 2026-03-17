@@ -31,7 +31,7 @@ from app.models.project import Project, ProjectText, project_skills
 from app.models.skill import SkillText
 from app.services.career_service import build_ai_context
 from app.services.llm.providers import AnthropicProvider, ProviderConfig
-from app.queue.celery_app import get_celery
+from celery import shared_task
 
 logger = logging.getLogger(__name__)
 
@@ -176,14 +176,40 @@ def _get_experience_summaries(db, portfolio_id: int) -> list[dict]:
     return summaries
 
 
-def _get_resume_filename(db, attachment_id: int | None) -> str | None:
-    """Return the file_name for a portfolio attachment, or None."""
+def _get_resume_text(db, attachment_id: int | None) -> str:
+    """Extract text from the resume PDF stored on disk.
+
+    Returns an empty string if no attachment, file not found, or extraction fails.
+    """
     if not attachment_id:
-        return None
+        return ""
     row = db.execute(
-        select(PortfolioAttachment.file_name).where(PortfolioAttachment.id == attachment_id)
+        select(PortfolioAttachment.file_path, PortfolioAttachment.file_name)
+        .where(PortfolioAttachment.id == attachment_id)
     ).first()
-    return row[0] if row else None
+    if not row:
+        return ""
+    file_path_str, file_name = row[0], row[1]
+    try:
+        import pypdf
+        from pathlib import Path
+
+        full_path = Path(file_path_str)
+        if not full_path.is_absolute():
+            full_path = settings.UPLOADS_DIR / file_path_str
+        if not full_path.exists():
+            logger.warning("Resume file not found: %s", full_path)
+            return f"[Resume: {file_name} — file not found on disk]"
+        reader = pypdf.PdfReader(str(full_path))
+        pages_text = [page.extract_text() or "" for page in reader.pages]
+        text = "\n".join(pages_text).strip()
+        if not text:
+            return f"[Resume: {file_name} — could not extract text]"
+        # Truncate to ~4000 chars to keep prompt manageable
+        return text[:4000]
+    except Exception as exc:
+        logger.warning("Failed to extract resume text from %s: %s", file_path_str, exc)
+        return f"[Resume: {file_name} — extraction failed]"
 
 
 def _build_job_summaries(
@@ -221,10 +247,8 @@ def _build_job_summaries(
 # Task
 # ---------------------------------------------------------------------------
 
-celery_app = get_celery()
 
-
-@celery_app.task(
+@shared_task(
     name="app.queue.tasks.career.run_career_ai_assessment",
     bind=True,
     max_retries=0,
@@ -263,7 +287,7 @@ def run_career_ai_assessment(self: Task, run_id: int) -> None:
         portfolio_name = _get_portfolio_name(db, portfolio_id)
         project_summaries = _get_project_summaries(db, portfolio_id)
         experience_summaries = _get_experience_summaries(db, portfolio_id)
-        resume_filename = _get_resume_filename(db, run.resume_attachment_id)
+        resume_text = _get_resume_text(db, run.resume_attachment_id)
         objective_name = run.objective.name if run.objective else "Career Objective"
         job_skill_names = _get_job_skill_names(db, run)
         job_summaries = _build_job_summaries(run, job_skill_names)
@@ -273,7 +297,7 @@ def run_career_ai_assessment(self: Task, run_id: int) -> None:
             portfolio_name=portfolio_name,
             project_summaries=project_summaries,
             experience_summaries=experience_summaries,
-            resume_filename=resume_filename,
+            resume_text=resume_text,
             objective_name=objective_name,
             job_summaries=job_summaries,
             scorecard_json=scorecard_json,
