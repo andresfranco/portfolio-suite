@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 
 from celery import Task
 from celery.exceptions import SoftTimeLimitExceeded
@@ -30,12 +31,12 @@ from app.models.portfolio import Portfolio, PortfolioAttachment, portfolio_exper
 from app.models.project import Project, ProjectText, project_skills
 from app.models.skill import SkillText
 from app.services.career_service import build_ai_context
-from app.services.llm.providers import AnthropicProvider, ProviderConfig
+from app.services.llm.providers import AnthropicProvider, ProviderConfig, RateLimitError, build_provider
 from celery import shared_task
 
 logger = logging.getLogger(__name__)
 
-HAIKU_MODEL = "claude-haiku-4-5-20251001"
+HAIKU_MODEL = "claude-haiku-4-5-20251001"  # kept for backward-compat; task uses settings
 
 SYSTEM_PROMPT = (
     "You are a career coach AI. Given a portfolio summary and job descriptions, "
@@ -194,9 +195,15 @@ def _get_resume_text(db, attachment_id: int | None) -> str:
         import pypdf
         from pathlib import Path
 
-        full_path = Path(file_path_str)
-        if not full_path.is_absolute():
-            full_path = settings.UPLOADS_DIR / file_path_str
+        # DB stores paths as web URLs ("/uploads/...").  Resolve against the
+        # filesystem uploads root; fall back to treating the value as-is.
+        p = file_path_str
+        if p.startswith("/uploads/"):
+            p = p[len("/uploads/"):]  # strip the URL prefix
+        full_path = settings.UPLOADS_DIR / p
+        if not full_path.exists():
+            # last-resort: try the raw value in case it's already absolute
+            full_path = Path(file_path_str)
         if not full_path.exists():
             logger.warning("Resume file not found: %s", full_path)
             return f"[Resume: {file_name} — file not found on disk]"
@@ -244,6 +251,60 @@ def _build_job_summaries(
 
 
 # ---------------------------------------------------------------------------
+# Provider factory
+# ---------------------------------------------------------------------------
+
+def _build_career_provider():
+    """Return a ChatProvider based on CAREER_AI_* settings.
+
+    Falls back to Anthropic Haiku when CAREER_AI_API_KEY is not set so that
+    existing deployments keep working without changes.
+
+    Quick-switch examples (set in .env):
+      Groq Llama 3.3 70B (open-source, ~3x cheaper):
+        CAREER_AI_PROVIDER=openai
+        CAREER_AI_BASE_URL=https://api.groq.com/openai/v1
+        CAREER_AI_MODEL=llama-3.3-70b-versatile
+        CAREER_AI_API_KEY=<groq_key>
+
+      Gemini 2.0 Flash Lite (~12x cheaper):
+        CAREER_AI_PROVIDER=google
+        CAREER_AI_MODEL=gemini-2.0-flash-lite
+        CAREER_AI_API_KEY=<google_key>
+
+      Groq Llama 3.1 8B (open-source, ~35x cheaper):
+        CAREER_AI_PROVIDER=openai
+        CAREER_AI_BASE_URL=https://api.groq.com/openai/v1
+        CAREER_AI_MODEL=llama-3.1-8b-instant
+        CAREER_AI_API_KEY=<groq_key>
+    """
+    api_key = settings.CAREER_AI_API_KEY or settings.ANTHROPIC_API_KEY
+    provider_name = settings.CAREER_AI_PROVIDER or "anthropic"
+    return build_provider(
+        provider_name,
+        api_key=api_key,
+        base_url=settings.CAREER_AI_BASE_URL or None,
+    )
+
+
+def _build_career_fallback_provider():
+    """Return the fallback ChatProvider used when the primary hits a 429.
+
+    Returns None when no fallback is configured.
+    """
+    if not settings.CAREER_AI_FALLBACK_PROVIDER:
+        return None, None
+    api_key = settings.CAREER_AI_FALLBACK_API_KEY or settings.ANTHROPIC_API_KEY
+    provider = build_provider(
+        settings.CAREER_AI_FALLBACK_PROVIDER,
+        api_key=api_key,
+        base_url=settings.CAREER_AI_FALLBACK_BASE_URL or None,
+    )
+    model = settings.CAREER_AI_FALLBACK_MODEL or HAIKU_MODEL
+    return provider, model
+
+
+# ---------------------------------------------------------------------------
 # Task
 # ---------------------------------------------------------------------------
 
@@ -252,8 +313,8 @@ def _build_job_summaries(
     name="app.queue.tasks.career.run_career_ai_assessment",
     bind=True,
     max_retries=0,
-    time_limit=60,
-    soft_time_limit=50,
+    time_limit=120,
+    soft_time_limit=110,
 )
 def run_career_ai_assessment(self: Task, run_id: int) -> None:
     """Run the AI assessment for a CareerAssessmentRun.
@@ -303,18 +364,41 @@ def run_career_ai_assessment(self: Task, run_id: int) -> None:
             scorecard_json=scorecard_json,
         )
 
-        # ── 4. Call Haiku ─────────────────────────────────────────────────────
-        provider = AnthropicProvider(
-            ProviderConfig(name="anthropic", api_key=settings.ANTHROPIC_API_KEY)
-        )
-        result = provider.chat(
-            model=HAIKU_MODEL,
-            system_prompt=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": context}],
-        )
+        # ── 4. Call configured AI provider (with automatic fallback on 429) ──
+        provider = _build_career_provider()
+        model = settings.CAREER_AI_MODEL or HAIKU_MODEL
+        try:
+            result = provider.chat(
+                model=model,
+                system_prompt=SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": context}],
+            )
+        except RateLimitError:
+            fallback_provider, fallback_model = _build_career_fallback_provider()
+            if fallback_provider is None:
+                raise  # no fallback configured — let the task fail
+            logger.warning(
+                "Primary provider rate-limited for run_id=%d; switching to fallback (%s / %s)",
+                run_id, settings.CAREER_AI_FALLBACK_PROVIDER, fallback_model,
+            )
+            result = fallback_provider.chat(
+                model=fallback_model,
+                system_prompt=SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": context}],
+            )
 
         # ── 5. Parse and persist ──────────────────────────────────────────────
-        payload = json.loads(result["text"])
+        # Some models add noise around the JSON:
+        #   • Qwen3 / DeepSeek: <think>...</think> reasoning block
+        #   • Haiku / Llama: ```json ... ``` markdown fences
+        # Strip both before parsing so any model works as primary or fallback.
+        raw = result["text"].strip()
+        raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[1]   # drop opening fence line
+            raw = raw.rsplit("```", 1)[0] # drop closing fence
+            raw = raw.strip()
+        payload = json.loads(raw)
         resume_issues = {"issues": payload.get("resume_issues", [])}
         action_plan = {"plan": payload.get("action_plan", [])}
 

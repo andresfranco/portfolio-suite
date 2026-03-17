@@ -4,6 +4,10 @@ from typing import Protocol, Dict, Any, List, Optional, AsyncIterator
 import time
 
 
+class RateLimitError(RuntimeError):
+    """Raised when a provider returns HTTP 429 (rate limit exceeded)."""
+
+
 class ChatProvider(Protocol):
     def chat(self, *, model: str, system_prompt: str, messages: List[Dict[str, str]]) -> Dict[str, Any]:
         ...
@@ -62,7 +66,11 @@ class OpenAIProvider:
             }
         except Exception as e:
             latency_ms = int((time.time() - started) * 1000)
-            # Surface as a simple structured error to the caller
+            # Detect 429 rate-limit responses and raise a typed error so callers
+            # can fall back to an alternative provider automatically.
+            err_str = str(e).lower()
+            if "429" in str(e) or "rate_limit" in err_str or "rate limit" in err_str:
+                raise RateLimitError(f"Rate limit exceeded: {e}")
             raise RuntimeError(f"LLM chat request failed after {latency_ms}ms: {e}")
 
     async def chat_stream(self, *, model: str, system_prompt: str, messages: List[Dict[str, str]]) -> AsyncIterator[str]:
@@ -96,12 +104,18 @@ class AnthropicProvider:
 
     def chat(self, *, model: str, system_prompt: str, messages: List[Dict[str, str]]) -> Dict[str, Any]:
         started = time.time()
-        resp = self.client.messages.create(
-            model=model,
-            max_tokens=1024,
-            system=system_prompt,
-            messages=messages,
-        )
+        try:
+            resp = self.client.messages.create(
+                model=model,
+                max_tokens=4096,
+                system=system_prompt,
+                messages=messages,
+            )
+        except Exception as e:
+            err_str = str(e).lower()
+            if "429" in str(e) or "rate_limit" in err_str or "rate limit" in err_str:
+                raise RateLimitError(f"Rate limit exceeded: {e}")
+            raise
         content = "".join([b.text for b in resp.content if getattr(b, "type", "") == "text"])  # type: ignore
         latency_ms = int((time.time() - started) * 1000)
         return {"text": content, "usage": {}, "latency_ms": latency_ms}
@@ -120,8 +134,12 @@ class GoogleProvider:
     def chat(self, *, model: str, system_prompt: str, messages: List[Dict[str, str]]) -> Dict[str, Any]:
         started = time.time()
         content = "\n".join([m.get("content", "") for m in messages])
-        model_ref = self.genai.GenerativeModel(model)
-        resp = model_ref.generate_content([system_prompt, content])
+        # system_instruction keeps the system prompt separate (Gemini 1.5+)
+        model_ref = self.genai.GenerativeModel(
+            model,
+            system_instruction=system_prompt,
+        )
+        resp = model_ref.generate_content(content)
         text = getattr(resp, "text", "")
         latency_ms = int((time.time() - started) * 1000)
         return {"text": text, "usage": {}, "latency_ms": latency_ms}

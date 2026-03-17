@@ -1,14 +1,17 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Button, TextField, MenuItem, Select, FormControl,
-  InputLabel, CircularProgress
+  InputLabel, CircularProgress, FormHelperText
 } from '@mui/material';
 import { useForm, Controller } from 'react-hook-form';
 import { useCareer } from '../../contexts/CareerContext';
+import { api } from '../../services/api';
 
 const ObjectiveForm = ({ open, onClose, objective = null }) => {
   const { createObjective, updateObjective } = useCareer();
+  const [portfolios, setPortfolios] = useState([]);
+  const [portfoliosLoading, setPortfoliosLoading] = useState(false);
   const {
     control,
     handleSubmit,
@@ -22,6 +25,16 @@ const ObjectiveForm = ({ open, onClose, objective = null }) => {
       status: 'active'
     }
   });
+
+  useEffect(() => {
+    if (open) {
+      setPortfoliosLoading(true);
+      api.get('/api/portfolios/', { params: { page: 1, page_size: 100 } })
+        .then(res => setPortfolios(res.data.items || []))
+        .catch(() => setPortfolios([]))
+        .finally(() => setPortfoliosLoading(false));
+    }
+  }, [open]);
 
   useEffect(() => {
     if (objective) {
@@ -38,7 +51,7 @@ const ObjectiveForm = ({ open, onClose, objective = null }) => {
 
   const onSubmit = async (data) => {
     try {
-      const payload = { ...data, portfolio_id: parseInt(data.portfolio_id, 10) };
+      const payload = { ...data, portfolio_id: Number(data.portfolio_id) };
       if (objective) {
         await updateObjective(objective.id, payload);
       } else {
@@ -79,16 +92,25 @@ const ObjectiveForm = ({ open, onClose, objective = null }) => {
           <Controller
             name="portfolio_id"
             control={control}
-            rules={{ required: 'Portfolio ID is required' }}
+            rules={{ required: 'Portfolio is required' }}
             render={({ field }) => (
-              <TextField
-                {...field}
-                label="Portfolio ID"
-                type="number"
-                required
-                error={!!errors.portfolio_id}
-                helperText={errors.portfolio_id?.message}
-              />
+              <FormControl fullWidth required error={!!errors.portfolio_id}>
+                <InputLabel>Portfolio</InputLabel>
+                <Select {...field} label="Portfolio" disabled={portfoliosLoading}>
+                  {portfoliosLoading ? (
+                    <MenuItem disabled value="">
+                      <CircularProgress size={16} sx={{ mr: 1 }} /> Loading…
+                    </MenuItem>
+                  ) : (
+                    portfolios.map(p => (
+                      <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                    ))
+                  )}
+                </Select>
+                {errors.portfolio_id && (
+                  <FormHelperText>{errors.portfolio_id.message}</FormHelperText>
+                )}
+              </FormControl>
             )}
           />
           <Controller

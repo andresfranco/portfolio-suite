@@ -82,6 +82,22 @@ class Settings(BaseSettings):
     # External API keys
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
 
+    # Career AI — configurable provider/model (defaults to Anthropic Haiku)
+    # To switch to Groq + Llama 3.3 70B (3x cheaper, open-source):
+    #   CAREER_AI_PROVIDER=openai  CAREER_AI_BASE_URL=https://api.groq.com/openai/v1
+    #   CAREER_AI_MODEL=llama-3.3-70b-versatile  CAREER_AI_API_KEY=<groq_key>
+    # To switch to Gemini 2.0 Flash Lite (12x cheaper):
+    #   CAREER_AI_PROVIDER=google  CAREER_AI_MODEL=gemini-2.0-flash-lite  CAREER_AI_API_KEY=<google_key>
+    CAREER_AI_PROVIDER: str = os.getenv("CAREER_AI_PROVIDER", "anthropic")
+    CAREER_AI_MODEL: str = os.getenv("CAREER_AI_MODEL", "claude-haiku-4-5-20251001")
+    CAREER_AI_API_KEY: str = os.getenv("CAREER_AI_API_KEY", "")
+    CAREER_AI_BASE_URL: Optional[str] = os.getenv("CAREER_AI_BASE_URL")
+    # Fallback — used automatically when primary returns a 429 rate-limit error
+    CAREER_AI_FALLBACK_PROVIDER: Optional[str] = os.getenv("CAREER_AI_FALLBACK_PROVIDER")
+    CAREER_AI_FALLBACK_MODEL: Optional[str] = os.getenv("CAREER_AI_FALLBACK_MODEL")
+    CAREER_AI_FALLBACK_API_KEY: str = os.getenv("CAREER_AI_FALLBACK_API_KEY", "")
+    CAREER_AI_FALLBACK_BASE_URL: Optional[str] = os.getenv("CAREER_AI_FALLBACK_BASE_URL")
+
     # RSA Keys for RS256 (if using asymmetric JWT signing)
     JWT_PRIVATE_KEY_PATH: Optional[str] = os.getenv("JWT_PRIVATE_KEY_PATH")
     JWT_PUBLIC_KEY_PATH: Optional[str] = os.getenv("JWT_PUBLIC_KEY_PATH")

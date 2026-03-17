@@ -1,7 +1,10 @@
 """Career Operating System — API endpoints."""
+import logging
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+
+logger = logging.getLogger(__name__)
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -81,9 +84,13 @@ def _enrich_skill_names(db: Session, jobs) -> None:
     skill_ids = list({js.skill_id for job in jobs for js in (job.skills or [])})
     if not skill_ids:
         return
+    # ORDER BY is_default DESC so DISTINCT ON picks the default-language row
+    # first; falls back to any available language when no default text exists.
     rows = db.execute(
         select(SkillText.skill_id, SkillText.name)
+        .join(Language, Language.id == SkillText.language_id)
         .where(SkillText.skill_id.in_(skill_ids))
+        .order_by(SkillText.skill_id, Language.is_default.desc())
         .distinct(SkillText.skill_id)
     ).all()
     name_map = {row[0]: row[1] for row in rows}
@@ -356,7 +363,9 @@ def create_run(
         task = run_career_ai_assessment.delay(run.id)
         career_crud.update_run_ai_status(db, run.id, "pending", str(task.id))
     else:
-        career_crud.update_run_ai_status(db, run.id, "failed", None)
+        # Celery unavailable — run synchronously so the user still gets results
+        logger.warning("Celery not available; running AI assessment synchronously for run_id=%d", run.id)
+        run_career_ai_assessment(run.id)
     db.refresh(run)
     return run
 
@@ -508,11 +517,15 @@ def search_skills(
     current_user: models.User = Depends(deps.get_current_user),
 ):
     """Full-text search of skills by name. Returns [{id, name}]."""
+    # Match names across all languages, but deduplicate by skill id and prefer
+    # the default-language name (ORDER BY is_default DESC before DISTINCT ON).
     stmt = (
         select(Skill.id, SkillText.name)
         .join(SkillText, SkillText.skill_id == Skill.id)
+        .join(Language, Language.id == SkillText.language_id)
         .where(SkillText.name.ilike(f"%{q}%"))
-        .distinct(Skill.id, SkillText.name)
+        .order_by(Skill.id, Language.is_default.desc())
+        .distinct(Skill.id)
         .limit(limit)
     )
     rows = db.execute(stmt).all()

@@ -36,8 +36,8 @@ export const useAssessmentRun = (runId) => {
       setAiStatus(status);
 
       if (status === 'complete') {
-        setResumeIssues(riRes.data.data || null);
-        setActionPlan(apRes.data.data || null);
+        setResumeIssues(riRes.data.data?.issues || null);
+        setActionPlan(apRes.data.data?.plan || null);
         stopPolling();
       } else if (status === 'failed') {
         stopPolling();
