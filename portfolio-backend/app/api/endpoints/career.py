@@ -18,6 +18,7 @@ from app.queue.celery_app import is_enabled as _celery_is_enabled
 from app.queue.tasks.career import extract_job_skills, run_career_ai_assessment
 from app.schemas.career import (
     AnthropicDiagnosticsOut,
+    ProviderDiagnosticsOut,
     AssessmentRunCreate,
     AssessmentRunOut,
     CareerJobCreate,
@@ -715,6 +716,56 @@ def test_anthropic_connectivity(
     except Exception as exc:
         latency_ms = int((_time.time() - started) * 1000)
         return {
+            "success": False,
+            "error": str(exc),
+            "latency_ms": latency_ms,
+        }
+
+
+@router.post("/diagnostics/career-provider", response_model=ProviderDiagnosticsOut)
+@require_permission("VIEW_CAREER")
+def test_career_provider_connectivity(
+    current_user: models.User = Depends(deps.get_current_user),
+):
+    """Test connectivity to the configured career AI provider (CAREER_AI_* settings)."""
+    import time as _time
+    from app.core.config import settings as _settings
+    from app.services.llm.providers import build_provider
+
+    provider_name = _settings.CAREER_AI_PROVIDER or "anthropic"
+    model = _settings.CAREER_AI_MODEL or "claude-haiku-4-5-20251001"
+    api_key = _settings.CAREER_AI_API_KEY or _settings.ANTHROPIC_API_KEY
+    base_url = _settings.CAREER_AI_BASE_URL or None
+
+    if not api_key:
+        return {
+            "provider": provider_name,
+            "model": model,
+            "success": False,
+            "error": "No API key configured (CAREER_AI_API_KEY / ANTHROPIC_API_KEY)",
+        }
+
+    started = _time.time()
+    try:
+        provider = build_provider(provider_name, api_key=api_key, base_url=base_url)
+        result = provider.chat(
+            model=model,
+            system_prompt="You are a test assistant. Reply with exactly: OK",
+            messages=[{"role": "user", "content": "ping"}],
+        )
+        latency_ms = int((_time.time() - started) * 1000)
+        return {
+            "provider": provider_name,
+            "model": model,
+            "success": True,
+            "response": result["text"][:100],
+            "latency_ms": latency_ms,
+        }
+    except Exception as exc:
+        latency_ms = int((_time.time() - started) * 1000)
+        return {
+            "provider": provider_name,
+            "model": model,
             "success": False,
             "error": str(exc),
             "latency_ms": latency_ms,

@@ -36,6 +36,7 @@ export const getRunReadiness = (objectiveId) => api.get(`/api/career/objectives/
 
 // Diagnostics
 export const testAnthropicConnectivity = () => api.post('/api/career/diagnostics/anthropic');
+export const testCareerProviderConnectivity = () => api.post('/api/career/diagnostics/career-provider');
 
 // Portfolio attachments (for resume selection in run dialog)
 export const getPortfolioAttachments = (portfolioId) => api.get(`/api/portfolios/${portfolioId}/attachments`);

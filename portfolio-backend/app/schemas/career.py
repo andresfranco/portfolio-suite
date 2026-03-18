@@ -165,6 +165,15 @@ class AnthropicDiagnosticsOut(BaseModel):
     error: Optional[str] = None
 
 
+class ProviderDiagnosticsOut(BaseModel):
+    provider: str
+    model: str
+    success: bool
+    latency_ms: Optional[int] = None
+    response: Optional[str] = None
+    error: Optional[str] = None
+
+
 # ── Pre-run readiness schemas ──────────────────────────────────────────────────
 
 class ReadinessCheck(BaseModel):

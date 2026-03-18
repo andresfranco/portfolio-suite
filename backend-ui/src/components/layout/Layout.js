@@ -40,7 +40,8 @@ import {
   Logout as LogoutIcon,
   CollectionsBookmark as PortfolioIcon,
   Shield as ShieldIcon,
-  TrendingUp as CareerIcon
+  TrendingUp as CareerIcon,
+  BugReport as DiagnosticsIcon
 } from '@mui/icons-material';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
 import authService from '../../services/authService';
@@ -195,6 +196,12 @@ const Layout = () => {
       path: '/career/jobs',
       requiredPermission: 'VIEW_CAREER'
     },
+    {
+      text: 'AI Diagnostics',
+      icon: <DiagnosticsIcon />,
+      path: '/career/diagnostics',
+      requiredPermission: 'MANAGE_CAREER'
+    },
 
     // System Settings
     { 
@@ -286,7 +293,7 @@ const Layout = () => {
       },
       {
         title: 'Career',
-        items: items.filter(item => ['Career Objectives', 'Career Jobs'].includes(item.text))
+        items: items.filter(item => ['Career Objectives', 'Career Jobs', 'AI Diagnostics'].includes(item.text))
       },
       {
         title: 'System',

@@ -58,6 +58,7 @@ import JobDetailPage from './components/career/JobDetailPage';
 import JobForm from './components/career/JobForm';
 import ObjectiveDetailPage from './components/career/ObjectiveDetailPage';
 import AssessmentRunPage from './components/career/AssessmentRunPage';
+import CareerDiagnosticsPage from './components/career/CareerDiagnosticsPage';
 
 // Wrapper component to access AuthorizationContext
 function AppContent() {
@@ -248,6 +249,7 @@ function AppContent() {
               </CareerProvider>
             } />
             <Route path="career/runs/:runId" element={<AssessmentRunPage />} />
+            <Route path="career/diagnostics" element={<CareerDiagnosticsPage />} />
 
             {/* System Settings */}
             <Route path="languages" element={

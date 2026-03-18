@@ -3,64 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import {
   Box, Button, Paper, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Typography, Chip, CircularProgress,
-  Accordion, AccordionSummary, AccordionDetails, Alert
 } from '@mui/material';
-import { Add as AddIcon, ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
+import { Add as AddIcon } from '@mui/icons-material';
 import { useCareer } from '../../contexts/CareerContext';
 import { useAuthorization } from '../../contexts/AuthorizationContext';
-import * as careerApi from '../../services/careerApi';
 import ObjectiveForm from './ObjectiveForm';
-
-const DiagnosticsPanel = () => {
-  const [testing, setTesting] = useState(false);
-  const [result, setResult] = useState(null);
-
-  const handleTest = async () => {
-    setTesting(true);
-    setResult(null);
-    try {
-      const res = await careerApi.testAnthropicConnectivity();
-      setResult(res.data);
-    } catch (err) {
-      setResult({ success: false, error: err.response?.data?.detail || err.message });
-    } finally {
-      setTesting(false);
-    }
-  };
-
-  return (
-    <Accordion sx={{ mt: 2 }}>
-      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-        <Typography variant="subtitle2">AI Diagnostics</Typography>
-      </AccordionSummary>
-      <AccordionDetails>
-        <Box display="flex" flexDirection="column" gap={1.5}>
-          <Typography variant="body2" color="text.secondary">
-            Test connectivity to the Anthropic API used for AI assessments.
-          </Typography>
-          <Box>
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={handleTest}
-              disabled={testing}
-              startIcon={testing ? <CircularProgress size={14} /> : null}
-            >
-              {testing ? 'Testing…' : 'Test Anthropic Connection'}
-            </Button>
-          </Box>
-          {result && (
-            <Alert severity={result.success ? 'success' : 'error'}>
-              {result.success
-                ? `Connected — response in ${result.latency_ms}ms: "${result.response}"`
-                : `Failed: ${result.error}`}
-            </Alert>
-          )}
-        </Box>
-      </AccordionDetails>
-    </Accordion>
-  );
-};
 
 const CareerIndex = () => {
   const { objectives, loading, error } = useCareer();
@@ -155,8 +102,6 @@ const CareerIndex = () => {
           </Table>
         </TableContainer>
       )}
-
-      {hasPermission('MANAGE_CAREER') && <DiagnosticsPanel />}
 
       <ObjectiveForm open={formOpen} onClose={() => setFormOpen(false)} />
     </Box>
