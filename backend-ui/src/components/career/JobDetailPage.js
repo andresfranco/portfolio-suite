@@ -10,7 +10,8 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   Add as AddIcon,
-  CheckCircle as RemoteIcon
+  CheckCircle as RemoteIcon,
+  AutoFixHigh as ExtractIcon
 } from '@mui/icons-material';
 import * as careerApi from '../../services/careerApi';
 import { useAuthorization } from '../../contexts/AuthorizationContext';
@@ -202,6 +203,8 @@ const JobDetailPage = () => {
   const [editing, setEditing] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [skillsDialogOpen, setSkillsDialogOpen] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [extractMsg, setExtractMsg] = useState(null);
 
   const fetchJob = useCallback(async () => {
     try {
@@ -226,6 +229,21 @@ const JobDetailPage = () => {
     } catch (err) {
       setError(err.response?.data?.message || err.message || 'Failed to delete job');
       setDeleteDialogOpen(false);
+    }
+  };
+
+  const handleExtractSkills = async () => {
+    setExtracting(true);
+    setExtractMsg(null);
+    try {
+      const res = await careerApi.extractJobSkills(jobId);
+      setJob(res.data);
+      const count = (res.data.skills || []).length;
+      setExtractMsg({ type: 'success', text: `Skills updated — ${count} total required skills.` });
+    } catch (err) {
+      setExtractMsg({ type: 'error', text: err.response?.data?.detail || err.message || 'Extraction failed' });
+    } finally {
+      setExtracting(false);
     }
   };
 
@@ -373,16 +391,34 @@ const JobDetailPage = () => {
             Required Skills ({(job.skills || []).length})
           </Typography>
           {hasPermission('MANAGE_CAREER') && (
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<EditIcon />}
-              onClick={() => setSkillsDialogOpen(true)}
-            >
-              Edit Skills
-            </Button>
+            <Box display="flex" gap={1}>
+              {job.description && (
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={extracting ? <CircularProgress size={16} /> : <ExtractIcon />}
+                  onClick={handleExtractSkills}
+                  disabled={extracting}
+                >
+                  {extracting ? 'Extracting…' : 'Extract from Description'}
+                </Button>
+              )}
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<EditIcon />}
+                onClick={() => setSkillsDialogOpen(true)}
+              >
+                Edit Skills
+              </Button>
+            </Box>
           )}
         </Box>
+        {extractMsg && (
+          <Alert severity={extractMsg.type} onClose={() => setExtractMsg(null)} sx={{ mb: 2 }}>
+            {extractMsg.text}
+          </Alert>
+        )}
         {(job.skills || []).length === 0 ? (
           <Typography color="text.secondary">No required skills defined.</Typography>
         ) : (

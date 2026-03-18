@@ -144,7 +144,7 @@ const AssessmentRunDialog = ({ open, onClose, objective }) => {
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>Run Assessment</DialogTitle>
-      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 3, overflow: 'visible' }}>
         {error && <Alert severity="error">{error}</Alert>}
 
         <TextField

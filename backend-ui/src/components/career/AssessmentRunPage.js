@@ -4,7 +4,7 @@ import {
   Box, Tabs, Tab, Typography, LinearProgress, Skeleton, Accordion,
   AccordionSummary, AccordionDetails, Alert, Chip, Card, CardContent,
   Grid, Table, TableBody, TableCell, TableHead, TableRow, CircularProgress,
-  List, ListItem, ListItemText, Badge, Paper
+  List, ListItem, ListItemText, Paper
 } from '@mui/material';
 import { ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
 import { useAssessmentRun } from '../../hooks/useAssessmentRun';
@@ -29,7 +29,7 @@ const priorityColor = (priority) => {
 
 const verdictColor = (verdict) => {
   switch (verdict) {
-    case 'BEST_FIT': return 'info';
+    case 'BEST_FIT': return 'success';
     case 'STRETCH': return 'warning';
     case 'ASPIRATIONAL': return 'error';
     default: return 'default';
@@ -48,84 +48,396 @@ const sortedSkills = (skills) =>
       (PRIORITY_ORDER[a.priority] ?? 99) - (PRIORITY_ORDER[b.priority] ?? 99)
   );
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const getBannerConfig = (readiness, criticalCount, highCount) => {
+  if (readiness == null) {
+    return {
+      label: 'ASSESSMENT IN PROGRESS',
+      sublabel: 'Computing your readiness score…',
+      borderColor: 'info.main',
+      gradientColor: 'rgba(2,136,209,0.10)',
+      narrative: null,
+    };
+  }
+  if (readiness >= 80) {
+    return {
+      label: 'STRONG MATCH — READY TO APPLY',
+      sublabel: `${Math.round(readiness)}% overall readiness`,
+      borderColor: 'success.main',
+      gradientColor: 'rgba(46,125,50,0.12)',
+      narrative:
+        criticalCount === 0
+          ? `Your profile covers the required skills with strong evidence. You are in a competitive position for these roles. Focus on tailoring your resume and preparing for behavioral interviews.`
+          : `You have strong overall coverage but ${criticalCount} critical gap${criticalCount > 1 ? 's' : ''} that could hold you back. Address ${criticalCount > 1 ? 'them' : 'it'} before applying to maximize your offer rate.`,
+    };
+  }
+  if (readiness >= 60) {
+    return {
+      label: 'COMPETITIVE — GAPS TO CLOSE',
+      sublabel: `${Math.round(readiness)}% overall readiness`,
+      borderColor: 'warning.main',
+      gradientColor: 'rgba(237,108,2,0.10)',
+      narrative:
+        `At ${Math.round(readiness)}% readiness you are a competitive candidate, but ${criticalCount} critical and ${highCount} high-priority gap${criticalCount + highCount !== 1 ? 's' : ''} are reducing your fit score. ` +
+        `Closing the critical gaps first will have the highest impact on interview conversion rates.`,
+    };
+  }
+  if (readiness >= 40) {
+    return {
+      label: 'POSSIBLE WITH FOCUSED WORK',
+      sublabel: `${Math.round(readiness)}% overall readiness`,
+      borderColor: 'warning.main',
+      gradientColor: 'rgba(237,108,2,0.10)',
+      narrative:
+        `These roles are reachable with a structured 8–12 week preparation plan. Your ${Math.round(readiness)}% readiness reflects real experience, but significant gaps exist. ` +
+        `Prioritize CRITICAL skills — they are the primary reason your applications may not advance to interviews.`,
+    };
+  }
+  return {
+    label: 'ASPIRATIONAL — SIGNIFICANT DEVELOPMENT NEEDED',
+    sublabel: `${Math.round(readiness)}% overall readiness`,
+    borderColor: 'error.main',
+    gradientColor: 'rgba(183,28,28,0.10)',
+    narrative:
+      `These are stretch roles that require substantial skill development before you are competitive. ` +
+      `Use this assessment as a 6–12 month roadmap. Start with the CRITICAL gaps — closing even 2–3 of them can dramatically improve your fit score.`,
+  };
+};
+
+const StatCard = ({ label, value, sub, valueColor }) => (
+  <Paper
+    variant="outlined"
+    sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column', gap: 0.5 }}
+  >
+    <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
+      {label}
+    </Typography>
+    <Typography variant="h5" fontWeight={700} sx={valueColor ? { color: valueColor } : {}}>
+      {value ?? '—'}
+    </Typography>
+    {sub && (
+      <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.3 }}>
+        {sub}
+      </Typography>
+    )}
+  </Paper>
+);
+
 // ─── Tab 1: Overview ─────────────────────────────────────────────────────────
-const OverviewTab = ({ run, scorecard, jobFit }) => {
+const OverviewTab = ({ run, scorecard, jobFit, resumeIssues, actionPlan, aiStatus }) => {
   if (!run) return <CircularProgress />;
 
-  const readiness = run.readiness_score ?? scorecard?.readiness_score ?? null;
+  const readiness = scorecard?.overall_readiness ?? null;
   const allSkills = scorecard?.skills || [];
-  const skillGaps = allSkills.filter((s) => (s.level ?? 0) < 3);
-  const criticalGaps = allSkills.filter((s) => s.priority === 'CRITICAL');
+  const criticalSkills = allSkills.filter((s) => s.priority === 'CRITICAL');
+  const highSkills = allSkills.filter((s) => s.priority === 'HIGH');
+  // Any skill with at least one project (level > 0), sorted best first
+  const strongSkills = [...allSkills]
+    .sort((a, b) => (b.level || 0) - (a.level || 0))
+    .filter((s) => (s.level || 0) > 0);
   const bottlenecks = sortedSkills(allSkills)
     .filter((s) => ['CRITICAL', 'HIGH'].includes(s.priority))
     .slice(0, 3);
 
-  const verdict = jobFit?.overall_verdict || run.overall_verdict;
+  const jobs = jobFit?.jobs || [];
+  const bestFitJob = [...jobs].sort((a, b) => (b.fit_score || 0) - (a.fit_score || 0))[0];
+
+  const banner = getBannerConfig(readiness, criticalSkills.length, highSkills.length);
+
+  // Next steps: prefer first 3 action plan items, fall back to top resume issues
+  const nextSteps = [];
+  if (actionPlan && actionPlan.length > 0) {
+    actionPlan.slice(0, 3).forEach((item) => {
+      nextSteps.push(item.focus || item.tasks?.[0] || '');
+    });
+  } else if (resumeIssues && resumeIssues.length > 0) {
+    resumeIssues
+      .filter((i) => ['CRITICAL', 'HIGH'].includes(i.impact))
+      .slice(0, 3)
+      .forEach((issue) => nextSteps.push(issue.fix || issue.issue));
+  }
+
+  // Top skills with any project evidence (up to 4)
+  const topStrong = strongSkills.filter((s) => s.evidence && s.evidence !== '—').slice(0, 4);
 
   return (
     <Box>
-      {/* Readiness score */}
-      <Box textAlign="center" mb={3}>
+      {/* ── Banner ── */}
+      <Box
+        sx={{
+          borderLeft: '4px solid',
+          borderLeftColor: banner.borderColor,
+          background: banner.gradientColor,
+          borderRadius: 1,
+          p: 2.5,
+          mb: 3,
+        }}
+      >
         <Typography
-          variant="h2"
-          sx={{ color: readiness != null ? readinessColor(readiness) : 'text.secondary', fontWeight: 700 }}
+          variant="subtitle1"
+          fontWeight={800}
+          sx={{ color: banner.borderColor, mb: 0.5, textTransform: 'uppercase', letterSpacing: 0.5 }}
         >
-          {readiness != null ? `${Math.round(readiness)}%` : '—'}
+          Readiness Assessment:{' '}
+          <Box component="span" sx={{ color: banner.borderColor }}>
+            {banner.label}
+          </Box>
         </Typography>
-        <Typography variant="subtitle1" color="text.secondary">
-          Overall Readiness
-        </Typography>
+        {banner.narrative && (
+          <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.7 }}>
+            {banner.narrative}{' '}
+            {bestFitJob && (
+              <>
+                <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                  Best-fit role: {bestFitJob.job_title} at {bestFitJob.company}
+                </Box>{' '}
+                ({Math.round(bestFitJob.fit_score ?? 0)}% match).
+              </>
+            )}
+          </Typography>
+        )}
       </Box>
 
-      {/* Verdict */}
-      {verdict && (
-        <Alert severity={verdictColor(verdict) === 'error' ? 'error' : verdictColor(verdict) === 'warning' ? 'warning' : 'info'} sx={{ mb: 2 }}>
-          Verdict: <strong>{verdict.replace('_', ' ')}</strong>
-        </Alert>
-      )}
-
-      {/* Stats grid */}
+      {/* ── 6 Stat Cards ── */}
       <Grid container spacing={2} mb={3}>
-        <Grid item xs={12} sm={4}>
-          <Paper variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
-            <Typography variant="h4">{(jobFit?.jobs || scorecard?.jobs || []).length}</Typography>
-            <Typography variant="body2" color="text.secondary">Jobs Evaluated</Typography>
-          </Paper>
+        <Grid item xs={6} sm={4}>
+          <StatCard
+            label="Overall Readiness"
+            value={readiness != null ? `${Math.round(readiness)}%` : '—'}
+            sub={
+              readiness != null
+                ? readiness >= 60
+                  ? 'Competitive profile'
+                  : readiness >= 40
+                  ? 'Development needed'
+                  : 'Significant gaps remain'
+                : 'Computing…'
+            }
+            valueColor={readiness != null ? readinessColor(readiness) : undefined}
+          />
         </Grid>
-        <Grid item xs={12} sm={4}>
-          <Paper variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
-            <Typography variant="h4">{skillGaps.length}</Typography>
-            <Typography variant="body2" color="text.secondary">Skill Gaps</Typography>
-          </Paper>
+
+        <Grid item xs={6} sm={4}>
+          <StatCard
+            label="Best Fit JD Match"
+            value={bestFitJob ? `${Math.round(bestFitJob.fit_score ?? 0)}%` : `${jobs.length} jobs`}
+            sub={
+              bestFitJob
+                ? `${bestFitJob.job_title} — ${bestFitJob.company}`
+                : jobs.length === 0
+                ? 'No job data yet'
+                : undefined
+            }
+          />
         </Grid>
-        <Grid item xs={12} sm={4}>
-          <Paper variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
-            <Typography variant="h4">{criticalGaps.length}</Typography>
-            <Typography variant="body2" color="text.secondary">Critical Gaps</Typography>
-          </Paper>
+
+        <Grid item xs={6} sm={4}>
+          <StatCard
+            label="Critical Gaps"
+            value={criticalSkills.length}
+            sub={
+              criticalSkills.length > 0
+                ? criticalSkills
+                    .slice(0, 2)
+                    .map((s) => s.skill_name || s.name)
+                    .join(' + ') + (criticalSkills.length > 2 ? ` +${criticalSkills.length - 2} more` : '')
+                : 'No critical gaps — great coverage'
+            }
+            valueColor={criticalSkills.length > 0 ? 'error.main' : 'success.main'}
+          />
+        </Grid>
+
+        <Grid item xs={6} sm={4}>
+          <StatCard
+            label="Jobs Evaluated"
+            value={jobs.length}
+            sub={
+              jobs.length > 0
+                ? (() => {
+                    const bestFitCount = jobs.filter((j) => j.verdict === 'BEST_FIT').length;
+                    const stretchCount = jobs.filter((j) => j.verdict === 'STRETCH').length;
+                    const parts = [];
+                    if (bestFitCount) parts.push(`${bestFitCount} best fit`);
+                    if (stretchCount) parts.push(`${stretchCount} stretch`);
+                    return parts.join(', ') || 'All aspirational';
+                  })()
+                : 'No job fit data'
+            }
+          />
+        </Grid>
+
+        <Grid item xs={6} sm={4}>
+          <StatCard
+            label="Skills Assessed"
+            value={allSkills.length}
+            sub={
+              allSkills.length > 0
+                ? `${strongSkills.length} with strong evidence, ${criticalSkills.length + highSkills.length} gaps`
+                : 'No skill data yet'
+            }
+          />
+        </Grid>
+
+        <Grid item xs={6} sm={4}>
+          <StatCard
+            label="Key Strength"
+            value={strongSkills[0] ? strongSkills[0].skill_name || strongSkills[0].name : '—'}
+            sub={
+              strongSkills[0]
+                ? `Level ${strongSkills[0].level}/5 · ${strongSkills[0].evidence || 'evidence in portfolio'}`
+                : allSkills.length > 0
+                ? 'No skills linked to projects yet'
+                : 'No skill data yet'
+            }
+          />
         </Grid>
       </Grid>
 
-      {/* Top bottlenecks */}
+      {/* ── Skills with Evidence ── */}
+      {topStrong.length > 0 && (
+        <Box
+          sx={{
+            borderLeft: '4px solid',
+            borderLeftColor: 'success.main',
+            background: 'rgba(46,125,50,0.07)',
+            borderRadius: 1,
+            p: 2.5,
+            mb: 3,
+          }}
+        >
+          <Typography
+            variant="subtitle2"
+            fontWeight={800}
+            sx={{ textTransform: 'uppercase', letterSpacing: 0.8, mb: 0.5, color: 'success.main' }}
+          >
+            {topStrong[0]?.level >= 3 ? 'Your Biggest Assets' : 'Skills With Portfolio Evidence'}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+            {topStrong[0]?.level >= 3
+              ? 'These skills have strong project evidence and set you apart.'
+              : `These ${topStrong.length} skill${topStrong.length !== 1 ? 's' : ''} appear in your projects — link more projects to each skill to raise the evidence level and improve your fit score.`}
+          </Typography>
+          {topStrong.map((s, i) => (
+            <Box key={s.skill_id || i} display="flex" alignItems="flex-start" gap={1.5} mb={i < topStrong.length - 1 ? 1.5 : 0}>
+              <Box sx={{ minWidth: 52, pt: 0.25 }}>
+                <LinearProgress
+                  variant="determinate"
+                  value={(s.level || 0) * 20}
+                  sx={{ height: 6, borderRadius: 3 }}
+                  color={s.level >= 3 ? 'success' : s.level >= 2 ? 'warning' : 'info'}
+                />
+                <Typography variant="caption" color="text.secondary">{s.level}/5</Typography>
+              </Box>
+              <Box>
+                <Typography variant="body2" fontWeight={700} sx={{ color: 'text.primary' }}>
+                  {s.skill_name || s.name}
+                </Typography>
+                {s.evidence && s.evidence !== '—' && (
+                  <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.5 }}>
+                    {s.evidence}
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+          ))}
+        </Box>
+      )}
+
+      {/* ── Top 3 Bottlenecks ── */}
       {bottlenecks.length > 0 && (
-        <Box>
-          <Typography variant="subtitle1" mb={1}>Top Bottlenecks</Typography>
-          <List dense>
-            {bottlenecks.map((skill, i) => (
-              <ListItem key={skill.skill_id || i} sx={{ pl: 0 }}>
-                <ListItemText
-                  primary={skill.skill_name || skill.name}
-                  secondary={skill.gap}
-                />
-                <Chip
-                  label={skill.priority}
-                  size="small"
-                  color={priorityColor(skill.priority)}
-                  sx={{ ml: 1 }}
-                />
-              </ListItem>
-            ))}
-          </List>
+        <Box
+          sx={{
+            borderLeft: '4px solid',
+            borderLeftColor: 'error.main',
+            background: 'rgba(183,28,28,0.07)',
+            borderRadius: 1,
+            p: 2.5,
+            mb: 3,
+          }}
+        >
+          <Typography
+            variant="subtitle2"
+            fontWeight={800}
+            sx={{ textTransform: 'uppercase', letterSpacing: 0.8, mb: 1.5 }}
+          >
+            Top {bottlenecks.length} Bottlenecks{' '}
+            <Box component="span" sx={{ fontWeight: 400, color: 'text.secondary', textTransform: 'none', fontSize: '0.75rem' }}>
+              (ranked by impact)
+            </Box>
+          </Typography>
+          {bottlenecks.map((skill, i) => (
+            <Box key={skill.skill_id || i} display="flex" gap={2} mb={i < bottlenecks.length - 1 ? 2 : 0}>
+              <Box
+                sx={{
+                  minWidth: 28,
+                  height: 28,
+                  borderRadius: '50%',
+                  background: i === 0 ? 'error.main' : i === 1 ? 'warning.main' : 'text.disabled',
+                  bgcolor: i === 0 ? 'error.main' : i === 1 ? 'warning.main' : 'action.disabled',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  mt: 0.25,
+                  flexShrink: 0,
+                }}
+              >
+                <Typography variant="caption" fontWeight={700} sx={{ color: '#fff' }}>
+                  {i + 1}
+                </Typography>
+              </Box>
+              <Box>
+                <Box display="flex" alignItems="center" gap={1} mb={0.25}>
+                  <Typography variant="body2" fontWeight={700}>
+                    {skill.skill_name || skill.name}
+                  </Typography>
+                  <Chip label={skill.priority} size="small" color={priorityColor(skill.priority)} />
+                </Box>
+                <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.5 }}>
+                  {skill.gap || skill.evidence || '—'}
+                </Typography>
+              </Box>
+            </Box>
+          ))}
+        </Box>
+      )}
+
+      {/* ── Immediate Next Steps ── */}
+      {(nextSteps.length > 0 || ['pending', 'running'].includes(aiStatus)) && (
+        <Box
+          sx={{
+            borderLeft: '4px solid',
+            borderLeftColor: 'info.main',
+            background: 'rgba(2,136,209,0.07)',
+            borderRadius: 1,
+            p: 2.5,
+          }}
+        >
+          <Typography
+            variant="subtitle2"
+            fontWeight={800}
+            sx={{ textTransform: 'uppercase', letterSpacing: 0.8, mb: 1.5, color: 'info.main' }}
+          >
+            Immediate Next Steps
+          </Typography>
+          {['pending', 'running'].includes(aiStatus) && nextSteps.length === 0 ? (
+            <Box display="flex" alignItems="center" gap={1}>
+              <CircularProgress size={14} />
+              <Typography variant="body2" color="text.secondary">
+                AI is generating your personalised action plan…
+              </Typography>
+            </Box>
+          ) : (
+            <Box component="ol" sx={{ m: 0, pl: 2.5 }}>
+              {nextSteps.map((step, i) => (
+                <Box component="li" key={i} sx={{ mb: 0.75 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.6 }}>
+                    {step}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          )}
         </Box>
       )}
     </Box>
@@ -221,7 +533,7 @@ const JobFitTab = ({ jobFit }) => {
           <CardContent>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
               <Box>
-                <Typography variant="h6">{jobEntry.title}</Typography>
+                <Typography variant="h6">{jobEntry.job_title}</Typography>
                 <Typography variant="body2" color="text.secondary">{jobEntry.company}</Typography>
               </Box>
               <Box display="flex" alignItems="center" gap={1}>
@@ -235,7 +547,7 @@ const JobFitTab = ({ jobFit }) => {
                 />
               </Box>
             </Box>
-            {(jobEntry.skills || []).length > 0 && (
+            {(jobEntry.scorecard || []).length > 0 && (
               <Table size="small">
                 <TableHead>
                   <TableRow>
@@ -245,7 +557,7 @@ const JobFitTab = ({ jobFit }) => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {sortedSkills(jobEntry.skills).map((skill, j) => (
+                  {sortedSkills(jobEntry.scorecard).map((skill, j) => (
                     <TableRow key={skill.skill_id || j}>
                       <TableCell>{skill.skill_name || skill.name}</TableCell>
                       <TableCell>
@@ -278,6 +590,36 @@ const JobFitTab = ({ jobFit }) => {
   );
 };
 
+// ─── Helpers: grouping ────────────────────────────────────────────────────────
+
+/** Group an array of items by their `job` field. Items without a `job` field
+ *  are placed under a "General" key. Returns an ordered array of
+ *  [jobLabel, items[]] pairs so rendering order is deterministic. */
+const groupByJob = (items) => {
+  const map = {};
+  const order = [];
+  for (const item of items) {
+    const key = (item.job || 'General').trim();
+    if (!map[key]) { map[key] = []; order.push(key); }
+    map[key].push(item);
+  }
+  return order.map((k) => [k, map[k]]);
+};
+
+const JobGroupHeader = ({ label, count }) => (
+  <Box
+    display="flex"
+    alignItems="center"
+    gap={1.5}
+    sx={{ mt: 3, mb: 1.5, pb: 0.75, borderBottom: '1px solid', borderColor: 'divider' }}
+  >
+    <Typography variant="subtitle1" fontWeight={700}>
+      {label}
+    </Typography>
+    <Chip label={`${count} item${count !== 1 ? 's' : ''}`} size="small" variant="outlined" />
+  </Box>
+);
+
 // ─── Tab 4: Resume Issues ─────────────────────────────────────────────────────
 const ResumeIssuesTab = ({ aiStatus, resumeIssues, error }) => {
   if (error === 'timeout') {
@@ -309,34 +651,52 @@ const ResumeIssuesTab = ({ aiStatus, resumeIssues, error }) => {
     return <Typography color="text.secondary">No resume issues identified.</Typography>;
   }
 
+  // Detect whether job grouping is available (at least one item has a `job` field)
+  const hasJobField = resumeIssues.some((i) => i.job);
+  const groups = hasJobField ? groupByJob(resumeIssues) : [['All Issues', resumeIssues]];
+
   return (
     <Box>
-      {resumeIssues.map((issue, i) => (
-        <Accordion key={issue.id || i}>
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Box display="flex" alignItems="center" gap={1} flex={1}>
-              <Typography flex={1}>{issue.title || issue.issue}</Typography>
-              {issue.impact && (
-                <Chip
-                  label={issue.impact}
-                  size="small"
-                  color={
-                    issue.impact === 'HIGH'
-                      ? 'error'
-                      : issue.impact === 'MEDIUM'
-                      ? 'warning'
-                      : 'default'
-                  }
-                />
-              )}
-            </Box>
-          </AccordionSummary>
-          <AccordionDetails>
-            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-              {issue.fix || issue.description || '—'}
-            </Typography>
-          </AccordionDetails>
-        </Accordion>
+      {!hasJobField && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          This run was generated before per-job grouping was available. Create a new assessment run to see resume issues grouped by job.
+        </Alert>
+      )}
+      {groups.map(([jobLabel, issues], gi) => (
+        <Box key={jobLabel}>
+          {(hasJobField || groups.length > 1) && (
+            <JobGroupHeader label={jobLabel} count={issues.length} />
+          )}
+          {issues.map((issue, i) => (
+            <Accordion key={`${gi}-${i}`} disableGutters>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Box display="flex" alignItems="center" gap={1} flex={1} pr={1}>
+                  <Typography flex={1} variant="body2">
+                    {issue.title || issue.issue}
+                  </Typography>
+                  {issue.impact && (
+                    <Chip
+                      label={issue.impact}
+                      size="small"
+                      color={
+                        issue.impact === 'CRITICAL' || issue.impact === 'HIGH'
+                          ? 'error'
+                          : issue.impact === 'MEDIUM'
+                          ? 'warning'
+                          : 'default'
+                      }
+                    />
+                  )}
+                </Box>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
+                  {issue.fix || issue.description || '—'}
+                </Typography>
+              </AccordionDetails>
+            </Accordion>
+          ))}
+        </Box>
       ))}
     </Box>
   );
@@ -372,40 +732,57 @@ const ActionPlanTab = ({ aiStatus, actionPlan, error }) => {
     return <Typography color="text.secondary">No action plan generated.</Typography>;
   }
 
+  const hasJobField = actionPlan.some((i) => i.job);
+  const groups = hasJobField ? groupByJob(actionPlan) : [['Action Plan', actionPlan]];
+
   return (
-    <Box display="flex" flexDirection="column" gap={2}>
-      {actionPlan.map((item, i) => (
-        <Card key={i} variant="outlined">
-          <CardContent>
-            <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
-              <Box>
-                {item.week_range && (
-                  <Typography variant="caption" color="text.secondary">
-                    Week {item.week_range}
-                  </Typography>
-                )}
-                <Typography variant="subtitle1" fontWeight={600}>
-                  {item.focus}
-                </Typography>
-              </Box>
-              {item.hours != null && (
-                <Chip label={`${item.hours}h`} size="small" variant="outlined" />
-              )}
-            </Box>
-            {(item.tasks || []).length > 0 && (
-              <List dense sx={{ pl: 1 }}>
-                {item.tasks.map((task, j) => (
-                  <ListItem key={j} sx={{ pl: 0, py: 0.25 }}>
-                    <ListItemText
-                      primary={typeof task === 'string' ? task : task.description || task.task}
-                      primaryTypographyProps={{ variant: 'body2' }}
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            )}
-          </CardContent>
-        </Card>
+    <Box>
+      {!hasJobField && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          This run was generated before per-job grouping was available. Create a new assessment run to see the action plan grouped by job.
+        </Alert>
+      )}
+      {groups.map(([jobLabel, items], gi) => (
+        <Box key={jobLabel}>
+          {(hasJobField || groups.length > 1) && (
+            <JobGroupHeader label={jobLabel} count={items.length} />
+          )}
+          <Box display="flex" flexDirection="column" gap={2} mb={1}>
+            {items.map((item, i) => (
+              <Card key={`${gi}-${i}`} variant="outlined">
+                <CardContent>
+                  <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+                    <Box>
+                      {item.week_range && (
+                        <Typography variant="caption" color="text.secondary">
+                          Week {item.week_range}
+                        </Typography>
+                      )}
+                      <Typography variant="subtitle1" fontWeight={600}>
+                        {item.focus}
+                      </Typography>
+                    </Box>
+                    {item.hours != null && (
+                      <Chip label={`${item.hours}h`} size="small" variant="outlined" />
+                    )}
+                  </Box>
+                  {(item.tasks || []).length > 0 && (
+                    <List dense sx={{ pl: 1 }}>
+                      {item.tasks.map((task, j) => (
+                        <ListItem key={j} sx={{ pl: 0, py: 0.25 }}>
+                          <ListItemText
+                            primary={typeof task === 'string' ? task : task.description || task.task}
+                            primaryTypographyProps={{ variant: 'body2' }}
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </Box>
+        </Box>
       ))}
     </Box>
   );
@@ -457,7 +834,14 @@ const AssessmentRunPage = () => {
       </Tabs>
 
       <TabPanel value={tab} index={0}>
-        <OverviewTab run={run} scorecard={scorecard} jobFit={jobFit} />
+        <OverviewTab
+          run={run}
+          scorecard={scorecard}
+          jobFit={jobFit}
+          resumeIssues={resumeIssues}
+          actionPlan={actionPlan}
+          aiStatus={aiStatus}
+        />
       </TabPanel>
 
       <TabPanel value={tab} index={1}>

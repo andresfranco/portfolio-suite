@@ -6,7 +6,8 @@ export const listJobs  = (params) => api.get('/api/career/jobs', { params });
 export const getJob    = (id) => api.get(`/api/career/jobs/${id}`);
 export const updateJob = (id, data) => api.put(`/api/career/jobs/${id}`, data);
 export const deleteJob = (id) => api.delete(`/api/career/jobs/${id}`);
-export const updateJobSkills = (id, skills) => api.put(`/api/career/jobs/${id}/skills`, { skills });
+export const updateJobSkills    = (id, skills) => api.put(`/api/career/jobs/${id}/skills`, { skills });
+export const extractJobSkills   = (id) => api.post(`/api/career/jobs/${id}/extract-skills`);
 
 // Objectives
 export const createObjective  = (data) => api.post('/api/career/objectives', data);

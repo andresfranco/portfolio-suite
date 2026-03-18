@@ -19,6 +19,8 @@ from app.models.career import (
     career_assessment_run_job,
     career_objective_job,
 )
+from app.models.language import Language
+from app.models.skill import Skill, SkillText
 from app.schemas.career import (
     AssessmentRunCreate,
     CareerJobCreate,
@@ -163,6 +165,54 @@ def replace_job_skills(
         .where(CareerJob.id == job.id)
     )
     return result.scalars().one()
+
+
+# ── Skill helpers ─────────────────────────────────────────────────────────────
+
+def get_or_create_skill_by_name(
+    db: Session,
+    name: str,
+    user_id: int,
+) -> tuple[int, bool]:
+    """Find a skill by exact name (case-insensitive, default language preferred) or create it.
+
+    Returns (skill_id, created).
+    """
+    clean = name.strip()
+    # Prefer default-language match; fall back to any language
+    row = db.execute(
+        select(SkillText.skill_id)
+        .join(Language, Language.id == SkillText.language_id)
+        .where(SkillText.name.ilike(clean))
+        .order_by(Language.is_default.desc())
+        .limit(1)
+    ).first()
+    if row:
+        return row[0], False
+
+    # Resolve default language; fall back to first available
+    lang_id = db.execute(
+        select(Language.id).where(Language.is_default == True).limit(1)  # noqa: E712
+    ).scalar_one_or_none()
+    if lang_id is None:
+        lang_id = db.execute(select(Language.id).limit(1)).scalar_one_or_none()
+    if lang_id is None:
+        raise ValueError("No languages configured — cannot create skill")
+
+    skill = Skill(type="hard", created_by=user_id, updated_by=user_id)
+    db.add(skill)
+    db.flush()
+    db.add(SkillText(
+        skill_id=skill.id,
+        language_id=lang_id,
+        name=clean,
+        description="",
+        created_by=user_id,
+        updated_by=user_id,
+    ))
+    db.flush()
+    logger.debug("Created new skill %r with id=%d", clean, skill.id)
+    return skill.id, True
 
 
 # ── Objectives ────────────────────────────────────────────────────────────────

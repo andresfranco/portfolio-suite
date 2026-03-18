@@ -18,6 +18,7 @@ from sqlalchemy.orm import selectinload, joinedload
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.crud.career import (
+    get_or_create_skill_by_name,
     update_run_ai_data_sync,
     update_run_ai_status_sync,
 )
@@ -27,6 +28,7 @@ from app.models.career import (
     CareerJobSkill,
 )
 from app.models.experience import Experience, ExperienceText
+from app.models.language import Language
 from app.models.portfolio import Portfolio, PortfolioAttachment, portfolio_experiences, portfolio_projects
 from app.models.project import Project, ProjectText, project_skills
 from app.models.skill import SkillText
@@ -43,14 +45,17 @@ SYSTEM_PROMPT = (
     "return ONLY valid JSON matching this exact schema — no prose, no markdown fences:\n"
     "{\n"
     '  "resume_issues": [\n'
-    '    { "issue": "string", "impact": "CRITICAL|HIGH|MEDIUM|LOW", "fix": "string" }\n'
+    '    { "job": "string", "issue": "string", "impact": "CRITICAL|HIGH|MEDIUM|LOW", "fix": "string" }\n'
     "  ],\n"
     '  "action_plan": [\n'
-    '    { "week_range": "string", "focus": "string", "tasks": ["string"], "hours": "string" }\n'
+    '    { "job": "string", "week_range": "string", "focus": "string", "tasks": ["string"], "hours": "string" }\n'
     "  ]\n"
     "}\n"
+    "For EACH job listed under JOBS BEING EVALUATED, produce specific resume issues and a prioritised action plan. "
+    'Set \"job\" to the exact job title from the input. '
+    'Use \"General\" only for cross-cutting issues that apply to every job equally. '
     "Identify resume issues based on skill gaps from the scorecard. "
-    "Generate a 12-week prioritised action plan addressing CRITICAL and HIGH gaps first."
+    "Generate a 12-week prioritised action plan per job addressing CRITICAL and HIGH gaps first."
 )
 
 
@@ -90,10 +95,12 @@ def _get_job_skill_names(db, run: CareerAssessmentRun) -> dict[int, dict[int, st
 
     all_skill_ids = list({pair[1] for pair in job_skill_pairs})
 
-    # Fetch one name per skill (any language)
+    # Fetch one name per skill (prefer default language)
     rows = db.execute(
         select(SkillText.skill_id, SkillText.name)
+        .outerjoin(Language, Language.id == SkillText.language_id)
         .where(SkillText.skill_id.in_(all_skill_ids))
+        .order_by(SkillText.skill_id, Language.is_default.desc())
         .distinct(SkillText.skill_id)
     ).all()
     skill_id_to_name: dict[int, str] = {row[0]: (row[1] or f"Skill {row[0]}") for row in rows}
@@ -117,12 +124,14 @@ def _get_portfolio_name(db, portfolio_id: int) -> str:
 
 def _get_project_summaries(db, portfolio_id: int) -> list[dict]:
     """Return [{name, skills}] for projects linked to the portfolio."""
-    # Step 1: project id → name via ProjectText (first text row per project)
+    # Step 1: project id → name via ProjectText (prefer default language)
     project_rows = db.execute(
         select(Project.id, ProjectText.name)
         .join(portfolio_projects, portfolio_projects.c.project_id == Project.id)
         .outerjoin(ProjectText, ProjectText.project_id == Project.id)
+        .outerjoin(Language, Language.id == ProjectText.language_id)
         .where(portfolio_projects.c.portfolio_id == portfolio_id)
+        .order_by(Project.id, Language.is_default.desc())
         .distinct(Project.id)
     ).all()
 
@@ -136,12 +145,14 @@ def _get_project_summaries(db, portfolio_id: int) -> list[dict]:
 
     project_ids = list(project_id_to_name.keys())
 
-    # Step 2: skill names for each project
+    # Step 2: skill names for each project (prefer default language)
     skill_rows = db.execute(
         select(project_skills.c.project_id, SkillText.name)
         .join(SkillText, SkillText.skill_id == project_skills.c.skill_id)
+        .outerjoin(Language, Language.id == SkillText.language_id)
         .where(project_skills.c.project_id.in_(project_ids))
-        .distinct(project_skills.c.project_id, SkillText.skill_id)
+        .order_by(project_skills.c.project_id, project_skills.c.skill_id, Language.is_default.desc())
+        .distinct(project_skills.c.project_id, project_skills.c.skill_id)
     ).all()
 
     pid_to_skills: dict[int, list[str]] = {pid: [] for pid in project_ids}
@@ -161,7 +172,9 @@ def _get_experience_summaries(db, portfolio_id: int) -> list[dict]:
         select(Experience.id, Experience.years, ExperienceText.name)
         .join(portfolio_experiences, portfolio_experiences.c.experience_id == Experience.id)
         .outerjoin(ExperienceText, ExperienceText.experience_id == Experience.id)
+        .outerjoin(Language, Language.id == ExperienceText.language_id)
         .where(portfolio_experiences.c.portfolio_id == portfolio_id)
+        .order_by(Experience.id, Language.is_default.desc())
         .distinct(Experience.id)
     ).all()
 
@@ -425,5 +438,124 @@ def run_career_ai_assessment(self: Task, run_id: int) -> None:
     except Exception:
         logger.exception("Career AI task failed for run_id=%d", run_id)
         update_run_ai_status_sync(db, run_id, "failed")
+    finally:
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# Skill extraction task
+# ---------------------------------------------------------------------------
+
+SKILL_EXTRACTION_PROMPT = (
+    "You are a technical recruiter. Given a job description, extract all technical and soft skills required.\n"
+    "Return ONLY a JSON array of skill name strings — no prose, no markdown fences:\n"
+    '["skill1", "skill2", ...]\n'
+    "Include programming languages, frameworks, tools, methodologies, and soft skills explicitly mentioned.\n"
+    "Use short, standard names (e.g., 'Python', 'React', 'Docker', 'Agile', 'Communication').\n"
+    "Return an empty array [] if no skills are found."
+)
+
+
+@shared_task(
+    name="app.queue.tasks.career.extract_job_skills",
+    bind=True,
+    max_retries=0,
+    time_limit=60,
+    soft_time_limit=55,
+)
+def extract_job_skills(self: Task, job_id: int, user_id: int) -> None:
+    """Extract required skills from a job description using AI and link them to the job.
+
+    Sequence
+    --------
+    1. Load the job; skip if description is empty.
+    2. Call configured AI provider to extract skill names.
+    3. For each name: find existing skill (case-insensitive) or create it.
+    4. Add new CareerJobSkill rows for skills not already linked.
+    """
+    db = SessionLocal()
+    try:
+        result = db.execute(
+            select(CareerJob).where(CareerJob.id == job_id)
+        )
+        job = result.scalars().first()
+        if job is None:
+            logger.warning("extract_job_skills: job_id=%d not found — aborting", job_id)
+            return
+
+        description = (job.description or "").strip()
+        if not description:
+            logger.info("extract_job_skills: job_id=%d has no description — skipping", job_id)
+            return
+
+        # ── Call AI ──────────────────────────────────────────────────────────
+        provider = _build_career_provider()
+        model = settings.CAREER_AI_MODEL or HAIKU_MODEL
+        try:
+            ai_result = provider.chat(
+                model=model,
+                system_prompt=SKILL_EXTRACTION_PROMPT,
+                messages=[{"role": "user", "content": description}],
+            )
+        except RateLimitError:
+            fallback_provider, fallback_model = _build_career_fallback_provider()
+            if fallback_provider is None:
+                raise
+            logger.warning(
+                "extract_job_skills: primary rate-limited for job_id=%d; using fallback", job_id
+            )
+            ai_result = fallback_provider.chat(
+                model=fallback_model,
+                system_prompt=SKILL_EXTRACTION_PROMPT,
+                messages=[{"role": "user", "content": description}],
+            )
+
+        # ── Parse ─────────────────────────────────────────────────────────────
+        raw = ai_result["text"].strip()
+        raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[1]
+            raw = raw.rsplit("```", 1)[0].strip()
+
+        skill_names = json.loads(raw)
+        if not isinstance(skill_names, list):
+            logger.warning(
+                "extract_job_skills: unexpected AI response for job_id=%d: %r", job_id, raw[:200]
+            )
+            return
+
+        # ── Link skills ───────────────────────────────────────────────────────
+        existing_ids = {
+            row[0]
+            for row in db.execute(
+                select(CareerJobSkill.skill_id).where(CareerJobSkill.job_id == job_id)
+            ).all()
+        }
+
+        added = 0
+        for name in skill_names:
+            if not isinstance(name, str) or not name.strip():
+                continue
+            skill_id, created = get_or_create_skill_by_name(db, name.strip(), user_id)
+            if skill_id not in existing_ids:
+                db.add(CareerJobSkill(
+                    job_id=job_id,
+                    skill_id=skill_id,
+                    is_required=True,
+                    years_required=None,
+                ))
+                existing_ids.add(skill_id)
+                added += 1
+
+        db.commit()
+        logger.info(
+            "extract_job_skills completed for job_id=%d: %d added from %d extracted",
+            job_id, added, len(skill_names),
+        )
+
+    except SoftTimeLimitExceeded:
+        logger.error("extract_job_skills timed out for job_id=%d", job_id)
+    except Exception:
+        logger.exception("extract_job_skills failed for job_id=%d", job_id)
     finally:
         db.close()

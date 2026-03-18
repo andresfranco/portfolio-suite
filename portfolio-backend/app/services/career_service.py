@@ -17,6 +17,7 @@ from app.core.logging import setup_logger
 from app.crud.career import get_run, update_run_sync_data
 from app.models.career import CareerJobSkill
 from app.models.experience import Experience
+from app.models.language import Language
 from app.models.portfolio import portfolio_experiences, portfolio_projects
 from app.models.project import Project, ProjectText, project_skills
 from app.models.skill import Skill, SkillText
@@ -56,16 +57,15 @@ def fetch_portfolio_skill_evidence(
         return [], _sum_experience_years(db, portfolio_id)
 
     # ── Step 1: portfolio's projects (id → name) ──────────────────────────────
-    # Project name lives in ProjectText (first available, language-agnostic).
-    # We LEFT JOIN project_texts so projects without a text row still appear.
+    # Project name lives in ProjectText.  We prefer the default-language row
+    # (Language.is_default DESC) so English names are shown, not arbitrary ones.
     project_rows = db.execute(
         select(Project.id, ProjectText.name)
         .join(portfolio_projects, portfolio_projects.c.project_id == Project.id)
-        .outerjoin(
-            ProjectText,
-            (ProjectText.project_id == Project.id),
-        )
+        .outerjoin(ProjectText, ProjectText.project_id == Project.id)
+        .outerjoin(Language, Language.id == ProjectText.language_id)
         .where(portfolio_projects.c.portfolio_id == portfolio_id)
+        .order_by(Project.id, Language.is_default.desc())
         .distinct(Project.id)
     ).all()
 
@@ -78,11 +78,13 @@ def fetch_portfolio_skill_evidence(
 
     project_ids = list(project_id_to_name.keys())
 
-    # ── Step 2: skill names (from skill_texts, any language) ─────────────────
+    # ── Step 2: skill names (prefer default language) ────────────────────────
     skill_name_rows = db.execute(
         select(Skill.id, SkillText.name)
         .outerjoin(SkillText, SkillText.skill_id == Skill.id)
+        .outerjoin(Language, Language.id == SkillText.language_id)
         .where(Skill.id.in_(skill_ids))
+        .order_by(Skill.id, Language.is_default.desc())
         .distinct(Skill.id)
     ).all()
     skill_id_to_name: dict[int, str] = {

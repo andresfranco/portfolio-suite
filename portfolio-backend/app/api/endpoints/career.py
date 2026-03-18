@@ -15,7 +15,7 @@ from app.crud import career as career_crud
 from app.models.language import Language
 from app.models.skill import Skill, SkillText
 from app.queue.celery_app import is_enabled as _celery_is_enabled
-from app.queue.tasks.career import run_career_ai_assessment
+from app.queue.tasks.career import extract_job_skills, run_career_ai_assessment
 from app.schemas.career import (
     AnthropicDiagnosticsOut,
     AssessmentRunCreate,
@@ -109,8 +109,16 @@ def create_job(
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user),
 ):
-    """Create a new career job."""
-    return career_crud.create_job(db, data, current_user.id)
+    """Create a new career job and auto-extract required skills from description."""
+    job = career_crud.create_job(db, data, current_user.id)
+    if (data.description or "").strip():
+        if _celery_is_enabled():
+            extract_job_skills.delay(job.id, current_user.id)
+        else:
+            extract_job_skills(job.id, current_user.id)
+        db.refresh(job)
+    _enrich_skill_names(db, [job])
+    return job
 
 
 @router.get("/jobs", response_model=CareerJobListOut)
@@ -193,6 +201,31 @@ def replace_job_skills(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
     _assert_owns_job(job, current_user)
     job = career_crud.replace_job_skills(db, job, data.skills)
+    _enrich_skill_names(db, [job])
+    return job
+
+
+@router.post("/jobs/{job_id}/extract-skills", response_model=CareerJobOut)
+@require_permission("MANAGE_CAREER")
+def trigger_extract_job_skills(
+    job_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_user),
+):
+    """Re-run AI skill extraction on a job description and merge results into required skills."""
+    job = career_crud.get_job(db, job_id)
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+    _assert_owns_job(job, current_user)
+    if not (job.description or "").strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Job has no description to extract skills from",
+        )
+    # Always run synchronously so the response contains the updated skill list
+    extract_job_skills(job.id, current_user.id)
+    db.expire_all()
+    job = career_crud.get_job(db, job_id)
     _enrich_skill_names(db, [job])
     return job
 
