@@ -3,6 +3,17 @@ import logging
 from celery import Celery
 from typing import Dict, Any
 
+# Load .env so the module works when invoked via the `celery` CLI (which does
+# not go through the FastAPI startup that normally loads dotenv).
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    import pathlib as _pathlib
+    _env_file = _pathlib.Path(__file__).resolve().parents[2] / ".env"
+    if _env_file.exists():
+        _load_dotenv(_env_file, override=False)
+except Exception:
+    pass
+
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +37,13 @@ def _make_celery() -> Celery:
     return app
 
 
-celery_app: Celery | None = None
+def is_enabled() -> bool:
+    return bool(os.getenv("CELERY_BROKER_URL") or os.getenv("BROKER_URL"))
+
+
+# Eagerly initialise so the `celery` CLI (which reads this attribute directly)
+# gets a real Celery instance rather than None.
+celery_app: Celery | None = _make_celery() if is_enabled() else None
 
 
 def get_celery() -> Celery:
@@ -34,10 +51,6 @@ def get_celery() -> Celery:
     if celery_app is None:
         celery_app = _make_celery()
     return celery_app
-
-
-def is_enabled() -> bool:
-    return bool(os.getenv("CELERY_BROKER_URL") or os.getenv("BROKER_URL"))
 
 
 # Define tasks
@@ -78,6 +91,8 @@ def _register_tasks(app: Celery) -> None:
 try:
     if is_enabled():
         _register_tasks(get_celery())
+        # Import task sub-packages so their @celery_app.task decorators fire.
+        import app.queue.tasks  # noqa: F401  — registers career tasks
 except Exception:
     # Do not fail app import if celery misconfigured
     pass

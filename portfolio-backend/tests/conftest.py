@@ -60,25 +60,39 @@ def test_engine():
     global TEST_SQLALCHEMY_DATABASE_URL
     
     try:
-        # First connect to default database to create test database
-        main_engine = create_engine(settings.DATABASE_URL)
+        # First connect to default database to create test database.
+        # Use AUTOCOMMIT so DROP/CREATE DATABASE can run outside a transaction block.
+        main_engine = create_engine(settings.DATABASE_URL, isolation_level="AUTOCOMMIT")
         with main_engine.connect() as conn:
             # Try to disconnect active connections (this may fail for non-superusers)
             safe_terminate_connections(conn)
-            
+
             # Get test database name from URL
             test_db_name = TEST_SQLALCHEMY_DATABASE_URL.split('/')[-1]
-            
+
             try:
+                # Terminate existing connections to the test database before dropping it.
+                # Without this, DROP DATABASE fails with "database is being accessed by other users".
+                try:
+                    conn.execute(text(
+                        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                        f"WHERE datname='{test_db_name}' AND pid <> pg_backend_pid()"
+                    ))
+                except Exception:
+                    time.sleep(1)  # Wait for connections to close naturally
+
                 # Create test database
                 conn.execute(text(f"DROP DATABASE IF EXISTS {test_db_name}"))
                 conn.execute(text(f"CREATE DATABASE {test_db_name}"))
-                conn.commit()
             except Exception as e:
                 logger.warning(f"Could not create test database (may require additional privileges): {str(e)}")
-                # Use main database with temp schema instead
-                logger.info("Using main database with temporary test schema")
-                TEST_SQLALCHEMY_DATABASE_URL = settings.DATABASE_URL
+                # If the test DB URL was explicitly configured, keep using it as-is
+                # rather than falling back to the main/dev DB.
+                if not os.environ.get("DATABASE_URL_TESTING"):
+                    logger.info("Using main database with temporary test schema")
+                    TEST_SQLALCHEMY_DATABASE_URL = settings.DATABASE_URL
+                else:
+                    logger.info(f"Keeping explicitly configured test database: {TEST_SQLALCHEMY_DATABASE_URL}")
         
         # Create engine for test database
         engine = create_engine(TEST_SQLALCHEMY_DATABASE_URL)
@@ -89,8 +103,23 @@ def test_engine():
         logger.info(f"Falling back to default PostgreSQL URL: {TEST_SQLALCHEMY_DATABASE_URL}")
         engine = create_engine(TEST_SQLALCHEMY_DATABASE_URL)
     
-    # Create all tables in the test database
-    Base.metadata.create_all(bind=engine)
+    # Create all tables in the test database.
+    # Some model columns define both index=True AND an explicit Index() in __table_args__
+    # (a pre-existing model bug), causing SQLAlchemy to attempt creating the same index
+    # twice. We work around this by creating each table individually in topological order.
+    with engine.connect() as conn:
+        for table in Base.metadata.sorted_tables:
+            # Create the table itself (checkfirst skips if it already exists)
+            try:
+                table.create(bind=conn, checkfirst=True)
+                conn.commit()
+            except SQLAlchemyError as e:
+                conn.rollback()
+                err_str = str(e)
+                if "already exists" in err_str:
+                    logger.debug(f"Table/index '{table.name}' or its index already exists, skipping.")
+                else:
+                    logger.warning(f"Could not create table '{table.name}': {e}")
     return engine
 
 def clear_database_tables(db: Session):

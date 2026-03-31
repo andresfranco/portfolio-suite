@@ -264,6 +264,12 @@ web_modules/
 # ============================================================================
 
 .vscode/mcp.json
+.mcp.json
+
+# Claude Code — commit skills/rules/hooks but not generated/local files
+.claude/session-snapshots/
+.claude/memory/graph.jsonl
+.claude/settings.local.json
 
 # parcel-bundler cache
 .cache
