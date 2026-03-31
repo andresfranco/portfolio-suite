@@ -498,3 +498,4 @@ grafana/
 
 # Keep example keys for documentation
 !example.pem
+backups/
