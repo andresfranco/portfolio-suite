@@ -14,7 +14,8 @@ import {
   Chat as ChatIcon,
   List as ListIcon,
   FormatListBulleted as ListBulletedIcon,
-  ViewModule as SectionIcon
+  ViewModule as SectionIcon,
+  TrendingUp as CareerIcon
 } from '@mui/icons-material';
 import { useAuthorization } from '../contexts/AuthorizationContext';
 
@@ -156,7 +157,14 @@ const Dashboard = () => {
       icon: <SecurityIcon />,
       link: "/security",
       requiredPermission: "SYSTEM_ADMIN" // Only system admin can access security dashboard
-    }
+    },
+    {
+      title: "Career OS",
+      description: "Track job applications, manage career objectives, and run AI-powered readiness assessments.",
+      icon: <CareerIcon />,
+      link: "/career",
+      requiredPermission: "VIEW_CAREER"
+    },
   ];
 
   // Filter cards based on user permissions
