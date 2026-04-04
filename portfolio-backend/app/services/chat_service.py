@@ -662,15 +662,9 @@ def _build_context_only_answer(user_message: str, context_text: str, citations: 
 
 
 def _decrypt_api_key(db: Session, encrypted: str) -> str:
-    # Encrypted is base64 from pgp_sym_encrypt; decrypt via pg function using env-provided key
-    kms_key = os.getenv("AGENT_KMS_KEY")
-    if not kms_key:
-        raise ValueError("AGENT_KMS_KEY env is not set on the backend process")
-    row = db.execute(text("SELECT pgp_sym_decrypt(decode(:b64, 'base64'), :k) AS api_key"), {
-        "b64": encrypted,
-        "k": kms_key,
-    }).first()
-    return row[0] if row and row[0] else ""
+    # Delegate to centralized CredentialService — kept for backward compatibility
+    from app.services.credential_service import CredentialService
+    return CredentialService.decrypt_api_key(db, encrypted)
 
 
 def _resolve_portfolio_id(db: Session, provided_id: Optional[int], portfolio_query: Optional[str]) -> Optional[int]:
@@ -731,7 +725,7 @@ def run_agent_chat(
             "No API key configured for provider. Either create a credential (requires AGENT_KMS_KEY) or set OPENAI_API_KEY/AGENT_PROVIDER_KEY."
         )
 
-    provider = build_provider(cred.provider, api_key=api_key, base_url=(cred.extra or {}).get("base_url"), extra=cred.extra or {})
+    provider = build_provider(cred.provider, api_key=api_key, base_url=cred.base_url or (cred.extra or {}).get("base_url"), extra=cred.extra or {})
 
     # Fetch language information early so we can use it in all responses
     language_name = None

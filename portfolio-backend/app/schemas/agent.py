@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional, List, Any, Dict
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -10,19 +11,55 @@ class AgentCredentialBase(BaseModel):
 
 class AgentCredentialCreate(AgentCredentialBase):
     api_key: str = Field(..., min_length=1)
+    model_default: Optional[str] = None
+    base_url: Optional[str] = None
+    purpose: Optional[List[str]] = None  # e.g. ["chat", "career_primary", "embedding"]
 
 
 class AgentCredentialUpdate(BaseModel):
     name: Optional[str] = None
     provider: Optional[str] = None
     extra: Optional[Dict[str, Any]] = None
-    # Note: API key cannot be updated for security reasons
-    # If a new key is needed, create a new credential
+    model_default: Optional[str] = None
+    base_url: Optional[str] = None
+    purpose: Optional[List[str]] = None
+    is_active: Optional[bool] = None
+
+
+class AgentCredentialRotate(BaseModel):
+    """Replace the API key on an existing credential without recreating it."""
+    api_key: str = Field(..., min_length=1)
+
+
+class CredentialAssignments(BaseModel):
+    """Maps system roles to credential IDs and optional model overrides.
+
+    Each field corresponds to a ``system_settings`` key:
+    - ``career_credential_id``   → ``career.credential_id``
+    - ``career_model``           → ``career.model``
+    - ``career_fallback_id``     → ``career.fallback_credential_id``
+    - ``career_fallback_model``  → ``career.fallback_model``
+    - ``embed_credential_id``    → ``embed.credential_id``
+    - ``anthropic_credential_id`` → ``anthropic.credential_id``
+    """
+    career_credential_id: Optional[int] = None
+    career_model: Optional[str] = None
+    career_fallback_id: Optional[int] = None
+    career_fallback_model: Optional[str] = None
+    embed_credential_id: Optional[int] = None
+    anthropic_credential_id: Optional[int] = None
 
 
 class AgentCredentialOut(AgentCredentialBase):
     id: int
-    
+    model_default: Optional[str] = None
+    base_url: Optional[str] = None
+    purpose: Optional[List[str]] = None
+    is_active: bool = True
+    last_used_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
     model_config = ConfigDict(from_attributes=True)
 
 

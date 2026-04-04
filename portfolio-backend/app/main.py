@@ -98,17 +98,29 @@ async def lifespan(app: FastAPI):
             # Defaults if not explicitly configured
             os.environ.setdefault('EMBED_PROVIDER', os.getenv('EMBED_PROVIDER') or 'openai')
             os.environ.setdefault('EMBED_MODEL', os.getenv('EMBED_MODEL') or 'text-embedding-3-small')
-            # Decrypt first OpenAI credential if OPENAI_API_KEY not set
+            # Resolve embedding API key via CredentialService (DB-first, then first OpenAI credential)
             if not os.getenv('OPENAI_API_KEY'):
-                cred = db.query(_models.AgentCredential).filter(_models.AgentCredential.provider == 'openai').first()
-                if cred and cred.api_key_encrypted:
-                    row = db.execute(_text("SELECT pgp_sym_decrypt(decode(:b64,'base64'), :k) AS api_key"), {
-                        'b64': cred.api_key_encrypted,
-                        'k': os.getenv('AGENT_KMS_KEY')
-                    }).first()
-                    if row and row[0]:
-                        os.environ['OPENAI_API_KEY'] = row[0]
+                try:
+                    from app.services.credential_service import CredentialService
+                    # Prefer the credential pointed to by system_settings['embed.credential_id']
+                    id_row = db.execute(_text(
+                        "SELECT value FROM system_settings WHERE key = 'embed.credential_id' LIMIT 1"
+                    )).first()
+                    api_key = None
+                    if id_row and id_row[0]:
+                        api_key = CredentialService.resolve_api_key(db, int(id_row[0]))
+                    else:
+                        # Fallback: first OpenAI credential in the table
+                        cred = db.query(_models.AgentCredential).filter(
+                            _models.AgentCredential.provider == 'openai'
+                        ).first()
+                        if cred:
+                            api_key = CredentialService.resolve_api_key(db, cred.id)
+                    if api_key:
+                        os.environ['OPENAI_API_KEY'] = api_key
                         logger.info("Loaded OPENAI_API_KEY from database credential for embedding/indexing")
+                except Exception as _ke:
+                    logger.warning("Could not set OPENAI_API_KEY from DB credential: %s", _ke)
         except Exception as e:
             logger.warning(f"Could not set embedding provider/api key from DB: {e}")
     except Exception as e:

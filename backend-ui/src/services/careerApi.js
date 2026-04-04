@@ -35,8 +35,9 @@ export const ensureSkill  = (name) => api.post('/api/career/skills/ensure', { na
 export const getRunReadiness = (objectiveId) => api.get(`/api/career/objectives/${objectiveId}/run-readiness`);
 
 // Diagnostics
-export const testAnthropicConnectivity = () => api.post('/api/career/diagnostics/anthropic');
 export const testCareerProviderConnectivity = () => api.post('/api/career/diagnostics/career-provider');
+export const testCareerFallbackConnectivity = () => api.post('/api/career/diagnostics/career-fallback');
+export const testAnthropicConnectivity = () => api.post('/api/career/diagnostics/anthropic');
 
 // Portfolio attachments (for resume selection in run dialog)
 export const getPortfolioAttachments = (portfolioId) => api.get(`/api/portfolios/${portfolioId}/attachments`);
