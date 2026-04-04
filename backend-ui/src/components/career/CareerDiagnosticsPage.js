@@ -1,14 +1,40 @@
 import React, { useState } from 'react';
 import {
-  Box, Button, Typography, Alert, Paper, CircularProgress, Chip, Divider
+  Box, Button, Typography, Alert, Paper, CircularProgress, Chip, Divider, Stack
 } from '@mui/material';
 import {
   CheckCircle as OkIcon,
   Error as ErrorIcon,
   Speed as LatencyIcon,
+  Storage as DbIcon,
+  EnvBarChart as EnvIcon,
 } from '@mui/icons-material';
+import StorageIcon from '@mui/icons-material/Storage';
+import SettingsEthernetIcon from '@mui/icons-material/SettingsEthernet';
 import * as careerApi from '../../services/careerApi';
 import { useAuthorization } from '../../contexts/AuthorizationContext';
+
+const SourceBadge = ({ source, credentialName }) => {
+  if (source === 'db') {
+    return (
+      <Chip
+        icon={<StorageIcon sx={{ fontSize: 14 }} />}
+        label={`DB credential: ${credentialName || '(unknown)'}`}
+        size="small"
+        color="primary"
+        variant="outlined"
+      />
+    );
+  }
+  return (
+    <Chip
+      icon={<SettingsEthernetIcon sx={{ fontSize: 14 }} />}
+      label="env vars"
+      size="small"
+      variant="outlined"
+    />
+  );
+};
 
 const ProviderTestCard = ({ title, description, onTest }) => {
   const [testing, setTesting] = useState(false);
@@ -48,12 +74,17 @@ const ProviderTestCard = ({ title, description, onTest }) => {
 
       {result && (
         <Box mt={1.5}>
-          {result.provider && (
-            <Box display="flex" gap={1} mb={1} flexWrap="wrap">
+          <Stack direction="row" gap={1} mb={1} flexWrap="wrap">
+            {result.source && (
+              <SourceBadge source={result.source} credentialName={result.credential_name} />
+            )}
+            {result.provider && (
               <Chip label={`provider: ${result.provider}`} size="small" variant="outlined" />
+            )}
+            {result.model && (
               <Chip label={`model: ${result.model}`} size="small" variant="outlined" />
-            </Box>
-          )}
+            )}
+          </Stack>
           <Alert
             severity={result.success ? 'success' : 'error'}
             icon={result.success ? <OkIcon fontSize="small" /> : <ErrorIcon fontSize="small" />}
@@ -97,21 +128,30 @@ const CareerDiagnosticsPage = () => {
       <Typography variant="h5" mb={0.5}>AI Diagnostics</Typography>
       <Typography variant="body2" color="text.secondary" mb={3}>
         Test connectivity to the AI providers used for career assessments.
+        Configured credentials take priority over environment variables.
       </Typography>
 
       <Box display="flex" flexDirection="column" gap={2}>
         <ProviderTestCard
-          title="Anthropic"
-          description="Tests ANTHROPIC_API_KEY using claude-haiku-4-5."
-          onTest={careerApi.testAnthropicConnectivity}
+          title="Primary Career AI"
+          description="The main model used for career assessments. Resolves in order: DB credential (career.credential_id) → CAREER_AI_API_KEY env var."
+          onTest={careerApi.testCareerProviderConnectivity}
         />
 
         <Divider />
 
         <ProviderTestCard
-          title="Career AI Provider"
-          description="Tests the active career AI provider configured via CAREER_AI_* settings (e.g. Groq, Gemini, Anthropic)."
-          onTest={careerApi.testCareerProviderConnectivity}
+          title="Fallback Career AI (rate-limit)"
+          description="Used automatically when the primary returns a 429 rate-limit error. Resolves in order: DB credential (career.fallback_credential_id) → CAREER_AI_FALLBACK_API_KEY env var."
+          onTest={careerApi.testCareerFallbackConnectivity}
+        />
+
+        <Divider />
+
+        <ProviderTestCard
+          title="Anthropic (last-resort fallback)"
+          description="Tested directly via ANTHROPIC_API_KEY env var. Used as last resort when all CAREER_AI providers are unconfigured or fail."
+          onTest={careerApi.testAnthropicConnectivity}
         />
       </Box>
     </Box>

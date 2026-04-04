@@ -369,7 +369,7 @@ export default function AgentChat() {
   };
 
   return (
-    <Box sx={{ height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column', bgcolor: 'grey.50' }}>
+    <Box sx={{ height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column', bgcolor: 'grey.50', overflow: 'hidden', mr: -3, mb: -3 }}>
       {/* Header */}
       <Paper sx={{ p: 1.5, borderRadius: 0, boxShadow: 2, flexShrink: 0 }}>
         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" gap={0.5}>
