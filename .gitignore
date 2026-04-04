@@ -31,6 +31,8 @@ RSA_SETUP_INSTRUCTIONS.txt
 *.credentials
 secrets/
 .secrets/
+# Allow Alembic migration files that happen to match credential patterns
+!**/migrations/versions/*credentials*
 
 # Database files
 *.db
