@@ -10,18 +10,32 @@ def embed_query(db: Session, *, provider, embedding_model: str, query: str) -> L
 
     Attempts provider.embed first. If the active chat provider does not
     implement embeddings, falls back to an OpenAI-compatible embeddings
-    provider using OPENAI_API_KEY (or decrypts the first OpenAI credential
-    from the database if available and AGENT_KMS_KEY is set).
+    provider using OPENAI_API_KEY (or resolves the embedding credential
+    from the ``embed.credential_id`` system setting / first OpenAI credential).
     """
     try:
         vec = provider.embed(model=embedding_model, texts=[query])[0]
     except Exception:
         # Fallback: try OpenAI embeddings safely
         from app.services.llm.providers import build_provider  # local import to avoid cycles
+        from app.services.credential_service import CredentialService
 
         api_key = os.getenv("OPENAI_API_KEY") or ""
         if not api_key:
-            # Best-effort: decrypt first OpenAI credential
+            # DB-first: check embed.credential_id system setting
+            try:
+                row = db.execute(
+                    text("SELECT value FROM system_settings WHERE key = 'embed.credential_id' LIMIT 1")
+                ).first()
+                if row and row[0]:
+                    api_key = CredentialService.resolve_api_key(db, int(row[0]))
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+        if not api_key:
+            # Legacy fallback: decrypt first OpenAI credential
             try:
                 kms_key = os.getenv("AGENT_KMS_KEY")
                 if kms_key:
@@ -37,7 +51,6 @@ def embed_query(db: Session, *, provider, embedding_model: str, query: str) -> L
                     if row and row[0]:
                         api_key = row[0]
             except Exception:
-                # Rollback if query failed
                 try:
                     db.rollback()
                 except Exception:

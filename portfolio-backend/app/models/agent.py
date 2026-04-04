@@ -13,8 +13,18 @@ class AgentCredential(Base):
     provider = Column(String(50), nullable=False)  # openai | anthropic | google | mistral | custom
     # Store encrypted API key as bytea; encryption/decryption handled via pgcrypto in CRUD/service
     api_key_encrypted = Column(String, nullable=True)  # base64-encoded bytea string
-    # Optional extras such as base_url, org, project, account_id, scopes, headers
+    # Optional extras such as org, project, account_id, scopes, headers (base_url promoted to first-class)
     extra = Column(JSONB, nullable=True)
+    # First-class fields (promoted from extra for queryability and UI visibility)
+    base_url = Column(String(2048), nullable=True)      # Provider base URL override (e.g. Groq, OpenRouter)
+    model_default = Column(String(100), nullable=True)  # Default model to use with this credential
+    # Purpose tags: ["chat"], ["career_primary"], ["career_fallback"], ["embedding"] — can be multi
+    purpose = Column(JSONB, nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    # Audit fields
+    created_by = Column(Integer, nullable=True)
+    updated_by = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 

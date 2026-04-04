@@ -654,13 +654,22 @@ def get_run_readiness(
         ),
     })
 
-    # 3. Anthropic API key configured
-    api_key_ok = bool(_settings.ANTHROPIC_API_KEY)
+    # 3. AI provider credential configured (DB-first, then env fallback)
+    from sqlalchemy import text as _text
+    cred_id_val = None
+    try:
+        row = db.execute(_text("SELECT value FROM system_settings WHERE key = 'career.credential_id' LIMIT 1")).first()
+        cred_id_val = row[0] if row and row[0] else None
+    except Exception:
+        pass
+    api_key_ok = bool(cred_id_val) or bool(_settings.CAREER_AI_API_KEY) or bool(_settings.ANTHROPIC_API_KEY)
     checks.append({
         "key": "api_key_configured",
-        "label": "Anthropic API key is configured",
+        "label": "AI provider is configured",
         "passed": api_key_ok,
-        "detail": None if api_key_ok else "Set ANTHROPIC_API_KEY in the backend environment.",
+        "detail": None if api_key_ok else (
+            "Configure a credential via the Agents module or set CAREER_AI_API_KEY / ANTHROPIC_API_KEY."
+        ),
     })
 
     # 4. Celery enabled (advisory only — not blocking)
@@ -683,27 +692,63 @@ def get_run_readiness(
 @router.post("/diagnostics/anthropic", response_model=AnthropicDiagnosticsOut)
 @require_permission("VIEW_CAREER")
 def test_anthropic_connectivity(
+    db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user),
 ):
-    """Send a minimal test message to Anthropic and return latency/status."""
-    import time as _time
-    from app.core.config import settings as _settings
-    from app.services.llm.providers import AnthropicProvider, ProviderConfig
+    """Test the Anthropic last-resort fallback credential.
 
-    if not _settings.ANTHROPIC_API_KEY:
+    Resolution order:
+    1. ``anthropic.credential_id`` DB system setting (e.g. Anthropic_DEV)
+    2. ``ANTHROPIC_API_KEY`` env var
+    """
+    import time as _time
+    from sqlalchemy import text as _text
+    from app.core.config import settings as _settings
+    from app.services.credential_service import CredentialService
+    from app.services.llm.providers import build_provider
+
+    provider_name = "anthropic"
+    model = "claude-haiku-4-5-20251001"
+    api_key = None
+    base_url = None
+    credential_name = None
+    source = "env"
+
+    # DB-first: resolve anthropic credential
+    try:
+        row = db.execute(_text("SELECT value FROM system_settings WHERE key = 'anthropic.credential_id' LIMIT 1")).first()
+        if row and row[0]:
+            cred_id = int(row[0])
+            cred = CredentialService.get_credential(db, cred_id)
+            config = CredentialService.resolve_provider_config(db, cred_id)
+            api_key = config["api_key"]
+            provider_name = config["provider"]
+            model = config["model"] or model
+            base_url = config["base_url"]
+            credential_name = cred.name
+            source = "db"
+    except Exception:
+        pass
+
+    # Env fallback
+    if not api_key:
+        api_key = _settings.ANTHROPIC_API_KEY
+
+    if not api_key:
         return {
             "success": False,
-            "error": "ANTHROPIC_API_KEY is not configured",
+            "error": "No Anthropic credential configured. Assign one in Agents > Credentials > Assignments or set ANTHROPIC_API_KEY.",
             "latency_ms": None,
+            "provider": provider_name,
+            "model": model,
+            "source": source,
         }
 
     started = _time.time()
     try:
-        provider = AnthropicProvider(
-            ProviderConfig(name="anthropic", api_key=_settings.ANTHROPIC_API_KEY)
-        )
+        provider = build_provider(provider_name, api_key=api_key, base_url=base_url)
         result = provider.chat(
-            model="claude-haiku-4-5-20251001",
+            model=model,
             system_prompt="You are a test assistant. Reply with exactly: OK",
             messages=[{"role": "user", "content": "ping"}],
         )
@@ -712,6 +757,10 @@ def test_anthropic_connectivity(
             "success": True,
             "response": result["text"][:100],
             "latency_ms": latency_ms,
+            "credential_name": credential_name,
+            "provider": provider_name,
+            "model": model,
+            "source": source,
         }
     except Exception as exc:
         latency_ms = int((_time.time() - started) * 1000)
@@ -719,30 +768,69 @@ def test_anthropic_connectivity(
             "success": False,
             "error": str(exc),
             "latency_ms": latency_ms,
+            "credential_name": credential_name,
+            "provider": provider_name,
+            "model": model,
+            "source": source,
         }
 
 
-@router.post("/diagnostics/career-provider", response_model=ProviderDiagnosticsOut)
+@router.post("/diagnostics/career-fallback", response_model=ProviderDiagnosticsOut)
 @require_permission("VIEW_CAREER")
-def test_career_provider_connectivity(
+def test_career_fallback_connectivity(
+    db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_user),
 ):
-    """Test connectivity to the configured career AI provider (CAREER_AI_* settings)."""
+    """Test the fallback career AI provider (used automatically on 429 from the primary).
+
+    Resolution order:
+    1. ``career.fallback_credential_id`` DB system setting
+    2. ``CAREER_AI_FALLBACK_API_KEY`` env var (then ``ANTHROPIC_API_KEY`` as last resort)
+    """
     import time as _time
+    from sqlalchemy import text as _text
     from app.core.config import settings as _settings
+    from app.services.credential_service import CredentialService
     from app.services.llm.providers import build_provider
 
-    provider_name = _settings.CAREER_AI_PROVIDER or "anthropic"
-    model = _settings.CAREER_AI_MODEL or "claude-haiku-4-5-20251001"
-    api_key = _settings.CAREER_AI_API_KEY or _settings.ANTHROPIC_API_KEY
-    base_url = _settings.CAREER_AI_BASE_URL or None
+    provider_name = _settings.CAREER_AI_FALLBACK_PROVIDER or "anthropic"
+    model = _settings.CAREER_AI_FALLBACK_MODEL or "claude-haiku-4-5-20251001"
+    api_key = None
+    base_url = None
+    credential_name = None
+    source = "env"
+
+    # DB-first: resolve fallback credential
+    try:
+        row = db.execute(_text("SELECT value FROM system_settings WHERE key = 'career.fallback_credential_id' LIMIT 1")).first()
+        if row and row[0]:
+            cred_id = int(row[0])
+            model_row = db.execute(_text("SELECT value FROM system_settings WHERE key = 'career.fallback_model' LIMIT 1")).first()
+            model_override = model_row[0] if model_row and model_row[0] else None
+            cred = CredentialService.get_credential(db, cred_id)
+            config = CredentialService.resolve_provider_config(db, cred_id, model_override)
+            api_key = config["api_key"]
+            provider_name = config["provider"]
+            model = config["model"] or model
+            base_url = config["base_url"]
+            credential_name = cred.name
+            source = "db"
+    except Exception:
+        pass
+
+    # Legacy env fallback
+    if not api_key:
+        api_key = _settings.CAREER_AI_FALLBACK_API_KEY or _settings.ANTHROPIC_API_KEY
+        base_url = _settings.CAREER_AI_FALLBACK_BASE_URL or None
 
     if not api_key:
         return {
             "provider": provider_name,
             "model": model,
             "success": False,
-            "error": "No API key configured (CAREER_AI_API_KEY / ANTHROPIC_API_KEY)",
+            "error": "No fallback provider configured (set a credential via Agents > Credentials or set CAREER_AI_FALLBACK_API_KEY).",
+            "credential_name": credential_name,
+            "source": source,
         }
 
     started = _time.time()
@@ -760,6 +848,8 @@ def test_career_provider_connectivity(
             "success": True,
             "response": result["text"][:100],
             "latency_ms": latency_ms,
+            "credential_name": credential_name,
+            "source": source,
         }
     except Exception as exc:
         latency_ms = int((_time.time() - started) * 1000)
@@ -769,4 +859,88 @@ def test_career_provider_connectivity(
             "success": False,
             "error": str(exc),
             "latency_ms": latency_ms,
+            "credential_name": credential_name,
+            "source": source,
+        }
+
+
+@router.post("/diagnostics/career-provider", response_model=ProviderDiagnosticsOut)
+@require_permission("VIEW_CAREER")
+def test_career_provider_connectivity(
+    db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_user),
+):
+    """Test connectivity to the configured career AI provider (DB credential or CAREER_AI_* settings)."""
+    import time as _time
+    from sqlalchemy import text as _text
+    from app.core.config import settings as _settings
+    from app.services.credential_service import CredentialService
+    from app.services.llm.providers import build_provider
+
+    provider_name = _settings.CAREER_AI_PROVIDER or "anthropic"
+    model = _settings.CAREER_AI_MODEL or "claude-haiku-4-5-20251001"
+    api_key = None
+    base_url = None
+    credential_name = None
+    source = "env"
+
+    # DB-first: resolve career credential
+    try:
+        row = db.execute(_text("SELECT value FROM system_settings WHERE key = 'career.credential_id' LIMIT 1")).first()
+        if row and row[0]:
+            cred_id = int(row[0])
+            model_row = db.execute(_text("SELECT value FROM system_settings WHERE key = 'career.model' LIMIT 1")).first()
+            model_override = model_row[0] if model_row and model_row[0] else None
+            cred = CredentialService.get_credential(db, cred_id)
+            config = CredentialService.resolve_provider_config(db, cred_id, model_override)
+            api_key = config["api_key"]
+            provider_name = config["provider"]
+            model = config["model"] or model
+            base_url = config["base_url"]
+            credential_name = cred.name
+            source = "db"
+    except Exception:
+        pass
+
+    # Legacy env fallback
+    if not api_key:
+        api_key = _settings.CAREER_AI_API_KEY or _settings.ANTHROPIC_API_KEY
+        base_url = _settings.CAREER_AI_BASE_URL or None
+
+    if not api_key:
+        return {
+            "provider": provider_name,
+            "model": model,
+            "success": False,
+            "error": "No API key configured (set a credential via Agents module or CAREER_AI_API_KEY)",
+        }
+
+    started = _time.time()
+    try:
+        provider = build_provider(provider_name, api_key=api_key, base_url=base_url)
+        result = provider.chat(
+            model=model,
+            system_prompt="You are a test assistant. Reply with exactly: OK",
+            messages=[{"role": "user", "content": "ping"}],
+        )
+        latency_ms = int((_time.time() - started) * 1000)
+        return {
+            "provider": provider_name,
+            "model": model,
+            "success": True,
+            "response": result["text"][:100],
+            "latency_ms": latency_ms,
+            "credential_name": credential_name,
+            "source": source,
+        }
+    except Exception as exc:
+        latency_ms = int((_time.time() - started) * 1000)
+        return {
+            "provider": provider_name,
+            "model": model,
+            "success": False,
+            "error": str(exc),
+            "latency_ms": latency_ms,
+            "credential_name": credential_name,
+            "source": source,
         }

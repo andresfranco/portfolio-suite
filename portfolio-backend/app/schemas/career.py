@@ -163,6 +163,10 @@ class AnthropicDiagnosticsOut(BaseModel):
     latency_ms: Optional[int] = None
     response: Optional[str] = None
     error: Optional[str] = None
+    credential_name: Optional[str] = None
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    source: Optional[str] = None  # 'db' | 'env'
 
 
 class ProviderDiagnosticsOut(BaseModel):
@@ -172,6 +176,8 @@ class ProviderDiagnosticsOut(BaseModel):
     latency_ms: Optional[int] = None
     response: Optional[str] = None
     error: Optional[str] = None
+    credential_name: Optional[str] = None
+    source: Optional[str] = None  # 'db' | 'env'
 
 
 # ── Pre-run readiness schemas ──────────────────────────────────────────────────

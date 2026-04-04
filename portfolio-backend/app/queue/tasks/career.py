@@ -267,13 +267,30 @@ def _build_job_summaries(
 # Provider factory
 # ---------------------------------------------------------------------------
 
-def _build_career_provider():
-    """Return a ChatProvider based on CAREER_AI_* settings.
+def _get_system_setting(db, key: str):
+    """Read a single value from system_settings. Returns None if not found."""
+    try:
+        row = db.execute(
+            text("SELECT value FROM system_settings WHERE key = :k LIMIT 1"),
+            {"k": key},
+        ).first()
+        return row[0] if row and row[0] else None
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return None
 
-    Falls back to Anthropic Haiku when CAREER_AI_API_KEY is not set so that
-    existing deployments keep working without changes.
 
-    Quick-switch examples (set in .env):
+def _build_career_provider(db=None):
+    """Return a ChatProvider based on DB credential (primary) or CAREER_AI_* env (fallback).
+
+    Resolution order:
+    1. ``career.credential_id`` system setting → ``agent_credentials`` row
+    2. Legacy env vars: ``CAREER_AI_API_KEY`` / ``ANTHROPIC_API_KEY``
+
+    Quick-switch examples (set in .env or system_settings):
       Groq Llama 3.3 70B (open-source, ~3x cheaper):
         CAREER_AI_PROVIDER=openai
         CAREER_AI_BASE_URL=https://api.groq.com/openai/v1
@@ -291,7 +308,40 @@ def _build_career_provider():
         CAREER_AI_MODEL=llama-3.1-8b-instant
         CAREER_AI_API_KEY=<groq_key>
     """
-    api_key = settings.CAREER_AI_API_KEY or settings.ANTHROPIC_API_KEY
+    # 1. DB-first: resolve from system_settings
+    if db is not None:
+        try:
+            from app.services.credential_service import CredentialService
+            cred_id = _get_system_setting(db, "career.credential_id")
+            model_override = _get_system_setting(db, "career.model")
+            if cred_id:
+                config = CredentialService.resolve_provider_config(db, int(cred_id), model_override)
+                return build_provider(
+                    config["provider"],
+                    api_key=config["api_key"],
+                    base_url=config["base_url"],
+                )
+        except Exception as e:
+            logger.warning("Could not resolve career provider from DB credential: %s", e)
+
+    # 2. Legacy env fallback
+    api_key = settings.CAREER_AI_API_KEY
+    # Last resort: check DB for anthropic.credential_id, then ANTHROPIC_API_KEY env
+    if not api_key and db is not None:
+        try:
+            from app.services.credential_service import CredentialService
+            cred_id = _get_system_setting(db, "anthropic.credential_id")
+            if cred_id:
+                config = CredentialService.resolve_provider_config(db, int(cred_id))
+                return build_provider(
+                    config["provider"],
+                    api_key=config["api_key"],
+                    base_url=config["base_url"],
+                )
+        except Exception as e:
+            logger.warning("Could not resolve Anthropic fallback from DB credential: %s", e)
+    if not api_key:
+        api_key = settings.ANTHROPIC_API_KEY
     provider_name = settings.CAREER_AI_PROVIDER or "anthropic"
     return build_provider(
         provider_name,
@@ -300,13 +350,73 @@ def _build_career_provider():
     )
 
 
-def _build_career_fallback_provider():
+def _get_career_model(db=None) -> str:
+    """Return the model name for the primary career provider."""
+    if db is not None:
+        model = _get_system_setting(db, "career.model")
+        if model:
+            return model
+        # If a credential_id is set, use its model_default
+        try:
+            from app.services.credential_service import CredentialService
+            cred_id = _get_system_setting(db, "career.credential_id")
+            if cred_id:
+                cred = CredentialService.get_credential(db, int(cred_id))
+                if cred.model_default:
+                    return cred.model_default
+        except Exception:
+            pass
+    return settings.CAREER_AI_MODEL or HAIKU_MODEL
+
+
+def _build_career_fallback_provider(db=None):
     """Return the fallback ChatProvider used when the primary hits a 429.
 
-    Returns None when no fallback is configured.
+    Resolution order:
+    1. ``career.fallback_credential_id`` system setting → ``agent_credentials`` row
+    2. Legacy env vars: ``CAREER_AI_FALLBACK_*``
+
+    Returns (None, None) when no fallback is configured.
     """
+    # 1. DB-first
+    if db is not None:
+        try:
+            from app.services.credential_service import CredentialService
+            cred_id = _get_system_setting(db, "career.fallback_credential_id")
+            model_override = _get_system_setting(db, "career.fallback_model")
+            if cred_id:
+                config = CredentialService.resolve_provider_config(db, int(cred_id), model_override)
+                provider = build_provider(
+                    config["provider"],
+                    api_key=config["api_key"],
+                    base_url=config["base_url"],
+                )
+                model = config["model"] or HAIKU_MODEL
+                return provider, model
+        except Exception as e:
+            logger.warning("Could not resolve career fallback provider from DB credential: %s", e)
+
+    # 2. Legacy env fallback
     if not settings.CAREER_AI_FALLBACK_PROVIDER:
-        return None, None
+        # Last resort: DB anthropic.credential_id → ANTHROPIC_API_KEY env
+        if db is not None:
+            try:
+                from app.services.credential_service import CredentialService
+                cred_id = _get_system_setting(db, "anthropic.credential_id")
+                if cred_id:
+                    config = CredentialService.resolve_provider_config(db, int(cred_id))
+                    provider = build_provider(
+                        config["provider"],
+                        api_key=config["api_key"],
+                        base_url=config["base_url"],
+                    )
+                    return provider, config["model"] or HAIKU_MODEL
+            except Exception as e:
+                logger.warning("Could not resolve Anthropic last-resort from DB credential: %s", e)
+        api_key = settings.ANTHROPIC_API_KEY
+        if not api_key:
+            return None, None
+        return build_provider("anthropic", api_key=api_key, base_url=None), HAIKU_MODEL
     api_key = settings.CAREER_AI_FALLBACK_API_KEY or settings.ANTHROPIC_API_KEY
     provider = build_provider(
         settings.CAREER_AI_FALLBACK_PROVIDER,
@@ -378,8 +488,8 @@ def run_career_ai_assessment(self: Task, run_id: int) -> None:
         )
 
         # ── 4. Call configured AI provider (with automatic fallback on 429) ──
-        provider = _build_career_provider()
-        model = settings.CAREER_AI_MODEL or HAIKU_MODEL
+        provider = _build_career_provider(db)
+        model = _get_career_model(db)
         try:
             result = provider.chat(
                 model=model,
@@ -387,12 +497,12 @@ def run_career_ai_assessment(self: Task, run_id: int) -> None:
                 messages=[{"role": "user", "content": context}],
             )
         except RateLimitError:
-            fallback_provider, fallback_model = _build_career_fallback_provider()
+            fallback_provider, fallback_model = _build_career_fallback_provider(db)
             if fallback_provider is None:
                 raise  # no fallback configured — let the task fail
             logger.warning(
-                "Primary provider rate-limited for run_id=%d; switching to fallback (%s / %s)",
-                run_id, settings.CAREER_AI_FALLBACK_PROVIDER, fallback_model,
+                "Primary provider rate-limited for run_id=%d; switching to fallback (model=%s)",
+                run_id, fallback_model,
             )
             result = fallback_provider.chat(
                 model=fallback_model,
@@ -489,8 +599,8 @@ def extract_job_skills(self: Task, job_id: int, user_id: int) -> None:
             return
 
         # ── Call AI ──────────────────────────────────────────────────────────
-        provider = _build_career_provider()
-        model = settings.CAREER_AI_MODEL or HAIKU_MODEL
+        provider = _build_career_provider(db)
+        model = _get_career_model(db)
         try:
             ai_result = provider.chat(
                 model=model,
@@ -498,7 +608,7 @@ def extract_job_skills(self: Task, job_id: int, user_id: int) -> None:
                 messages=[{"role": "user", "content": description}],
             )
         except RateLimitError:
-            fallback_provider, fallback_model = _build_career_fallback_provider()
+            fallback_provider, fallback_model = _build_career_fallback_provider(db)
             if fallback_provider is None:
                 raise
             logger.warning(

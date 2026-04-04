@@ -74,7 +74,7 @@ async def run_agent_chat_stream(
         yield f'data: {json.dumps({"type": "error", "message": "No API key configured"})}\n\n'
         return
     
-    provider = build_provider(cred.provider, api_key=api_key, base_url=(cred.extra or {}).get("base_url"), extra=cred.extra or {})
+    provider = build_provider(cred.provider, api_key=api_key, base_url=cred.base_url or (cred.extra or {}).get("base_url"), extra=cred.extra or {})
     
     # Get language info
     language_code = "en"

@@ -1,15 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException, Body, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from typing import Any, List
+from typing import Any, List, Optional
 from app.api import deps
-import os
 from app.core.security_decorators import require_any_permission
 from app.schemas.agent import (
     AgentCredentialCreate,
     AgentCredentialUpdate,
+    AgentCredentialRotate,
     AgentCredentialOut,
+    CredentialAssignments,
     AgentCreate,
     AgentUpdate,
     AgentOut,
@@ -22,19 +23,9 @@ from app.schemas.agent import (
 from app.models.agent import Agent, AgentCredential, AgentTemplate
 from app.services.chat_service import run_agent_test, run_agent_chat
 from app.services.chat_service_async import run_agent_chat_stream
+from app.services.credential_service import CredentialService
 
 router = APIRouter()
-
-
-def _encrypt_api_key(db: Session, api_key: str) -> str:
-    # Use pgp_sym_encrypt with a server-side key provided via env (AGENT_KMS_KEY)
-    kms_key = os.getenv("AGENT_KMS_KEY")
-    if not kms_key:
-        raise ValueError("AGENT_KMS_KEY env is not set on the backend process")
-    row = db.execute(text("SELECT encode(pgp_sym_encrypt(:t, :k), 'base64')"), {"t": api_key, "k": kms_key}).first()
-    if not row or not row[0]:
-        raise ValueError("Failed to encrypt API key (check pgcrypto extension and AGENT_KMS_KEY)")
-    return row[0]
 
 
 @router.post("/credentials", response_model=AgentCredentialOut)
@@ -45,9 +36,19 @@ def create_credential(
     cred_in: AgentCredentialCreate,
     current_user=Depends(deps.get_current_user),
 ):
-    # Never store plain API key; encrypt at rest
-    enc = _encrypt_api_key(db, cred_in.api_key)
-    cred = AgentCredential(name=cred_in.name, provider=cred_in.provider, api_key_encrypted=enc, extra=cred_in.extra)
+    """Create a new agent API credential. The API key is encrypted at rest with pgcrypto."""
+    enc = CredentialService.encrypt_api_key(db, cred_in.api_key)
+    cred = AgentCredential(
+        name=cred_in.name,
+        provider=cred_in.provider,
+        api_key_encrypted=enc,
+        extra=cred_in.extra,
+        base_url=cred_in.base_url,
+        model_default=cred_in.model_default,
+        purpose=cred_in.purpose,
+        created_by=current_user.id,
+        updated_by=current_user.id,
+    )
     db.add(cred)
     db.commit()
     db.refresh(cred)
@@ -59,9 +60,17 @@ def create_credential(
 def list_credentials(
     *,
     db: Session = Depends(deps.get_db),
+    purpose: Optional[str] = Query(None, description="Filter credentials by purpose tag (e.g. 'chat', 'embedding', 'career_primary')"),
+    active_only: bool = Query(False, description="When true, return only active credentials"),
     current_user=Depends(deps.get_current_user),
 ):
-    creds = db.query(AgentCredential).order_by(AgentCredential.name.asc()).all()
+    """List all agent credentials. Optionally filter by purpose tag or active status."""
+    query = db.query(AgentCredential)
+    if purpose:
+        query = query.filter(AgentCredential.purpose.op("@>")(f'["{purpose}"]'))
+    if active_only:
+        query = query.filter(AgentCredential.is_active == True)
+    creds = query.order_by(AgentCredential.name.asc()).all()
     return creds
 
 
@@ -76,10 +85,9 @@ def update_credential(
 ):
     """
     Update an agent API credential.
-    
-    Note: API key cannot be updated for security reasons.
-    Only name, provider, and extra fields can be modified.
-    
+
+    Use ``POST /credentials/{id}/rotate`` to replace the API key.
+
     Raises:
         404: If credential not found
         409: If updating name to one that already exists
@@ -87,30 +95,190 @@ def update_credential(
     credential = db.query(AgentCredential).filter(AgentCredential.id == credential_id).first()
     if not credential:
         raise HTTPException(status_code=404, detail="Credential not found")
-    
-    # Check if new name conflicts with existing credential
+
+    # Check if new name conflicts with an existing credential
     if cred_in.name and cred_in.name != credential.name:
         existing = db.query(AgentCredential).filter(
             AgentCredential.name == cred_in.name,
-            AgentCredential.id != credential_id
+            AgentCredential.id != credential_id,
         ).first()
         if existing:
             raise HTTPException(
                 status_code=409,
-                detail=f"A credential with name '{cred_in.name}' already exists"
+                detail=f"A credential with name '{cred_in.name}' already exists",
             )
-    
-    # Update fields
-    if cred_in.name is not None:
-        credential.name = cred_in.name
-    if cred_in.provider is not None:
-        credential.provider = cred_in.provider
-    if cred_in.extra is not None:
-        credential.extra = cred_in.extra
-    
+
+    update_data = cred_in.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(credential, field, value)
+    credential.updated_by = current_user.id
+
     db.commit()
     db.refresh(credential)
     return credential
+
+
+@router.post("/credentials/{credential_id}/rotate", response_model=AgentCredentialOut)
+@require_any_permission(["MANAGE_AGENTS", "SYSTEM_ADMIN"])
+def rotate_credential(
+    *,
+    credential_id: int,
+    db: Session = Depends(deps.get_db),
+    body: AgentCredentialRotate = Body(...),
+    current_user=Depends(deps.get_current_user),
+):
+    """Replace the API key on an existing credential.
+
+    The new key is encrypted with pgcrypto before storage. The credential
+    name, provider, and all other metadata are unchanged.
+
+    Raises:
+        404: If credential not found
+    """
+    credential = db.query(AgentCredential).filter(AgentCredential.id == credential_id).first()
+    if not credential:
+        raise HTTPException(status_code=404, detail="Credential not found")
+    credential.api_key_encrypted = CredentialService.encrypt_api_key(db, body.api_key)
+    credential.updated_by = current_user.id
+    db.commit()
+    db.refresh(credential)
+    return credential
+
+
+@router.post("/credentials/{credential_id}/test")
+@require_any_permission(["MANAGE_AGENTS", "SYSTEM_ADMIN"])
+def test_credential(
+    *,
+    credential_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user=Depends(deps.get_current_user),
+):
+    """Send a minimal ping to the provider associated with a credential.
+
+    Returns {success, provider, model, latency_ms, response?, error?}.
+    """
+    import time as _time
+    from app.services.llm.providers import build_provider
+
+    credential = db.query(AgentCredential).filter(AgentCredential.id == credential_id).first()
+    if not credential:
+        raise HTTPException(status_code=404, detail="Credential not found")
+    if not credential.api_key_encrypted:
+        return {"success": False, "provider": credential.provider, "model": credential.model_default, "error": "No API key stored"}
+
+    try:
+        config = CredentialService.resolve_provider_config(db, credential_id)
+    except Exception as exc:
+        return {"success": False, "provider": credential.provider, "model": credential.model_default, "error": str(exc)}
+
+    model = config["model"] or "gpt-4o-mini"
+    started = _time.time()
+    try:
+        provider = build_provider(config["provider"], api_key=config["api_key"], base_url=config["base_url"])
+        result = provider.chat(
+            model=model,
+            system_prompt="You are a test assistant. Reply with exactly: OK",
+            messages=[{"role": "user", "content": "ping"}],
+        )
+        latency_ms = int((_time.time() - started) * 1000)
+        return {
+            "success": True,
+            "provider": config["provider"],
+            "model": model,
+            "response": result["text"][:100],
+            "latency_ms": latency_ms,
+        }
+    except Exception as exc:
+        latency_ms = int((_time.time() - started) * 1000)
+        return {
+            "success": False,
+            "provider": config["provider"],
+            "model": model,
+            "error": str(exc),
+            "latency_ms": latency_ms,
+        }
+
+
+def _read_credential_assignments(db: Session) -> CredentialAssignments:
+    """Internal helper — reads credential-assignment system_settings rows."""
+    keys = [
+        "career.credential_id",
+        "career.model",
+        "career.fallback_credential_id",
+        "career.fallback_model",
+        "embed.credential_id",
+        "anthropic.credential_id",
+    ]
+    rows = db.execute(
+        text("SELECT key, value FROM system_settings WHERE key = ANY(:keys)"),
+        {"keys": keys},
+    ).fetchall()
+    settings = {r[0]: r[1] for r in rows}
+
+    def _int(k):
+        v = settings.get(k)
+        return int(v) if v and v.isdigit() else None
+
+    return CredentialAssignments(
+        career_credential_id=_int("career.credential_id"),
+        career_model=settings.get("career.model"),
+        career_fallback_id=_int("career.fallback_credential_id"),
+        career_fallback_model=settings.get("career.fallback_model"),
+        embed_credential_id=_int("embed.credential_id"),
+        anthropic_credential_id=_int("anthropic.credential_id"),
+    )
+
+
+@router.get("/credential-assignments", response_model=CredentialAssignments)
+@require_any_permission(["MANAGE_AGENTS", "SYSTEM_ADMIN"])
+def get_credential_assignments(
+    *,
+    db: Session = Depends(deps.get_db),
+    current_user=Depends(deps.get_current_user),
+):
+    """Return the current system_settings keys that map roles to credentials."""
+    return _read_credential_assignments(db)
+
+
+@router.put("/credential-assignments", response_model=CredentialAssignments)
+@require_any_permission(["MANAGE_AGENTS", "SYSTEM_ADMIN"])
+def update_credential_assignments(
+    *,
+    db: Session = Depends(deps.get_db),
+    assignments: CredentialAssignments = Body(...),
+    current_user=Depends(deps.get_current_user),
+):
+    """Persist system_settings keys that map system roles to credentials.
+
+    Sending ``null`` for a field clears that system_setting (the role will
+    fall back to environment variables).
+    """
+    mapping = {
+        "career.credential_id": str(assignments.career_credential_id) if assignments.career_credential_id is not None else None,
+        "career.model": assignments.career_model,
+        "career.fallback_credential_id": str(assignments.career_fallback_id) if assignments.career_fallback_id is not None else None,
+        "career.fallback_model": assignments.career_fallback_model,
+        "embed.credential_id": str(assignments.embed_credential_id) if assignments.embed_credential_id is not None else None,
+        "anthropic.credential_id": str(assignments.anthropic_credential_id) if assignments.anthropic_credential_id is not None else None,
+    }
+    for key, value in mapping.items():
+        if value is not None:
+            db.execute(
+                text(
+                    "INSERT INTO system_settings (key, value) VALUES (:k, :v) "
+                    "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value"
+                ),
+                {"k": key, "v": value},
+            )
+        else:
+            db.execute(
+                text("DELETE FROM system_settings WHERE key = :k"),
+                {"k": key},
+            )
+    db.commit()
+
+    # Return the saved state
+    return _read_credential_assignments(db)
 
 
 @router.delete("/credentials/{credential_id}")
