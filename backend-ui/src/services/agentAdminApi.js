@@ -17,6 +17,22 @@ const agentAdminApi = {
     const { data } = await api.delete(`/api/agents/credentials/${credentialId}`);
     return data;
   },
+  testCredential: async (credentialId) => {
+    const { data } = await api.post(`/api/agents/credentials/${credentialId}/test`);
+    return data;
+  },
+  rotateCredential: async (credentialId, apiKey) => {
+    const { data } = await api.post(`/api/agents/credentials/${credentialId}/rotate`, { api_key: apiKey });
+    return data;
+  },
+  getCredentialAssignments: async () => {
+    const { data } = await api.get('/api/agents/credential-assignments');
+    return data;
+  },
+  updateCredentialAssignments: async (assignments) => {
+    const { data } = await api.put('/api/agents/credential-assignments', assignments);
+    return data;
+  },
   createAgent: async (payload) => {
     const { data } = await api.post('/api/agents', payload);
     return data;

@@ -104,6 +104,16 @@ export const AgentAdminProvider = ({ children }) => {
       await refreshCredentials();
       return res;
     },
+    testCredential: async (credentialId) => {
+      return agentAdminApi.testCredential(credentialId);
+    },
+    rotateCredential: async (credentialId, apiKey) => {
+      const res = await agentAdminApi.rotateCredential(credentialId, apiKey);
+      await refreshCredentials();
+      return res;
+    },
+    getCredentialAssignments: agentAdminApi.getCredentialAssignments,
+    updateCredentialAssignments: agentAdminApi.updateCredentialAssignments,
     upsertTemplate: agentAdminApi.upsertTemplate,
     testAgent: agentAdminApi.testAgent,
     chat: agentAdminApi.chat,

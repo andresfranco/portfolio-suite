@@ -36,6 +36,10 @@ export default function AgentAdmin() {
     updateAgent,
     deleteAgent,
     deleteCredential,
+    testCredential,
+    rotateCredential,
+    getCredentialAssignments,
+    updateCredentialAssignments,
     upsertTemplate,
     getTemplate,
     testAgent
@@ -247,6 +251,34 @@ export default function AgentAdmin() {
     }
   };
 
+  // Handler: Test Credential
+  const handleTestCredential = async (credentialId) => {
+    try {
+      const result = await testCredential(credentialId);
+      return result;
+    } catch (error) {
+      console.error('Error testing credential:', error);
+      enqueueSnackbar(
+        error?.response?.data?.detail || 'Failed to test credential',
+        { variant: 'error' }
+      );
+      throw error;
+    }
+  };
+
+  // Handler: Rotate Credential API Key
+  const handleRotateCredential = async (credentialId, apiKey) => {
+    try {
+      await rotateCredential(credentialId, apiKey);
+      enqueueSnackbar('API key rotated successfully!', { variant: 'success' });
+    } catch (error) {
+      console.error('Error rotating credential:', error);
+      const errorMessage = error?.response?.data?.detail || 'Failed to rotate credential key';
+      enqueueSnackbar(errorMessage, { variant: 'error' });
+      throw error;
+    }
+  };
+
   return (
     <PermissionGate permissions={['MANAGE_AGENTS', 'SYSTEM_ADMIN']} requireAll={false}>
       <Box p={3}>
@@ -299,6 +331,10 @@ export default function AgentAdmin() {
             onCreate={handleCreateCredential}
             onUpdate={handleUpdateCredential}
             onDelete={handleDeleteCredential}
+            onTest={handleTestCredential}
+            onRotate={handleRotateCredential}
+            onGetAssignments={getCredentialAssignments}
+            onSaveAssignments={updateCredentialAssignments}
             loading={loading}
           />
         )}
