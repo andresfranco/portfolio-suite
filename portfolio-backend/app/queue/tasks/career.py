@@ -369,6 +369,18 @@ def _get_career_model(db=None) -> str:
     return settings.CAREER_AI_MODEL or HAIKU_MODEL
 
 
+def _get_career_fallback_model(db=None) -> str:
+    """Return only the fallback model name without accessing any credential secrets.
+
+    Used for logging so the model name is never tainted by credential data flows.
+    """
+    if db is not None:
+        model = _get_system_setting(db, "career.fallback_model")
+        if model:
+            return model
+    return settings.CAREER_AI_FALLBACK_MODEL or HAIKU_MODEL
+
+
 def _build_career_fallback_provider(db=None):
     """Return the fallback ChatProvider used when the primary hits a 429.
 
@@ -502,7 +514,7 @@ def run_career_ai_assessment(self: Task, run_id: int) -> None:
                 raise  # no fallback configured — let the task fail
             logger.warning(
                 "Primary provider rate-limited for run_id=%d; switching to fallback (model=%s)",
-                run_id, fallback_model,
+                run_id, _get_career_fallback_model(db),
             )
             result = fallback_provider.chat(
                 model=fallback_model,
