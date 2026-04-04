@@ -125,7 +125,7 @@ const StatCard = ({ label, value, sub, valueColor }) => (
 );
 
 // ─── Tab 1: Overview ─────────────────────────────────────────────────────────
-const OverviewTab = ({ run, scorecard, jobFit, resumeIssues, actionPlan, aiStatus }) => {
+const OverviewTab = ({ run, scorecard, jobFit, resumeIssues, actionPlan, aiStatus, error }) => {
   if (!run) return <CircularProgress />;
 
   const readiness = scorecard?.overall_readiness ?? null;
@@ -403,7 +403,7 @@ const OverviewTab = ({ run, scorecard, jobFit, resumeIssues, actionPlan, aiStatu
       )}
 
       {/* ── Immediate Next Steps ── */}
-      {(nextSteps.length > 0 || ['pending', 'running'].includes(aiStatus)) && (
+      {(nextSteps.length > 0 || (['pending', 'running'].includes(aiStatus) && !error)) && (
         <Box
           sx={{
             borderLeft: '4px solid',
@@ -420,7 +420,7 @@ const OverviewTab = ({ run, scorecard, jobFit, resumeIssues, actionPlan, aiStatu
           >
             Immediate Next Steps
           </Typography>
-          {['pending', 'running'].includes(aiStatus) && nextSteps.length === 0 ? (
+          {['pending', 'running'].includes(aiStatus) && !error && nextSteps.length === 0 ? (
             <Box display="flex" alignItems="center" gap={1}>
               <CircularProgress size={14} />
               <Typography variant="body2" color="text.secondary">
@@ -841,6 +841,7 @@ const AssessmentRunPage = () => {
           resumeIssues={resumeIssues}
           actionPlan={actionPlan}
           aiStatus={aiStatus}
+          error={error}
         />
       </TabPanel>
 
