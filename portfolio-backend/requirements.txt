@@ -24,7 +24,7 @@ testcontainers
 alembic
 
 # Optional RAG parsers (safe defaults)
-pypdf>=4.0.0
+pypdf>=6.10.2
 beautifulsoup4
 markdown-it-py
 html2text
