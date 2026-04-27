@@ -36,7 +36,7 @@ prometheus_client
 # Multi-Factor Authentication (MFA)
 pyotp>=2.9.0
 qrcode>=7.4.2
-Pillow>=10.0.0
+Pillow>=12.2.0
 
 # File Upload Security
 python-magic>=0.4.27
