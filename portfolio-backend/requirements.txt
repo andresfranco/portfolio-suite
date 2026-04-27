@@ -46,7 +46,7 @@ clamd>=1.0.2  # ClamAV integration (optional)
 # Input Validation & Sanitization
 bleach>=6.1.0  # HTML sanitization
 html5lib>=1.1  # HTML parser for bleach
-tinycss2>=1.2.1  # CSS parser for bleach
+tinycss2>=1.5.1  # CSS parser for bleach
 
 # Security Monitoring & Alerting
 aiohttp>=3.9.0  # Async HTTP client for webhooks
