@@ -3,7 +3,7 @@ uvicorn
 sqlalchemy
 alembic
 passlib[bcrypt]
-PyJWT[cryptography]>=2.8.0
+PyJWT[cryptography]>=2.12.1
 python-multipart
 email-validator
 pydantic
